@@ -315,6 +315,98 @@ final class BuildPlanServiceTest {
         assertEquals(PlanNodeStatus.READY, node(plan, "native-package-input").status());
     }
 
+    @Test
+    void nativePlanBlocksSpringBootProjectWhenNativeFlagIsDisabled() throws IOException {
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata(
+                        "demo",
+                        "1.0.0",
+                        "com.example",
+                        "21",
+                        Optional.of("com.example.DemoApplication")),
+                Map.of(),
+                Map.of("org.springframework.boot:spring-boot-starter-web", "3.3.6"),
+                Map.of(),
+                BuildSettings.defaults());
+        Path nativeImage = projectDir.resolve("bin/native-image");
+        Files.createDirectories(nativeImage.getParent());
+        Files.writeString(nativeImage, "#!/bin/sh\nexit 0\n");
+        assertTrue(nativeImage.toFile().setExecutable(true));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.NATIVE,
+                Optional.empty(),
+                Optional.of(nativeImage));
+
+        PlanNode intent = node(plan, "spring-boot-native-intent");
+        assertTrue(plan.blocked());
+        assertEquals(PlanNodeStatus.BLOCKED, intent.status());
+        assertEquals(PlanNodeStatus.SKIPPED, node(plan, "spring-aot-tooling").status());
+        assertEquals(PlanNodeStatus.SKIPPED, node(plan, "spring-aot-output").status());
+        PlanBlocker blocker = blocker(intent, "spring-boot-native-disabled");
+        assertEquals(
+                "Spring Boot native images require `[framework.springBoot.native] enabled = true`.",
+                blocker.message());
+        assertEquals(
+                "Use `zolt package --mode spring-boot` or `zolt run` for JVM apps, "
+                        + "or enable the typed Spring Boot native path.",
+                blocker.nextStep());
+    }
+
+    @Test
+    void nativePlanReportsInvalidLockfileForSpringAotTooling() throws IOException {
+        ProjectConfig config = springBootNativeConfig();
+        Path nativeImage = projectDir.resolve("bin/native-image");
+        Files.createDirectories(nativeImage.getParent());
+        Files.writeString(nativeImage, "#!/bin/sh\nexit 0\n");
+        assertTrue(nativeImage.toFile().setExecutable(true));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = [\n");
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.NATIVE,
+                Optional.empty(),
+                Optional.of(nativeImage));
+
+        PlanBlocker blocker = blocker(node(plan, "spring-aot-tooling"), "invalid-lockfile");
+        assertTrue(blocker.message().startsWith("zolt.lock could not be parsed for Spring AOT tooling: "));
+        assertEquals(
+                "Run `zolt resolve` to regenerate zolt.lock, then rerun `zolt plan --target native`.",
+                blocker.nextStep());
+    }
+
+    @Test
+    void nativePlanBlocksMissingSpringAotOutputWithRelativeDirectory() throws IOException {
+        ProjectConfig config = springBootNativeConfig();
+        Path nativeImage = projectDir.resolve("bin/native-image");
+        Files.createDirectories(nativeImage.getParent());
+        Files.writeString(nativeImage, "#!/bin/sh\nexit 0\n");
+        assertTrue(nativeImage.toFile().setExecutable(true));
+        writeLockfileWithSpringAotTooling();
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.NATIVE,
+                Optional.empty(),
+                Optional.of(nativeImage));
+
+        PlanNode aot = node(plan, "spring-aot-output");
+        PlanBlocker blocker = blocker(aot, "missing-spring-aot-output");
+        assertTrue(aot.details().contains("freshness: missing"));
+        assertEquals(
+                "Spring Boot native AOT output is incomplete under target/spring-aot/main.",
+                blocker.message());
+        assertEquals(
+                "Run `zolt build` after enabling `[framework.springBoot.native] enabled = true`, "
+                        + "then rerun the native plan.",
+                blocker.nextStep());
+    }
+
     private static PlanNode node(BuildPlan plan, String id) {
         return plan.nodes().stream()
                 .filter(node -> node.id().equals(id))

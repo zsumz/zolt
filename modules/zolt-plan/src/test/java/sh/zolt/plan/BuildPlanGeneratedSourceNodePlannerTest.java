@@ -120,6 +120,38 @@ final class BuildPlanGeneratedSourceNodePlannerTest {
     }
 
     @Test
+    void blocksProtobufStepWithEscapingInputAndMissingRequiredOutput() {
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "proto",
+                GeneratedSourceKind.PROTOBUF,
+                "java",
+                "target/generated/sources/proto",
+                List.of("../outside.proto", "/absolute/schema.proto"),
+                true,
+                true);
+
+        PlanNode node = planner.nodes(
+                        tempDir,
+                        List.of(evidence("main", step, false, false, "missing")),
+                        "main")
+                .getFirst();
+
+        assertEquals(PlanNodeStatus.BLOCKED, node.status());
+        assertEquals("Run typed generated-source step.", node.description());
+        assertEquals(List.of("../outside.proto", "/absolute/schema.proto"), node.inputs());
+        assertTrue(node.details().contains("kind: protobuf"));
+        assertBlocker(node, "invalid-generated-source-input");
+        assertBlocker(node, "missing-generated-source-input");
+        assertBlocker(node, "missing-generated-source-output");
+        PlanBlocker missingOutput = blocker(node, "missing-generated-source-output");
+        assertEquals("Required generated source output `target/generated/sources/proto` is missing.", missingOutput.message());
+        assertEquals(
+                "Run the generator that produces it, commit the generated sources, "
+                        + "or remove the generated-source step.",
+                missingOutput.nextStep());
+    }
+
+    @Test
     void skipsOptionalDeclaredRootWhenOutputIsMissing() {
         GeneratedSourceStep step = new GeneratedSourceStep(
                 "optional",
@@ -218,5 +250,12 @@ final class BuildPlanGeneratedSourceNodePlannerTest {
         assertTrue(
                 node.blockers().stream().anyMatch(blocker -> blocker.code().equals(code)),
                 "Expected blocker " + code + " in " + node.blockers());
+    }
+
+    private static PlanBlocker blocker(PlanNode node, String code) {
+        return node.blockers().stream()
+                .filter(blocker -> blocker.code().equals(code))
+                .findFirst()
+                .orElseThrow();
     }
 }

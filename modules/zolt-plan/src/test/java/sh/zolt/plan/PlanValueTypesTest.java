@@ -23,7 +23,9 @@ final class PlanValueTypesTest {
         assertEquals(Optional.of(PlanTarget.PACKAGE), PlanTarget.fromConfigValue("package"));
         assertEquals(Optional.of(PlanTarget.NATIVE), PlanTarget.fromConfigValue("native"));
         assertEquals(Optional.of(PlanTarget.CI), PlanTarget.fromConfigValue("ci"));
+        assertEquals(Optional.empty(), PlanTarget.fromConfigValue(null));
         assertEquals(Optional.empty(), PlanTarget.fromConfigValue("BUILD"));
+        assertEquals(Optional.empty(), PlanTarget.fromConfigValue(" build "));
         assertEquals("build, test, package, native, ci", PlanTarget.supportedValues());
 
         assertFalse(PlanTarget.BUILD.includesTests());
@@ -31,6 +33,7 @@ final class PlanValueTypesTest {
         assertFalse(PlanTarget.PACKAGE.includesCoverage());
         assertTrue(PlanTarget.CI.includesCoverage());
         assertTrue(PlanTarget.PACKAGE.includesPackage());
+        assertFalse(PlanTarget.NATIVE.includesPackage());
         assertTrue(PlanTarget.CI.includesPublish());
         assertFalse(PlanTarget.NATIVE.includesPublish());
     }
@@ -41,8 +44,24 @@ final class PlanValueTypesTest {
         inputs.add("src/main/java");
         PlanNode node = new PlanNode("compile-main", "compile", null, "Compile main sources.", inputs, null, null, null);
         inputs.add("src/generated/java");
+        List<PlanNode> nodes = new ArrayList<>();
+        nodes.add(node);
 
-        BuildPlan plan = new BuildPlan(0, projectDir.resolve("..").resolve(projectDir.getFileName()), null, PlanTarget.BUILD, List.of(node));
+        BuildPlan plan = new BuildPlan(
+                0,
+                projectDir.resolve("..").resolve(projectDir.getFileName()),
+                null,
+                PlanTarget.BUILD,
+                nodes);
+        nodes.add(new PlanNode(
+                "blocked",
+                "diagnostic",
+                PlanNodeStatus.BLOCKED,
+                "Blocked node added after plan construction.",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new PlanBlocker("later", "Later blocker.", "Do not affect the copied plan."))));
 
         assertEquals(PlanNodeStatus.READY, node.status());
         assertEquals(List.of("src/main/java"), node.inputs());
@@ -53,6 +72,8 @@ final class PlanValueTypesTest {
         assertEquals(1, plan.schemaVersion());
         assertEquals(projectDir.toAbsolutePath().normalize(), plan.projectRoot());
         assertEquals("", plan.projectName());
+        assertEquals(List.of(node), plan.nodes());
+        assertThrows(UnsupportedOperationException.class, () -> plan.nodes().add(node));
         assertFalse(plan.blocked());
     }
 
