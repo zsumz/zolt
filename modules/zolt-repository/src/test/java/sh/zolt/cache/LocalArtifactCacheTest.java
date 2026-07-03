@@ -64,6 +64,17 @@ final class LocalArtifactCacheTest {
     }
 
     @Test
+    void checksumSidecarArtifactPathIsDeterministic() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(coordinate, Optional.empty(), "pom.sha256");
+
+        assertEquals(
+                tempDir.resolve("com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom.sha256"),
+                cache.artifactPath(descriptor));
+    }
+
+    @Test
     void repeatedPomFetchUsesCachedArtifact() {
         LocalArtifactCache cache = new LocalArtifactCache(tempDir);
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
@@ -129,6 +140,33 @@ final class LocalArtifactCacheTest {
                 tempDir.resolve("io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar"),
                 first.cachePath());
         assertArrayEquals(first.bytes(), second.bytes());
+    }
+
+    @Test
+    void repeatedChecksumSidecarFetchUsesCachedArtifact() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(coordinate, Optional.empty(), "jar.sha1");
+        AtomicInteger fetchCount = new AtomicInteger();
+        byte[] checksumBytes = "abc123".getBytes(StandardCharsets.UTF_8);
+
+        CachedArtifact first = cache.getOrFetchArtifact(descriptor, requested -> {
+            fetchCount.incrementAndGet();
+            return new RepositoryArtifact(
+                    requested,
+                    "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar.sha1",
+                    URI.create("https://repo.example/guava-33.4.0-jre.jar.sha1"),
+                    checksumBytes);
+        });
+        CachedArtifact second = cache.getOrFetchArtifact(descriptor, requested -> {
+            throw new AssertionError("cache should avoid the second checksum fetch");
+        });
+
+        assertEquals(1, fetchCount.get());
+        assertEquals(
+                "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar.sha1",
+                first.repositoryPath());
+        assertArrayEquals(checksumBytes, second.bytes());
     }
 
     @Test

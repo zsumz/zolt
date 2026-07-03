@@ -98,6 +98,31 @@ final class RawPomParserTest {
     }
 
     @Test
+    void parsesNamespacedPomByLocalElementName() {
+        RawPom pom = parser.parse("""
+                <project xmlns="http://maven.apache.org/POM/4.0.0">
+                  <modelVersion>4.0.0</modelVersion>
+                  <groupId>org.example</groupId>
+                  <artifactId>namespaced-app</artifactId>
+                  <version>1.2.3</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>2.0.16</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertEquals("org.example", pom.groupId().orElseThrow());
+        assertEquals("namespaced-app", pom.artifactId());
+        assertEquals("1.2.3", pom.version().orElseThrow());
+        assertEquals("org.slf4j", pom.dependencies().getFirst().groupId());
+        assertEquals("slf4j-api", pom.dependencies().getFirst().artifactId());
+    }
+
+    @Test
     void parsesDistributionManagementRelocation() {
         RawPom pom = parser.parse("""
                 <project>
@@ -134,6 +159,28 @@ final class RawPomParserTest {
                 """);
 
         assertEquals("jar", pom.packaging());
+    }
+
+    @Test
+    void blankOptionalFieldsAreIgnored() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>blank-optionals</artifactId>
+                  <version>1.0.0</version>
+                  <packaging>   </packaging>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <version>   </version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        assertEquals("jar", pom.packaging());
+        assertTrue(pom.dependencies().getFirst().version().isEmpty());
     }
 
     @Test
@@ -198,6 +245,24 @@ final class RawPomParserTest {
         }
 
         assertEquals("", captured.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void inputStreamReadFailureIsActionable() {
+        IOException readFailure = new IOException("test read failure");
+        InputStream failingInput = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw readFailure;
+            }
+        };
+
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse(failingInput));
+
+        assertEquals("Could not read POM XML input.", exception.getMessage());
+        assertEquals(readFailure, exception.getCause());
     }
 
     @Test

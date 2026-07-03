@@ -2,6 +2,7 @@ package sh.zolt.maven.repository;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.maven.ArtifactDescriptor;
@@ -14,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Flow;
 import org.junit.jupiter.api.Test;
 
@@ -64,6 +66,50 @@ final class CountingByteArrayBodyHandlerTest {
     }
 
     @Test
+    void malformedContentLengthReturnsExactBytesWithoutByteEvents() {
+        List<ByteEvent> events = new ArrayList<>();
+        HttpResponse.BodySubscriber<byte[]> subscriber = new CountingByteArrayBodyHandler(
+                DESCRIPTOR,
+                (descriptor, received, total) -> events.add(new ByteEvent(descriptor, received, total)))
+                .apply(responseInfo(200, Map.of("Content-Length", List.of("not-a-number"))));
+
+        subscriber.onSubscribe(new RecordingSubscription());
+        subscriber.onNext(List.of(ByteBuffer.allocate(0), ByteBuffer.wrap(new byte[] {1, 2, 3})));
+        subscriber.onComplete();
+
+        assertArrayEquals(new byte[] {1, 2, 3}, subscriber.getBody().toCompletableFuture().join());
+        assertTrue(events.isEmpty(), "malformed Content-Length stays indeterminate");
+    }
+
+    @Test
+    void negativeContentLengthReturnsExactBytesWithoutByteEvents() {
+        List<ByteEvent> events = new ArrayList<>();
+        HttpResponse.BodySubscriber<byte[]> subscriber = new CountingByteArrayBodyHandler(
+                DESCRIPTOR,
+                (descriptor, received, total) -> events.add(new ByteEvent(descriptor, received, total)))
+                .apply(responseInfo(200, Map.of("Content-Length", List.of("-1"))));
+
+        subscriber.onSubscribe(new RecordingSubscription());
+        subscriber.onNext(List.of(ByteBuffer.wrap(new byte[] {6, 7})));
+        subscriber.onComplete();
+
+        assertArrayEquals(new byte[] {6, 7}, subscriber.getBody().toCompletableFuture().join());
+        assertTrue(events.isEmpty(), "negative Content-Length stays indeterminate");
+    }
+
+    @Test
+    void nullListenerFallsBackToNoop() {
+        HttpResponse.BodySubscriber<byte[]> subscriber = new CountingByteArrayBodyHandler(DESCRIPTOR, null)
+                .apply(responseInfo(200, Map.of("Content-Length", List.of("1"))));
+
+        subscriber.onSubscribe(new RecordingSubscription());
+        subscriber.onNext(List.of(ByteBuffer.wrap(new byte[] {42})));
+        subscriber.onComplete();
+
+        assertArrayEquals(new byte[] {42}, subscriber.getBody().toCompletableFuture().join());
+    }
+
+    @Test
     void nonSuccessResponseBodyDoesNotEmitByteEvents() {
         List<ByteEvent> events = new ArrayList<>();
         HttpResponse.BodySubscriber<byte[]> subscriber = new CountingByteArrayBodyHandler(
@@ -77,6 +123,20 @@ final class CountingByteArrayBodyHandlerTest {
 
         assertArrayEquals(new byte[] {4, 0, 4}, subscriber.getBody().toCompletableFuture().join());
         assertTrue(events.isEmpty(), "error response bodies do not drive artifact progress");
+    }
+
+    @Test
+    void bodySubscriberPropagatesTransportErrors() {
+        HttpResponse.BodySubscriber<byte[]> subscriber = new CountingByteArrayBodyHandler(DESCRIPTOR, null)
+                .apply(responseInfo(200, Map.of("Content-Length", List.of("1"))));
+        RuntimeException failure = new RuntimeException("socket closed");
+
+        subscriber.onError(failure);
+
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> subscriber.getBody().toCompletableFuture().join());
+        assertEquals(failure, exception.getCause());
     }
 
     private static HttpResponse.ResponseInfo responseInfo(int statusCode, Map<String, List<String>> headers) {

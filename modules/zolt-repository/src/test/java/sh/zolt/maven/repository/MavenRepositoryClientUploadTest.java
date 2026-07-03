@@ -138,6 +138,28 @@ final class MavenRepositoryClientUploadTest {
     }
 
     @Test
+    void transientUploadStatusFailsAfterBoundedAttempts() throws IOException {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path source = tempDir.resolve("guava-33.4.0-jre.pom");
+        Files.writeString(source, "<project/>");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/always-flaky-upload/", exchange -> {
+            attempts.incrementAndGet();
+            respond(exchange, 429, "too many".getBytes(StandardCharsets.UTF_8));
+        });
+        URI publishBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/always-flaky-upload/");
+        MavenRepositoryClient retryingClient = retryingClient(2);
+
+        RepositoryClientException exception = assertThrows(
+                RepositoryClientException.class,
+                () -> retryingClient.uploadPom(publishBaseUri, coordinate, source));
+
+        assertEquals(2, attempts.get());
+        assertTrue(exception.getMessage().contains("Repository returned HTTP 429 while uploading"));
+        assertTrue(exception.getMessage().contains("after 2 attempts"));
+    }
+
+    @Test
     void uploadFailureMessageIsActionableAndDoesNotLeakCredentials() throws IOException {
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
         Path source = tempDir.resolve("guava-33.4.0-jre.jar");

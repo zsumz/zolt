@@ -2,6 +2,7 @@ package sh.zolt.concurrent;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -27,6 +28,12 @@ final class RepositoryExecutionLaneTest {
     }
 
     @Test
+    void laneIdsAreStableForDiagnostics() {
+        assertEquals("platform", RepositoryExecutionLane.PLATFORM.id());
+        assertEquals("virtual", RepositoryExecutionLane.VIRTUAL.id());
+    }
+
+    @Test
     void platformLaneUsesPlatformThreads() throws Exception {
         try (ExecutorService executor = RepositoryExecutionLane.PLATFORM.openExecutor(1)) {
             Future<Boolean> result = executor.submit(() -> Thread.currentThread().isVirtual());
@@ -42,5 +49,14 @@ final class RepositoryExecutionLaneTest {
 
             assertTrue(result.get());
         }
+    }
+
+    @Test
+    void openExecutorRejectsNonPositiveConcurrency() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> RepositoryExecutionLane.PLATFORM.openExecutor(0));
+
+        assertEquals("Repository execution concurrency must be at least 1.", exception.getMessage());
     }
 }

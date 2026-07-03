@@ -235,6 +235,22 @@ final class ParentPomResolverTest {
         assertEquals("POM app does not declare or inherit a groupId.", exception.getMessage());
     }
 
+    @Test
+    void missingInheritedVersionIsActionable() {
+        ParentPomException exception = assertThrows(
+                ParentPomException.class,
+                () -> new ParentPomResolver(coordinate -> {
+                    throw new AssertionError("no parent should be loaded");
+                }).resolve(pom("""
+                        <project>
+                          <groupId>com.example</groupId>
+                          <artifactId>app</artifactId>
+                        </project>
+                        """)));
+
+        assertEquals("POM app does not declare or inherit a version.", exception.getMessage());
+    }
+
     private RawPom pom(String xml) {
         return parser.parse(xml);
     }
