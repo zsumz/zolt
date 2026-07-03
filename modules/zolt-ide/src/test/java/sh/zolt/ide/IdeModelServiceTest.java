@@ -10,7 +10,12 @@ import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -59,6 +64,62 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"compile\": []"));
         assertTrue(json.contains("\"runtime\": []"));
         assertTrue(json.contains("\"test\": []"));
+    }
+
+    @Test
+    void reportsInvalidProjectConfigAsStructuredDiagnostic() throws IOException {
+        Path projectDir = tempDir.resolve("invalid-config");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "invalid-config
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"));
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("CONFIG_INVALID", diagnostic.code());
+        assertFalse(diagnostic.message().startsWith("Could not read zolt.toml"));
+        assertEquals(projectDir.resolve("zolt.toml").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals("Fix zolt.toml and run zolt ide model --format json again.", diagnostic.nextStep());
+        assertNull(model.project().name());
+        assertEquals(List.of(), model.sourceRoots());
+    }
+
+    @Test
+    void recordsTimingAttributesForIdeModelExport() throws IOException {
+        Path projectDir = tempDir.resolve("timed-export");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "timed-export"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        RecordingTimingRecorder recorder = new RecordingTimingRecorder();
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"), false, false, recorder);
+
+        assertEquals(List.of(), model.diagnostics());
+        assertTrue(recorder.phases().contains("read ide project config"));
+        assertTrue(recorder.phases().contains("build ide framework model"));
+        assertEquals(
+                Map.of(
+                        "compileClasspathEntries", "0",
+                        "runtimeClasspathEntries", "1",
+                        "testClasspathEntries", "2"),
+                recorder.attributesByPhase().get("build ide classpaths"));
+        assertEquals(
+                Map.of(
+                        "sourceRoots", "4",
+                        "resourceRoots", "2",
+                        "diagnostics", "0"),
+                recorder.attributesByPhase().get("assemble ide model"));
     }
 
     @Test
@@ -176,6 +237,39 @@ final class IdeModelServiceTest {
         assertTrue(json.contains("\"package\": null"));
         assertTrue(json.contains("\"mainJar\": null"));
         assertTrue(json.contains("\"code\": \"PROJECT_PATH_INVALID\""));
+    }
+
+    private static final class RecordingTimingRecorder implements IdeTimingRecorder {
+        private final List<String> phases = new ArrayList<>();
+        private final Map<String, Map<String, String>> attributesByPhase = new LinkedHashMap<>();
+
+        List<String> phases() {
+            return List.copyOf(phases);
+        }
+
+        Map<String, Map<String, String>> attributesByPhase() {
+            return Map.copyOf(attributesByPhase);
+        }
+
+        @Override
+        public void measure(String phase, Runnable action) {
+            phases.add(phase);
+            action.run();
+        }
+
+        @Override
+        public <T> T measure(String phase, Supplier<T> action) {
+            phases.add(phase);
+            return action.get();
+        }
+
+        @Override
+        public <T> T measure(String phase, Supplier<T> action, Function<T, Map<String, String>> attributes) {
+            phases.add(phase);
+            T result = action.get();
+            attributesByPhase.put(phase, attributes.apply(result));
+            return result;
+        }
     }
 
 }

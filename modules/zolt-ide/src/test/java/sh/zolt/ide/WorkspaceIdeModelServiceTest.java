@@ -6,8 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -181,6 +185,73 @@ final class WorkspaceIdeModelServiceTest {
                 model.edges());
     }
 
+    @Test
+    void recordsTimingAttributesForWorkspaceIdeExport() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core");
+        RecordingTimingRecorder recorder = new RecordingTimingRecorder();
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false, recorder);
+
+        assertEquals(List.of(), model.diagnostics());
+        assertEquals(
+                Map.of("lockfilePresent", "true", "diagnostics", "0"),
+                recorder.attributesByPhase().get("read workspace ide lock"));
+        assertEquals(
+                Map.of("projects", "2"),
+                recorder.attributesByPhase().get("export workspace ide projects"));
+        assertEquals(
+                Map.of(
+                        "members", "2",
+                        "compileClasspathEntries", "0",
+                        "runtimeClasspathEntries", "2",
+                        "testClasspathEntries", "4"),
+                recorder.attributesByPhase().get("plan workspace ide classpaths"));
+        assertEquals(
+                Map.of("edges", "1"),
+                recorder.attributesByPhase().get("export workspace ide edges"));
+        assertEquals(
+                Map.of("projects", "2", "edges", "1", "diagnostics", "0"),
+                recorder.attributesByPhase().get("assemble workspace ide model"));
+        assertTrue(recorder.phases().contains("discover ide workspace"));
+    }
+
+    @Test
+    void checkLockReportsWorkspacePolicyFailureWithoutRefreshingLockfile() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:blocked" = "1.0.0"
+
+                [dependencyPolicy]
+                exclude = [{ group = "com.acme", artifact = "blocked", reason = "fixture" }]
+                """);
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), true, true);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_CHECK_FAILED", diagnostic.code());
+        assertTrue(diagnostic.message().contains("Dependency policy excludes direct dependency `com.acme:blocked`"));
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals("Run zolt resolve --workspace.", diagnostic.nextStep());
+        assertEquals("version = 1\n", Files.readString(tempDir.resolve("zolt.lock")));
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
         Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
@@ -201,5 +272,38 @@ final class WorkspaceIdeModelServiceTest {
                 java = "21"
                 %s""".formatted(name, extraToml));
         Files.writeString(member.resolve("zolt.lock"), "version = 1\n");
+    }
+
+    private static final class RecordingTimingRecorder implements IdeTimingRecorder {
+        private final List<String> phases = new ArrayList<>();
+        private final Map<String, Map<String, String>> attributesByPhase = new LinkedHashMap<>();
+
+        List<String> phases() {
+            return List.copyOf(phases);
+        }
+
+        Map<String, Map<String, String>> attributesByPhase() {
+            return Map.copyOf(attributesByPhase);
+        }
+
+        @Override
+        public void measure(String phase, Runnable action) {
+            phases.add(phase);
+            action.run();
+        }
+
+        @Override
+        public <T> T measure(String phase, Supplier<T> action) {
+            phases.add(phase);
+            return action.get();
+        }
+
+        @Override
+        public <T> T measure(String phase, Supplier<T> action, Function<T, Map<String, String>> attributes) {
+            phases.add(phase);
+            T result = action.get();
+            attributesByPhase.put(phase, attributes.apply(result));
+            return result;
+        }
     }
 }

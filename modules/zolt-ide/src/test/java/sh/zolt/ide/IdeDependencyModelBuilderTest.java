@@ -163,6 +163,24 @@ final class IdeDependencyModelBuilderTest {
         assertTrue(json.contains("\"versionRef\": \"junit\""));
     }
 
+    @Test
+    void dependencyInfoTreatsNullVersionAliasesAsEmptyMap() {
+        IdeModel.DependencyInfo dependencies = new IdeModel.DependencyInfo(
+                null,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+
+        assertEquals(Map.of(), dependencies.versionAliases());
+        String json = new IdeModelJsonWriter().write(modelWith(dependencies));
+        assertTrue(json.contains("\"versionAliases\": {}"));
+    }
+
     private ProjectConfig parse(String directoryName, String toml) throws IOException {
         Path projectDir = tempDir.resolve(directoryName);
         Files.createDirectories(projectDir);
