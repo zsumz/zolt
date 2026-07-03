@@ -2,16 +2,19 @@ package sh.zolt.workspace.service;
 
 import static sh.zolt.workspace.service.WorkspaceTestServiceTestSupport.createFakeConsoleJar;
 import static sh.zolt.workspace.service.WorkspaceTestServiceTestSupport.member;
+import static sh.zolt.workspace.service.WorkspaceTestServiceTestSupport.oneTestSuccessfulSummary;
 import static sh.zolt.workspace.service.WorkspaceTestServiceTestSupport.source;
 import static sh.zolt.workspace.service.WorkspaceTestServiceTestSupport.workspace;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.test.TestSelection;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -214,6 +217,75 @@ final class WorkspaceTestServiceTest {
         assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
         assertTrue(Files.exists(tempDir.resolve("apps/api/target/test-classes/com/acme/api/ApiTest.class")));
         assertFalse(Files.exists(tempDir.resolve("apps/worker/target/classes/com/acme/worker/Worker.class")));
+    }
+
+    @Test
+    void runsIntegrationTestsFromIntegrationSourceRoots() throws IOException {
+        Path cacheRoot = tempDir.resolve("cache");
+        createFakeConsoleJar(
+                tempDir,
+                cacheRoot.resolve(
+                        "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"),
+                oneTestSuccessfulSummary());
+        workspace(tempDir, """
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member(tempDir, "apps/api", "api", "");
+        source(tempDir, "apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        return "api";
+                    }
+                }
+                """);
+        source(tempDir, "apps/api/src/integration-test/java/com/acme/api/ApiIT.java", """
+                package com.acme.api;
+
+                public final class ApiIT {
+                    public String message() {
+                        return Api.message();
+                    }
+                }
+                """);
+        Files.writeString(tempDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.junit.platform:junit-platform-console-standalone"
+                version = "1.11.4"
+                source = "maven-central"
+                scope = "test"
+                direct = true
+                jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"
+                dependencies = []
+                """);
+        WorkspaceBuildPlan plan = service.planTests(tempDir, cacheRoot, WorkspaceSelectionRequest.defaults());
+        WorkspaceBuildResult buildResult = service.buildTestInputs(plan, cacheRoot);
+
+        WorkspaceTestResult result = service.runIntegrationTests(
+                plan,
+                buildResult,
+                cacheRoot,
+                TestSelection.empty(),
+                null,
+                null,
+                List.of("failed"));
+
+        assertEquals(List.of("apps/api"), result.members().stream()
+                .map(WorkspaceTestResult.MemberTestRunResult::member)
+                .toList());
+        assertEquals(1, result.testSourceCount());
+        assertTrue(result.testRuntimeClasspathEntryCount() > 0);
+        assertTrue(result.members().getFirst().result().output().contains("[         1 tests found           ]"));
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/integration-test-classes/com/acme/api/ApiIT.class")));
+        assertEquals(Optional.empty(), result.members().getFirst().result().reportsDirectory());
     }
 
 }

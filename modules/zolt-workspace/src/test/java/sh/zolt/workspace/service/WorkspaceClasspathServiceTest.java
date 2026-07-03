@@ -145,6 +145,115 @@ final class WorkspaceClasspathServiceTest {
         assertTrue(workerClasspaths.compile().entries().contains(legacyJar));
     }
 
+    @Test
+    void routesWorkspaceProcessorClosureOnlyOntoProcessorLanes() throws IOException {
+        Workspace workspace = workspace(
+                List.of("apps/api", "modules/helper", "modules/processor", "modules/test-processor"),
+                List.of(
+                        new WorkspaceProjectEdge("apps/api", "modules/processor", "processor", "com.acme:processor"),
+                        new WorkspaceProjectEdge("apps/api", "modules/test-processor", "test-processor", "com.acme:test-processor"),
+                        new WorkspaceProjectEdge("modules/processor", "modules/helper", "compile", "com.acme:helper")));
+        Path processorOutput = tempDir.resolve("modules/processor/target/classes").normalize();
+        Path helperOutput = tempDir.resolve("modules/helper/target/classes").normalize();
+        Path testProcessorOutput = tempDir.resolve("modules/test-processor/target/classes").normalize();
+        Path externalApiProcessorJar =
+                tempDir.resolve("cache/org/example/api-processor/1.0.0/api-processor-1.0.0.jar");
+        Path externalProcessorHelperJar =
+                tempDir.resolve("cache/org/example/processor-helper/1.0.0/processor-helper-1.0.0.jar");
+        Path externalIgnoredJar =
+                tempDir.resolve("cache/org/example/ignored/1.0.0/ignored-1.0.0.jar");
+        createEmptyFile(externalApiProcessorJar);
+        createEmptyFile(externalProcessorHelperJar);
+        createEmptyFile(externalIgnoredJar);
+        ZoltLockfile lockfile = lockfileReader.read("""
+                version = 1
+
+                [[package]]
+                id = "com.acme:processor"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "processor"
+                direct = true
+                workspace = "modules/processor"
+                workspaceOutput = "target/classes"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "com.acme:helper"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "compile"
+                direct = true
+                workspace = "modules/helper"
+                workspaceOutput = "target/classes"
+                members = ["modules/processor"]
+                dependencies = []
+
+                [[package]]
+                id = "com.acme:test-processor"
+                version = "0.1.0"
+                source = "workspace"
+                scope = "test-processor"
+                direct = true
+                workspace = "modules/test-processor"
+                workspaceOutput = "target/classes"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "org.example:api-processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "org/example/api-processor/1.0.0/api-processor-1.0.0.jar"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "org.example:processor-helper"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "org/example/processor-helper/1.0.0/processor-helper-1.0.0.jar"
+                members = ["modules/processor"]
+                dependencies = []
+
+                [[package]]
+                id = "org.example:ignored"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "org/example/ignored/1.0.0/ignored-1.0.0.jar"
+                members = ["modules/unrelated"]
+                dependencies = []
+                """);
+
+        ClasspathSet apiClasspaths = service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/api");
+
+        assertTrue(apiClasspaths.processor().entries().contains(externalApiProcessorJar));
+        assertTrue(apiClasspaths.processor().entries().contains(processorOutput));
+        assertTrue(apiClasspaths.processor().entries().contains(helperOutput));
+        assertTrue(apiClasspaths.processor().entries().contains(externalProcessorHelperJar));
+        assertTrue(apiClasspaths.testProcessor().entries().contains(testProcessorOutput));
+        assertFalse(apiClasspaths.processor().entries().contains(testProcessorOutput));
+        assertFalse(apiClasspaths.testProcessor().entries().contains(processorOutput));
+        assertFalse(apiClasspaths.compile().entries().contains(processorOutput));
+        assertFalse(apiClasspaths.compile().entries().contains(helperOutput));
+        assertFalse(apiClasspaths.compile().entries().contains(externalProcessorHelperJar));
+        assertFalse(apiClasspaths.runtime().entries().contains(processorOutput));
+        assertFalse(apiClasspaths.runtime().entries().contains(helperOutput));
+        assertFalse(apiClasspaths.runtime().entries().contains(externalProcessorHelperJar));
+        assertFalse(apiClasspaths.test().entries().contains(processorOutput));
+        assertFalse(apiClasspaths.test().entries().contains(helperOutput));
+        assertFalse(apiClasspaths.test().entries().contains(externalProcessorHelperJar));
+        assertFalse(apiClasspaths.processor().entries().contains(externalIgnoredJar));
+        assertFalse(apiClasspaths.testProcessor().entries().contains(externalIgnoredJar));
+    }
+
     private Workspace workspace(
             List<String> members,
             List<WorkspaceProjectEdge> edges) throws IOException {

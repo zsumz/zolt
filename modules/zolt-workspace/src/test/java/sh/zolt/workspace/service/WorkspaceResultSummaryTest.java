@@ -1,6 +1,7 @@
 package sh.zolt.workspace.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.build.BuildResult;
@@ -12,6 +13,7 @@ import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.resolve.ResolveResult;
 import sh.zolt.test.TestSelection;
 import sh.zolt.test.runtime.TestJvmArguments;
+import sh.zolt.workspace.coverage.WorkspaceCoverageResult;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -118,6 +120,64 @@ final class WorkspaceResultSummaryTest {
         assertEquals(1, result.testPatternCount());
         assertEquals(1, result.testIncludedTagCount());
         assertEquals(1, result.testExcludedTagCount());
+    }
+
+    @Test
+    void coverageResultDefaultsOptionalsAndConvertsToTestSummary() {
+        WorkspaceBuildResult.MemberBuildResult coreBuild = memberBuild(
+                "modules/core",
+                build("modules/core", 1, false, "", CompileDiagnostics.legacy(1, false), 1_000_000L, 2_000_000L));
+        WorkspaceBuildResult.MemberBuildResult apiBuild = memberBuild(
+                "apps/api",
+                build("apps/api", 2, false, "", CompileDiagnostics.legacy(2, false), 3_000_000L, 4_000_000L));
+        TestSelection selection = TestSelection.fromCli(
+                List.of("com.acme.ApiTest"),
+                List.of(),
+                List.of("fast"),
+                List.of());
+        TestRunResult apiTests = new TestRunResult(
+                new TestCompileResult(
+                        apiBuild.result(),
+                        3,
+                        0,
+                        Path.of("apps/api/target/test-classes"),
+                        "",
+                        false,
+                        5_000_000L,
+                        6_000_000L),
+                "api coverage\n",
+                TestRunResult.metrics("junit-console", 4, 1, 1, 30L, 40L),
+                selection,
+                TestJvmArguments.empty(),
+                Optional.of(Path.of("target/coverage/test-reports/apps/api")));
+        WorkspaceCoverageResult coverage = new WorkspaceCoverageResult(
+                null,
+                List.of(coreBuild, apiBuild),
+                List.of(new WorkspaceCoverageResult.MemberCoverageRunResult("apps/api", apiTests)),
+                "aggregate report\n",
+                Path.of("target/coverage/jacoco.exec"),
+                null,
+                null,
+                2,
+                3);
+
+        WorkspaceTestResult summary = coverage.testResult();
+
+        assertFalse(coverage.resolvedLockfile());
+        assertEquals(Optional.empty(), coverage.resolveResult());
+        assertEquals(Optional.empty(), coverage.xmlReport());
+        assertEquals(Optional.empty(), coverage.htmlDirectory());
+        assertEquals(List.of(coreBuild, apiBuild), summary.builtMembers());
+        assertEquals(List.of("apps/api"), summary.members().stream()
+                .map(WorkspaceTestResult.MemberTestRunResult::member)
+                .toList());
+        assertEquals(2, summary.includedMemberCount());
+        assertEquals(1, summary.selectedMemberCount());
+        assertEquals(1, summary.dependencyMemberCount());
+        assertEquals(3, summary.mainSourceCount());
+        assertEquals(3, summary.testSourceCount());
+        assertEquals(1, summary.testClassSelectorCount());
+        assertEquals(1, summary.testIncludedTagCount());
     }
 
     private static WorkspaceBuildResult.MemberBuildResult memberBuild(String member, BuildResult buildResult) {
