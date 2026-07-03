@@ -173,6 +173,21 @@ final class MavenRepositoryClientUploadTest {
         assertTrue(exception.getMessage().contains("Check that the file exists and is readable."));
     }
 
+    @Test
+    void uploadNetworkFailureMessageIsActionable() throws IOException {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path source = tempDir.resolve("guava-33.4.0-jre.pom");
+        Files.writeString(source, "<project/>");
+        URI unreachable = URI.create("http://127.0.0.1:1/maven2/");
+
+        RepositoryClientException exception = assertThrows(
+                RepositoryClientException.class,
+                () -> client.uploadPom(unreachable, coordinate, source));
+
+        assertTrue(exception.getMessage().contains("Could not upload com.google.guava:guava:33.4.0-jre"));
+        assertTrue(exception.getMessage().contains("Check your network, proxy, repository URL, and publish permissions"));
+    }
+
     private static MavenRepositoryClient retryingClient(int maxAttempts) {
         return new MavenRepositoryClient(
                 HttpClient.newHttpClient(),

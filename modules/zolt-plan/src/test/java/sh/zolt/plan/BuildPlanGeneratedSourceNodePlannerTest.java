@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -115,6 +117,76 @@ final class BuildPlanGeneratedSourceNodePlannerTest {
         assertEquals(PlanNodeStatus.BLOCKED, node.status());
         assertBlocker(node, "openapi-generation-incomplete");
         assertBlocker(node, "unsupported-generated-source-language");
+    }
+
+    @Test
+    void skipsOptionalDeclaredRootWhenOutputIsMissing() {
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "optional",
+                GeneratedSourceKind.DECLARED_ROOT,
+                "java",
+                "target/generated/sources/optional",
+                List.of(),
+                false,
+                true);
+
+        PlanNode node = planner.nodes(
+                        tempDir,
+                        List.of(evidence("main", step, false, true, "missing")),
+                        "main")
+                .getFirst();
+
+        assertEquals(PlanNodeStatus.SKIPPED, node.status());
+        assertEquals("Use declared generated Java source root.", node.description());
+        assertTrue(node.blockers().isEmpty());
+    }
+
+    @Test
+    void plansCompleteOpenApiStepWithVersionReferenceDetails() throws IOException {
+        Path input = tempDir.resolve("src/main/openapi/api.yaml");
+        Files.createDirectories(input.getParent());
+        Files.writeString(input, "openapi: 3.1.0\n");
+        OpenApiGenerationSettings openApi = new OpenApiGenerationSettings(
+                Optional.of("org.openapitools:openapi-generator-cli"),
+                Optional.of("7.12.0"),
+                Optional.of("openapi-generator"),
+                Optional.empty(),
+                Optional.of("java"),
+                Optional.empty(),
+                Optional.of("com.example.api"),
+                Optional.of("com.example.model"),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(true),
+                Map.of("dateLibrary", "java8"),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of());
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "client",
+                GeneratedSourceKind.OPENAPI,
+                "java",
+                "target/generated/sources/client",
+                List.of("src/main/openapi/api.yaml"),
+                true,
+                true,
+                openApi);
+
+        PlanNode node = planner.nodes(
+                        tempDir,
+                        List.of(evidence("main", step, false, true, "missing")),
+                        "main")
+                .getFirst();
+
+        assertEquals(PlanNodeStatus.READY, node.status());
+        assertEquals("Run typed generated-source step.", node.description());
+        assertTrue(node.details().contains("ownership: zolt-owned-openapi"));
+        assertTrue(node.details().contains("toolArtifact: org.openapitools:openapi-generator-cli:7.12.0"));
+        assertTrue(node.details().contains("toolVersionRef: openapi-generator"));
+        assertTrue(node.blockers().isEmpty());
     }
 
     private GeneratedSourceEvidence evidence(

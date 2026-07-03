@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -86,6 +87,29 @@ final class WorkspaceIdeModelJsonWriterTest {
         String json = new WorkspaceIdeModelJsonWriter().write(model);
         assertTrue(json.contains("\"coordinate\": \"com.acme:core\""));
         assertTrue(json.contains("\"exported\": true"));
+    }
+
+    @Test
+    void writerEscapesWorkspaceDiagnosticsAndNullWorkspaceFields() {
+        WorkspaceIdeModel model = new WorkspaceIdeModel(
+                1,
+                new WorkspaceIdeModel.WorkspaceInfo(null, null, null, null, List.of(), List.of(), List.of()),
+                List.of(),
+                List.of(),
+                List.of(new IdeModel.Diagnostic(
+                        "error",
+                        "WORKSPACE_INVALID",
+                        "bad \"workspace\"\npath\t\u001f",
+                        Path.of("C:\\repo\\zolt.toml"),
+                        "Fix \"workspace\" and retry.")));
+
+        String json = new WorkspaceIdeModelJsonWriter().write(model);
+
+        assertTrue(json.contains("\"name\": null"));
+        assertTrue(json.contains("\"root\": null"));
+        assertTrue(json.contains("\"message\": \"bad \\\"workspace\\\"\\npath\\t\\u001f\""));
+        assertTrue(json.contains("\"path\": \"C:/repo/zolt.toml\""));
+        assertTrue(json.contains("\"nextStep\": \"Fix \\\"workspace\\\" and retry.\""));
     }
 
     private void workspace(String content) throws IOException {

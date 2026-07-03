@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.project.BuildMetadataSettings;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.FrameworkSettings;
 import sh.zolt.project.NativeSettings;
@@ -14,11 +15,16 @@ import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.project.PublicationMetadata;
 import sh.zolt.project.QuarkusSettings;
+import sh.zolt.project.ResourceFilteringSettings;
+import sh.zolt.project.ResourceMissingTokenPolicy;
+import sh.zolt.project.ResourceTokenSettings;
 import sh.zolt.project.SpringBootSettings;
+import sh.zolt.project.TestRuntimeSettings;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.nio.file.attribute.FileTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +36,110 @@ final class BuildPlanServiceTest {
 
     @TempDir
     private Path projectDir;
+
+    @Test
+    void blocksMissingLockfileWithResolveNextStep() {
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults());
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.BUILD, Optional.empty());
+
+        PlanNode lockfile = node(plan, "lockfile");
+        assertTrue(plan.blocked());
+        assertEquals(PlanNodeStatus.BLOCKED, lockfile.status());
+        PlanBlocker blocker = blocker(lockfile, "missing-lockfile");
+        assertEquals("zolt.lock is missing; plan will not resolve or download artifacts.", blocker.message());
+        assertEquals("Run `zolt resolve` first, then rerun `zolt plan`.", blocker.nextStep());
+    }
+
+    @Test
+    void plansResourceFilteringAndTestRuntimeDetailsDeterministically() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Map<String, ResourceTokenSettings> tokens = new LinkedHashMap<>();
+        tokens.put("app.name", ResourceTokenSettings.literal("demo"));
+        tokens.put("secret", ResourceTokenSettings.env("SECRET_TOKEN"));
+        ResourceFilteringSettings filtering = new ResourceFilteringSettings(
+                true,
+                true,
+                List.of("**/*.properties", "**/*.yaml"),
+                ResourceMissingTokenPolicy.KEEP,
+                tokens);
+        TestRuntimeSettings runtime = new TestRuntimeSettings(
+                List.of("-ea", "-Xmx256m"),
+                Map.of(
+                        "junit.jupiter.execution.parallel.enabled", "false",
+                        "feature.enabled", "true"),
+                Map.of("CI", "true", "API_TOKEN", "secret"),
+                List.of("passed", "failed"));
+        BuildSettings build = new BuildSettings(
+                "src/main/java",
+                List.of("src/main/java", "src/generated/main"),
+                "src/test/java",
+                "target",
+                "target/classes",
+                "target/test-classes",
+                List.of("src/test/java", "src/testSupport/java"),
+                List.of("src/test/groovy"),
+                null,
+                null,
+                null,
+                List.of("src/main/resources"),
+                List.of("src/test/resources"),
+                filtering,
+                runtime,
+                Map.of(),
+                BuildMetadataSettings.defaults(),
+                List.of(),
+                List.of());
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                build);
+        Path reports = projectDir.resolve("reports/tests");
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.TEST, Optional.of(reports));
+
+        assertFalse(plan.blocked());
+        assertEquals(
+                List.of(
+                        "filtering: enabled",
+                        "filterIncludes: [**/*.properties, **/*.yaml]",
+                        "missingTokens: keep",
+                        "tokens: [app.name, secret]"),
+                node(plan, "process-main-resources").details());
+        assertEquals(
+                List.of(
+                        "filtering: enabled",
+                        "filterIncludes: [**/*.properties, **/*.yaml]",
+                        "missingTokens: keep",
+                        "tokens: [app.name, secret]"),
+                node(plan, "process-test-resources").details());
+        assertEquals(
+                List.of("src/main/java", "src/generated/main"),
+                node(plan, "compile-main").inputs());
+        assertEquals(
+                List.of("target/classes", "src/test/java", "src/testSupport/java", "src/test/groovy"),
+                node(plan, "compile-tests").inputs());
+        assertEquals(
+                List.of(
+                        "javaTestRoots: [src/test/java, src/testSupport/java]",
+                        "groovyTestRoots: [src/test/groovy]"),
+                node(plan, "compile-tests").details());
+        assertEquals(List.of(reports.toString()), node(plan, "run-tests").outputs());
+        assertEquals(
+                List.of(
+                        "jvmArgs: 2",
+                        "systemProperties: [feature.enabled, junit.jupiter.execution.parallel.enabled]",
+                        "environment: [API_TOKEN, CI] (values redacted)",
+                        "events: passed,failed"),
+                node(plan, "run-tests").details());
+    }
 
     @Test
     void plansCoveragePackageAndPublishOutputsUnderConfiguredOutputRoot() {
@@ -68,6 +178,28 @@ final class BuildPlanServiceTest {
         assertTrue(publish.inputs().contains(".zolt/build/demo-1.0.0.jar"));
         assertTrue(publish.inputs().contains("zolt.lock"));
         assertEquals(List.of(".zolt/build/publish"), publish.outputs());
+    }
+
+    @Test
+    void blocksSpringBootWarPackageWithoutMainClassAndKeepsWarOutput() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                        new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                        Map.of(),
+                        Map.of(),
+                        Map.of(),
+                        BuildSettings.defaults())
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT_WAR));
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.PACKAGE, Optional.empty());
+
+        PlanNode packageNode = node(plan, "assemble-package");
+        assertTrue(plan.blocked());
+        assertEquals(PlanNodeStatus.BLOCKED, packageNode.status());
+        assertEquals(List.of("target/demo-1.0.0.war"), packageNode.outputs());
+        PlanBlocker blocker = blocker(packageNode, "missing-main-class");
+        assertEquals("Spring Boot package modes require [project].main.", blocker.message());
+        assertEquals("Add [project].main to zolt.toml.", blocker.nextStep());
     }
 
     @Test
@@ -120,6 +252,38 @@ final class BuildPlanServiceTest {
     }
 
     @Test
+    void nativePlanBlocksUnsupportedBaselinesAndFrameworkBoundaries() {
+        Map<String, String> dependencies = new LinkedHashMap<>();
+        dependencies.put("org.springframework.boot:spring-boot-starter-web", "3.2.0");
+        dependencies.put("io.micronaut:micronaut-core", "4.10.12");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                        new ProjectMetadata(
+                                "mixed",
+                                "1.0.0",
+                                "com.example",
+                                "17",
+                                Optional.of("com.example.MixedApplication")),
+                        Map.of(),
+                        dependencies,
+                        Map.of(),
+                        BuildSettings.defaults())
+                .withFrameworkSettings(new FrameworkSettings(new SpringBootSettings(true), QuarkusSettings.defaults()))
+                .withPackageSettings(new PackageSettings(PackageMode.QUARKUS));
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.NATIVE,
+                Optional.empty(),
+                Optional.of(projectDir.resolve("missing/native-image")));
+
+        assertBlocker(node(plan, "spring-boot-native-intent"), "unsupported-java-baseline");
+        assertBlocker(node(plan, "spring-boot-native-intent"), "unsupported-spring-boot-baseline");
+        assertBlocker(node(plan, "native-support-boundary"), "unsupported-micronaut-native");
+        assertBlocker(node(plan, "native-support-boundary"), "unsupported-quarkus-native");
+    }
+
+    @Test
     void nativePlanDoesNotRequireSpringAotForPlainJavaProjects() throws IOException {
         ProjectConfig config = ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata(
@@ -160,6 +324,13 @@ final class BuildPlanServiceTest {
 
     private static void assertBlocker(PlanNode node, String code) {
         assertTrue(node.blockers().stream().anyMatch(blocker -> blocker.code().equals(code)));
+    }
+
+    private static PlanBlocker blocker(PlanNode node, String code) {
+        return node.blockers().stream()
+                .filter(blocker -> blocker.code().equals(code))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static ProjectConfig springBootNativeConfig() {

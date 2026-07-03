@@ -97,6 +97,22 @@ final class DownloadCoordinatorTest {
     }
 
     @Test
+    void rejectsNonPositiveConcurrency() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> new DownloadCoordinator(0));
+
+        assertEquals("Download concurrency must be at least 1.", exception.getMessage());
+    }
+
+    @Test
+    void runAllReturnsEmptyListWithoutOpeningExecutor() {
+        DownloadCoordinator coordinator = new DownloadCoordinator(2, RepositoryExecutionLane.VIRTUAL);
+
+        assertEquals(List.of(), coordinator.runAll(List.of()));
+    }
+
+    @Test
     void runAllUsesSelectedExecutionLane() {
         DownloadCoordinator coordinator = new DownloadCoordinator(2, RepositoryExecutionLane.VIRTUAL);
 
@@ -128,6 +144,86 @@ final class DownloadCoordinatorTest {
         assertTrue(exception.getMessage().indexOf("repo/a.jar") < exception.getMessage().indexOf("repo/z.jar"));
     }
 
+    @Test
+    void groupedFailuresUseDeterministicFallbackMessages() {
+        DownloadCoordinator coordinator = new DownloadCoordinator(3);
+
+        DownloadCoordinatorException exception = assertThrows(
+                DownloadCoordinatorException.class,
+                () -> coordinator.runAll(List.of(
+                        new DownloadTask<>("repo/null-message.jar", () -> {
+                            throw new RuntimeException();
+                        }),
+                        new DownloadTask<>("repo/blank-message.jar", () -> {
+                            throw new RuntimeException("   ");
+                        }),
+                        new DownloadTask<>("repo/error.jar", () -> {
+                            throw new AssertionError();
+                        }))));
+
+        assertEquals(List.of(
+                new DownloadCoordinator.DownloadFailure("repo/blank-message.jar", "RuntimeException"),
+                new DownloadCoordinator.DownloadFailure("repo/error.jar", "AssertionError"),
+                new DownloadCoordinator.DownloadFailure("repo/null-message.jar", "RuntimeException")),
+                exception.failures());
+        assertTrue(exception.getMessage().contains("Retry the command or check your repository and network settings."));
+    }
+
+    @Test
+    void interruptedBeforePermitAcquireFailsClearlyAndPreservesInterruptFlag() {
+        clearInterruptFlag();
+        DownloadCoordinator coordinator = new DownloadCoordinator(1);
+
+        try {
+            Thread.currentThread().interrupt();
+            ArtifactCacheException exception = assertThrows(
+                    ArtifactCacheException.class,
+                    () -> coordinator.run("repo/interrupted.jar", () -> {
+                        throw new AssertionError("interrupted run should not start the download");
+                    }));
+
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertTrue(exception.getMessage().contains("Download interrupted while waiting to fetch repo/interrupted.jar"));
+            assertTrue(exception.getMessage().contains("Try again."));
+        } finally {
+            clearInterruptFlag();
+        }
+    }
+
+    @Test
+    void interruptedDuplicateWaiterFailsClearlyAndPreservesInterruptFlag() throws Exception {
+        clearInterruptFlag();
+        DownloadCoordinator coordinator = new DownloadCoordinator(1);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<String> first = executor.submit(() -> coordinator.run("repo/shared.jar", () -> {
+                firstStarted.countDown();
+                await(release);
+                return "downloaded";
+            }));
+            assertTrue(firstStarted.await(2, TimeUnit.SECONDS));
+
+            try {
+                Thread.currentThread().interrupt();
+                ArtifactCacheException exception = assertThrows(
+                        ArtifactCacheException.class,
+                        () -> coordinator.run("repo/shared.jar", () -> "duplicate"));
+
+                assertTrue(Thread.currentThread().isInterrupted());
+                assertTrue(exception.getMessage().contains(
+                        "Download interrupted while waiting for in-flight fetch of repo/shared.jar"));
+                assertTrue(exception.getMessage().contains("Try again."));
+            } finally {
+                clearInterruptFlag();
+                release.countDown();
+            }
+
+            assertEquals("downloaded", first.get());
+        }
+    }
+
     private static Future<String> submitBounded(
             ExecutorService executor,
             DownloadCoordinator coordinator,
@@ -157,4 +253,7 @@ final class DownloadCoordinatorTest {
         }
     }
 
+    private static void clearInterruptFlag() {
+        Thread.interrupted();
+    }
 }

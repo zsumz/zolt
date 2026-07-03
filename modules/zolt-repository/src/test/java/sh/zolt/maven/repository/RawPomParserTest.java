@@ -156,6 +156,34 @@ final class RawPomParserTest {
     }
 
     @Test
+    void nonProjectRootFailsCleanly() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("<metadata><groupId>com.example</groupId></metadata>"));
+
+        assertEquals(
+                "Could not parse POM XML. Expected root <project> element.",
+                exception.getMessage());
+    }
+
+    @Test
+    void doctypeIsRejectedAsMalformedPomMetadata() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("""
+                        <!DOCTYPE project [
+                          <!ENTITY secret SYSTEM "file:///etc/passwd">
+                        ]>
+                        <project>
+                          <artifactId>&secret;</artifactId>
+                        </project>
+                        """));
+
+        assertTrue(exception.getMessage().contains("Could not parse POM XML."));
+        assertTrue(exception.getMessage().contains("Fix malformed XML"));
+    }
+
+    @Test
     void malformedXmlDoesNotWriteParserNoiseToStderr() {
         PrintStream originalErr = System.err;
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
@@ -193,12 +221,88 @@ final class RawPomParserTest {
     }
 
     @Test
+    void missingProjectArtifactIdFailsCleanly() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("""
+                        <project>
+                          <groupId>com.example</groupId>
+                          <version>1.0.0</version>
+                        </project>
+                        """));
+
+        assertEquals(
+                "Could not parse POM XML. Missing required <artifactId> in <project>.",
+                exception.getMessage());
+    }
+
+    @Test
+    void missingRequiredParentFieldFailsCleanly() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("""
+                        <project>
+                          <parent>
+                            <groupId>com.example</groupId>
+                            <version>1.0.0</version>
+                          </parent>
+                          <artifactId>child</artifactId>
+                        </project>
+                        """));
+
+        assertEquals(
+                "Could not parse POM XML. Missing required <artifactId> in <parent>.",
+                exception.getMessage());
+    }
+
+    @Test
+    void missingRequiredExclusionFieldFailsCleanly() {
+        RawPomParseException exception = assertThrows(
+                RawPomParseException.class,
+                () -> parser.parse("""
+                        <project>
+                          <artifactId>bad</artifactId>
+                          <dependencies>
+                            <dependency>
+                              <groupId>com.example</groupId>
+                              <artifactId>dep</artifactId>
+                              <exclusions>
+                                <exclusion>
+                                  <artifactId>excluded</artifactId>
+                                </exclusion>
+                              </exclusions>
+                            </dependency>
+                          </dependencies>
+                        </project>
+                        """));
+
+        assertEquals(
+                "Could not parse POM XML. Missing required <groupId> in <exclusion>.",
+                exception.getMessage());
+    }
+
+    @Test
     void parserReturnsRawModel() throws IOException {
         RawPom pom = parseFixture("guava-33.4.0-jre.pom");
 
         assertInstanceOf(RawPom.class, pom);
         assertFalse(pom.groupId().isPresent());
         assertEquals("1.0.2", pom.dependencies().getFirst().version().orElseThrow());
+    }
+
+    @Test
+    void parsesByteArrayInput() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>byte-input</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """.getBytes(StandardCharsets.UTF_8));
+
+        assertEquals("org.example", pom.groupId().orElseThrow());
+        assertEquals("byte-input", pom.artifactId());
+        assertEquals("1.0.0", pom.version().orElseThrow());
     }
 
     private RawPom parseFixture(String name) throws IOException {

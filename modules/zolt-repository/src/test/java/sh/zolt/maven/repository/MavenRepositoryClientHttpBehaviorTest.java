@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 final class MavenRepositoryClientHttpBehaviorTest extends MavenRepositoryClientTestSupport {
@@ -26,6 +27,26 @@ final class MavenRepositoryClientHttpBehaviorTest extends MavenRepositoryClientT
         assertEquals(
                 1,
                 requestCount("/maven2/com/google/guava/missing/1.0.0/missing-1.0.0.pom"));
+    }
+
+    @Test
+    void fetchAcceptsRepositoryBaseUriWithoutTrailingSlash() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicReference<String> path = new AtomicReference<>();
+        server.createContext("/noslash/", exchange -> {
+            path.set(exchange.getRequestURI().getPath());
+            respond(exchange, 200, "<project/>".getBytes(StandardCharsets.UTF_8));
+        });
+        URI noSlashBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/noslash");
+
+        RepositoryArtifact artifact = client.fetchPom(noSlashBaseUri, coordinate);
+
+        assertEquals(
+                "/noslash/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom",
+                path.get());
+        assertEquals(
+                noSlashBaseUri.resolve("/noslash/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom"),
+                artifact.source());
     }
 
     @Test

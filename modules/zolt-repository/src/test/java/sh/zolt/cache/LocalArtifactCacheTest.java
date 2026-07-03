@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.concurrent.RepositoryExecutionLane;
 import sh.zolt.maven.ArtifactDescriptor;
 import sh.zolt.maven.Coordinate;
 import sh.zolt.maven.CoordinateParser;
@@ -38,6 +39,28 @@ final class LocalArtifactCacheTest {
         assertEquals(
                 tempDir.resolve("com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar"),
                 cache.jarPath(coordinate));
+    }
+
+    @Test
+    void reportsDownloadSettingsFromCoordinator() {
+        LocalArtifactCache cache = new LocalArtifactCache(
+                tempDir,
+                new DownloadCoordinator(3, RepositoryExecutionLane.VIRTUAL));
+
+        assertEquals(3, cache.downloadConcurrency());
+        assertEquals(RepositoryExecutionLane.VIRTUAL, cache.repositoryExecutionLane());
+        assertTrue(LocalArtifactCache.defaultRoot().endsWith(Path.of(".zolt", "cache")));
+    }
+
+    @Test
+    void classifierArtifactPathIsDeterministic() {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(coordinate, Optional.of("deployment"));
+
+        assertEquals(
+                tempDir.resolve("io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar"),
+                cache.artifactPath(descriptor));
     }
 
     @Test
@@ -122,6 +145,23 @@ final class LocalArtifactCacheTest {
     }
 
     @Test
+    void cachedOnlyClassifierArtifactReadsNamespacedPath() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(coordinate, Optional.of("deployment"));
+        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+        Files.createDirectories(cache.artifactPath(descriptor).getParent());
+        Files.write(cache.artifactPath(descriptor), jarBytes);
+
+        CachedArtifact artifact = cache.getCachedArtifact(descriptor, "JAR");
+
+        assertEquals(
+                "io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                artifact.repositoryPath());
+        assertArrayEquals(jarBytes, artifact.bytes());
+    }
+
+    @Test
     void cachedOnlyJarFailsClearlyWhenMissing() {
         LocalArtifactCache cache = new LocalArtifactCache(tempDir);
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
@@ -132,6 +172,37 @@ final class LocalArtifactCacheTest {
 
         assertTrue(exception.getMessage().contains("Offline mode requires cached JAR"));
         assertTrue(exception.getMessage().contains("Run the command without --offline"));
+    }
+
+    @Test
+    void cachedOnlyJarReadsCachedBytes() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        byte[] jarBytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+        Files.createDirectories(cache.jarPath(coordinate).getParent());
+        Files.write(cache.jarPath(coordinate), jarBytes);
+
+        CachedArtifact artifact = cache.getCachedJar(coordinate);
+
+        assertEquals(
+                "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.jar",
+                artifact.repositoryPath());
+        assertArrayEquals(jarBytes, artifact.bytes());
+    }
+
+    @Test
+    void cachedOnlyPomRejectsEmptyCacheFileWithRemediation() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Files.createDirectories(cache.pomPath(coordinate).getParent());
+        Files.write(cache.pomPath(coordinate), new byte[0]);
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> cache.getCachedPom(coordinate));
+
+        assertTrue(exception.getMessage().contains("Cached artifact at " + cache.pomPath(coordinate)));
+        assertTrue(exception.getMessage().contains("Delete it and run the command again."));
     }
 
     @Test
@@ -178,6 +249,84 @@ final class LocalArtifactCacheTest {
 
         assertEquals("Downloaded artifact com.google.guava:guava:33.4.0-jre is empty. The cache was not updated.", exception.getMessage());
         assertFalse(Files.exists(cache.pomPath(coordinate)));
+    }
+
+    @Test
+    void materializesOverlayPomIntoNamespacedCachePath() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path source = tempDir.resolve("local-guava.pom");
+        Files.writeString(source, "<project/>");
+
+        CachedArtifact artifact = cache.materializeOverlayPom(coordinate, "local-m2", source);
+
+        assertEquals(
+                "overlays/local-m2/com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom",
+                artifact.repositoryPath());
+        assertEquals(tempDir.resolve(artifact.repositoryPath()), artifact.cachePath());
+        assertArrayEquals("<project/>".getBytes(StandardCharsets.UTF_8), artifact.bytes());
+    }
+
+    @Test
+    void materializesOverlayClassifierArtifactIntoNamespacedCachePath() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("io.quarkus:quarkus-custom-deployment:1.0.0");
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(coordinate, Optional.of("deployment"));
+        Path source = tempDir.resolve("deployment.jar");
+        byte[] bytes = new byte[] {0x50, 0x4b, 0x03, 0x04};
+        Files.write(source, bytes);
+
+        CachedArtifact artifact = cache.materializeOverlayArtifact(descriptor, "local-m2", source);
+
+        assertEquals(
+                "overlays/local-m2/io/quarkus/quarkus-custom-deployment/1.0.0/quarkus-custom-deployment-1.0.0-deployment.jar",
+                artifact.repositoryPath());
+        assertArrayEquals(bytes, Files.readAllBytes(artifact.cachePath()));
+    }
+
+    @Test
+    void emptyOverlayArtifactFailsWithActionableRemediation() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path source = tempDir.resolve("empty.pom");
+        Files.write(source, new byte[0]);
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> cache.materializeOverlayPom(coordinate, "local-m2", source));
+
+        assertTrue(exception.getMessage().contains("Local repository overlay POM"));
+        assertTrue(exception.getMessage().contains("Reinstall the artifact locally or remove it"));
+    }
+
+    @Test
+    void overlaySourceReadFailureIsActionable() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Path directorySource = tempDir.resolve("source-directory");
+        Files.createDirectories(directorySource);
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> cache.materializeOverlayPom(coordinate, "local-m2", directorySource));
+
+        assertTrue(exception.getMessage().contains("Could not read cached artifact at " + directorySource));
+        assertTrue(exception.getMessage().contains("Check filesystem permissions."));
+    }
+
+    @Test
+    void cacheWriteFailureIsActionableAndDoesNotReportSuccess() throws Exception {
+        LocalArtifactCache cache = new LocalArtifactCache(tempDir);
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        Files.createDirectories(cache.pomPath(coordinate));
+
+        ArtifactCacheException exception = assertThrows(
+                ArtifactCacheException.class,
+                () -> cache.getOrFetchPom(coordinate, requested ->
+                        artifact(requested, "com/google/guava/guava/33.4.0-jre/guava-33.4.0-jre.pom", "<project/>")));
+
+        assertTrue(exception.getMessage().contains("Could not write cached artifact at " + cache.pomPath(coordinate)));
+        assertTrue(exception.getMessage().contains("Check filesystem permissions."));
     }
 
     private static RepositoryArtifact artifact(Coordinate coordinate, String path, String body) {

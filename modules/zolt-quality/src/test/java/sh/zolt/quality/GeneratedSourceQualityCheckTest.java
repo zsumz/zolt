@@ -1,0 +1,193 @@
+package sh.zolt.quality;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import sh.zolt.generated.GeneratedSourceEvidenceService;
+import sh.zolt.project.ProjectConfig;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.util.List;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+final class GeneratedSourceQualityCheckTest extends QualityCheckServiceTestSupport {
+    private final GeneratedSourceQualityCheck check = new GeneratedSourceQualityCheck(new GeneratedSourceEvidenceService());
+
+    @TempDir
+    private Path tempDir;
+
+    @Test
+    void reportsNoDeclaredSteps() throws IOException {
+        ProjectConfig config = parseProject(tempDir.resolve("no-generated-sources"), "");
+
+        List<QualityCheckResult> results = check.check(Optional.empty(), tempDir.resolve("no-generated-sources"), config);
+
+        assertEquals(1, results.size());
+        assertResult(
+                results.getFirst(),
+                QualityCheckStatus.PASSED,
+                "no-generated-sources",
+                "No declared generated-source steps require validation.",
+                "");
+    }
+
+    @Test
+    void passesForFreshDeclaredRootsAndReportsIdeSourceRoot() throws IOException {
+        Path projectDir = tempDir.resolve("fresh-generated-sources");
+        Path outputFile = projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java");
+        Path inputFile = projectDir.resolve("src/main/openapi/api.yaml");
+        Files.createDirectories(outputFile.getParent());
+        Files.createDirectories(inputFile.getParent());
+        Files.writeString(inputFile, "openapi: 3.1.0\n");
+        Files.writeString(outputFile, "package com.example; public final class GeneratedApi {}\n");
+        Files.setLastModifiedTime(inputFile, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(outputFile, FileTime.fromMillis(2_000));
+        ProjectConfig config = parseProject(projectDir, generatedSourceConfig(
+                "main",
+                "openapi",
+                "target/generated/sources/openapi",
+                "src/main/openapi/api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+        assertEquals("[generated.main.openapi]", result.subject());
+        assertTrue(result.message().contains("Generated source root `target/generated/sources/openapi` is declared"));
+        assertTrue(result.message().contains("exported as IDE source root `generated-main-openapi`"));
+        assertTrue(result.message().contains("ownership `external-declared-root` and freshness `fresh`"));
+    }
+
+    @Test
+    void reportsMissingRequiredOutputWithActionableStep() throws IOException {
+        Path projectDir = tempDir.resolve("missing-required-output");
+        Files.createDirectories(projectDir.resolve("src/main/openapi"));
+        Files.writeString(projectDir.resolve("src/main/openapi/api.yaml"), "openapi: 3.1.0\n");
+        ProjectConfig config = parseProject(projectDir, generatedSourceConfig(
+                "main",
+                "openapi",
+                "target/generated/sources/openapi",
+                "src/main/openapi/api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.openapi]",
+                "Generated source root `target/generated/sources/openapi` is missing.",
+                "Run the generator that produces it, commit the generated sources, or remove [generated.main.openapi] until Zolt supports that generator.");
+    }
+
+    @Test
+    void reportsMissingInputBeforeOutputFreshness() throws IOException {
+        Path projectDir = tempDir.resolve("missing-input");
+        Files.createDirectories(projectDir.resolve("target/generated/sources/openapi/com/example"));
+        Files.writeString(
+                projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java"),
+                "package com.example; public final class GeneratedApi {}\n");
+        ProjectConfig config = parseProject(projectDir, generatedSourceConfig(
+                "main",
+                "openapi",
+                "target/generated/sources/openapi",
+                "src/main/openapi/api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.openapi]",
+                "Generated source input `src/main/openapi/api.yaml` is missing.",
+                "Create the input file or update [generated.main.openapi].inputs.");
+    }
+
+    @Test
+    void skipsOptionalMissingOutput() throws IOException {
+        Path projectDir = tempDir.resolve("optional-missing-output");
+        Files.createDirectories(projectDir.resolve("src/test/fixtures"));
+        Files.writeString(projectDir.resolve("src/test/fixtures/schema.json"), "{}\n");
+        ProjectConfig config = parseProject(projectDir, generatedSourceConfig(
+                "test",
+                "fixtures",
+                "target/generated/test-sources/fixtures",
+                "src/test/fixtures/schema.json",
+                false));
+
+        QualityCheckResult result = check.check(Optional.of("modules/api"), projectDir, config).getFirst();
+
+        assertEquals(Optional.of("modules/api"), result.member());
+        assertResult(
+                result,
+                QualityCheckStatus.SKIPPED,
+                "[generated.test.fixtures]",
+                "Optional generated source root `target/generated/test-sources/fixtures` is missing.",
+                "Generate it when needed, or set required = true if the root must exist for builds.");
+    }
+
+    @Test
+    void reportsStaleOutputWhenInputIsNewer() throws IOException {
+        Path projectDir = tempDir.resolve("stale-generated-sources");
+        Path outputFile = projectDir.resolve("target/generated/sources/openapi/com/example/GeneratedApi.java");
+        Path inputFile = projectDir.resolve("src/main/openapi/api.yaml");
+        Files.createDirectories(outputFile.getParent());
+        Files.createDirectories(inputFile.getParent());
+        Files.writeString(outputFile, "package com.example; public final class GeneratedApi {}\n");
+        Files.writeString(inputFile, "openapi: 3.1.0\n");
+        Files.setLastModifiedTime(outputFile, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(inputFile, FileTime.fromMillis(2_000));
+        ProjectConfig config = parseProject(projectDir, generatedSourceConfig(
+                "main",
+                "openapi",
+                "target/generated/sources/openapi",
+                "src/main/openapi/api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.openapi]",
+                "Generated source root `target/generated/sources/openapi` is stale; one or more declared inputs are newer.",
+                "Regenerate the source root or update [generated.main.openapi].inputs.");
+    }
+
+    @Test
+    void rejectsGeneratedPathsThatEscapeProjectRoot() throws IOException {
+        ProjectConfig config = parseProject(tempDir.resolve("bad-generated-path"), generatedSourceConfig(
+                "main",
+                "openapi",
+                "../generated/openapi",
+                "src/main/openapi/api.yaml",
+                true));
+
+        QualityCheckResult result = check.check(Optional.empty(), tempDir.resolve("bad-generated-path"), config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.openapi].output",
+                "Invalid generated source output path `../generated/openapi`.",
+                "Use a project-relative path under the project directory.");
+    }
+
+    private static void assertResult(
+            QualityCheckResult result,
+            QualityCheckStatus status,
+            String subject,
+            String message,
+            String nextStep) {
+        assertEquals(QualityCheckService.GENERATED_SOURCES, result.id());
+        assertEquals(status, result.status());
+        assertEquals(subject, result.subject());
+        assertEquals(message, result.message());
+        assertEquals(nextStep, result.nextStep());
+    }
+}

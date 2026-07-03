@@ -148,6 +148,39 @@ final class WorkspaceIdeModelServiceTest {
         assertEquals(List.of(), model.diagnostics());
     }
 
+    @Test
+    void exportsWorkspaceEdgesInDeterministicSectionAndCoordinateOrder() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/beta", "modules/alpha", "tools/processor"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:beta" = { workspace = "modules/beta" }
+                "com.acme:alpha" = { workspace = "modules/alpha" }
+
+                [test.dependencies]
+                "com.acme:beta" = { workspace = "modules/beta" }
+
+                [annotationProcessors]
+                "com.acme:processor" = { workspace = "tools/processor" }
+                """);
+        member("modules/beta", "beta");
+        member("modules/alpha", "alpha");
+        member("tools/processor", "processor");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        assertEquals(List.of(
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/alpha", "compile", "com.acme:alpha"),
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/beta", "compile", "com.acme:beta"),
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/beta", "test", "com.acme:beta"),
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "tools/processor", "processor", "com.acme:processor")),
+                model.edges());
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
         Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");

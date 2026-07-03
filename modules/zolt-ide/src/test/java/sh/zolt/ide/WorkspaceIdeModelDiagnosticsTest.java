@@ -60,6 +60,50 @@ final class WorkspaceIdeModelDiagnosticsTest {
     }
 
     @Test
+    void reportsUnreadableWorkspaceLockAtWorkspaceLevel() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api");
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = \"one\"\n");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_UNREADABLE", diagnostic.code());
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals("Run zolt resolve --workspace.", diagnostic.nextStep());
+        assertEquals(java.util.List.of(), model.projects().getFirst().model().classpaths().compile());
+    }
+
+    @Test
+    void checkLockReportsStaleWorkspaceLockWithoutRefreshingIt() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        member("modules/core", "core");
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), true, true);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_STALE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("Workspace zolt.lock is out of date."));
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals("Run zolt resolve --workspace.", diagnostic.nextStep());
+        assertEquals("version = 1\n", Files.readString(tempDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void reportsMissingWorkspaceAsStructuredDiagnostic() throws IOException {
         Files.createDirectories(tempDir.resolve("standalone"));
 
