@@ -152,6 +152,7 @@ public final class MavenStaticProjectInspector {
                     "Maven test Java version `" + inspection.testJavaVersion()
                             + "` differs from main Java version `" + inspection.javaVersion() + "`."));
         }
+        MavenPlatformApiHostCandidate.signal(project, inspection).ifPresent(signals::add);
         boolean hasUnresolvedParent = inspection.parents().stream().anyMatch(parent -> !parent.resolved());
         for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
             // An unresolved ${...} is not a genuine dynamic/SNAPSHOT/range version; the emit path

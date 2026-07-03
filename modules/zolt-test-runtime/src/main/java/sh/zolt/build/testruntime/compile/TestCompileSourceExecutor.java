@@ -2,6 +2,7 @@ package sh.zolt.build.testruntime.compile;
 
 import sh.zolt.build.BuildException;
 import sh.zolt.build.CompileDiagnostics;
+import sh.zolt.build.compile.CompilerPlatformApi;
 import sh.zolt.build.compile.GroovyCompilerRunner;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.compile.JavacOptions;
@@ -59,7 +60,11 @@ final class TestCompileSourceExecutor {
                     "",
                     CompileDiagnostics.empty());
         }
-        JavacOptions options = javacOptions(config);
+        boolean hostMode = config.compilerSettings().testHostPlatformApi()
+                && !effectiveRelease(config).isBlank();
+        CompilerPlatformApi.rejectModularHost(hostMode, sources.testSources(), "test");
+        JavacOptions options = javacOptions(config, hostMode);
+        String platformApiWarning = CompilerPlatformApi.determinismWarning(hostMode, "test", jdkStatus);
         IncrementalCompilePlan plan = incrementalCompilePlanner.planTest(
                 projectDirectory,
                 config,
@@ -69,30 +74,50 @@ final class TestCompileSourceExecutor {
                 outputDirectory,
                 generatedSourcesDirectory);
         if (plan.incremental()) {
-            return incrementalCompile(
-                    jdkStatus,
-                    sources,
-                    testCompileClasspath,
-                    groovyCompileClasspath,
-                    outputDirectory,
-                    generatedSourcesDirectory,
-                    classpaths,
-                    options,
-                    plan);
+            return withPlatformApiWarning(
+                    incrementalCompile(
+                            jdkStatus,
+                            sources,
+                            testCompileClasspath,
+                            groovyCompileClasspath,
+                            outputDirectory,
+                            generatedSourcesDirectory,
+                            classpaths,
+                            options,
+                            plan),
+                    platformApiWarning);
         }
         incrementalCompileStateRecorder.deleteTestState(outputDirectory);
         deleteOwnedOutputs(plan);
-        return fullTestCompile(
-                jdkStatus,
-                sources,
-                testCompileClasspath,
-                groovyCompileClasspath,
-                outputDirectory,
-                generatedSourcesDirectory,
-                classpaths,
-                options,
-                plan.fallbackReason(),
-                plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()));
+        return withPlatformApiWarning(
+                fullTestCompile(
+                        jdkStatus,
+                        sources,
+                        testCompileClasspath,
+                        groovyCompileClasspath,
+                        outputDirectory,
+                        generatedSourcesDirectory,
+                        classpaths,
+                        options,
+                        plan.fallbackReason(),
+                        plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size())),
+                platformApiWarning);
+    }
+
+    private static Attempt withPlatformApiWarning(Attempt attempt, String warning) {
+        if (warning == null || warning.isBlank()) {
+            return attempt;
+        }
+        JavacResult javacResult = attempt.javacResult();
+        return new Attempt(
+                new JavacResult(
+                        javacResult.sourceCount(),
+                        javacResult.outputDirectory(),
+                        combinedOutput(warning, javacResult.output())),
+                attempt.groovyResult(),
+                attempt.mode(),
+                attempt.fallbackReason(),
+                attempt.diagnostics());
     }
 
     private Attempt incrementalCompile(
@@ -208,12 +233,14 @@ final class TestCompileSourceExecutor {
         return first + "\n" + second;
     }
 
-    private static JavacOptions javacOptions(ProjectConfig config) {
+    private static JavacOptions javacOptions(ProjectConfig config, boolean hostMode) {
         CompilerSettings compiler = config.compilerSettings();
         return new JavacOptions(
                 effectiveRelease(config),
                 compiler.encoding(),
-                compiler.testArgs());
+                compiler.testArgs(),
+                List.of(),
+                hostMode);
     }
 
     private static String effectiveRelease(ProjectConfig config) {

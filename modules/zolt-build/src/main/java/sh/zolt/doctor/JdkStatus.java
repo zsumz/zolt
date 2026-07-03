@@ -71,6 +71,11 @@ public record JdkStatus(
         return List.copyOf(problems);
     }
 
+    /** The detected JDK's Java feature version (e.g. 17, 21), if it could be parsed. */
+    public Optional<Integer> featureVersion() {
+        return version.flatMap(JdkStatus::javaFeatureVersion);
+    }
+
     private static Optional<Integer> javaFeatureVersion(String value) {
         if (value == null || value.isBlank()) {
             return Optional.empty();

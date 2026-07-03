@@ -67,6 +67,7 @@ final class MavenProjectInspectionBuilder {
                 text(project, "packaging").orElse("jar"),
                 javaVersions.mainVersion(),
                 javaVersions.testVersion(),
+                javaVersions.mainProvenance(),
                 modules,
                 MavenRootInspection.sourceRoots(
                         project,

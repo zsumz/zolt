@@ -3,6 +3,7 @@ package sh.zolt.explain.emit;
 import sh.zolt.explain.maven.MavenAnnotationProcessorInspection;
 import sh.zolt.explain.maven.MavenDependencyInspection;
 import sh.zolt.explain.maven.MavenInspectionResult;
+import sh.zolt.explain.maven.MavenPlatformApiHostCandidate;
 import sh.zolt.explain.maven.MavenProjectInspection;
 import sh.zolt.explain.maven.MavenRepositoryInspection;
 import sh.zolt.project.CompilerSettings;
@@ -106,6 +107,10 @@ final class MavenInspectionMapper {
         String version = version(primary, notes);
         String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
         addTestJavaVersionNote(primary, notes);
+        boolean suggestPlatformApiHost = MavenPlatformApiHostCandidate.applies(primary);
+        if (suggestPlatformApiHost) {
+            notes.add(platformApiHostNote(primary.javaVersion()));
+        }
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.artifactId(),
                 version,
@@ -151,7 +156,20 @@ final class MavenInspectionMapper {
         if (!constraints.isEmpty()) {
             config = config.withDependencyPolicy(new DependencyPolicySettings(List.of(), constraints));
         }
-        return new DraftZoltToml(config, notes, List.copyOf(commentedProjectKeys));
+        return new DraftZoltToml(
+                config,
+                notes,
+                List.copyOf(commentedProjectKeys),
+                suggestPlatformApiHost);
+    }
+
+    private static String platformApiHostNote(String javaVersion) {
+        return "This POM set source/target " + javaVersion + " below the build JDK, so Maven compiled"
+                + " against the host JDK's API surface. Zolt defaults to the reproducible `--release "
+                + javaVersion + "`. If the strict build fails because a dependency or annotation processor"
+                + " uses a newer-than-" + javaVersion + " platform API, uncomment `platformApi = \"host\"`"
+                + " under [compiler]; note that host mode forfeits cross-JDK reproducibility — prefer"
+                + " raising [project].java or a multi-release JAR.";
     }
 
     private static String javaVersion(

@@ -15,7 +15,12 @@ final class CompilerSectionCodec {
             "release",
             "encoding",
             "args",
-            "testArgs");
+            "testArgs",
+            "platformApi",
+            "testPlatformApi");
+    private static final Set<String> PLATFORM_API_VALUES = Set.of(
+            CompilerSettings.PLATFORM_API_RELEASE,
+            CompilerSettings.PLATFORM_API_HOST);
     private static final Set<String> ZOLT_OWNED_JAVAC_ARGS = Set.of(
             "--release",
             "-source",
@@ -53,6 +58,10 @@ final class CompilerSectionCodec {
         List<String> testArgs = TomlScalars.stringListOrDefault(table, "compiler", "testArgs", defaults.testArgs());
         validateCompilerArgs("args", args);
         validateCompilerArgs("testArgs", testArgs);
+        String platformApi = platformApiValue(
+                table, "platformApi", defaults.platformApi());
+        String testPlatformApi = platformApiValue(
+                table, "testPlatformApi", defaults.testPlatformApi());
         return new CompilerSettings(
                 TomlScalars.nonBlankStringOrDefault(
                         table,
@@ -67,7 +76,26 @@ final class CompilerSectionCodec {
                 TomlScalars.nonBlankStringOrDefault(table, "compiler", "release", defaults.release()),
                 TomlScalars.nonBlankStringOrDefault(table, "compiler", "encoding", defaults.encoding()),
                 args,
-                testArgs);
+                testArgs,
+                platformApi,
+                testPlatformApi);
+    }
+
+    private static String platformApiValue(TomlTable table, String key, String defaultValue) {
+        String value = TomlScalars.nonBlankStringOrDefault(table, "compiler", key, defaultValue);
+        if (!value.isBlank() && !PLATFORM_API_VALUES.contains(value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [compiler]."
+                            + key
+                            + " in zolt.toml. Use \""
+                            + CompilerSettings.PLATFORM_API_RELEASE
+                            + "\" (the reproducible default, javac --release) or \""
+                            + CompilerSettings.PLATFORM_API_HOST
+                            + "\" (compile against the build JDK's platform API); got `"
+                            + value
+                            + "`.");
+        }
+        return value;
     }
 
     static void write(StringBuilder toml, CompilerSettings settings) {
@@ -93,6 +121,12 @@ final class CompilerSectionCodec {
         }
         if (!settings.testArgs().isEmpty()) {
             writeStringArray(toml, "testArgs", settings.testArgs());
+        }
+        if (settings.mainHostPlatformApi()) {
+            writeAssignment(toml, "platformApi", settings.platformApi());
+        }
+        if (!settings.testPlatformApi().isBlank()) {
+            writeAssignment(toml, "testPlatformApi", settings.testPlatformApi());
         }
     }
 

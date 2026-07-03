@@ -8,7 +8,8 @@ public record JavacOptions(
         String release,
         String encoding,
         List<String> arguments,
-        List<Path> modulePath) {
+        List<Path> modulePath,
+        boolean hostPlatformApi) {
     public JavacOptions {
         release = normalize(release);
         encoding = normalize(encoding);
@@ -17,15 +18,19 @@ public record JavacOptions(
     }
 
     public JavacOptions(String release, String encoding, List<String> arguments) {
-        this(release, encoding, arguments, List.of());
+        this(release, encoding, arguments, List.of(), false);
     }
 
     public static JavacOptions empty() {
-        return new JavacOptions("", "", List.of(), List.of());
+        return new JavacOptions("", "", List.of(), List.of(), false);
     }
 
     public JavacOptions withModulePath(List<Path> modulePath) {
-        return new JavacOptions(release, encoding, arguments, modulePath);
+        return new JavacOptions(release, encoding, arguments, modulePath, hostPlatformApi);
+    }
+
+    public JavacOptions withHostPlatformApi(boolean hostPlatformApi) {
+        return new JavacOptions(release, encoding, arguments, modulePath, hostPlatformApi);
     }
 
     private static String normalize(String value) {

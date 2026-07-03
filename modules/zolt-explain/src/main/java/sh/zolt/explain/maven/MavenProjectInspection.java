@@ -20,6 +20,7 @@ public record MavenProjectInspection(
         String packaging,
         String javaVersion,
         String testJavaVersion,
+        MavenJavaVersionProvenance javaVersionProvenance,
         List<String> modules,
         List<String> sourceRoots,
         List<String> testSourceRoots,
@@ -38,6 +39,9 @@ public record MavenProjectInspection(
         version = version == null ? "" : version;
         name = name == null ? "" : name;
         testJavaVersion = testJavaVersion == null ? "" : testJavaVersion;
+        javaVersionProvenance = javaVersionProvenance == null
+                ? MavenJavaVersionProvenance.UNKNOWN
+                : javaVersionProvenance;
         modules = List.copyOf(modules);
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);

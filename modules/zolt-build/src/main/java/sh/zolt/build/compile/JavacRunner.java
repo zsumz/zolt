@@ -129,8 +129,19 @@ public final class JavacRunner {
         command.add("-d");
         command.add(outputDirectory.toString());
         if (!options.release().isBlank()) {
-            command.add("--release");
-            command.add(options.release());
+            if (options.hostPlatformApi()) {
+                // Host mode: target bytecode N but compile against the build JDK's platform API,
+                // matching legacy Maven `-source/-target`. Not reproducible across build JDKs.
+                command.add("-source");
+                command.add(options.release());
+                command.add("-target");
+                command.add(options.release());
+            } else {
+                // Default: --release N pins the platform API to Java N via ct.sym, reproducible
+                // across build JDKs.
+                command.add("--release");
+                command.add(options.release());
+            }
         }
         if (!options.encoding().isBlank()) {
             command.add("-encoding");

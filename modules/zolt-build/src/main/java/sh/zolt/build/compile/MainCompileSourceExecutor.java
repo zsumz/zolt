@@ -49,7 +49,11 @@ public final class MainCompileSourceExecutor {
                     "",
                     CompileDiagnostics.empty());
         }
-        JavacOptions options = javacOptions(config, sources.mainSources(), classpaths.compile());
+        boolean hostMode = config.compilerSettings().mainHostPlatformApi()
+                && !effectiveRelease(config).isBlank();
+        CompilerPlatformApi.rejectModularHost(hostMode, sources.mainSources(), "main");
+        JavacOptions options = javacOptions(config, sources.mainSources(), classpaths.compile(), hostMode);
+        String platformApiWarning = CompilerPlatformApi.determinismWarning(hostMode, "main", jdkStatus);
         IncrementalCompilePlan plan = incrementalCompilePlanner.planMain(
                 projectDirectory,
                 config,
@@ -59,26 +63,44 @@ public final class MainCompileSourceExecutor {
                 outputDirectory,
                 generatedSourcesDirectory);
         if (plan.incremental()) {
-            return incrementalCompile(
-                    jdkStatus,
-                    sources,
-                    classpaths,
-                    outputDirectory,
-                    generatedSourcesDirectory,
-                    options,
-                    plan);
+            return withPlatformApiWarning(
+                    incrementalCompile(
+                            jdkStatus,
+                            sources,
+                            classpaths,
+                            outputDirectory,
+                            generatedSourcesDirectory,
+                            options,
+                            plan),
+                    platformApiWarning);
         }
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
         deleteOwnedOutputs(plan);
-        return fullCompile(
-                jdkStatus,
-                sources,
-                classpaths,
-                outputDirectory,
-                generatedSourcesDirectory,
-                options,
-                plan.fallbackReason(),
-                plan.fullDiagnostics(sources.mainSources().size()));
+        return withPlatformApiWarning(
+                fullCompile(
+                        jdkStatus,
+                        sources,
+                        classpaths,
+                        outputDirectory,
+                        generatedSourcesDirectory,
+                        options,
+                        plan.fallbackReason(),
+                        plan.fullDiagnostics(sources.mainSources().size())),
+                platformApiWarning);
+    }
+
+    private static Attempt withPlatformApiWarning(Attempt attempt, String warning) {
+        if (warning == null || warning.isBlank()) {
+            return attempt;
+        }
+        return new Attempt(
+                new JavacResult(
+                        attempt.result().sourceCount(),
+                        attempt.result().outputDirectory(),
+                        combinedOutput(warning, attempt.result().output())),
+                attempt.mode(),
+                attempt.fallbackReason(),
+                attempt.diagnostics());
     }
 
     private Attempt incrementalCompile(
@@ -180,12 +202,14 @@ public final class MainCompileSourceExecutor {
     }
 
     private static JavacOptions javacOptions(
-            ProjectConfig config, List<Path> mainSources, Classpath compileClasspath) {
+            ProjectConfig config, List<Path> mainSources, Classpath compileClasspath, boolean hostMode) {
         CompilerSettings compiler = config.compilerSettings();
         JavacOptions options = new JavacOptions(
                 effectiveRelease(config),
                 compiler.encoding(),
-                compiler.args());
+                compiler.args(),
+                List.of(),
+                hostMode);
         if (isModularSourceSet(mainSources)) {
             return options.withModulePath(compileClasspath.entries());
         }

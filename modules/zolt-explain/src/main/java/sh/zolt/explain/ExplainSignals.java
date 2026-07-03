@@ -94,6 +94,15 @@ public final class ExplainSignals {
             ExplainSignal.Severity.UNKNOWN,
             ExplainSignal.Category.BUILDABILITY,
             "Align Maven main/test Java levels or review the test compilation model before migrating.");
+    public static final ExplainSignalDefinition MAVEN_COMPILER_PLATFORM_API_HOST_CANDIDATE =
+            new ExplainSignalDefinition(
+                    "maven.compiler.platform-api-host-candidate",
+                    ExplainSignal.Severity.WARN,
+                    ExplainSignal.Category.NON_DETERMINISM,
+                    "This POM used source/target below the build JDK, so Maven compiled against the host"
+                            + " JDK API. Zolt defaults to reproducible --release; only uncomment [compiler]"
+                            + " platformApi = \"host\" if a genuine post-target platform API fails the strict"
+                            + " build, and note that host mode forfeits cross-JDK reproducibility.");
     public static final ExplainSignalDefinition MAVEN_REPOSITORY_DECLARED = new ExplainSignalDefinition(
             "maven.repository.declared",
             ExplainSignal.Severity.WARN,
@@ -274,6 +283,7 @@ public final class ExplainSignals {
             MAVEN_JAVA_VERSION_UNKNOWN,
             MAVEN_JPMS_MODULE_INFO_DETECTED,
             MAVEN_TEST_JAVA_VERSION_DIVERGENT,
+            MAVEN_COMPILER_PLATFORM_API_HOST_CANDIDATE,
             MAVEN_REPOSITORY_DECLARED,
             MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,
             GRADLE_BUILD_SRC_DETECTED,

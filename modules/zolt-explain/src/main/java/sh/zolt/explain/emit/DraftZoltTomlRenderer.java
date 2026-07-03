@@ -48,12 +48,70 @@ public final class DraftZoltTomlRenderer {
         return out.toString();
     }
 
+    private static final String COMPILER_PLATFORM_API_HOST_SUGGESTION =
+            "# platformApi = \"host\"  # uncomment only if a post-target-Java platform API"
+                    + " (e.g. an annotation processor) fails the strict --release build";
+
     private static String renderConfig(DraftZoltToml draft, ProjectConfigRenderer renderer) {
         String rendered = renderer.render(draft.config());
-        if (draft.commentedProjectKeys().isEmpty()) {
-            return rendered;
+        if (!draft.commentedProjectKeys().isEmpty()) {
+            rendered = commentProjectAssignments(rendered, Set.copyOf(draft.commentedProjectKeys()));
         }
-        return commentProjectAssignments(rendered, Set.copyOf(draft.commentedProjectKeys()));
+        if (draft.suggestCompilerPlatformApiHost()) {
+            rendered = withCompilerPlatformApiHostSuggestion(rendered);
+        }
+        return rendered;
+    }
+
+    /**
+     * Adds the commented {@code # platformApi = "host"} suggestion as the last line of the
+     * {@code [compiler]} section, synthesizing the section when the strict default meant the writer
+     * emitted none.
+     */
+    private static String withCompilerPlatformApiHostSuggestion(String toml) {
+        String[] lines = (toml.endsWith("\n") ? toml.substring(0, toml.length() - 1) : toml).split("\n", -1);
+        int compilerHeader = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if ("[compiler]".equals(lines[i].strip())) {
+                compilerHeader = i;
+                break;
+            }
+        }
+        if (compilerHeader < 0) {
+            StringBuilder appended = new StringBuilder(toml);
+            if (appended.length() > 0 && appended.charAt(appended.length() - 1) != '\n') {
+                appended.append('\n');
+            }
+            appended.append("\n[compiler]\n").append(COMPILER_PLATFORM_API_HOST_SUGGESTION).append('\n');
+            return appended.toString();
+        }
+        int insertAt = lines.length;
+        for (int i = compilerHeader + 1; i < lines.length; i++) {
+            String stripped = lines[i].strip();
+            if (stripped.startsWith("[") && stripped.endsWith("]")) {
+                insertAt = i;
+                break;
+            }
+        }
+        // Insert before any trailing blank lines that separate this section from the next.
+        while (insertAt > compilerHeader + 1 && lines[insertAt - 1].strip().isEmpty()) {
+            insertAt--;
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            if (i == insertAt) {
+                out.append(COMPILER_PLATFORM_API_HOST_SUGGESTION).append('\n');
+            }
+            out.append(lines[i]);
+            if (i < lines.length - 1) {
+                out.append('\n');
+            }
+        }
+        if (insertAt == lines.length) {
+            out.append('\n').append(COMPILER_PLATFORM_API_HOST_SUGGESTION);
+        }
+        out.append('\n');
+        return out.toString();
     }
 
     private static String commentProjectAssignments(String toml, Set<String> keys) {
