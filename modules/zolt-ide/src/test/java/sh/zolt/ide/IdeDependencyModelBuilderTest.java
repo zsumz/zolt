@@ -164,6 +164,67 @@ final class IdeDependencyModelBuilderTest {
     }
 
     @Test
+    void exportsEveryDependencySectionInCoordinateOrder() throws IOException {
+        IdeModel.DependencyInfo dependencies = builder.build(parse("ordered-dependencies", """
+                [project]
+                name = "ordered-dependencies"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [api.dependencies]
+                "com.example:z-api" = "1.0.0"
+                "com.example:a-api" = "1.0.0"
+
+                [dependencies]
+                "com.example:z-impl" = "1.0.0"
+                "com.example:a-impl" = "1.0.0"
+
+                [runtime.dependencies]
+                "com.example:z-runtime" = "1.0.0"
+                "com.example:a-runtime" = "1.0.0"
+
+                [provided.dependencies]
+                "com.example:z-provided" = "1.0.0"
+                "com.example:a-provided" = "1.0.0"
+
+                [dev.dependencies]
+                "com.example:z-dev" = "1.0.0"
+                "com.example:a-dev" = "1.0.0"
+
+                [test.dependencies]
+                "com.example:z-test" = "1.0.0"
+                "com.example:a-test" = "1.0.0"
+
+                [annotationProcessors]
+                "com.example:z-processor" = "1.0.0"
+                "com.example:a-processor" = "1.0.0"
+
+                [test.annotationProcessors]
+                "com.example:z-test-processor" = "1.0.0"
+                "com.example:a-test-processor" = "1.0.0"
+                """));
+
+        assertEquals(List.of("com.example:a-api", "com.example:z-api"), coordinates(dependencies.api()));
+        assertEquals(List.of("com.example:a-impl", "com.example:z-impl"), coordinates(dependencies.implementation()));
+        assertEquals(List.of("com.example:a-runtime", "com.example:z-runtime"), coordinates(dependencies.runtime()));
+        assertEquals(List.of("com.example:a-provided", "com.example:z-provided"), coordinates(dependencies.provided()));
+        assertEquals(List.of("com.example:a-dev", "com.example:z-dev"), coordinates(dependencies.dev()));
+        assertEquals(List.of("com.example:a-test", "com.example:z-test"), coordinates(dependencies.test()));
+        assertEquals(
+                List.of("com.example:a-processor", "com.example:z-processor"),
+                coordinates(dependencies.annotationProcessors()));
+        assertEquals(
+                List.of("com.example:a-test-processor", "com.example:z-test-processor"),
+                coordinates(dependencies.testAnnotationProcessors()));
+
+        String json = new IdeModelJsonWriter().write(modelWith(dependencies));
+        assertTrue(json.contains("\"testAnnotationProcessors\": ["));
+        assertTrue(json.indexOf("\"coordinate\": \"com.example:a-test-processor\"")
+                < json.indexOf("\"coordinate\": \"com.example:z-test-processor\""));
+    }
+
+    @Test
     void dependencyInfoTreatsNullVersionAliasesAsEmptyMap() {
         IdeModel.DependencyInfo dependencies = new IdeModel.DependencyInfo(
                 null,
@@ -179,6 +240,12 @@ final class IdeDependencyModelBuilderTest {
         assertEquals(Map.of(), dependencies.versionAliases());
         String json = new IdeModelJsonWriter().write(modelWith(dependencies));
         assertTrue(json.contains("\"versionAliases\": {}"));
+    }
+
+    private static List<String> coordinates(List<IdeModel.DependencyDeclaration> declarations) {
+        return declarations.stream()
+                .map(IdeModel.DependencyDeclaration::coordinate)
+                .toList();
     }
 
     private ProjectConfig parse(String directoryName, String toml) throws IOException {

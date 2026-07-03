@@ -177,6 +177,89 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void checkLockOfflineReportsUnavailableCacheWithoutRefreshingLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("offline-cache-miss");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "offline-cache-miss"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:missing" = "1.0.0"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"), true, true);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_CHECK_UNAVAILABLE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("Offline mode requires cached POM"));
+        assertEquals(projectDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals(
+                "Run zolt resolve without --offline to seed the cache, then retry zolt ide model --offline.",
+                diagnostic.nextStep());
+        assertEquals("version = 1\n", Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void exportsFrameworkProviderModelAndActionableDiagnostics() throws IOException {
+        Path projectDir = tempDir.resolve("framework-provider");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "framework-provider"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        IdeModelService frameworkService = new IdeModelService((root, cacheRoot, config, diagnostics) -> {
+            diagnostics.add(new IdeModel.Diagnostic(
+                    "warning",
+                    "QUARKUS_AUGMENTATION_MISSING",
+                    "Quarkus augmentation output is missing.",
+                    root.resolve("target/quarkus/zolt-augmentation.properties"),
+                    "Run zolt build."));
+            return new IdeModel.FrameworkInfo(new IdeModel.QuarkusInfo(
+                    true,
+                    "fast-jar",
+                    "missing",
+                    "input-sha",
+                    null,
+                    root.resolve("target/quarkus/zolt-augmentation.properties"),
+                    root.resolve("target/quarkus"),
+                    root.resolve("target/quarkus-app"),
+                    root.resolve("target/quarkus-app/quarkus-run.jar"),
+                    root.resolve("target/quarkus-app/quarkus/generated-bytecode.jar"),
+                    root.resolve("target/quarkus-app/quarkus/transformed-bytecode.jar"),
+                    List.of(new IdeModel.QuarkusGeneratedOutput(
+                            "runner-jar",
+                            "runner-jar",
+                            root.resolve("target/quarkus-app/quarkus-run.jar"),
+                            false)),
+                    List.of(root.resolve("target/quarkus-deployment/quarkus-rest-deployment.jar"))));
+        });
+
+        IdeModel model = frameworkService.export(projectDir, tempDir.resolve("cache"));
+
+        assertTrue(model.frameworks().quarkus().enabled());
+        assertEquals("missing", model.frameworks().quarkus().augmentationStatus());
+        assertEquals(
+                List.of(new IdeModel.QuarkusGeneratedOutput(
+                        "runner-jar",
+                        "runner-jar",
+                        projectDir.toAbsolutePath().normalize().resolve("target/quarkus-app/quarkus-run.jar"),
+                        false)),
+                model.frameworks().quarkus().generatedOutputs());
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("QUARKUS_AUGMENTATION_MISSING", diagnostic.code());
+        assertEquals("Run zolt build.", diagnostic.nextStep());
+    }
+
+    @Test
     void unsafeConfiguredPathsBecomeDiagnosticsInsteadOfIdeModelPaths() throws IOException {
         Path projectDir = tempDir.resolve("unsafe-paths");
         Files.createDirectories(projectDir);

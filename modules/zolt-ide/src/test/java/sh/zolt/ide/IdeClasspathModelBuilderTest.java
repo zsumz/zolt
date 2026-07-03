@@ -158,6 +158,39 @@ final class IdeClasspathModelBuilderTest {
                 "Cached jar integrity check failed for com.example:runtime-lib:1.0.0"));
     }
 
+    @Test
+    void reportsUnreadableLockfileWithoutExportingClasspaths() throws IOException {
+        Path projectDir = tempDir.resolve("unreadable-lock-model");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "unreadable-lock-model"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = \"one\"\n");
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.ClasspathInfo classpaths = builder.build(
+                projectDir.resolve("zolt.lock").toAbsolutePath().normalize(),
+                tempDir.resolve("cache").toAbsolutePath().normalize(),
+                projectDir.toAbsolutePath().normalize(),
+                parse(projectDir),
+                diagnostics);
+
+        assertEquals(List.of(), classpaths.compile());
+        assertEquals(List.of(), classpaths.runtime());
+        assertEquals(List.of(), classpaths.test());
+        assertEquals(List.of(), classpaths.processor());
+        assertEquals(List.of(), classpaths.testProcessor());
+        assertEquals(List.of(), classpaths.quarkusDeployment());
+        IdeModel.Diagnostic diagnostic = diagnostics.getFirst();
+        assertEquals("LOCKFILE_UNREADABLE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("zolt.lock"));
+        assertEquals("Run zolt resolve.", diagnostic.nextStep());
+    }
+
     private ProjectConfig parse(Path projectDir) {
         return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
     }

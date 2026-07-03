@@ -112,6 +112,46 @@ final class WorkspaceIdeModelJsonWriterTest {
         assertTrue(json.contains("\"nextStep\": \"Fix \\\"workspace\\\" and retry.\""));
     }
 
+    @Test
+    void writerPrintsMultipleEdgesAndDiagnosticsDeterministically() {
+        WorkspaceIdeModel model = new WorkspaceIdeModel(
+                1,
+                new WorkspaceIdeModel.WorkspaceInfo(
+                        "ordered-workspace",
+                        Path.of("C:\\repo"),
+                        Path.of("C:\\repo\\zolt-workspace.toml"),
+                        Path.of("C:\\repo\\zolt.lock"),
+                        List.of("apps/api", "modules/core"),
+                        List.of("apps/api"),
+                        List.of("modules/core", "apps/api")),
+                List.of(),
+                List.of(
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true),
+                        new WorkspaceIdeModel.ProjectEdge("apps/api", "modules/core", "test", "com.acme:core", false)),
+                List.of(
+                        new IdeModel.Diagnostic(
+                                "warning",
+                                "FIRST",
+                                "first \b\f\r",
+                                Path.of("C:\\repo\\zolt.lock"),
+                                "Retry first."),
+                        new IdeModel.Diagnostic(
+                                "error",
+                                "SECOND",
+                                "second",
+                                Path.of("C:\\repo\\zolt-workspace.toml"),
+                                "Retry second.")));
+
+        String json = new WorkspaceIdeModelJsonWriter().write(model);
+
+        assertTrue(json.contains("\"root\": \"C:/repo\""));
+        assertTrue(json.indexOf("\"scope\": \"compile\"") < json.indexOf("\"scope\": \"test\""));
+        assertTrue(json.contains("\"exported\": true"));
+        assertTrue(json.contains("\"exported\": false"));
+        assertTrue(json.indexOf("\"code\": \"FIRST\"") < json.indexOf("\"code\": \"SECOND\""));
+        assertTrue(json.contains("\"message\": \"first \\b\\f\\r\""));
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
         Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");

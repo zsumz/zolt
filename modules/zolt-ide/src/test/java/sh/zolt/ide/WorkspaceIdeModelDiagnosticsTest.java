@@ -104,6 +104,32 @@ final class WorkspaceIdeModelDiagnosticsTest {
     }
 
     @Test
+    void checkLockOfflineReportsUnavailableWorkspaceCacheWithoutRefreshingLockfile() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:missing" = "1.0.0"
+                """);
+        Files.writeString(tempDir.resolve("zolt.lock"), "version = 1\n");
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), true, true);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_CHECK_UNAVAILABLE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("Offline mode requires cached POM"));
+        assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals(
+                "Run zolt resolve --workspace without --offline to seed the cache, then retry zolt ide model --workspace --offline.",
+                diagnostic.nextStep());
+        assertEquals("version = 1\n", Files.readString(tempDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void reportsMissingWorkspaceAsStructuredDiagnostic() throws IOException {
         Files.createDirectories(tempDir.resolve("standalone"));
 
