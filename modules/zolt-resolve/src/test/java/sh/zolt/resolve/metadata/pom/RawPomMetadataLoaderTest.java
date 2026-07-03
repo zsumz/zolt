@@ -12,6 +12,11 @@ import sh.zolt.resolve.metrics.RawPomLoadMetricsSink;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -57,6 +62,53 @@ final class RawPomMetadataLoaderTest {
         assertTrue(metrics.parseNanos > 0);
     }
 
+    @Test
+    void sharesInFlightRawPomLoadBetweenCallers() throws Exception {
+        RawPomMetadataLoader loader = new RawPomMetadataLoader(new RawPomParser());
+        CountDownLatch cacheHitRecorded = new CountDownLatch(1);
+        RecordingMetrics metrics = new RecordingMetrics(cacheHitRecorded);
+        AtomicInteger artifactLoads = new AtomicInteger();
+        CountDownLatch loadStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoad = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<RawPom> first = executor.submit(() -> loader.load(APP, coordinate -> {
+                artifactLoads.incrementAndGet();
+                loadStarted.countDown();
+                await(releaseLoad);
+                return cachedPom(coordinate, "app");
+            }, metrics));
+            assertTrue(loadStarted.await(5, TimeUnit.SECONDS));
+
+            Future<RawPom> second = executor.submit(() -> loader.load(APP, coordinate -> {
+                artifactLoads.incrementAndGet();
+                return cachedPom(coordinate, "other");
+            }, metrics));
+            assertTrue(cacheHitRecorded.await(5, TimeUnit.SECONDS));
+            releaseLoad.countDown();
+
+            RawPom firstPom = first.get(5, TimeUnit.SECONDS);
+            RawPom secondPom = second.get(5, TimeUnit.SECONDS);
+            assertSame(firstPom, secondPom);
+            assertEquals("app", secondPom.artifactId());
+            assertEquals(1, artifactLoads.get());
+            assertEquals(1, metrics.cacheHits);
+            assertEquals(1, metrics.cacheMisses);
+        } finally {
+            releaseLoad.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(5, TimeUnit.SECONDS));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(exception);
+        }
+    }
+
     private static CachedArtifact cachedPom(Coordinate coordinate, String artifactId) {
         String xml = artifactId.startsWith("<")
                 ? artifactId
@@ -82,19 +134,29 @@ final class RawPomMetadataLoaderTest {
         private int cacheHits;
         private int cacheMisses;
         private long parseNanos;
+        private final CountDownLatch cacheHitRecorded;
 
-        @Override
-        public void recordRawPomCacheHit() {
-            cacheHits++;
+        private RecordingMetrics() {
+            this(new CountDownLatch(0));
+        }
+
+        private RecordingMetrics(CountDownLatch cacheHitRecorded) {
+            this.cacheHitRecorded = cacheHitRecorded;
         }
 
         @Override
-        public void recordRawPomCacheMiss() {
+        public synchronized void recordRawPomCacheHit() {
+            cacheHits++;
+            cacheHitRecorded.countDown();
+        }
+
+        @Override
+        public synchronized void recordRawPomCacheMiss() {
             cacheMisses++;
         }
 
         @Override
-        public void recordRawPomParse(long elapsedNanos) {
+        public synchronized void recordRawPomParse(long elapsedNanos) {
             parseNanos += elapsedNanos;
         }
     }

@@ -47,6 +47,37 @@ final class ToolingDependencyContributorTest {
     }
 
     @Test
+    void fallsBackToDefaultJUnitConsoleVersionWhenManagedVersionIsBlank() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(
+                testDependencyConfig(),
+                Map.of(JUNIT_CONSOLE, " "),
+                requests,
+                false);
+
+        DependencyRequest request = onlyRequest(requests, JUNIT_CONSOLE);
+        assertEquals("1.11.4", request.requestedVersion());
+        assertEquals(DependencyScope.TEST, request.scope());
+    }
+
+    @Test
+    void doesNotAddJUnitConsoleWhenConsoleAlreadyEntersTestClasspath() {
+        PackageId standalone = new PackageId("org.junit.platform", "junit-platform-console-standalone");
+        List<DependencyRequest> requests = new ArrayList<>();
+        requests.add(new DependencyRequest(
+                standalone,
+                "1.12.0",
+                DependencyScope.TEST,
+                RequestOrigin.DIRECT));
+
+        contributor.contribute(testDependencyConfig(), Map.of(), requests, false);
+
+        assertEquals(1, requests.size());
+        assertEquals(standalone, requests.getFirst().packageId());
+    }
+
+    @Test
     void addsSpringBootLoaderFromManagedPlatformVersion() {
         List<DependencyRequest> requests = new ArrayList<>();
 
@@ -152,11 +183,46 @@ final class ToolingDependencyContributorTest {
         assertEquals(DependencyScope.TOOL_COVERAGE, cli.scope());
     }
 
+    @Test
+    void doesNotAddCoverageToolsWithoutTestInputs() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(baseConfig(), Map.of(), requests, true);
+
+        assertTrue(requests.isEmpty());
+    }
+
+    @Test
+    void doesNotDuplicateExistingCoverageToolRequests() {
+        List<DependencyRequest> requests = new ArrayList<>();
+        requests.add(new DependencyRequest(
+                JACOCO_AGENT,
+                "0.8.14",
+                DependencyScope.TOOL_COVERAGE,
+                RequestOrigin.TRANSITIVE));
+        requests.add(new DependencyRequest(
+                JACOCO_CLI,
+                "0.8.14",
+                DependencyScope.TOOL_COVERAGE,
+                RequestOrigin.TRANSITIVE));
+
+        contributor.contribute(testDependencyConfig(), Map.of(), requests, true);
+
+        assertEquals(1, countRequests(requests, JACOCO_AGENT));
+        assertEquals(1, countRequests(requests, JACOCO_CLI));
+    }
+
     private static DependencyRequest onlyRequest(List<DependencyRequest> requests, PackageId packageId) {
         return requests.stream()
                 .filter(request -> request.packageId().equals(packageId))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static long countRequests(List<DependencyRequest> requests, PackageId packageId) {
+        return requests.stream()
+                .filter(request -> request.packageId().equals(packageId))
+                .count();
     }
 
     private static ProjectConfig baseConfig() {

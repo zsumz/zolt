@@ -147,6 +147,31 @@ final class ArtifactMaterializerTest {
                 listener.events());
     }
 
+    @Test
+    void failedArtifactDownloadEmitsFailureEventForErrors() {
+        RecordingArtifactProgressListener listener = new RecordingArtifactProgressListener();
+        ArtifactMaterializer materializer =
+                materializer(ResolveOptions.defaults().withArtifactProgressListener(listener));
+        RecordingMetrics metrics = new RecordingMetrics();
+        AssertionError failure = new AssertionError("repository crashed");
+        ArtifactDescriptor descriptor = ArtifactDescriptor.jar(APP);
+
+        AssertionError thrown = assertThrows(
+                AssertionError.class,
+                () -> materializer.getJar(APP, ignored -> {
+                    throw failure;
+                }, metrics));
+
+        assertSame(failure, thrown);
+        assertEquals(0, metrics.jarDownloads);
+        assertEquals(0, metrics.jarCacheHits);
+        assertEquals(
+                List.of(
+                        ProgressEvent.start(descriptor),
+                        ProgressEvent.failure(descriptor, "repository crashed")),
+                listener.events());
+    }
+
     private ArtifactMaterializer materializer(ResolveOptions options) {
         LocalArtifactCache cache = new LocalArtifactCache(tempDir.resolve("cache"));
         return new ArtifactMaterializer(

@@ -20,6 +20,7 @@ final class GeneratedSourceToolingDependencyContributorTest {
     private static final PackageId OPENAPI_GENERATOR =
             new PackageId("org.openapitools", "openapi-generator-cli");
     private static final PackageId PROTOC = new PackageId("com.google.protobuf", "protoc");
+    private static final PackageId GRPC_PLUGIN = new PackageId("io.grpc", "protoc-gen-grpc-java");
 
     private final GeneratedSourceToolingDependencyContributor contributor =
             new GeneratedSourceToolingDependencyContributor(new CoordinateParser());
@@ -54,6 +55,20 @@ final class GeneratedSourceToolingDependencyContributorTest {
     }
 
     @Test
+    void reportsMissingOpenApiToolVersionClearly() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> contributor.contribute(openApiConfig("""
+                        [generated.openapiTool]
+                        coordinate = "org.openapitools:openapi-generator-cli"
+                        """), new ArrayList<>()));
+
+        assertTrue(exception.getMessage().contains("OpenAPI generation requires [generated.openapiTool].version"));
+        assertTrue(exception.getMessage().contains("org.openapitools:openapi-generator-cli"));
+        assertTrue(exception.getMessage().contains("run `zolt resolve`"));
+    }
+
+    @Test
     void addsProtobufToolAsDirectToolRequest() {
         List<DependencyRequest> requests = new ArrayList<>();
 
@@ -67,6 +82,11 @@ final class GeneratedSourceToolingDependencyContributorTest {
         assertEquals("4.28.3", request.requestedVersion());
         assertEquals(DependencyScope.TOOL_PROTOBUF, request.scope());
         assertEquals(RequestOrigin.DIRECT, request.origin());
+
+        DependencyRequest grpcPlugin = onlyRequest(requests, GRPC_PLUGIN);
+        assertEquals("1.68.1", grpcPlugin.requestedVersion());
+        assertEquals(DependencyScope.TOOL_PROTOBUF, grpcPlugin.scope());
+        assertEquals(RequestOrigin.DIRECT, grpcPlugin.origin());
     }
 
     @Test
@@ -80,6 +100,20 @@ final class GeneratedSourceToolingDependencyContributorTest {
 
         assertTrue(exception.getMessage().contains("Protobuf generation requires [generated.protobufTool].protocVersion"));
         assertTrue(exception.getMessage().contains("com.google.protobuf:protoc"));
+    }
+
+    @Test
+    void reportsMissingGrpcPluginVersionClearly() {
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> contributor.contribute(protobufConfig("""
+                        [generated.protobufTool]
+                        protocVersion = "4.28.3"
+                        """), new ArrayList<>()));
+
+        assertTrue(exception.getMessage().contains("Protobuf gRPC generation requires [generated.protobufTool].grpcPluginVersion"));
+        assertTrue(exception.getMessage().contains("io.grpc:protoc-gen-grpc-java"));
+        assertTrue(exception.getMessage().contains("run `zolt resolve`"));
     }
 
     @Test

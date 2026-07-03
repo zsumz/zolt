@@ -99,6 +99,53 @@ final class LockfileAssemblerTest {
         assertTrue(pkg.artifactType().isEmpty());
     }
 
+    @Test
+    void recordsTypedArtifactsOutsideJarFields() {
+        PackageId schema = new PackageId("com.example", "schema");
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(
+                new Coordinate(schema.groupId(), schema.artifactId(), Optional.of("1.0.0")),
+                Optional.empty(),
+                "properties");
+        DependencyRequest request = new DependencyRequest(
+                schema,
+                "1.0.0",
+                DependencyScope.TOOL_OPENAPI,
+                RequestOrigin.DIRECT,
+                Optional.of(descriptor));
+        PackageNode node = new PackageNode(schema, "1.0.0");
+
+        ZoltLockfile lockfile = assembler.assemble(
+                new FakeAssemblyContext(baseConfig()),
+                new ResolutionGraph(List.of(node), List.of(), List.of()),
+                new VersionSelectionResult(List.of(node), List.of()),
+                List.of(request));
+
+        LockPackage pkg = lockfile.packages().getFirst();
+        assertTrue(pkg.jar().isEmpty());
+        assertTrue(pkg.jarSha256().isEmpty());
+        assertEquals(Optional.of("com/example/schema/1.0.0/schema-1.0.0.properties"), pkg.artifact());
+        assertEquals(Optional.of("properties"), pkg.artifactType());
+        assertTrue(pkg.artifactSha256().isPresent());
+        assertTrue(pkg.pomSha256().isPresent());
+    }
+
+    @Test
+    void aliasFingerprintIncludesPolicyAndGeneratedSourceVersionRefsDeterministically() {
+        ZoltLockfile first = assembler.assemble(
+                new FakeAssemblyContext(aliasFingerprintConfig("api", "fixtures")),
+                new ResolutionGraph(List.of(), List.of(), List.of()),
+                new VersionSelectionResult(List.of(), List.of()),
+                List.of());
+        ZoltLockfile second = assembler.assemble(
+                new FakeAssemblyContext(aliasFingerprintConfig("fixtures", "api")),
+                new ResolutionGraph(List.of(), List.of(), List.of()),
+                new VersionSelectionResult(List.of(), List.of()),
+                List.of());
+
+        assertTrue(first.aliasFingerprint().orElseThrow().startsWith("sha256:"));
+        assertEquals(first.aliasFingerprint(), second.aliasFingerprint());
+    }
+
     private static ProjectConfig configWithManagedDependencyAndAlias() {
         return new ZoltTomlParser().parse("""
                 [project]
@@ -123,6 +170,58 @@ final class LockfileAssemblerTest {
                 group = "com.example"
                 java = "21"
                 """);
+    }
+
+    private static ProjectConfig aliasFingerprintConfig(String firstGeneratedStep, String secondGeneratedStep) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "generated-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                openapi = "7.11.0"
+                protoc = "4.28.3"
+                grpc = "1.68.1"
+                tomcat = "10.1.40"
+
+                [dependencyConstraints]
+                "org.apache.tomcat.embed:tomcat-embed-core" = { versionRef = "tomcat", kind = "strict" }
+
+                [generated.openapiTool]
+                coordinate = "org.openapitools:openapi-generator-cli"
+                versionRef = "openapi"
+
+                [generated.protobufTool]
+                protocVersionRef = "protoc"
+                grpcPluginVersionRef = "grpc"
+
+                %s
+
+                %s
+                """.formatted(generatedStep(firstGeneratedStep), generatedStep(secondGeneratedStep)));
+    }
+
+    private static String generatedStep(String id) {
+        return switch (id) {
+            case "api" -> """
+                    [generated.test.api]
+                    kind = "openapi"
+                    language = "java"
+                    input = "src/test/openapi/api.yaml"
+                    output = "target/generated/test-sources/openapi/api"
+                    generator = "spring"
+                    """;
+            case "fixtures" -> """
+                    [generated.test.fixtures]
+                    kind = "protobuf"
+                    language = "java"
+                    inputs = ["src/test/proto/fixtures.proto"]
+                    output = "target/generated/test-sources/protobuf"
+                    """;
+            default -> throw new IllegalArgumentException("Unknown generated step " + id);
+        };
     }
 
     private static final class FakeAssemblyContext implements LockfileAssemblyContext {

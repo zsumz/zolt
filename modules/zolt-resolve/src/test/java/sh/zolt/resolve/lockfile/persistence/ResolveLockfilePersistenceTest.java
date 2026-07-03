@@ -54,6 +54,16 @@ final class ResolveLockfilePersistenceTest {
     }
 
     @Test
+    void prepareIgnoresUnreadableExistingLockfileWhenCheckingCoverageTooling() throws Exception {
+        Path lockfilePath = tempDir.resolve("zolt.lock");
+        Files.writeString(lockfilePath, "not a lockfile");
+
+        ResolveOptions options = persistence.prepare(lockfilePath, false, ResolveOptions.defaults());
+
+        assertFalse(options.includeCoverageTooling());
+    }
+
+    @Test
     void lockedPrepareRejectsExistingLocalOverlayOriginsBeforeResolution() {
         Path lockfilePath = tempDir.resolve("zolt.lock");
         writer.write(lockfilePath, lockfile("local-overlay:maven-local", DependencyScope.COMPILE));
@@ -105,6 +115,24 @@ final class ResolveLockfilePersistenceTest {
     }
 
     @Test
+    void persistReportsActionableLockedMismatch() {
+        Path lockfilePath = tempDir.resolve("zolt.lock");
+        writer.write(lockfilePath, lockfile("maven-central", DependencyScope.COMPILE, "1.0.0"));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> persistence.persist(
+                        lockfilePath,
+                        lockfile("maven-central", DependencyScope.COMPILE, "2.0.0"),
+                        ResolveMetrics.empty(),
+                        true,
+                        ResolveOptions.defaults()));
+
+        assertTrue(exception.getMessage().contains("zolt.lock is out of date"));
+        assertTrue(exception.getMessage().contains("Run `zolt resolve` to refresh it"));
+    }
+
+    @Test
     void persistRejectsNewLocalOverlayLockfileWhenOverlaysAreDisabled() {
         Path lockfilePath = tempDir.resolve("zolt.lock");
 
@@ -122,16 +150,20 @@ final class ResolveLockfilePersistenceTest {
     }
 
     private static ZoltLockfile lockfile(String source, DependencyScope scope) {
+        return lockfile(source, scope, "1.0.0");
+    }
+
+    private static ZoltLockfile lockfile(String source, DependencyScope scope, String version) {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
                 List.of(new LockPackage(
                         APP,
-                        "1.0.0",
+                        version,
                         source,
                         scope,
                         true,
-                        Optional.of("com/example/app/1.0.0/app-1.0.0.jar"),
-                        Optional.of("com/example/app/1.0.0/app-1.0.0.pom"),
+                        Optional.of("com/example/app/" + version + "/app-" + version + ".jar"),
+                        Optional.of("com/example/app/" + version + "/app-" + version + ".pom"),
                         Optional.of("jar-sha"),
                         Optional.of("pom-sha"),
                         List.of())),
