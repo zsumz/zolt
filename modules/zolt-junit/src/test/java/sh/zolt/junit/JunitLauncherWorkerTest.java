@@ -35,6 +35,37 @@ final class JunitLauncherWorkerTest {
     }
 
     @Test
+    void oneShotModeReturnsTwoWhenNoTestsAreDiscovered() throws Exception {
+        Path emptyOutput = tempDir.resolve("empty-test-output");
+        Files.createDirectories(emptyOutput);
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {emptyOutput.toString()},
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(2, exitCode);
+        assertTrue(workerOutput.contains("Tests found: 0"), workerOutput);
+    }
+
+    @Test
+    void serverModeRequiresStdin() {
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                null,
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
+                new PrintStream(stderr, true, StandardCharsets.UTF_8));
+
+        assertEquals(2, exitCode);
+        assertTrue(stderr.toString(StandardCharsets.UTF_8)
+                .contains("server requires stdin"));
+    }
+
+    @Test
     void serverModeCanExitWithoutRunningTests() {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
@@ -42,6 +73,22 @@ final class JunitLauncherWorkerTest {
                 new String[] {"--server"},
                 new ByteArrayInputStream(
                         (JunitWorkerProtocol.quitRequest("request-1") + "\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
+    }
+
+    @Test
+    void serverModeIgnoresBlankLinesBeforeQuit() {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream(
+                        ("\n  \n" + JunitWorkerProtocol.quitRequest("request-1") + "\n").getBytes(StandardCharsets.UTF_8)),
                 new PrintStream(stdout, true, StandardCharsets.UTF_8),
                 new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
 
@@ -63,6 +110,66 @@ final class JunitLauncherWorkerTest {
         assertEquals(2, exitCode);
         assertTrue(stderr.toString(StandardCharsets.UTF_8)
                 .contains("test output directory"));
+    }
+
+    @Test
+    void serverModeRunsMethodSelectors() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of(),
+                List.of(new TestSelection.MethodSelector("sh.zolt.junit.FilteredFixture", "fastSelected")),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of());
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("Tests found: 1"), workerOutput);
+        assertTrue(workerOutput.contains("Tests succeeded: 1"), workerOutput);
+        assertTrue(workerOutput.contains("Tests failed: 0"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
+    }
+
+    @Test
+    void serverModeAppliesClassNamePatternAndTagFilters() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of(),
+                List.of(),
+                List.of("*FilteredFixture"),
+                List.of("fast"),
+                List.of("slow"));
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of());
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("Tests found: 1"), workerOutput);
+        assertTrue(workerOutput.contains("Tests succeeded: 1"), workerOutput);
+        assertTrue(workerOutput.contains("Tests failed: 0"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
     }
 
     @Test
@@ -177,5 +284,23 @@ final class ProfileFailureFixture {
     @Test
     void failsForProfileEvidence() {
         org.junit.jupiter.api.Assertions.fail("profile failure");
+    }
+}
+
+final class FilteredFixture {
+    @Test
+    @org.junit.jupiter.api.Tag("fast")
+    void fastSelected() {
+    }
+
+    @Test
+    @org.junit.jupiter.api.Tag("slow")
+    void slowFailure() {
+        org.junit.jupiter.api.Assertions.fail("slow test should be filtered");
+    }
+
+    @Test
+    void untaggedFailure() {
+        org.junit.jupiter.api.Assertions.fail("untagged test should be filtered");
     }
 }

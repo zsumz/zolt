@@ -142,6 +142,25 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void treatsNullableOptionalRunFieldsAsEmpty() {
+        String frame = JunitWorkerProtocol.runRequest(
+                "request-1",
+                OUTPUT,
+                null,
+                null,
+                null,
+                null);
+
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(frame);
+
+        assertEquals("RUN\tv=1\tid=request-1\tout=target/test-classes", frame);
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertTrue(request.profileDirectory().isEmpty());
+        assertEquals(List.of(), request.events());
+        assertTrue(request.testSelection().emptySelection());
+    }
+
+    @Test
     void formatsAndParsesQuitRequests() {
         String frame = JunitWorkerProtocol.quitRequest("quit-1");
 
@@ -196,6 +215,15 @@ final class JunitWorkerProtocolTest {
                 () -> JunitWorkerProtocol.parseRequest("RUN\tid=request-1\tout=target/test-classes"));
 
         assertTrue(exception.getMessage().contains("schema version"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsMalformedSchemaVersion() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseRequest("RUN\tv=not-a-number\tid=request-1\tout=target/test-classes"));
+
+        assertTrue(exception.getMessage().contains("Malformed JUnit worker schema version"), exception.getMessage());
     }
 
     @Test
@@ -263,6 +291,23 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void rejectsBlankRequestIdsAndOutputDirectories() {
+        IllegalArgumentException missingId = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.quitRequest(" "));
+        IllegalArgumentException missingOutput = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.runRequest("request-1", Path.of(" ")));
+        IllegalArgumentException nullOutput = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.runRequest("request-1", null));
+
+        assertTrue(missingId.getMessage().contains("request id is required"), missingId.getMessage());
+        assertTrue(missingOutput.getMessage().contains("test output directory is required"), missingOutput.getMessage());
+        assertTrue(nullOutput.getMessage().contains("test output directory is required"), nullOutput.getMessage());
+    }
+
+    @Test
     void preservesRequestIdsWithReservedCharacters() {
         // Reserved characters in a value are escaped on the wire and restored on decode, so an id
         // containing a tab or `=` round-trips rather than corrupting the framing.
@@ -284,12 +329,43 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void rejectsResultFramesWithWrongCommand() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseResult("RUN\tid=request-1\texit=0"));
+
+        assertTrue(exception.getMessage().contains("Malformed JUnit worker result"), exception.getMessage());
+        assertTrue(exception.getMessage().contains(JunitWorkerProtocol.RESULT_PREFIX), exception.getMessage());
+    }
+
+    @Test
     void rejectsResultsMissingExitCode() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> JunitWorkerProtocol.parseResult("ZOLT_WORKER_RESULT\tid=request-1"));
 
         assertTrue(exception.getMessage().contains("exit code"), exception.getMessage());
+    }
+
+    @Test
+    void workerRequestNormalizesNullableOptionalsAndCopiesEvents() {
+        java.util.ArrayList<String> events = new java.util.ArrayList<>();
+        events.add("failed");
+
+        JunitWorkerProtocol.WorkerRequest request = new JunitWorkerProtocol.WorkerRequest(
+                JunitWorkerProtocol.WorkerCommand.RUN,
+                "request-1",
+                "target/test-classes",
+                null,
+                null,
+                events,
+                TestSelection.empty());
+        events.add("skipped");
+
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertTrue(request.profileDirectory().isEmpty());
+        assertEquals(List.of("failed"), request.events());
+        assertThrows(UnsupportedOperationException.class, () -> request.events().add("passed"));
     }
 
     private static void assertSelectionRoundTrips(TestSelection selection) {

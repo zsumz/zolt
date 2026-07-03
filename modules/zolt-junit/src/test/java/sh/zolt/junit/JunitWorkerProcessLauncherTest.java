@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 final class JunitWorkerProcessLauncherTest {
@@ -32,6 +33,43 @@ final class JunitWorkerProcessLauncherTest {
                         Path.of("/repo/target/classes"),
                         Path.of("/cache/junit.jar")),
                 List.of("-Dlibrary.mode=true")));
+    }
+
+    @Test
+    void buildsServerCommandWithNullJvmArguments() {
+        JunitWorkerProcessLauncher launcher = launcher();
+
+        assertEquals(List.of(
+                "/jdk/bin/java",
+                "-Duser.dir=/repo",
+                "-classpath",
+                "/zolt/zolt.jar:/repo/target/test-classes",
+                JunitLauncherWorker.MAIN_CLASS,
+                "--server"), launcher.command(
+                Path.of("/repo"),
+                List.of(Path.of("/repo/target/test-classes")),
+                null));
+    }
+
+    @Test
+    void defensivelyCopiesWorkerClasspath() {
+        List<Path> workerClasspath = new ArrayList<>();
+        workerClasspath.add(Path.of("/zolt/zolt.jar"));
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                workerClasspath,
+                (command, projectDirectory) -> new JunitWorkerProcessLauncher.StartedWorker(
+                        new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                        new StringWriter(),
+                        () -> {
+                        }));
+        workerClasspath.add(Path.of("/zolt/late.jar"));
+
+        List<String> command = launcher.command(Path.of("/repo"), List.of(Path.of("/repo/target/test-classes")));
+
+        assertTrue(command.get(3).contains("/zolt/zolt.jar"), command.toString());
+        assertTrue(!command.get(3).contains("/zolt/late.jar"), command.toString());
     }
 
     @Test
@@ -92,6 +130,38 @@ final class JunitWorkerProcessLauncherTest {
     }
 
     @Test
+    void startsWorkerThroughLegacyStarterWhenEnvironmentIsNull() {
+        List<List<String>> commands = new ArrayList<>();
+        List<Path> directories = new ArrayList<>();
+        StringWriter input = new StringWriter();
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                (command, projectDirectory) -> {
+                    commands.add(command);
+                    directories.add(projectDirectory);
+                    return new JunitWorkerProcessLauncher.StartedWorker(
+                            new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                            input,
+                            () -> {
+                            });
+                });
+
+        try (JunitWorkerProcess ignored = launcher.start(
+                Path.of("/repo"),
+                List.of(Path.of("/repo/target/test-classes")),
+                null,
+                null)) {
+            // Closing sends the quit request and proves the legacy starter returned a usable worker.
+        }
+
+        assertEquals(1, commands.size());
+        assertEquals(Path.of("/repo"), directories.getFirst());
+        assertEquals("QUIT\tv=1\tid=junit-1\n", input.toString());
+    }
+
+    @Test
     void closesProcessWhenClientCloseFails() {
         AtomicBoolean closed = new AtomicBoolean();
         JunitWorkerProcess process = new JunitWorkerProcess(
@@ -115,6 +185,101 @@ final class JunitWorkerProcessLauncherTest {
                 () -> launcher().start(Path.of("/repo"), List.of()));
 
         assertTrue(exception.getMessage().contains("test runtime classpath is required"));
+    }
+
+    @Test
+    void validatesConstructorArguments() {
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(null, Path.of("/jdk/bin/java"), List.of(Path.of("/zolt/zolt.jar")), starter()),
+                "path separator is required");
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(" ", Path.of("/jdk/bin/java"), List.of(Path.of("/zolt/zolt.jar")), starter()),
+                "path separator is required");
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(":", null, List.of(Path.of("/zolt/zolt.jar")), starter()),
+                "Java executable is required");
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(":", Path.of("/jdk/bin/java"), null, starter()),
+                "classpath is required");
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(":", Path.of("/jdk/bin/java"), List.of(), starter()),
+                "classpath is required");
+        assertInvalidLauncher(
+                () -> new JunitWorkerProcessLauncher(":", Path.of("/jdk/bin/java"), List.of(Path.of("/zolt/zolt.jar")), null),
+                "process starter is required");
+    }
+
+    @Test
+    void requiresProjectDirectory() {
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> launcher().start(null, List.of(Path.of("/repo/target/test-classes"))));
+
+        assertTrue(exception.getMessage().contains("project directory is required"), exception.getMessage());
+    }
+
+    @Test
+    void closesProcessOnlyOnce() {
+        AtomicInteger closes = new AtomicInteger();
+        JunitWorkerProcess process = new JunitWorkerProcess(
+                new JunitWorkerClient(
+                        new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                        new StringWriter()),
+                closes::incrementAndGet);
+
+        process.close();
+        process.close();
+
+        assertEquals(1, closes.get());
+    }
+
+    @Test
+    void rejectsRunAfterProcessClose() {
+        JunitWorkerProcess process = new JunitWorkerProcess(
+                new JunitWorkerClient(
+                        new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                        new StringWriter()),
+                () -> {
+                });
+
+        process.close();
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> process.run(Path.of("/repo/target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("process is already closed"), exception.getMessage());
+    }
+
+    @Test
+    void validatesProcessConstructorArguments() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                new StringWriter());
+
+        IllegalArgumentException missingClient = assertThrows(
+                IllegalArgumentException.class,
+                () -> new JunitWorkerProcess(null, () -> {
+                }));
+        IllegalArgumentException missingCloser = assertThrows(
+                IllegalArgumentException.class,
+                () -> new JunitWorkerProcess(client, null));
+
+        assertTrue(missingClient.getMessage().contains("client is required"), missingClient.getMessage());
+        assertTrue(missingCloser.getMessage().contains("process closer is required"), missingCloser.getMessage());
+    }
+
+    private static void assertInvalidLauncher(Runnable action, String message) {
+        JunitWorkerClientException exception = assertThrows(JunitWorkerClientException.class, action::run);
+
+        assertTrue(exception.getMessage().contains(message), exception.getMessage());
+    }
+
+    private static JunitWorkerProcessLauncher.ProcessStarter starter() {
+        return (command, projectDirectory) -> new JunitWorkerProcessLauncher.StartedWorker(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                new StringWriter(),
+                () -> {
+                });
     }
 
     private static JunitWorkerProcessLauncher launcher() {

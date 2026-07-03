@@ -5,14 +5,30 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.test.TestSelection;
+import java.io.IOException;
+import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.io.Writer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class JunitWorkerClientTest {
+    @Test
+    void requiresReaderAndWriter() {
+        IllegalArgumentException missingOutput = assertThrows(
+                IllegalArgumentException.class,
+                () -> new JunitWorkerClient(null, new StringWriter()));
+        IllegalArgumentException missingInput = assertThrows(
+                IllegalArgumentException.class,
+                () -> new JunitWorkerClient(new StringReader(""), null));
+
+        assertTrue(missingOutput.getMessage().contains("output reader is required"));
+        assertTrue(missingInput.getMessage().contains("input writer is required"));
+    }
+
     @Test
     void sendsRunRequestAndPreservesOutputBeforeResult() {
         StringWriter input = new StringWriter();
@@ -60,6 +76,54 @@ final class JunitWorkerClientTest {
     }
 
     @Test
+    void sendsRunRequestWithProfileDirectory() {
+        StringWriter input = new StringWriter();
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                input);
+
+        JunitWorkerClient.WorkerRunResult result = client.run(
+                Path.of("target/test-classes"),
+                TestSelection.empty(),
+                Optional.empty(),
+                List.of(),
+                Optional.of(Path.of("target/test-profile")));
+
+        assertEquals("""
+                RUN\tv=1\tid=junit-1\tout=target/test-classes\tprofile=target/test-profile
+                """, input.toString());
+        assertEquals("", result.output());
+        assertEquals(0, result.exitCode());
+    }
+
+    @Test
+    void closeIsIdempotent() {
+        StringWriter input = new StringWriter();
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                input);
+
+        client.close();
+        client.close();
+
+        assertEquals("QUIT\tv=1\tid=junit-1\n", input.toString());
+    }
+
+    @Test
+    void failsWhenQuitIsRejected() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=2\n"),
+                new StringWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                client::close);
+
+        assertTrue(exception.getMessage().contains("rejected quit request"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("exit code 2"), exception.getMessage());
+    }
+
+    @Test
     void rejectsRunAfterClose() {
         JunitWorkerClient client = new JunitWorkerClient(
                 new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
@@ -91,6 +155,19 @@ final class JunitWorkerClientTest {
     }
 
     @Test
+    void failsWhenWorkerExitsBeforeResultWithoutOutput() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader(""),
+                new StringWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> client.run(Path.of("target/test-classes")));
+
+        assertEquals("JUnit worker exited before sending a result for request `junit-1`.", exception.getMessage());
+    }
+
+    @Test
     void failsOnMismatchedResultRequestId() {
         JunitWorkerClient client = new JunitWorkerClient(
                 new StringReader("ZOLT_WORKER_RESULT\tid=junit-2\texit=0\n"),
@@ -102,5 +179,72 @@ final class JunitWorkerClientTest {
 
         assertTrue(exception.getMessage().contains("junit-2"));
         assertTrue(exception.getMessage().contains("junit-1"));
+    }
+
+    @Test
+    void wrapsMalformedWorkerResult() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=nope\n"),
+                new StringWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> client.run(Path.of("target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("Malformed JUnit worker result exit code"), exception.getMessage());
+    }
+
+    @Test
+    void wrapsWorkerOutputReadFailures() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new FailingReader(),
+                new StringWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> client.run(Path.of("target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("Could not read JUnit worker output"), exception.getMessage());
+        assertTrue(exception.getCause() instanceof IOException);
+    }
+
+    @Test
+    void wrapsWorkerRequestWriteFailures() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader(""),
+                new FailingWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> client.run(Path.of("target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("Could not write JUnit worker request"), exception.getMessage());
+        assertTrue(exception.getCause() instanceof IOException);
+    }
+
+    private static final class FailingReader extends Reader {
+        @Override
+        public int read(char[] buffer, int offset, int length) throws IOException {
+            throw new IOException("boom");
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
+    private static final class FailingWriter extends Writer {
+        @Override
+        public void write(char[] buffer, int offset, int length) throws IOException {
+            throw new IOException("boom");
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
     }
 }
