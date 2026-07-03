@@ -1,5 +1,6 @@
 package sh.zolt.build.fingerprint;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -86,6 +87,68 @@ final class BuildFingerprintServiceTest {
         assertTrue(exception.getMessage().contains("../api.yaml"));
     }
 
+    @Test
+    void testCompileFingerprintTracksJavaGroovyAndGeneratedTestSources() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.toml"), "[project]\nname = \"demo\"\n");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Path javaTest = write("src/test/java/com/example/AppTest.java", "final class AppTest {}\n");
+        Path groovyTest = write("src/test/groovy/com/example/AppSpec.groovy", "class AppSpec {}\n");
+        Path generatedTest = write(
+                "target/generated/test-sources/fixtures/com/example/GeneratedTest.java",
+                "final class GeneratedTest {}\n");
+        write("src/test/fixtures/schema.json", "{}\n");
+        write("target/test-classes/com/example/AppTest.class", "class");
+        write("target/test-classes/com/example/AppSpec.class", "class");
+        write("target/test-classes/com/example/GeneratedTest.class", "class");
+        ProjectConfig config = config().withBuildSettings(config().build().withGeneratedSources(
+                List.of(),
+                List.of(new GeneratedSourceStep(
+                        "fixtures",
+                        GeneratedSourceKind.DECLARED_ROOT,
+                        "java",
+                        "target/generated/test-sources/fixtures",
+                        List.of("src/test/fixtures/schema.json"),
+                        true,
+                        true))));
+        SourceDiscoveryResult sources = new SourceDiscoveryResult(
+                List.of(),
+                List.of(javaTest, generatedTest),
+                List.of(groovyTest));
+        Path output = projectDir.resolve("target/test-classes");
+
+        service.writeTestCompileFingerprint(
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                sources,
+                new Classpath(List.of()),
+                new Classpath(List.of()),
+                output,
+                projectDir.resolve("target/generated/test-sources/annotations"));
+
+        assertTrue(service.isTestCompileCurrent(
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                sources,
+                new Classpath(List.of()),
+                new Classpath(List.of()),
+                output,
+                projectDir.resolve("target/generated/test-sources/annotations")));
+
+        Files.writeString(projectDir.resolve("src/test/fixtures/schema.json"), "{\"changed\":true}\n");
+
+        assertFalse(service.isTestCompileCurrent(
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                sources,
+                new Classpath(List.of()),
+                new Classpath(List.of()),
+                output,
+                projectDir.resolve("target/generated/test-sources/annotations")));
+    }
+
     private static ProjectConfig config() {
         return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
@@ -98,5 +161,12 @@ final class BuildFingerprintServiceTest {
     private static ClasspathSet emptyClasspaths() {
         Classpath empty = new Classpath(List.of());
         return new ClasspathSet(empty, empty, empty, empty, empty, empty);
+    }
+
+    private Path write(String relativePath, String content) throws IOException {
+        Path path = projectDir.resolve(relativePath);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
+        return path;
     }
 }

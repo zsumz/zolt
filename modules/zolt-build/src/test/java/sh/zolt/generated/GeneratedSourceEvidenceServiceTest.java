@@ -2,10 +2,12 @@ package sh.zolt.generated;
 
 import static sh.zolt.generated.GeneratedSourceEvidenceServiceTestSupport.write;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -74,5 +76,50 @@ final class GeneratedSourceEvidenceServiceTest {
         assertEquals(freshOutput.getParent().getParent().getParent().toAbsolutePath().normalize(), evidence.get(0).output());
         assertEquals(staleInput.toAbsolutePath().normalize(), evidence.get(1).inputs().getFirst());
         assertEquals(staleOutput.getParent().getParent().getParent().toAbsolutePath().normalize(), evidence.get(1).output());
+    }
+
+    @Test
+    void reportsProtobufToolingAndOptionFingerprints() throws IOException {
+        Path input = write(tempDir, "src/main/proto/greeter.proto", "message Hello {}\n", 1_000);
+        Path output = write(tempDir, "target/generated/sources/protobuf/com/example/greeter/Hello.java", """
+                package com.example.greeter;
+                public final class Hello {}
+                """, 2_000);
+        BuildSettings build = new ZoltTomlParser().parse("""
+                [project]
+                name = "protobuf-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                protoc = "4.28.3"
+                grpc = "1.68.1"
+
+                [generated.protobufTool]
+                protocVersionRef = "protoc"
+                grpcPluginVersionRef = "grpc"
+
+                [generated.main.greeter]
+                kind = "protobuf"
+                language = "java"
+                inputs = ["src/main/proto/greeter.proto"]
+                output = "target/generated/sources/protobuf"
+                javaPackage = "com.example.greeter"
+                grpc = false
+                """).build();
+
+        GeneratedSourceEvidence evidence = service.evidence(tempDir, build).getFirst();
+
+        assertEquals("generated-main-greeter", evidence.id());
+        assertEquals("zolt-owned-protobuf", evidence.ownership());
+        assertEquals("fresh", evidence.freshness());
+        assertEquals("main-compile", evidence.compileLane());
+        assertEquals("protoc=com.google.protobuf:protoc:4.28.3;grpc=io.grpc:protoc-gen-grpc-java:1.68.1", evidence.toolArtifact());
+        assertEquals(64, evidence.toolFingerprint().length());
+        assertEquals(64, evidence.optionsFingerprint().length());
+        assertFalse(evidence.toolFingerprint().equals(evidence.optionsFingerprint()));
+        assertEquals(input.toAbsolutePath().normalize(), evidence.inputs().getFirst());
+        assertEquals(output.getParent().getParent().getParent().getParent().toAbsolutePath().normalize(), evidence.output());
     }
 }

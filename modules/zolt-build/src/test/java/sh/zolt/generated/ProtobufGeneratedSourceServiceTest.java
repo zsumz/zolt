@@ -232,6 +232,37 @@ final class ProtobufGeneratedSourceServiceTest {
     }
 
     @Test
+    void generateTestCleansStaleOutputAndUsesDefaultPackages() throws IOException {
+        Path proto = tempDir.resolve("src/test/proto/echo.proto");
+        Files.createDirectories(proto.getParent());
+        Files.writeString(proto, """
+                syntax = "proto3";
+                message EchoRequest {}
+                service Echo {}
+                """);
+        Path stale = tempDir.resolve("target/generated/test-sources/protobuf/stale.txt");
+        Files.createDirectories(stale.getParent());
+        Files.writeString(stale, "stale");
+        var config = parser.parse(config("""
+                [generated.test.echo]
+                kind = "protobuf"
+                language = "java"
+                inputs = ["src/test/proto/echo.proto"]
+                output = "target/generated/test-sources/protobuf"
+                """));
+
+        service.generateTest(tempDir, config);
+
+        Path output = tempDir.resolve("target/generated/test-sources/protobuf/generated/protobuf");
+        assertTrue(!Files.exists(stale));
+        assertTrue(Files.exists(output.resolve("EchoRequest.java")));
+        assertTrue(Files.readString(output.resolve("EchoGrpc.java")).contains("return \"Echo\";"));
+        assertTrue(Files.readString(tempDir.resolve(
+                        "target/generated/test-sources/protobuf/META-INF/zolt/protobuf/echo.descriptor"))
+                .contains("services=Echo"));
+    }
+
+    @Test
     void javaStringLiteralEscapesGeneratedSourceValues() {
         assertEquals("\"quote\\\"backslash\\\\newline\\ntab\\t\"", JavaSourceLiterals.string("quote\"backslash\\newline\ntab\t"));
     }

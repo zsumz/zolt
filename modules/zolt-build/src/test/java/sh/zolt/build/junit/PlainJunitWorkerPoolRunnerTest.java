@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.test.runtime.TestJvmArguments;
+import sh.zolt.test.runtime.TestRunException;
 import sh.zolt.junit.JunitWorkerClient;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.ProjectConfig;
@@ -82,6 +83,108 @@ final class PlainJunitWorkerPoolRunnerTest {
         assertTrue(merged.contains("\"shard\": \"1/2\""));
         assertTrue(result.output().contains("ok wave-1-worker-1"));
         assertTrue(result.output().contains("ok wave-1-worker-2"));
+    }
+
+    @Test
+    void workerPoolWritesWorkerEvidenceAndRewritesJacocoDestfilePerWorker() throws IOException {
+        List<TestJvmArguments> workerJvmArguments = Collections.synchronizedList(new ArrayList<>());
+        List<Map<String, String>> workerEnvironments = Collections.synchronizedList(new ArrayList<>());
+        List<Optional<Path>> workerReports = Collections.synchronizedList(new ArrayList<>());
+        List<TestSelection> workerSelections = Collections.synchronizedList(new ArrayList<>());
+        PlainJunitWorkerPoolRunner runner = new PlainJunitWorkerPoolRunner(
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
+                    workerJvmArguments.add(jvmArguments);
+                    workerEnvironments.add(environment);
+                    workerReports.add(reportsDirectory);
+                    workerSelections.add(testSelection);
+                    return new PlainJunitWorkerRunResult(
+                            new JunitWorkerClient.WorkerRunResult("ok\n", 0),
+                            5L,
+                            10L);
+                });
+        Path reports = tempDir.resolve("target/test-reports");
+        Path execFile = tempDir.resolve("target/coverage/jacoco.exec").toAbsolutePath().normalize();
+        String jacocoArg = "-javaagent:" + tempDir.resolve("jacocoagent.jar").toAbsolutePath().normalize()
+                + "=destfile=" + execFile + ",append=true";
+
+        runner.run(
+                Path.of("java"),
+                List.of(Path.of("zolt-worker.jar")),
+                tempDir,
+                config(),
+                List.of(tempDir.resolve("target/classes")),
+                tempDir.resolve("target/test-classes"),
+                TestSelection.fromFields(
+                        List.of(),
+                        List.of(new TestSelection.MethodSelector("com.example.AlphaTest", "runs")),
+                        List.of(),
+                        List.of("fast"),
+                        List.of("slow")),
+                new TestWorkerPoolPlan(true, 1, List.of(new TestWorkerPoolWave(
+                        List.of(entry("com.example.AlphaTest")),
+                        Map.of()))),
+                new TestJvmArguments(List.of(jacocoArg)),
+                Map.of("EXISTING", "1"),
+                Optional.of(reports),
+                List.of(),
+                Optional.empty());
+
+        Path workerExec = execFile.getParent()
+                .resolve("workers/wave-1-worker-1")
+                .resolve(execFile.getFileName())
+                .toAbsolutePath()
+                .normalize();
+        assertEquals(1, workerJvmArguments.size());
+        assertEquals(List.of(jacocoArg.replace(execFile.toString(), workerExec.toString())), workerJvmArguments.getFirst().values());
+        assertEquals("1", workerEnvironments.getFirst().get("EXISTING"));
+        assertEquals("wave-1-worker-1", workerEnvironments.getFirst().get("ZOLT_TEST_WORKER_ID"));
+        assertEquals(workerExec.toString(), workerEnvironments.getFirst().get("ZOLT_COVERAGE_EXEC_FILE"));
+        assertEquals(
+                tempDir.resolve("target/test-workers/wave-1-worker-1").toAbsolutePath().normalize().toString(),
+                workerEnvironments.getFirst().get("ZOLT_TEST_WORKER_OUTPUT_DIR"));
+        assertEquals(Optional.of(reports.resolve("workers/wave-1-worker-1")), workerReports.getFirst());
+        assertTrue(workerSelections.getFirst().classSelectors().isEmpty());
+        assertEquals(
+                List.of(new TestSelection.MethodSelector("com.example.AlphaTest", "runs")),
+                workerSelections.getFirst().methodSelectors());
+        assertEquals(
+                workerManifest(),
+                Files.readString(reports.resolve("workers/zolt-workers.json")));
+        assertEquals(
+                workerManifest(),
+                Files.readString(execFile.getParent().resolve("workers/zolt-workers.json")));
+    }
+
+    @Test
+    void workerFailureNamesSelectedClassAndPreservesOutput() {
+        PlainJunitWorkerPoolRunner runner = new PlainJunitWorkerPoolRunner(
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) ->
+                        new PlainJunitWorkerRunResult(
+                                new JunitWorkerClient.WorkerRunResult("boom\n", 2),
+                                5L,
+                                10L));
+
+        TestRunException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                TestRunException.class,
+                () -> runner.run(
+                        Path.of("java"),
+                        List.of(Path.of("zolt-worker.jar")),
+                        tempDir,
+                        config(),
+                        List.of(tempDir.resolve("target/classes")),
+                        tempDir.resolve("target/test-classes"),
+                        TestSelection.empty(),
+                        new TestWorkerPoolPlan(true, 1, List.of(new TestWorkerPoolWave(
+                                List.of(entry("com.example.AlphaTest")),
+                                Map.of()))),
+                        TestJvmArguments.empty(),
+                        Map.of(),
+                        Optional.empty(),
+                        List.of(),
+                        Optional.empty()));
+
+        assertTrue(exception.getMessage().contains("exit code 2 in com.example.AlphaTest"));
+        assertTrue(exception.getMessage().contains("boom"));
     }
 
     private static TestWorkerPoolPlan workerPoolPlan() {
@@ -179,5 +282,16 @@ final class PlainJunitWorkerPoolRunnerTest {
                   ]
                 }
                 """.formatted(workerId, className, className, workerId, className, className, className, workerId);
+    }
+
+    private static String workerManifest() {
+        return """
+                {
+                  "version": 1,
+                  "workers": [
+                    "wave-1-worker-1"
+                  ]
+                }
+                """;
     }
 }

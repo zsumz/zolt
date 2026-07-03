@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -65,5 +67,73 @@ final class BuildFingerprintFileHasherTest {
         String hash = hasher.fileHash(source, null, collected);
 
         assertEquals(hash, collected.get(source.toAbsolutePath().normalize()).hash());
+    }
+
+    @Test
+    void classpathHashUsesIncrementalAbiStateForZoltOutputDirectories() throws IOException {
+        Path output = tempDir.resolve("target/classes").toAbsolutePath().normalize();
+        Files.createDirectories(output);
+        Files.writeString(output.resolve(".zolt-incremental-main.state"), incrementalState(output));
+
+        String hash = hasher.classpathHash(output, null, null);
+
+        assertEquals(
+                "abi:" + hasher.hashText("com.example.Alpha|abi-alpha|package-alpha\n"
+                        + "com.example.Beta|abi-beta|package-beta\n"),
+                hash);
+    }
+
+    @Test
+    void classpathHashFallsBackToDirectoryHashWhenIncrementalStateDoesNotMatchOutputDirectory() throws IOException {
+        Path output = tempDir.resolve("target/classes").toAbsolutePath().normalize();
+        Files.createDirectories(output);
+        Files.writeString(output.resolve(".zolt-incremental-main.state"), incrementalState(tempDir.resolve("other-output")));
+
+        assertEquals(hasher.fileHash(output, null, null), hasher.classpathHash(output, null, null));
+    }
+
+    private String incrementalState(Path outputDirectory) {
+        Path project = tempDir.toAbsolutePath().normalize();
+        return "version=1\n"
+                + "scope=main\n"
+                + encodedLine("projectDirectory", project.toString())
+                + encodedLine("outputDirectory", outputDirectory.toAbsolutePath().normalize().toString())
+                + encodedLine("generatedSourcesDirectory", project.resolve("target/generated/sources/annotations").toString())
+                + "compilerSettingsHash=compiler-hash\n"
+                + "buildFingerprintSha256=fingerprint-hash\n"
+                + classRecord("com.example.Beta", "class-beta", "abi-beta", "package-beta")
+                + classRecord("com.example.Alpha", "class-alpha", "abi-alpha", "package-alpha");
+    }
+
+    private String classRecord(String binaryName, String classHash, String abiHash, String packageAbiHash) {
+        Path outputPath = tempDir.resolve("target/classes")
+                .resolve(binaryName.replace('.', '/') + ".class")
+                .toAbsolutePath()
+                .normalize();
+        return encodedRecord(
+                "class",
+                binaryName,
+                outputPath.toString(),
+                classHash,
+                abiHash,
+                packageAbiHash,
+                "33",
+                "java.lang.Object");
+    }
+
+    private static String encodedLine(String name, String value) {
+        return name + "=" + encode(value) + "\n";
+    }
+
+    private static String encodedRecord(String name, String... values) {
+        StringBuilder line = new StringBuilder(name);
+        for (String value : values) {
+            line.append('\t').append(encode(value));
+        }
+        return line.append('\n').toString();
+    }
+
+    private static String encode(String value) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }
