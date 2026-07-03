@@ -2,10 +2,12 @@ package sh.zolt.cli.command;
 
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.ResolveOptions;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
 import sh.zolt.workspace.service.Workspace;
+import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.resolve.WorkspaceResolveService;
 import sh.zolt.workspace.discovery.WorkspaceDiscoveryService;
 import java.io.IOException;
@@ -56,12 +58,35 @@ public final class CommandLockfiles {
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
             return;
         }
+        redirectWorkspaceMemberToWorkspacePath(workingDirectory, retryCommand);
         resolveService.resolve(
                 workingDirectory,
                 config,
                 cacheRoot,
                 true,
                 ResolveOptions.offline(offline).withRetryCommand(retryCommand));
+    }
+
+    private void redirectWorkspaceMemberToWorkspacePath(Path workingDirectory, String retryCommand) {
+        Path normalizedDirectory = workingDirectory.toAbsolutePath().normalize();
+        Optional<Workspace> workspace = workspaceDiscoveryService.discover(normalizedDirectory);
+        if (workspace.isEmpty()) {
+            return;
+        }
+        Optional<WorkspaceMember> member = workspace.orElseThrow().members().stream()
+                .filter(candidate -> candidate.directory().toAbsolutePath().normalize().equals(normalizedDirectory))
+                .findFirst();
+        if (member.isEmpty()) {
+            return;
+        }
+        String memberPath = member.orElseThrow().path();
+        throw ResolveException.actionable(
+                "zolt.lock is out of date for workspace member `" + memberPath + "`.",
+                "This directory is a member of the workspace at "
+                        + workspace.orElseThrow().root()
+                        + ", whose lockfile a member-directory build never refreshes. "
+                        + "Run `" + retryCommand + " --workspace --member " + memberPath
+                        + "` to build it through the workspace lock.");
     }
 
     public void refreshExistingLockfile(
