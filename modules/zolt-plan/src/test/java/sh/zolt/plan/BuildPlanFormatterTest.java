@@ -139,6 +139,53 @@ final class BuildPlanFormatterTest {
     }
 
     @Test
+    void formatsJsonWithMultiValueArraysAndMultipleBlockers() {
+        BuildPlan plan = new BuildPlan(
+                1,
+                projectDir,
+                "demo",
+                PlanTarget.PACKAGE,
+                List.of(new PlanNode(
+                        "assemble-package",
+                        "package",
+                        PlanNodeStatus.BLOCKED,
+                        "Assemble package.",
+                        List.of("target/classes", "zolt.lock"),
+                        List.of("target/demo-1.0.0.jar", "target/demo-1.0.0-sources.jar"),
+                        List.of("mode: spring-boot", "manifest: generated"),
+                        List.of(
+                                new PlanBlocker(
+                                        "missing-main-class",
+                                        "Spring Boot package modes require [project].main.",
+                                        "Add [project].main to zolt.toml."),
+                                new PlanBlocker(
+                                        "missing-lockfile",
+                                        "zolt.lock is missing; plan will not resolve or download artifacts.",
+                                        "Run `zolt resolve` first, then rerun `zolt plan`.")))));
+
+        String json = formatter.json(plan);
+
+        assertTrue(json.contains("\"inputs\": [\"target/classes\", \"zolt.lock\"]"));
+        assertTrue(json.contains(
+                "\"outputs\": [\"target/demo-1.0.0.jar\", \"target/demo-1.0.0-sources.jar\"]"));
+        assertTrue(json.contains("\"details\": [\"mode: spring-boot\", \"manifest: generated\"]"));
+        assertTrue(json.contains("""
+                      "blockers": [
+                        {
+                          "code": "missing-main-class",
+                          "message": "Spring Boot package modes require [project].main.",
+                          "nextStep": "Add [project].main to zolt.toml."
+                        },
+                        {
+                          "code": "missing-lockfile",
+                          "message": "zolt.lock is missing; plan will not resolve or download artifacts.",
+                          "nextStep": "Run `zolt resolve` first, then rerun `zolt plan`."
+                        }
+                      ]
+                """));
+    }
+
+    @Test
     void formatsEmptyReadyPlanAsEmptyNodeArray() {
         BuildPlan plan = new BuildPlan(0, projectDir, null, PlanTarget.BUILD, null);
 

@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.project.BuildMetadataSettings;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.FrameworkSettings;
+import sh.zolt.project.GeneratedSourceKind;
+import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.NativeSettings;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
@@ -178,6 +180,105 @@ final class BuildPlanServiceTest {
         assertTrue(publish.inputs().contains(".zolt/build/demo-1.0.0.jar"));
         assertTrue(publish.inputs().contains("zolt.lock"));
         assertEquals(List.of(".zolt/build/publish"), publish.outputs());
+    }
+
+    @Test
+    void plansGeneratedSourcesSkippedResourcesAndBlankOutputRootFallback() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        writeFile("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
+        writeFile("src/test/fixtures/schema.json", "{}\n");
+        writeFile("target/generated/sources/api/com/example/Api.java", "package com.example; interface Api {}\n");
+        writeFile(
+                "target/generated/test-sources/fixtures/com/example/Fixture.java",
+                "package com.example; final class Fixture {}\n");
+        GeneratedSourceStep mainGenerated = new GeneratedSourceStep(
+                "api",
+                GeneratedSourceKind.DECLARED_ROOT,
+                "java",
+                "target/generated/sources/api",
+                List.of("src/main/openapi/api.yaml"),
+                true,
+                false);
+        GeneratedSourceStep testGenerated = new GeneratedSourceStep(
+                "fixtures",
+                GeneratedSourceKind.DECLARED_ROOT,
+                "java",
+                "target/generated/test-sources/fixtures",
+                List.of("src/test/fixtures/schema.json"),
+                true,
+                false);
+        BuildSettings build = new BuildSettings(
+                "src/main/java",
+                List.of("src/main/java"),
+                "src/test/java",
+                " ",
+                "build/classes",
+                "build/test-classes",
+                List.of("src/test/java"),
+                List.of(),
+                null,
+                null,
+                null,
+                List.of(),
+                List.of(),
+                ResourceFilteringSettings.defaults(),
+                TestRuntimeSettings.defaults(),
+                Map.of(),
+                BuildMetadataSettings.defaults(),
+                List.of(mainGenerated),
+                List.of(testGenerated));
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                build);
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.CI, Optional.empty());
+
+        assertFalse(plan.blocked());
+        assertEquals(PlanNodeStatus.READY, node(plan, "generate-main-api").status());
+        assertEquals(PlanNodeStatus.READY, node(plan, "generate-test-fixtures").status());
+        assertEquals(PlanNodeStatus.SKIPPED, node(plan, "process-main-resources").status());
+        assertEquals(List.of("filtering: disabled"), node(plan, "process-main-resources").details());
+        assertEquals(PlanNodeStatus.SKIPPED, node(plan, "process-test-resources").status());
+        assertEquals(List.of("filtering: disabled"), node(plan, "process-test-resources").details());
+        assertEquals(
+                List.of("src/main/java", "target/generated/sources/api"),
+                node(plan, "compile-main").inputs());
+        assertEquals(
+                List.of("build/classes", "src/test/java", "target/generated/test-sources/fixtures"),
+                node(plan, "compile-tests").inputs());
+        assertEquals(List.of(), node(plan, "run-tests").outputs());
+        assertEquals(List.of("target/coverage"), node(plan, "coverage").outputs());
+        assertEquals(List.of("target/demo-1.0.0.jar"), node(plan, "assemble-package").outputs());
+        assertEquals(List.of("target/publish"), node(plan, "publish-dry-run").outputs());
+    }
+
+    @Test
+    void plansSpringBootPackageWhenMainClassIsConfigured() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                        new ProjectMetadata(
+                                "demo",
+                                "1.0.0",
+                                "com.example",
+                                "21",
+                                Optional.of("com.example.DemoApplication")),
+                        Map.of(),
+                        Map.of(),
+                        Map.of(),
+                        BuildSettings.defaults())
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.PACKAGE, Optional.empty());
+
+        PlanNode packageNode = node(plan, "assemble-package");
+        assertFalse(plan.blocked());
+        assertEquals(PlanNodeStatus.READY, packageNode.status());
+        assertEquals(List.of("target/demo-1.0.0.jar"), packageNode.outputs());
+        assertEquals(List.of("mode: spring-boot"), packageNode.details());
+        assertTrue(packageNode.blockers().isEmpty());
     }
 
     @Test
@@ -503,5 +604,11 @@ final class BuildPlanServiceTest {
         Files.writeString(classFile, "class-bytes");
         Files.setLastModifiedTime(projectDir.resolve("zolt.toml"), time);
         Files.setLastModifiedTime(classFile, time);
+    }
+
+    private void writeFile(String relativePath, String content) throws IOException {
+        Path path = projectDir.resolve(relativePath);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
     }
 }
