@@ -84,6 +84,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.UNKNOWN,
             ExplainSignal.Category.BUILDABILITY,
             "Declare the Maven compiler release/source/target or set [project].java before migrating.");
+    public static final ExplainSignalDefinition MAVEN_JPMS_MODULE_INFO_DETECTED = new ExplainSignalDefinition(
+            "maven.jpms.module-info-detected",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Raise the Java version to 9+ (or add multi-release handling) so the module-info.java under this source root can compile.");
     public static final ExplainSignalDefinition MAVEN_TEST_JAVA_VERSION_DIVERGENT = new ExplainSignalDefinition(
             "maven.test-java-version.divergent",
             ExplainSignal.Severity.UNKNOWN,
@@ -267,6 +272,7 @@ public final class ExplainSignals {
             MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
             MAVEN_DEPENDENCY_MISSING_VERSION,
             MAVEN_JAVA_VERSION_UNKNOWN,
+            MAVEN_JPMS_MODULE_INFO_DETECTED,
             MAVEN_TEST_JAVA_VERSION_DIVERGENT,
             MAVEN_REPOSITORY_DECLARED,
             MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,

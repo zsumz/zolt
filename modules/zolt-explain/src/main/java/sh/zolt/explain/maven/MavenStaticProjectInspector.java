@@ -53,7 +53,7 @@ public final class MavenStaticProjectInspector {
                     pom.project(),
                     reactor);
             projects.add(inspection);
-            signals.addAll(signalsFor(pom.projectLabel(), inspection));
+            signals.addAll(signalsFor(pom.projectLabel(), inspection, pom.directory()));
         }
         projects.sort(Comparator.comparing(project -> project.path().toString()));
         return new MavenInspectionResult(normalizedRoot, projects, ExplainSignals.sorted(signals));
@@ -118,7 +118,8 @@ public final class MavenStaticProjectInspector {
         }
     }
 
-    private List<ExplainSignal> signalsFor(String project, MavenProjectInspection inspection) {
+    private List<ExplainSignal> signalsFor(
+            String project, MavenProjectInspection inspection, Path projectDirectory) {
         List<ExplainSignal> signals = new ArrayList<>();
         List<String> profileModules = MavenProfileSignals.modules(inspection);
         if ("pom".equals(inspection.packaging()) && (!inspection.modules().isEmpty() || !profileModules.isEmpty())) {
@@ -137,6 +138,13 @@ public final class MavenStaticProjectInspector {
                     project,
                     "Maven Java version could not be resolved from compiler properties or plugin configuration."));
         }
+        MavenModuleInfoDetection.moduleInfoUnderJavaBelow9(inspection, projectDirectory).ifPresent(root ->
+                signals.add(ExplainSignals.MAVEN_JPMS_MODULE_INFO_DETECTED.signal(
+                        project,
+                        "A `module-info.java` under source root `" + root
+                                + "` requires Java 9+, but the audited Java version is `"
+                                + inspection.javaVersion()
+                                + "`; raise the Java version to 9+ or add multi-release handling.")));
         if (!inspection.testJavaVersion().isBlank()
                 && !inspection.testJavaVersion().equals(inspection.javaVersion())) {
             signals.add(ExplainSignals.MAVEN_TEST_JAVA_VERSION_DIVERGENT.signal(
