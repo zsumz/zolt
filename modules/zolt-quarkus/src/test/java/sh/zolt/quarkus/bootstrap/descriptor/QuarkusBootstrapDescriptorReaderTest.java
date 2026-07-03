@@ -112,6 +112,78 @@ final class QuarkusBootstrapDescriptorReaderTest {
     }
 
     @Test
+    void rejectsMissingPlatformPropertiesFile() throws IOException {
+        Path missingPlatformProperties =
+                projectDir.resolve("target/quarkus/missing-platform-properties.txt");
+        Path descriptor = writeDescriptorWithApplicationModel(
+                validApplicationModel(0, ""),
+                "platformPropertiesFile=" + missingPlatformProperties + "\n");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Could not read Quarkus platform properties file"));
+        assertTrue(exception.getMessage().contains("referenced by"));
+    }
+
+    @Test
+    void rejectsMalformedApplicationModelDependencyCount() throws IOException {
+        Path descriptor = writeDescriptorWithApplicationModel(validApplicationModel("many", ""), "");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Invalid Quarkus application model"));
+        assertTrue(exception.getMessage().contains("Field `dependencyCount` must be an integer"));
+    }
+
+    @Test
+    void rejectsUnsupportedApplicationModelDependencyScope() throws IOException {
+        Path descriptor = writeDescriptorWithApplicationModel(
+                validApplicationModel(
+                        1,
+                        """
+                        dependency.0.groupId=io.quarkus
+                        dependency.0.artifactId=quarkus-rest
+                        dependency.0.version=3.33.0
+                        dependency.0.scope=quarkus-plugin
+                        dependency.0.path=%s
+                        dependency.0.direct=true
+                        """.formatted(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar"))),
+                "");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Unsupported scope `quarkus-plugin`"));
+    }
+
+    @Test
+    void rejectsMalformedApplicationModelDependencyDirectFlag() throws IOException {
+        Path descriptor = writeDescriptorWithApplicationModel(
+                validApplicationModel(
+                        1,
+                        """
+                        dependency.0.groupId=io.quarkus
+                        dependency.0.artifactId=quarkus-rest
+                        dependency.0.version=3.33.0
+                        dependency.0.scope=compile
+                        dependency.0.path=%s
+                        dependency.0.direct=sometimes
+                        """.formatted(projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar"))),
+                "");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Field `dependency.0.direct` must be true or false"));
+    }
+
+    @Test
     void preservesBackslashesInPathValues() throws IOException {
         Path descriptor = descriptorPath();
         Files.createDirectories(descriptor.getParent());
@@ -158,6 +230,66 @@ final class QuarkusBootstrapDescriptorReaderTest {
 
     private Path descriptorPath() {
         return projectDir.resolve("target/quarkus/zolt-bootstrap.properties");
+    }
+
+    private Path writeDescriptorWithApplicationModel(
+            String applicationModelContent,
+            String extraDescriptorProperties) throws IOException {
+        Path descriptor = descriptorPath();
+        Path runtimeClasspath = projectDir.resolve("target/quarkus/runtime-classpath.txt");
+        Path deploymentClasspath = projectDir.resolve("target/quarkus/deployment-classpath.txt");
+        Path applicationModel = projectDir.resolve("target/quarkus/application-model.properties");
+        Files.createDirectories(descriptor.getParent());
+        Files.writeString(runtimeClasspath, projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar") + "\n");
+        Files.writeString(
+                deploymentClasspath,
+                projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest-deployment.jar") + "\n");
+        Files.writeString(applicationModel, applicationModelContent);
+        Files.writeString(descriptor, """
+                version=1
+                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
+                augmentActionClass=io.quarkus.bootstrap.app.AugmentAction
+                mode=prod
+                package=fast-jar
+                projectDirectory=%s
+                applicationClasses=%s
+                augmentationDirectory=%s
+                packageDirectory=%s
+                runtimeClasspathFile=%s
+                deploymentClasspathFile=%s
+                applicationModelFile=%s
+                inputFingerprint=%s
+                %s""".formatted(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/quarkus"),
+                projectDir.resolve("target/quarkus-app"),
+                runtimeClasspath,
+                deploymentClasspath,
+                applicationModel,
+                "sha256:" + "1".repeat(64),
+                extraDescriptorProperties));
+        return descriptor;
+    }
+
+    private String validApplicationModel(int dependencyCount, String dependencies) {
+        return validApplicationModel(Integer.toString(dependencyCount), dependencies);
+    }
+
+    private String validApplicationModel(String dependencyCount, String dependencies) {
+        return """
+                version=1
+                application.groupId=com.example
+                application.artifactId=demo
+                application.version=1.0.0
+                application.classifier=
+                application.type=jar
+                application.path=%s
+                dependencyCount=%s
+                %s""".formatted(
+                projectDir.resolve("target/classes"),
+                dependencyCount,
+                dependencies);
     }
 
     private QuarkusAugmentationRequest request() {

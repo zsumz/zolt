@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -29,6 +30,8 @@ final class QuarkusTestRunnerDescriptorReaderTest {
         QuarkusTestRunnerDescriptor read = reader.read(written.descriptorFile());
 
         assertEquals(written, read);
+        assertEquals(List.of("-Dlibrary.mode=true"), read.jvmArguments().values());
+        assertEquals(Map.of("QUARKUS_PROFILE", "dev", "ZOLT_MODE", "test"), read.environment());
     }
 
     @Test
@@ -194,6 +197,42 @@ final class QuarkusTestRunnerDescriptorReaderTest {
                 read.testSelection());
     }
 
+    @Test
+    void rejectsMalformedSelectionField() throws IOException {
+        Path descriptor = writeValidDescriptor("testSelection.methodSelectors=com.example.BadTest#runs#again\n");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Malformed test selection"));
+        assertTrue(exception.getMessage().contains("invalid method selector"));
+    }
+
+    @Test
+    void rejectsMalformedJvmArguments() throws IOException {
+        Path descriptor = writeValidDescriptor("jvmArguments=-jar\n");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Malformed JVM arguments"));
+        assertTrue(exception.getMessage().contains("Zolt owns the test classpath"));
+    }
+
+    @Test
+    void rejectsMalformedEnvironmentEntry() throws IOException {
+        Path descriptor = writeValidDescriptor("environment=QUARKUS_PROFILE\n");
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Malformed environment"));
+        assertTrue(exception.getMessage().contains("contains malformed entry"));
+    }
+
     private Path descriptorPath() {
         return projectDir.resolve("target/quarkus/zolt-test-bootstrap.properties");
     }
@@ -211,6 +250,34 @@ final class QuarkusTestRunnerDescriptorReaderTest {
                         projectDir.resolve(".zolt/cache/org/junit/platform/junit-platform-console-standalone.jar")),
                 true,
                 TestSelection.empty(),
-                new TestJvmArguments(List.of("-Dlibrary.mode=true")));
+                new TestJvmArguments(List.of("-Dlibrary.mode=true")),
+                Map.of("ZOLT_MODE", "test", "QUARKUS_PROFILE", "dev"));
+    }
+
+    private Path writeValidDescriptor(String extraProperties) throws IOException {
+        Path descriptor = descriptorPath();
+        Path classpath = projectDir.resolve("target/quarkus/test-runtime-classpath.txt");
+        Files.createDirectories(classpath.getParent());
+        Files.writeString(classpath, projectDir.resolve("target/test-classes") + "\n");
+        Files.writeString(descriptor, """
+                version=1
+                runnerMode=plain-junit
+                supportsQuarkusTestAnnotations=false
+                jbossLogManagerPresent=false
+                projectDirectory=%s
+                mainOutputDirectory=%s
+                testOutputDirectory=%s
+                serializedApplicationModel=%s
+                bootstrapDescriptorFile=%s
+                testRuntimeClasspathFile=%s
+                %s""".formatted(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/test-classes"),
+                projectDir.resolve("target/quarkus/test-application-model.dat"),
+                projectDir.resolve("target/quarkus/zolt-bootstrap.properties"),
+                classpath,
+                extraProperties));
+        return descriptor;
     }
 }
