@@ -153,6 +153,70 @@ final class WorkspaceLockfileAggregatorTest {
     }
 
     @Test
+    void workspaceProvidedCoordinateShadowsExternalSameCoordinateTransitive() throws IOException {
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")));
+        PackageId core = new PackageId("com.acme", "core");
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(new WorkspaceMemberResolveOutput(
+                        "apps/api",
+                        lockfile(
+                                List.of(externalPackage(
+                                        core,
+                                        "2.8.7",
+                                        false,
+                                        List.of(),
+                                        List.of())),
+                                List.of(),
+                                List.of()),
+                        Set.of())));
+
+        List<LockPackage> coreEntries = aggregated.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(core))
+                .toList();
+        assertEquals(1, coreEntries.size());
+        LockPackage live = coreEntries.getFirst();
+        assertEquals("workspace", live.source());
+        assertEquals("0.1.0", live.version());
+        assertEquals(
+                List.of(new LockConflict(
+                        core,
+                        "0.1.0",
+                        List.of("0.1.0", "2.8.7"),
+                        ConflictSelectionReason.DIRECT_DEPENDENCY)),
+                aggregated.conflicts());
+    }
+
+    @Test
+    void keepsExternalTransitiveWhenNoWorkspaceCoordinateCollision() throws IOException {
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")));
+        PackageId library = new PackageId("com.example", "library");
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(new WorkspaceMemberResolveOutput(
+                        "apps/api",
+                        lockfile(
+                                List.of(externalPackage(
+                                        library,
+                                        "1.0.0",
+                                        false,
+                                        List.of(),
+                                        List.of())),
+                                List.of(),
+                                List.of()),
+                        Set.of())));
+
+        LockPackage external = packageById(aggregated, "com.example", "library");
+        assertEquals("1.0.0", external.version());
+        assertEquals("central", external.source());
+        assertEquals(List.of(), aggregated.conflicts());
+    }
+
+    @Test
     void rejectsUnsupportedWorkspaceDependencyScope() throws IOException {
         Workspace workspace = workspace(List.of(
                 new WorkspaceProjectEdge("apps/api", "modules/core", "custom", "com.acme:core")));
