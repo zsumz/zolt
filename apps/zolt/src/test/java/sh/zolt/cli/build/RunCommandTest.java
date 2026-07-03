@@ -130,6 +130,84 @@ final class RunCommandTest {
     }
 
     @Test
+    void runReportsSignalTerminationAsCleanStop() throws IOException {
+        Path projectDir = tempDir.resolve("sigterm-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("running");
+                        System.exit(143);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("sigterm-cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("running"));
+        assertTrue(result.stdout().contains("Stopped com.example.Main (signal 15)"));
+        assertFalse(result.stdout().contains("Ran com.example.Main"));
+        assertFalse(result.stderr().contains("error:"));
+        assertFalse(result.stdout().contains("Check the application output and try again"));
+        assertFalse(result.stderr().contains("Check the application output and try again"));
+    }
+
+    @Test
+    void runReportsInterruptSignalAsCleanStop() throws IOException {
+        Path projectDir = tempDir.resolve("sigint-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.exit(130);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("sigint-cache").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Stopped com.example.Main (signal 2)"));
+        assertFalse(result.stderr().contains("error:"));
+    }
+
+    @Test
+    void runReportsGenuineNonZeroExitAsUserError() throws IOException {
+        Path projectDir = tempDir.resolve("failure-demo");
+        writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
+        writeMainSource(projectDir, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.exit(1);
+                    }
+                }
+                """);
+
+        CommandResult result = execute(
+                "run",
+                "--cwd", projectDir.toString(),
+                "--cache-root", tempDir.resolve("failure-cache").toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("java exited with code 1"));
+        assertTrue(result.stderr().contains("Check the application output and try again"));
+        assertFalse(result.stdout().contains("Stopped com.example.Main"));
+    }
+
+    @Test
     void runReportsMissingMainClassClearly() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfigWithoutMain(projectDir, "https://repo.maven.apache.org/maven2");

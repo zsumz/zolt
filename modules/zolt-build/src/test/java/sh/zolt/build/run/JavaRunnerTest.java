@@ -1,6 +1,7 @@
 package sh.zolt.build.run;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -144,5 +145,63 @@ final class JavaRunnerTest {
 
         assertTrue(exception.getMessage().contains("java exited with code 7"));
         assertTrue(exception.getMessage().contains("boom"));
+    }
+
+    @Test
+    void sigtermExitReturnsCleanStopWithSignal() {
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(143, "started\n"));
+
+        JavaRunResult result = runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of());
+
+        assertTrue(result.signalled());
+        assertEquals(15, result.signal());
+        assertEquals("com.example.Main", result.mainClass());
+        assertEquals("started\n", result.output());
+    }
+
+    @Test
+    void sigintExitReturnsCleanStopWithSignal() {
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(130, "started\n"));
+
+        JavaRunResult result = runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of());
+
+        assertTrue(result.signalled());
+        assertEquals(2, result.signal());
+    }
+
+    @Test
+    void genuineNonZeroExitStillThrows() {
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(1, "boom\n"));
+
+        JavaRunException exception = assertThrows(
+                JavaRunException.class,
+                () -> runner.run(
+                        Path.of("java"),
+                        new Classpath(List.of(Path.of("target/classes"))),
+                        "com.example.Main",
+                        List.of()));
+
+        assertTrue(exception.getMessage().contains("java exited with code 1"));
+    }
+
+    @Test
+    void zeroExitIsNotSignalled() {
+        JavaRunner runner = new JavaRunner(":", (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "done\n"));
+
+        JavaRunResult result = runner.run(
+                Path.of("java"),
+                new Classpath(List.of(Path.of("target/classes"))),
+                "com.example.Main",
+                List.of());
+
+        assertFalse(result.signalled());
     }
 }

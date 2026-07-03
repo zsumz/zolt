@@ -121,11 +121,17 @@ public final class JavaRunner {
         return result(mainClass, result);
     }
 
+    private static final int SIGNAL_EXIT_BASE = 128;
+
     private static JavaRunResult result(String mainClass, ProcessResult result) {
-        if (result.exitCode() != 0) {
+        int exitCode = result.exitCode();
+        if (exitCode >= SIGNAL_EXIT_BASE) {
+            return new JavaRunResult(mainClass, result.output(), exitCode - SIGNAL_EXIT_BASE);
+        }
+        if (exitCode != 0) {
             throw new JavaRunException(
                     "java exited with code "
-                            + result.exitCode()
+                            + exitCode
                             + ". Check the application output and try again.\n"
                             + result.output().stripTrailing());
         }
