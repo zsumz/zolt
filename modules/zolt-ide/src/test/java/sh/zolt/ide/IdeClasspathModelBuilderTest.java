@@ -191,6 +191,65 @@ final class IdeClasspathModelBuilderTest {
         assertEquals("Run zolt resolve.", diagnostic.nextStep());
     }
 
+    @Test
+    void returnsEmptyClasspathsWithoutLockfileDiagnosticWhenProjectConfigIsMissing() {
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        IdeModel.ClasspathInfo classpaths = builder.build(
+                tempDir.resolve("missing/zolt.lock"),
+                tempDir.resolve("cache"),
+                tempDir.resolve("missing"),
+                null,
+                diagnostics);
+
+        assertEquals(List.of(), classpaths.compile());
+        assertEquals(List.of(), classpaths.runtime());
+        assertEquals(List.of(), classpaths.test());
+        assertEquals(List.of(), classpaths.processor());
+        assertEquals(List.of(), classpaths.testProcessor());
+        assertEquals(List.of(), classpaths.quarkusDeployment());
+        assertEquals(List.of(), diagnostics);
+    }
+
+    @Test
+    void suppressesDuplicateUnsafeOutputDiagnosticsAcrossRepeatedClasspathBuilds() throws IOException {
+        Path projectDir = tempDir.resolve("duplicate-output-diagnostic");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "duplicate-output-diagnostic"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [build]
+                output = "../outside-classes"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        List<IdeModel.Diagnostic> diagnostics = new ArrayList<>();
+
+        builder.build(
+                projectDir.resolve("zolt.lock").toAbsolutePath().normalize(),
+                tempDir.resolve("cache").toAbsolutePath().normalize(),
+                projectDir.toAbsolutePath().normalize(),
+                parse(projectDir),
+                diagnostics);
+        builder.build(
+                projectDir.resolve("zolt.lock").toAbsolutePath().normalize(),
+                tempDir.resolve("cache").toAbsolutePath().normalize(),
+                projectDir.toAbsolutePath().normalize(),
+                parse(projectDir),
+                diagnostics);
+
+        assertEquals(1, diagnostics.size());
+        IdeModel.Diagnostic diagnostic = diagnostics.getFirst();
+        assertEquals("PROJECT_PATH_INVALID", diagnostic.code());
+        assertTrue(diagnostic.message().contains("[build].output"));
+        assertEquals(
+                "Fix the unsafe path in zolt.toml and run zolt ide model --format json again.",
+                diagnostic.nextStep());
+    }
+
     private ProjectConfig parse(Path projectDir) {
         return new ZoltTomlParser().parse(projectDir.resolve("zolt.toml"));
     }

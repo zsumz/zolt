@@ -177,6 +177,29 @@ final class IdeModelServiceTest {
     }
 
     @Test
+    void checkLockReportsStaleProjectLockWithoutRefreshingLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("stale-lock");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "stale-lock"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"), true, true);
+
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_STALE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("zolt.lock is out of date"));
+        assertEquals(projectDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
+        assertEquals("Run zolt resolve.", diagnostic.nextStep());
+        assertEquals("version = 1\n", Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
     void checkLockOfflineReportsUnavailableCacheWithoutRefreshingLockfile() throws IOException {
         Path projectDir = tempDir.resolve("offline-cache-miss");
         Files.createDirectories(projectDir);
@@ -202,6 +225,41 @@ final class IdeModelServiceTest {
                 "Run zolt resolve without --offline to seed the cache, then retry zolt ide model --offline.",
                 diagnostic.nextStep());
         assertEquals("version = 1\n", Files.readString(projectDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void checkLockSkipsFreshnessWhenProjectConfigCannotBeRead() throws IOException {
+        Path projectDir = tempDir.resolve("missing-config-check-lock");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"), true, true);
+
+        assertEquals(1, model.diagnostics().size());
+        assertEquals("CONFIG_UNREADABLE", model.diagnostics().getFirst().code());
+        assertEquals(List.of(), model.classpaths().compile());
+    }
+
+    @Test
+    void checkLockSkipsFreshnessWhenLockfileCannotBeRead() throws IOException {
+        Path projectDir = tempDir.resolve("invalid-lock-check-lock");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.toml"), """
+                [project]
+                name = "invalid-lock-check-lock"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = \"one\"\n");
+
+        IdeModel model = service.export(projectDir, tempDir.resolve("cache"), true, true);
+
+        assertEquals(1, model.diagnostics().size());
+        IdeModel.Diagnostic diagnostic = model.diagnostics().getFirst();
+        assertEquals("LOCKFILE_UNREADABLE", diagnostic.code());
+        assertTrue(diagnostic.message().contains("Invalid value type in zolt.lock"));
+        assertEquals("Run zolt resolve.", diagnostic.nextStep());
     }
 
     @Test

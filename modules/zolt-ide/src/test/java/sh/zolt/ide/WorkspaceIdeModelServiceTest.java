@@ -3,6 +3,7 @@ package sh.zolt.ide;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.workspace.resolve.WorkspaceResolveService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -226,6 +227,32 @@ final class WorkspaceIdeModelServiceTest {
     }
 
     @Test
+    void recordsTimingAttributesForMissingWorkspaceLock() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api");
+        Files.delete(tempDir.resolve("zolt.lock"));
+        RecordingTimingRecorder recorder = new RecordingTimingRecorder();
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), false, false, recorder);
+
+        assertEquals("LOCKFILE_MISSING", model.diagnostics().getFirst().code());
+        assertEquals(
+                Map.of("lockfilePresent", "false", "diagnostics", "1"),
+                recorder.attributesByPhase().get("read workspace ide lock"));
+        assertEquals(
+                Map.of(
+                        "members", "1",
+                        "compileClasspathEntries", "0",
+                        "runtimeClasspathEntries", "0",
+                        "testClasspathEntries", "0"),
+                recorder.attributesByPhase().get("plan workspace ide classpaths"));
+    }
+
+    @Test
     void checkLockReportsWorkspacePolicyFailureWithoutRefreshingLockfile() throws IOException {
         workspace("""
                 [workspace]
@@ -250,6 +277,24 @@ final class WorkspaceIdeModelServiceTest {
         assertEquals(tempDir.resolve("zolt.lock").toAbsolutePath().normalize(), diagnostic.path());
         assertEquals("Run zolt resolve --workspace.", diagnostic.nextStep());
         assertEquals("version = 1\n", Files.readString(tempDir.resolve("zolt.lock")));
+    }
+
+    @Test
+    void checkLockAcceptsFreshWorkspaceLockWithoutDiagnostics() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+                """);
+        member("apps/api", "api");
+        new WorkspaceResolveService().resolve(tempDir, tempDir.resolve("cache"), false, true);
+        String freshLockfile = Files.readString(tempDir.resolve("zolt.lock"));
+
+        WorkspaceIdeModel model = service.export(tempDir, tempDir.resolve("cache"), true, true);
+
+        assertEquals(List.of(), model.diagnostics());
+        assertEquals(List.of(), model.projects().getFirst().model().diagnostics());
+        assertEquals(freshLockfile, Files.readString(tempDir.resolve("zolt.lock")));
     }
 
     private void workspace(String content) throws IOException {

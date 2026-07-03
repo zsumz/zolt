@@ -242,6 +242,61 @@ final class IdeDependencyModelBuilderTest {
         assertTrue(json.contains("\"versionAliases\": {}"));
     }
 
+    @Test
+    void returnsEmptyDependencyModelWhenProjectConfigIsUnavailable() {
+        IdeModel.DependencyInfo dependencies = builder.build(null);
+
+        assertEquals(Map.of(), dependencies.versionAliases());
+        assertEquals(List.of(), dependencies.api());
+        assertEquals(List.of(), dependencies.implementation());
+        assertEquals(List.of(), dependencies.runtime());
+        assertEquals(List.of(), dependencies.provided());
+        assertEquals(List.of(), dependencies.dev());
+        assertEquals(List.of(), dependencies.test());
+        assertEquals(List.of(), dependencies.annotationProcessors());
+        assertEquals(List.of(), dependencies.testAnnotationProcessors());
+    }
+
+    @Test
+    void publishOnlyManagedMetadataIsExportedOnceInCoordinateOrder() throws IOException {
+        IdeModel.DependencyInfo dependencies = builder.build(parse("publish-only-managed", """
+                [project]
+                name = "publish-only-managed"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:z-helper" = { version = "1.0.0", publishOnly = true }
+                "com.example:a-managed-helper" = { publishOnly = true }
+                "com.example:m-helper" = "1.0.0"
+                """));
+
+        assertEquals(
+                List.of("com.example:a-managed-helper", "com.example:m-helper", "com.example:z-helper"),
+                coordinates(dependencies.implementation()));
+        assertEquals(new IdeModel.DependencyDeclaration(
+                        "com.example:a-managed-helper",
+                        null,
+                        null,
+                        true,
+                        null,
+                        false,
+                        true,
+                        List.of()),
+                dependencies.implementation().getFirst());
+        assertEquals(new IdeModel.DependencyDeclaration(
+                        "com.example:z-helper",
+                        "1.0.0",
+                        null,
+                        false,
+                        null,
+                        false,
+                        true,
+                        List.of()),
+                dependencies.implementation().get(2));
+    }
+
     private static List<String> coordinates(List<IdeModel.DependencyDeclaration> declarations) {
         return declarations.stream()
                 .map(IdeModel.DependencyDeclaration::coordinate)
