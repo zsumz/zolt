@@ -44,6 +44,34 @@ final class JunitWorkerClientTest {
     }
 
     @Test
+    void usesDeterministicRequestIdsAcrossMultipleRunsAndClose() {
+        StringWriter input = new StringWriter();
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("""
+                        first run
+                        ZOLT_WORKER_RESULT\tid=junit-1\texit=0
+                        second run
+                        ZOLT_WORKER_RESULT\tid=junit-2\texit=1
+                        ZOLT_WORKER_RESULT\tid=junit-3\texit=0
+                        """),
+                input);
+
+        JunitWorkerClient.WorkerRunResult first = client.run(Path.of("target/test-classes"));
+        JunitWorkerClient.WorkerRunResult second = client.run(Path.of("target/test-classes"));
+        client.close();
+
+        assertEquals("""
+                RUN\tv=1\tid=junit-1\tout=target/test-classes
+                RUN\tv=1\tid=junit-2\tout=target/test-classes
+                QUIT\tv=1\tid=junit-3
+                """, input.toString());
+        assertEquals("first run\n", first.output());
+        assertEquals(0, first.exitCode());
+        assertEquals("second run\n", second.output());
+        assertEquals(1, second.exitCode());
+    }
+
+    @Test
     void closeSendsQuitRequest() {
         StringWriter input = new StringWriter();
         JunitWorkerClient client = new JunitWorkerClient(

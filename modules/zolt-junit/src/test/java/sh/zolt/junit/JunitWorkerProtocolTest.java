@@ -30,6 +30,39 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void formatsFullRunRequestsDeterministically() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.example.MainTest", "com.example.OtherTest"),
+                List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
+                List.of("*ServiceTest", "com.example.Foo,BarTest"),
+                List.of("fast"),
+                List.of("slow"));
+
+        String frame = JunitWorkerProtocol.runRequest(
+                "request-1",
+                OUTPUT,
+                selection,
+                Optional.of(Path.of("target/reports")),
+                List.of("failed", "skipped"),
+                Optional.of(Path.of("target/profile")));
+
+        assertEquals(String.join("\t",
+                "RUN",
+                "v=1",
+                "id=request-1",
+                "out=target/test-classes",
+                "reports=target/reports",
+                "profile=target/profile",
+                "events=failed,skipped",
+                "classes=com.example.MainTest,com.example.OtherTest",
+                "methods=com.example.OtherTest#runs",
+                "patterns=*ServiceTest,com.example.Foo%252CBarTest",
+                "includeTags=fast",
+                "excludeTags=slow"), frame);
+        assertEquals(selection, JunitWorkerProtocol.parseRequest(frame).testSelection());
+    }
+
+    @Test
     void roundTripsClassSelectors() {
         assertSelectionRoundTrips(TestSelection.fromFields(
                 List.of("com.example.MainTest", "com.example.OtherTest"),
@@ -199,6 +232,16 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void unknownRunRequestFieldsAreIgnoredForForwardCompatibility() {
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(
+                "RUN\tv=1\tid=request-1\tout=target/test-classes\tfuture=ignored\tclasses=com.example.MainTest");
+
+        assertEquals("request-1", request.requestId());
+        assertEquals("target/test-classes", request.testOutputDirectory());
+        assertEquals(List.of("com.example.MainTest"), request.testSelection().classSelectors());
+    }
+
+    @Test
     void rejectsRunRequestsMissingTestOutputDirectory() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -291,6 +334,19 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void rejectsDecodedRequestIdsWithControlCharacters() {
+        IllegalArgumentException request = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseRequest("RUN\tv=1\tid=request%0A1\tout=target/test-classes"));
+        IllegalArgumentException result = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseResult("ZOLT_WORKER_RESULT\tid=request%0D1\texit=0"));
+
+        assertTrue(request.getMessage().contains("must not contain tabs or newlines"), request.getMessage());
+        assertTrue(result.getMessage().contains("must not contain tabs or newlines"), result.getMessage());
+    }
+
+    @Test
     void rejectsBlankRequestIdsAndOutputDirectories() {
         IllegalArgumentException missingId = assertThrows(
                 IllegalArgumentException.class,
@@ -345,6 +401,15 @@ final class JunitWorkerProtocolTest {
                 () -> JunitWorkerProtocol.parseResult("ZOLT_WORKER_RESULT\tid=request-1"));
 
         assertTrue(exception.getMessage().contains("exit code"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsResultsMissingRequestId() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseResult("ZOLT_WORKER_RESULT\texit=0"));
+
+        assertTrue(exception.getMessage().contains("request id"), exception.getMessage());
     }
 
     @Test

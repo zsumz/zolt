@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.test.TestSelection;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -82,6 +84,38 @@ final class JunitLauncherWorkerTest {
     }
 
     @Test
+    void serverModeReturnsZeroWhenInputEndsWithoutRequests() {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream(new byte[0]),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(stderr, true, StandardCharsets.UTF_8));
+
+        assertEquals(0, exitCode);
+        assertEquals("", stdout.toString(StandardCharsets.UTF_8));
+        assertEquals("", stderr.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void serverModeReportsInputReadFailures() {
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new FailingInputStream(),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
+                new PrintStream(stderr, true, StandardCharsets.UTF_8));
+
+        String errorOutput = stderr.toString(StandardCharsets.UTF_8);
+        assertEquals(1, exitCode);
+        assertTrue(errorOutput.contains("Could not read JUnit launcher worker server input"), errorOutput);
+        assertTrue(errorOutput.contains("boom"), errorOutput);
+    }
+
+    @Test
     void serverModeIgnoresBlankLinesBeforeQuit() {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
 
@@ -140,6 +174,37 @@ final class JunitLauncherWorkerTest {
         assertTrue(workerOutput.contains("Tests succeeded: 1"), workerOutput);
         assertTrue(workerOutput.contains("Tests failed: 0"), workerOutput);
         assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
+    }
+
+    @Test
+    void serverModeReturnsFailureResultWithFailureDetails() {
+        TestSelection selection = TestSelection.fromFields(
+                List.of("sh.zolt.junit.ProfileFailureFixture"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of());
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("Tests found: 1"), workerOutput);
+        assertTrue(workerOutput.contains("Tests failed: 1"), workerOutput);
+        assertTrue(workerOutput.contains("profile failure"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=1"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-2\texit=0"), workerOutput);
     }
 
     @Test
@@ -277,6 +342,13 @@ final class JunitLauncherWorkerTest {
         assertTrue(json.contains("\"methodName\": \"failsForProfileEvidence\""), json);
         assertTrue(json.contains("\"status\": \"failed\""), json);
         assertTrue(json.contains("\"testsFailed\": 1"), json);
+    }
+
+    private static final class FailingInputStream extends InputStream {
+        @Override
+        public int read() throws IOException {
+            throw new IOException("boom");
+        }
     }
 }
 

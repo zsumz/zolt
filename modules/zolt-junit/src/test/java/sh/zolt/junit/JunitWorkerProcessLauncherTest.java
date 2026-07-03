@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class JunitWorkerProcessLauncherTest {
     @Test
@@ -49,6 +52,30 @@ final class JunitWorkerProcessLauncherTest {
                 Path.of("/repo"),
                 List.of(Path.of("/repo/target/test-classes")),
                 null));
+    }
+
+    @Test
+    void commandNormalizesPathsAndReturnsImmutableArguments() {
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                ";",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/./worker.jar")),
+                starter());
+
+        List<String> command = launcher.command(
+                Path.of("/repo/./app/../app"),
+                List.of(Path.of("/repo/app/target/../target/test-classes")),
+                List.of("-Dlibrary.mode=true"));
+
+        assertEquals(List.of(
+                "/jdk/bin/java",
+                "-Dlibrary.mode=true",
+                "-Duser.dir=/repo/app",
+                "-classpath",
+                "/zolt/worker.jar;/repo/app/target/test-classes",
+                JunitLauncherWorker.MAIN_CLASS,
+                "--server"), command);
+        assertThrows(UnsupportedOperationException.class, () -> command.add("-Dlate=true"));
     }
 
     @Test
@@ -159,6 +186,36 @@ final class JunitWorkerProcessLauncherTest {
         assertEquals(1, commands.size());
         assertEquals(Path.of("/repo"), directories.getFirst());
         assertEquals("QUIT\tv=1\tid=junit-1\n", input.toString());
+    }
+
+    @Test
+    void publicLauncherStartsRealServerProcessAndClosesWithQuit(@TempDir Path tempDir) {
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                javaExecutable(),
+                compiledWorkerClasspath());
+
+        try (JunitWorkerProcess ignored = launcher.start(
+                Path.of(".").toAbsolutePath().normalize(),
+                List.of(Path.of("target/test-classes").toAbsolutePath().normalize()),
+                List.of("-Dzolt.junit.launcher.process.test=true"),
+                Map.of("ZOLT_JUNIT_PROCESS_LAUNCHER_TEST", "true"))) {
+            // Closing the process sends QUIT and waits for the forked worker to acknowledge it.
+        }
+    }
+
+    @Test
+    void publicLauncherReportsJavaProcessStartFailures(@TempDir Path tempDir) {
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                tempDir.resolve("missing-java"),
+                compiledWorkerClasspath());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> launcher.start(tempDir, List.of(tempDir.resolve("test-runtime"))));
+
+        assertTrue(exception.getMessage().contains("Could not start JUnit worker"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("configured JDK"), exception.getMessage());
+        assertTrue(exception.getCause() instanceof IOException);
     }
 
     @Test
@@ -292,5 +349,25 @@ final class JunitWorkerProcessLauncherTest {
                         new StringWriter(),
                         () -> {
                         }));
+    }
+
+    private static Path javaExecutable() {
+        String executable = System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java";
+        Path java = Path.of(System.getProperty("java.home"), "bin", executable);
+        assertTrue(Files.exists(java), java + " should exist");
+        return java;
+    }
+
+    private static List<Path> compiledWorkerClasspath() {
+        List<Path> classpath = List.of(
+                Path.of("target/classes"),
+                Path.of("../zolt-test-model/target/classes"),
+                Path.of("../zolt-model/target/classes")).stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .toList();
+        for (Path entry : classpath) {
+            assertTrue(Files.exists(entry), entry + " should exist");
+        }
+        return classpath;
     }
 }

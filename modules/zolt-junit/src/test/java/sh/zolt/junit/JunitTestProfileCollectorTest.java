@@ -24,7 +24,7 @@ final class JunitTestProfileCollectorTest {
                 new ClassSource("com.example.BetaTest"));
         FakeIdentifier betaTest = FakeIdentifier.test(
                 "[engine:junit-jupiter]/[class:com.example.BetaTest]/[method:runs()]",
-                "line\nquote\"tab\t",
+                "line\nquote\"tab\tbackslash\\backspace\bformfeed\freturn\rcontrol\u0001",
                 new MethodSource("com.example.BetaTest", "runs"));
         FakeIdentifier alphaTest = FakeIdentifier.test(
                 "[engine:junit-jupiter]/[class:com.example.AlphaTest]/[method:passes()]",
@@ -45,7 +45,9 @@ final class JunitTestProfileCollectorTest {
         assertTrue(json.contains("\"testsSucceeded\": 1"), json);
         assertTrue(json.contains("\"testsFailed\": 1"), json);
         assertTrue(json.contains("\"engineId\": \"junit-jupiter\""), json);
-        assertTrue(json.contains("\"displayName\": \"line\\nquote\\\"tab\\t\""), json);
+        assertTrue(json.contains(
+                "\"displayName\": \"line\\nquote\\\"tab\\tbackslash\\\\backspace\\bformfeed\\freturn\\rcontrol\\u0001\""),
+                json);
         assertTrue(json.contains("\"className\": \"com.example.BetaTest\""), json);
         assertTrue(json.contains("\"methodName\": \"runs\""), json);
         assertTrue(json.contains("\"testCount\": 1"), json);
