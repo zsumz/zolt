@@ -174,6 +174,50 @@ final class BuildPlanGeneratedSourceNodePlannerTest {
     }
 
     @Test
+    void blocksGeneratedSourceOutputThatResolvesToProjectRoot() {
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "root",
+                GeneratedSourceKind.DECLARED_ROOT,
+                "java",
+                ".",
+                List.of(),
+                true,
+                true);
+
+        PlanNode node = planner.nodes(
+                        tempDir,
+                        List.of(evidence("main", step, false, true, "missing")),
+                        "main")
+                .getFirst();
+
+        PlanBlocker blocker = blocker(node, "invalid-generated-source-output");
+        assertEquals(PlanNodeStatus.BLOCKED, node.status());
+        assertEquals(
+                "Generated source output path `.` must be project-relative and under the project directory.",
+                blocker.message());
+        assertEquals("Use a project-relative path under the project directory.", blocker.nextStep());
+    }
+
+    @Test
+    void returnsNoNodesWhenGeneratedSourcesDoNotMatchRequestedScope() {
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "fixtures",
+                GeneratedSourceKind.DECLARED_ROOT,
+                "java",
+                "target/generated/test-sources/fixtures",
+                List.of(),
+                false,
+                true);
+
+        List<PlanNode> nodes = planner.nodes(
+                tempDir,
+                List.of(evidence("test", step, false, true, "missing")),
+                "main");
+
+        assertTrue(nodes.isEmpty());
+    }
+
+    @Test
     void plansCompleteOpenApiStepWithVersionReferenceDetails() throws IOException {
         Path input = tempDir.resolve("src/main/openapi/api.yaml");
         Files.createDirectories(input.getParent());

@@ -196,4 +196,20 @@ final class BuildPlanFormatterTest {
         assertTrue(json.contains("\"status\": \"ready\""));
         assertTrue(json.endsWith("\"nodes\": []\n}\n"));
     }
+
+    @Test
+    void formatsEmptyReadyPlanAsTextSummaryWithoutNodeRows() {
+        BuildPlan plan = new BuildPlan(0, projectDir.resolve("."), null, PlanTarget.BUILD, null);
+
+        String expected = "Zolt plan\n"
+                + "Project: \n"
+                + "Root: "
+                + projectDir.toAbsolutePath().normalize()
+                + "\n"
+                + "Target: build\n"
+                + "Status: ready\n"
+                + "Nodes: 0\n";
+
+        assertEquals(expected, formatter.text(plan));
+    }
 }

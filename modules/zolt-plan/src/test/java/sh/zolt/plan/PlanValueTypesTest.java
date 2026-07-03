@@ -78,6 +78,44 @@ final class PlanValueTypesTest {
     }
 
     @Test
+    void planReportsBlockedWhenAnyCopiedNodeIsBlocked() {
+        PlanNode ready = new PlanNode(
+                "compile-main",
+                "compile",
+                PlanNodeStatus.READY,
+                "Compile main sources.",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        PlanNode planned = new PlanNode(
+                "coverage",
+                "coverage",
+                PlanNodeStatus.PLANNED,
+                "Run coverage explicitly.",
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        PlanNode blocked = new PlanNode(
+                "lockfile",
+                "resolve",
+                PlanNodeStatus.BLOCKED,
+                "Lockfile is missing.",
+                List.of("zolt.toml"),
+                List.of("zolt.lock"),
+                List.of(),
+                List.of(new PlanBlocker(
+                        "missing-lockfile",
+                        "zolt.lock is missing; plan will not resolve or download artifacts.",
+                        "Run `zolt resolve` first, then rerun `zolt plan`.")));
+
+        BuildPlan plan = new BuildPlan(1, projectDir, "demo", PlanTarget.CI, List.of(ready, planned, blocked));
+
+        assertTrue(plan.blocked());
+    }
+
+    @Test
     void nodeValidationErrorsNameTheInvalidField() {
         IllegalArgumentException missingId = assertThrows(
                 IllegalArgumentException.class,

@@ -183,6 +183,45 @@ final class BuildPlanServiceTest {
     }
 
     @Test
+    void buildTargetStopsBeforeTestCoveragePackageAndPublishNodes() {
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults());
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.BUILD, Optional.empty());
+
+        assertTrue(plan.nodes().stream().anyMatch(node -> node.id().equals("compile-main")));
+        assertTrue(plan.nodes().stream().noneMatch(node -> node.id().equals("compile-tests")));
+        assertTrue(plan.nodes().stream().noneMatch(node -> node.id().equals("run-tests")));
+        assertTrue(plan.nodes().stream().noneMatch(node -> node.id().equals("coverage")));
+        assertTrue(plan.nodes().stream().noneMatch(node -> node.id().equals("assemble-package")));
+        assertTrue(plan.nodes().stream().noneMatch(node -> node.id().equals("publish-dry-run")));
+    }
+
+    @Test
+    void regularWarPackageUsesWarExtensionWithoutMainClassBlocker() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                        new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                        Map.of(),
+                        Map.of(),
+                        Map.of(),
+                        BuildSettings.defaults())
+                .withPackageSettings(new PackageSettings(PackageMode.WAR));
+
+        BuildPlan plan = service.plan(projectDir, config, PlanTarget.PACKAGE, Optional.empty());
+
+        PlanNode packageNode = node(plan, "assemble-package");
+        assertFalse(plan.blocked());
+        assertEquals(PlanNodeStatus.READY, packageNode.status());
+        assertEquals(List.of("target/demo-1.0.0.war"), packageNode.outputs());
+        assertTrue(packageNode.blockers().isEmpty());
+    }
+
+    @Test
     void plansGeneratedSourcesSkippedResourcesAndBlankOutputRootFallback() throws IOException {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         writeFile("src/main/openapi/api.yaml", "openapi: 3.1.0\n");
@@ -478,6 +517,35 @@ final class BuildPlanServiceTest {
         assertEquals(
                 "Run `zolt resolve` to regenerate zolt.lock, then rerun `zolt plan --target native`.",
                 blocker.nextStep());
+    }
+
+    @Test
+    void nativePlanBlocksMissingMainClassForPackageInput() throws IOException {
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                        new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                        Map.of(),
+                        Map.of("org.springframework.boot:spring-boot-starter-web", "3.3.6"),
+                        Map.of(),
+                        BuildSettings.defaults())
+                .withFrameworkSettings(new FrameworkSettings(new SpringBootSettings(true), QuarkusSettings.defaults()))
+                .withPackageSettings(new PackageSettings(PackageMode.SPRING_BOOT));
+        Path nativeImage = projectDir.resolve("bin/native-image");
+        Files.createDirectories(nativeImage.getParent());
+        Files.writeString(nativeImage, "#!/bin/sh\nexit 0\n");
+        assertTrue(nativeImage.toFile().setExecutable(true));
+        writeLockfileWithSpringAotTooling();
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.NATIVE,
+                Optional.empty(),
+                Optional.of(nativeImage));
+
+        PlanBlocker blocker = blocker(node(plan, "native-package-input"), "missing-main-class");
+        assertTrue(plan.blocked());
+        assertEquals("Native Image requires [project].main.", blocker.message());
+        assertEquals("Add the application main class to zolt.toml.", blocker.nextStep());
     }
 
     @Test

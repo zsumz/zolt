@@ -16,6 +16,7 @@ import sh.zolt.project.ProjectMetadata;
 import sh.zolt.project.QuarkusPackageMode;
 import sh.zolt.project.QuarkusSettings;
 import sh.zolt.project.SpringBootSettings;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -130,6 +131,18 @@ final class SpringBootNativeProjectDetectorTest {
         assertFalse(SpringBootNativeProjectDetector.quarkusProject(plain));
     }
 
+    @Test
+    void ignoresNullCoordinatesAndMatchesSpringBootGroupCaseInsensitively() {
+        Set<String> managedDependencies = new LinkedHashSet<>();
+        managedDependencies.add(null);
+        managedDependencies.add("ORG.SPRINGFRAMEWORK.BOOT:spring-boot-starter-actuator");
+        ProjectConfig config = new ConfigBuilder()
+                .managedDependencies(managedDependencies)
+                .build();
+
+        assertTrue(SpringBootNativeProjectDetector.springBootProject(config));
+    }
+
     private record DetectorCase(String name, ProjectConfig config) {
     }
 
@@ -176,6 +189,11 @@ final class SpringBootNativeProjectDetectorTest {
 
         ConfigBuilder managedDependency(String coordinate) {
             managedDependencies = Set.of(coordinate);
+            return this;
+        }
+
+        ConfigBuilder managedDependencies(Set<String> coordinates) {
+            managedDependencies = coordinates;
             return this;
         }
 
