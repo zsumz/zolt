@@ -118,6 +118,95 @@ final class QuarkusBootstrapDescriptorWriterTest {
     }
 
     @Test
+    void sortsPlatformPropertiesAndApplicationModelDependenciesDeterministically() throws IOException {
+        QuarkusAugmentationRequest request = new QuarkusAugmentationRequest(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                QuarkusPackageMode.FAST_JAR,
+                new QuarkusOutputLayout(
+                        projectDir.resolve("target/quarkus"),
+                        projectDir.resolve("target/quarkus-app")),
+                new QuarkusApplicationArtifact(
+                        new PackageId("com.example", "demo"),
+                        "1.0.0",
+                        projectDir.resolve("target/classes")),
+                "sha256:" + "1".repeat(64),
+                projectDir.resolve("target/quarkus/zolt-augmentation.properties"),
+                List.of(projectDir.resolve(".zolt/cache/runtime-b.jar")),
+                List.of(projectDir.resolve(".zolt/cache/deployment-c.jar")),
+                List.of(
+                        new QuarkusPlatformPropertiesArtifact(
+                                new PackageId("io.quarkus.platform", "z-platform-properties"),
+                                "3.33.0",
+                                projectDir.resolve(".zolt/cache/z.properties")),
+                        new QuarkusPlatformPropertiesArtifact(
+                                new PackageId("io.quarkus.platform", "a-platform-properties"),
+                                "3.33.0",
+                                projectDir.resolve(".zolt/cache/a.properties"))),
+                List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                                "3.33.0",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                projectDir.resolve(".zolt/cache/deployment-c.jar"),
+                                false),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-arc"),
+                                "3.33.0",
+                                DependencyScope.RUNTIME,
+                                projectDir.resolve(".zolt/cache/runtime-b.jar"),
+                                false),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest"),
+                                "3.33.0",
+                                DependencyScope.COMPILE,
+                                projectDir.resolve(".zolt/cache/compile-a.jar"),
+                                true)),
+                List.of());
+
+        QuarkusBootstrapDescriptor descriptor = writer.write(request);
+
+        assertEquals(
+                List.of(
+                        projectDir.resolve(".zolt/cache/a.properties"),
+                        projectDir.resolve(".zolt/cache/z.properties")),
+                descriptor.platformPropertiesFiles());
+        assertEquals(
+                """
+                %s
+                %s
+                """.formatted(
+                        projectDir.resolve(".zolt/cache/a.properties"),
+                        projectDir.resolve(".zolt/cache/z.properties")),
+                Files.readString(descriptor.platformPropertiesFile()));
+        String applicationModel = Files.readString(descriptor.applicationModelFile());
+        assertTrue(applicationModel.indexOf("dependency.0.artifactId=quarkus-rest\n")
+                < applicationModel.indexOf("dependency.1.artifactId=quarkus-rest-deployment\n"));
+        assertTrue(applicationModel.indexOf("dependency.1.artifactId=quarkus-rest-deployment\n")
+                < applicationModel.indexOf("dependency.2.artifactId=quarkus-arc\n"));
+        assertEquals(List.of(
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest"),
+                                "3.33.0",
+                                DependencyScope.COMPILE,
+                                projectDir.resolve(".zolt/cache/compile-a.jar"),
+                                true),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-rest-deployment"),
+                                "3.33.0",
+                                DependencyScope.QUARKUS_DEPLOYMENT,
+                                projectDir.resolve(".zolt/cache/deployment-c.jar"),
+                                false),
+                        new QuarkusBootstrapDependency(
+                                new PackageId("io.quarkus", "quarkus-arc"),
+                                "3.33.0",
+                                DependencyScope.RUNTIME,
+                                projectDir.resolve(".zolt/cache/runtime-b.jar"),
+                                false)),
+                descriptor.bootstrapDependencies());
+    }
+
+    @Test
     void rejectsMissingRequest() {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,

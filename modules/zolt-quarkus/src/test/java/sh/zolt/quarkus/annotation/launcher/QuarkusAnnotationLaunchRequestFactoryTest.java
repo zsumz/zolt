@@ -74,6 +74,19 @@ final class QuarkusAnnotationLaunchRequestFactoryTest {
     }
 
     @Test
+    void requiresWorkerPlanAndApiMetadata() {
+        QuarkusAugmentationException missingPlan = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> factory.create(null, api()));
+        assertTrue(missingPlan.getMessage().contains("requires a worker plan"));
+
+        QuarkusAugmentationException missingApi = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> factory.create(plan(List.of(supported("com/example/HttpTest.class", "@QuarkusTest"))), null));
+        assertTrue(missingApi.getMessage().contains("requires probed API metadata"));
+    }
+
+    @Test
     void requiresQuarkusSpecificTestClasses() {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,

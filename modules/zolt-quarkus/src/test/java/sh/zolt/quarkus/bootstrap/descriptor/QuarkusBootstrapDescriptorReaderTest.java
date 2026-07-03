@@ -25,6 +25,15 @@ final class QuarkusBootstrapDescriptorReaderTest {
     private final QuarkusBootstrapDescriptorReader reader = new QuarkusBootstrapDescriptorReader();
 
     @Test
+    void rejectsMissingDescriptorPath() {
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(null));
+
+        assertTrue(exception.getMessage().contains("descriptor path is required"));
+    }
+
+    @Test
     void readsDescriptorWrittenByWriter() {
         QuarkusAugmentationRequest request = request();
         QuarkusBootstrapDescriptor written = writer.write(request);
@@ -112,6 +121,48 @@ final class QuarkusBootstrapDescriptorReaderTest {
     }
 
     @Test
+    void rejectsMissingApplicationModelFile() throws IOException {
+        Path missingApplicationModel =
+                projectDir.resolve("target/quarkus/missing-application-model.properties");
+        Path descriptor = descriptorPath();
+        Path runtimeClasspath = projectDir.resolve("target/quarkus/runtime-classpath.txt");
+        Path deploymentClasspath = projectDir.resolve("target/quarkus/deployment-classpath.txt");
+        Files.createDirectories(descriptor.getParent());
+        Files.writeString(runtimeClasspath, "");
+        Files.writeString(deploymentClasspath, "");
+        Files.writeString(descriptor, """
+                version=1
+                bootstrapClass=io.quarkus.bootstrap.app.QuarkusBootstrap
+                augmentActionClass=io.quarkus.bootstrap.app.AugmentAction
+                mode=prod
+                package=fast-jar
+                projectDirectory=%s
+                applicationClasses=%s
+                augmentationDirectory=%s
+                packageDirectory=%s
+                runtimeClasspathFile=%s
+                deploymentClasspathFile=%s
+                applicationModelFile=%s
+                inputFingerprint=%s
+                """.formatted(
+                projectDir,
+                projectDir.resolve("target/classes"),
+                projectDir.resolve("target/quarkus"),
+                projectDir.resolve("target/quarkus-app"),
+                runtimeClasspath,
+                deploymentClasspath,
+                missingApplicationModel,
+                "sha256:" + "1".repeat(64)));
+
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> reader.read(descriptor));
+
+        assertTrue(exception.getMessage().contains("Could not read Quarkus application model file"));
+        assertTrue(exception.getMessage().contains("referenced by"));
+    }
+
+    @Test
     void rejectsMissingPlatformPropertiesFile() throws IOException {
         Path missingPlatformProperties =
                 projectDir.resolve("target/quarkus/missing-platform-properties.txt");
@@ -159,6 +210,29 @@ final class QuarkusBootstrapDescriptorReaderTest {
                 () -> reader.read(descriptor));
 
         assertTrue(exception.getMessage().contains("Unsupported scope `quarkus-plugin`"));
+    }
+
+    @Test
+    void acceptsApplicationModelDependencyScopeEnumName() throws IOException {
+        Path dependencyJar = projectDir.resolve(".zolt/cache/io/quarkus/quarkus-rest.jar");
+        Path descriptor = writeDescriptorWithApplicationModel(
+                validApplicationModel(
+                        1,
+                        """
+                        dependency.0.groupId=io.quarkus
+                        dependency.0.artifactId=quarkus-rest
+                        dependency.0.version=3.33.0
+                        dependency.0.scope=RUNTIME
+                        dependency.0.path=%s
+                        dependency.0.direct=false
+                        """.formatted(dependencyJar)),
+                "");
+
+        QuarkusBootstrapDescriptor read = reader.read(descriptor);
+
+        assertEquals(DependencyScope.RUNTIME, read.bootstrapDependencies().get(0).scope());
+        assertEquals(dependencyJar, read.bootstrapDependencies().get(0).path());
+        assertEquals(false, read.bootstrapDependencies().get(0).direct());
     }
 
     @Test

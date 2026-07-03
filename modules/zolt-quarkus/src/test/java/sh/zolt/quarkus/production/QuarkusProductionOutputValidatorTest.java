@@ -38,6 +38,27 @@ final class QuarkusProductionOutputValidatorTest {
     }
 
     @Test
+    void rejectsMissingDescriptor() {
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> validator.validate(null, summary(
+                        Path.of("/repo/target/quarkus-app/quarkus-run.jar"),
+                        null,
+                        false)));
+
+        assertTrue(exception.getMessage().contains("bootstrap descriptor is required"));
+    }
+
+    @Test
+    void rejectsMissingSummary() {
+        QuarkusAugmentationException exception = assertThrows(
+                QuarkusAugmentationException.class,
+                () -> validator.validate(descriptor("fast-jar", Path.of("/repo/target/quarkus-app")), null));
+
+        assertTrue(exception.getMessage().contains("production application summary is required"));
+    }
+
+    @Test
     void rejectsUnsupportedPackageMode() {
         QuarkusAugmentationException exception = assertThrows(
                 QuarkusAugmentationException.class,
