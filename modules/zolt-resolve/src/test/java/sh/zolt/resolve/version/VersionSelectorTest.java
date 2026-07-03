@@ -1,11 +1,13 @@
 package sh.zolt.resolve.version;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.request.RequestOrigin;
@@ -108,6 +110,78 @@ final class VersionSelectorTest {
         assertEquals(List.of(
                 new PackageNode(guava, "33.4.0-jre"),
                 new PackageNode(slf4j, "2.0.16")), result.selectedNodes());
+    }
+
+    @Test
+    void injectedConsoleLauncherReportingAlignToResolvedPlatformLine() {
+        PackageId engine = new PackageId("org.junit.platform", "junit-platform-engine");
+        PackageId commons = new PackageId("org.junit.platform", "junit-platform-commons");
+        PackageId console = new PackageId("org.junit.platform", "junit-platform-console");
+        PackageId launcher = new PackageId("org.junit.platform", "junit-platform-launcher");
+        PackageId reporting = new PackageId("org.junit.platform", "junit-platform-reporting");
+        ResolutionGraph graph = graphWithTransitiveRequests(List.of(
+                transitive(engine, "1.12.0"),
+                transitive(commons, "1.12.0"),
+                transitive(console, "1.11.4"),
+                transitive(launcher, "1.11.4"),
+                transitive(reporting, "1.11.4")));
+
+        VersionSelectionResult result = selector.select(List.of(), graph);
+
+        assertEquals("1.12.0", selectedVersion(result, console));
+        assertEquals("1.12.0", selectedVersion(result, launcher));
+        assertEquals("1.12.0", selectedVersion(result, reporting));
+        assertEquals("1.12.0", selectedVersion(result, engine));
+    }
+
+    @Test
+    void alreadyAlignedPlatformIsUnchanged() {
+        PackageId engine = new PackageId("org.junit.platform", "junit-platform-engine");
+        PackageId launcher = new PackageId("org.junit.platform", "junit-platform-launcher");
+        ResolutionGraph graph = graphWithTransitiveRequests(List.of(
+                transitive(engine, "1.11.4"),
+                transitive(launcher, "1.11.4")));
+
+        VersionSelectionResult result = selector.select(List.of(), graph);
+
+        assertEquals("1.11.4", selectedVersion(result, engine));
+        assertEquals("1.11.4", selectedVersion(result, launcher));
+        assertTrue(result.conflicts().isEmpty());
+    }
+
+    @Test
+    void projectManagedConsoleAtSkewedLineHardFailsWithActionableMessage() {
+        PackageId engine = new PackageId("org.junit.platform", "junit-platform-engine");
+        PackageId console = new PackageId("org.junit.platform", "junit-platform-console");
+        ResolutionGraph graph = graphWithTransitiveRequests(List.of(
+                transitive(engine, "1.12.0")));
+
+        ResolveException exception = assertThrows(
+                ResolveException.class,
+                () -> selector.select(List.of(direct(console, "1.11.4")), graph));
+
+        assertTrue(exception.getMessage().contains("junit-platform-console"));
+        assertTrue(exception.getMessage().contains("1.11.4"));
+        assertTrue(exception.getMessage().contains("1.12.0"));
+    }
+
+    @Test
+    void platformAlignmentIgnoresProjectsWithoutJunitPlatform() {
+        PackageId slf4j = new PackageId("org.slf4j", "slf4j-api");
+        ResolutionGraph graph = graphWithTransitiveRequests(List.of(
+                transitive(slf4j, "2.0.16")));
+
+        VersionSelectionResult result = selector.select(List.of(), graph);
+
+        assertEquals(List.of(new PackageNode(slf4j, "2.0.16")), result.selectedNodes());
+    }
+
+    private static String selectedVersion(VersionSelectionResult result, PackageId packageId) {
+        return result.selectedNodes().stream()
+                .filter(node -> node.packageId().equals(packageId))
+                .map(PackageNode::selectedVersion)
+                .findFirst()
+                .orElseThrow();
     }
 
     private static ResolutionGraph graphWithTransitiveRequests(List<DependencyRequest> requests) {
