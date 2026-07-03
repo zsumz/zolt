@@ -192,6 +192,23 @@ final class NativeUpdateServiceTest {
     }
 
     @Test
+    void wrapsAcceptedRemoteChannelDownloadFailureWithoutChangingCurrentInstall() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+
+        NativeUpdateException exception = assertThrows(
+                NativeUpdateException.class,
+                () -> service.update(new NativeUpdateRequest(
+                        installed.installRoot(),
+                        installed.binLink(),
+                        URI.create("https://127.0.0.1:1/channels/stable.json"),
+                        ReleaseTarget.LINUX_X64,
+                        tempDir.resolve("update-work-remote-failure"))));
+
+        assertTrue(exception.getMessage().contains("Could not update native Zolt:"), exception.getMessage());
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+    }
+
+    @Test
     void unsafeArchiveNameCannotEscapeUpdateWorkDirectory() throws IOException {
         InstalledFixture installed = install("0.1.0");
         Path archive = archive("0.1.1", "linux-x64", "0.1.1");

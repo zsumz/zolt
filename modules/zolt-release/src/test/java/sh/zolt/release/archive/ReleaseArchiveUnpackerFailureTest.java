@@ -1,6 +1,7 @@
 package sh.zolt.release.archive;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -73,6 +74,21 @@ final class ReleaseArchiveUnpackerFailureTest {
     }
 
     @Test
+    void rejectsPaxRecordWhoseDeclaredLengthEscapesPayload(@TempDir Path dir) throws IOException {
+        byte[] payload = "99 path=zolt/bin/zolt\n".getBytes(UTF_8);
+        Path archive = gzip(dir.resolve("bad-pax-length.tar.gz"), tar(
+                entry("PaxHeader", 'x', payload.length, 0644),
+                pad512(payload),
+                new byte[1024]));
+
+        RuntimeException exception = assertThrows(
+                IllegalStateException.class,
+                () -> ReleaseArchiveUnpacker.unpack(archive, dir.resolve("out"), "tar.gz", IllegalStateException::new));
+
+        assertTrue(exception.getMessage().contains("malformed pax extended header record"));
+    }
+
+    @Test
     void rejectsOversizedAndTruncatedPaxHeaders(@TempDir Path dir) throws IOException {
         Path oversized = gzip(dir.resolve("oversized-pax.tar.gz"), tar(
                 entry("PaxHeader", 'x', (1 << 20) + 1, 0644)));
@@ -89,6 +105,21 @@ final class ReleaseArchiveUnpackerFailureTest {
 
         assertTrue(oversizedFailure.getMessage().contains("oversized pax extended header"), oversizedFailure.getMessage());
         assertTrue(truncatedFailure.getMessage().contains("ended inside a pax extended header"), truncatedFailure.getMessage());
+    }
+
+    @Test
+    void fallsBackToUstarSizeWhenPaxSizeIsNotNumeric(@TempDir Path dir) throws IOException {
+        byte[] payload = paxRecord("size=not-a-number").getBytes(UTF_8);
+        Path archive = gzip(dir.resolve("non-numeric-pax-size.tar.gz"), tar(
+                entry("PaxHeader", 'x', payload.length, 0644),
+                pad512(payload),
+                entry("zolt/bin/zolt", '0', 1, 0755),
+                pad512("x".getBytes(UTF_8)),
+                new byte[1024]));
+
+        ReleaseArchiveUnpacker.unpack(archive, dir.resolve("out"), "tar.gz", IllegalStateException::new);
+
+        assertEquals("x", Files.readString(dir.resolve("out/zolt/bin/zolt")));
     }
 
     @Test
@@ -184,6 +215,19 @@ final class ReleaseArchiveUnpackerFailureTest {
     private static byte[] pad512(byte[] payload) {
         int padding = (512 - (payload.length % 512)) % 512;
         return tar(payload, new byte[padding]);
+    }
+
+    private static String paxRecord(String keyValue) {
+        String record = "0 " + keyValue + "\n";
+        int length = record.length();
+        while (true) {
+            record = length + " " + keyValue + "\n";
+            int next = record.length();
+            if (next == length) {
+                return record;
+            }
+            length = next;
+        }
     }
 
     private static byte[] tar(byte[]... parts) {

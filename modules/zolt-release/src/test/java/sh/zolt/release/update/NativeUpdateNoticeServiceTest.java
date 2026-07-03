@@ -256,6 +256,50 @@ final class NativeUpdateNoticeServiceTest {
     }
 
     @Test
+    void fallsBackToCachedNoticeWhenRemoteManifestDownloadFails() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        URI remoteChannel = URI.create("https://127.0.0.1:1/channels/stable.json");
+        Path state = tempDir.resolve("remote-state");
+        writeCache(
+                state,
+                remoteChannel,
+                "linux-x64",
+                "stable",
+                "0.1.2",
+                "not-an-instant");
+
+        Optional<NativeUpdateNotice> notice = service.check(request(
+                installed,
+                remoteChannel,
+                now,
+                state,
+                Duration.ofHours(24)));
+
+        assertTrue(notice.isPresent());
+        assertTrue(notice.orElseThrow().cached());
+        assertEquals("0.1.2", notice.orElseThrow().availableVersion());
+    }
+
+    @Test
+    void cacheWriteFailureDoesNotSuppressFreshNotice() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("stable", "0.1.1");
+        Path stateFile = tempDir.resolve("state-file");
+        Files.writeString(stateFile, "not a directory");
+
+        Optional<NativeUpdateNotice> notice = service.check(request(
+                installed,
+                channel.toUri(),
+                now,
+                stateFile,
+                Duration.ZERO));
+
+        assertTrue(notice.isPresent());
+        assertFalse(notice.orElseThrow().cached());
+        assertEquals("0.1.1", notice.orElseThrow().availableVersion());
+    }
+
+    @Test
     void cachedNoticeInsideIntervalMustMatchChannelUriAndTarget() throws IOException {
         InstalledFixture installed = install("0.1.0");
         URI channel = tempDir.resolve("channel.json").toUri();

@@ -12,6 +12,7 @@ final class ReleaseDistributionUrlLayoutTest {
     void dryRunPublicationUrlsUseOwnedDomainForInstallerChannelsAndArchives() {
         ReleaseDistributionUrlLayout urls = new ReleaseDistributionUrlLayout();
 
+        assertEquals("https://dist.zolt.sh", urls.origin());
         assertEquals("https://dist.zolt.sh/install.sh", urls.installScriptUrl());
         assertEquals("https://dist.zolt.sh/channels/stable.json", urls.channelManifestUrl("stable"));
         assertEquals("https://dist.zolt.sh/channels/nightly.json", urls.channelManifestUrl("nightly"));
@@ -25,6 +26,16 @@ final class ReleaseDistributionUrlLayoutTest {
         assertEquals(
                 "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz.minisig",
                 urls.signatureUrl("stable", "0.1.0", "zolt-0.1.0-linux-x64.tar.gz", ".minisig"));
+    }
+
+    @Test
+    void customOriginIsTrimmedAndNormalizedOnce() {
+        ReleaseDistributionUrlLayout urls = new ReleaseDistributionUrlLayout("  https://downloads.example.test/zolt/  ");
+
+        assertEquals("https://downloads.example.test/zolt", urls.origin());
+        assertEquals(
+                "https://downloads.example.test/zolt/channels/stable.json",
+                urls.channelManifestUrl("stable"));
     }
 
     @Test
@@ -49,7 +60,11 @@ final class ReleaseDistributionUrlLayoutTest {
 
         ReleaseDistributionUrlLayout urls = new ReleaseDistributionUrlLayout();
         assertThrows(ReleaseChannelManifestException.class, () -> urls.channelManifestUrl("../stable"));
+        assertThrows(ReleaseChannelManifestException.class, () -> urls.archiveUrl("stable", "", "zolt.tar.gz"));
         assertThrows(ReleaseChannelManifestException.class, () -> urls.archiveUrl("stable", "0.1.0", "../zolt.tar.gz"));
+        assertThrows(ReleaseChannelManifestException.class, () -> urls.archiveUrl("stable", "0.1.0", "nested\\zolt.tar.gz"));
+        assertThrows(ReleaseChannelManifestException.class, () -> urls.signatureUrl("stable", "0.1.0", "zolt.tar.gz", ""));
         assertThrows(ReleaseChannelManifestException.class, () -> urls.signatureUrl("stable", "0.1.0", "zolt.tar.gz", "/minisig"));
+        assertThrows(ReleaseChannelManifestException.class, () -> urls.signatureUrl("stable", "0.1.0", "zolt.tar.gz", ".mini\\sig"));
     }
 }

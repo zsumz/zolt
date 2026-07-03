@@ -1,13 +1,16 @@
 package sh.zolt.release.archive;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.project.ProjectMetadata;
 import sh.zolt.release.ReleaseTarget;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
@@ -129,5 +132,28 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                 "zolt-0.1.0-linux-arm64/VERSION",
                 "zolt-0.1.0-linux-arm64/README.md",
                 "zolt-0.1.0-linux-arm64/LICENSE"), tarEntries(result.archivePath()));
+    }
+
+    @Test
+    void tarArchiveRejectsEntryNamesThatDoNotFitUstarHeader() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+        ProjectMetadata metadata = new ProjectMetadata(
+                "zolt" + "a".repeat(110),
+                "0.1.0",
+                "sh.zolt",
+                String.valueOf(Runtime.version().feature()),
+                Optional.of("sh.zolt.Main"));
+
+        ReleaseArchiveException exception = assertThrows(
+                ReleaseArchiveException.class,
+                () -> service.assemble(
+                        projectDir,
+                        config(metadata),
+                        ReleaseTarget.LINUX_X64,
+                        binary,
+                        Path.of("dist")));
+
+        assertTrue(exception.getMessage().contains("Release archive entry name is too long for tar format"));
     }
 }

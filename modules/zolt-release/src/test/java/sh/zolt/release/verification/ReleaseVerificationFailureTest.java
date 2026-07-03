@@ -344,6 +344,27 @@ final class ReleaseVerificationFailureTest {
         assertTrue(exception.getMessage().contains("unsafe entry path"));
     }
 
+    @Test
+    void defaultProcessRunnerReportsUnexecutableArchiveBinary() throws IOException {
+        Path archive = projectDir.resolve("zolt-0.1.0-windows-x64.zip");
+        writeZip(
+                archive,
+                new ZipFile("zolt-0.1.0-windows-x64/bin/zolt.exe", "#!/definitely/missing/zolt\n"),
+                new ZipFile("zolt-0.1.0-windows-x64/VERSION", "0.1.0\n"));
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
+                sha256(archive) + "  " + archive.getFileName() + "\n");
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> new ReleaseVerificationService().verify(
+                        List.of(archive),
+                        projectDir.resolve("verify-unexecutable"),
+                        "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("Could not run release verification command `"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Check that the archive binary can be executed."), exception.getMessage());
+    }
+
     private static void writeZip(Path archive, ZipFile... entries) throws IOException {
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
             for (ZipFile entry : entries) {
