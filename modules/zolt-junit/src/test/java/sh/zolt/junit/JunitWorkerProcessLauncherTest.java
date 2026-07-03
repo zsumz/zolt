@@ -189,6 +189,48 @@ final class JunitWorkerProcessLauncherTest {
     }
 
     @Test
+    void startConvenienceOverloadsUseDefaultEnvironmentAndJvmArguments() {
+        List<List<String>> commands = new ArrayList<>();
+        List<Path> directories = new ArrayList<>();
+        List<StringWriter> inputs = new ArrayList<>();
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                ":",
+                Path.of("/jdk/bin/java"),
+                List.of(Path.of("/zolt/zolt.jar")),
+                (command, projectDirectory) -> {
+                    commands.add(command);
+                    directories.add(projectDirectory);
+                    StringWriter input = new StringWriter();
+                    inputs.add(input);
+                    return new JunitWorkerProcessLauncher.StartedWorker(
+                            new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                            input,
+                            () -> {
+                            });
+                });
+
+        try (JunitWorkerProcess ignored = launcher.start(
+                Path.of("/repo"),
+                List.of(Path.of("/repo/target/test-classes")))) {
+            // Closing sends the quit request.
+        }
+        try (JunitWorkerProcess ignored = launcher.start(
+                Path.of("/repo"),
+                List.of(Path.of("/repo/target/test-classes")),
+                List.of("-Xmx64m"))) {
+            // Closing sends the quit request.
+        }
+
+        assertEquals(2, commands.size());
+        assertEquals(Path.of("/repo"), directories.get(0));
+        assertEquals(Path.of("/repo"), directories.get(1));
+        assertTrue(!commands.get(0).contains("-Xmx64m"), commands.get(0).toString());
+        assertTrue(commands.get(1).contains("-Xmx64m"), commands.get(1).toString());
+        assertEquals("QUIT\tv=1\tid=junit-1\n", inputs.get(0).toString());
+        assertEquals("QUIT\tv=1\tid=junit-1\n", inputs.get(1).toString());
+    }
+
+    @Test
     void publicLauncherStartsRealServerProcessAndClosesWithQuit(@TempDir Path tempDir) {
         JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
                 javaExecutable(),
@@ -240,6 +282,15 @@ final class JunitWorkerProcessLauncherTest {
         JunitWorkerClientException exception = assertThrows(
                 JunitWorkerClientException.class,
                 () -> launcher().start(Path.of("/repo"), List.of()));
+
+        assertTrue(exception.getMessage().contains("test runtime classpath is required"));
+    }
+
+    @Test
+    void requiresNullableTestRuntimeClasspath() {
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                () -> launcher().start(Path.of("/repo"), null));
 
         assertTrue(exception.getMessage().contains("test runtime classpath is required"));
     }

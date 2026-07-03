@@ -51,6 +51,35 @@ final class FrameTest {
     }
 
     @Test
+    void rejectsBlankAndNamelessFieldsWithFrameContext() {
+        IllegalArgumentException blankField = assertThrows(
+                IllegalArgumentException.class,
+                () -> Frame.parse("RUN\t"));
+        IllegalArgumentException namelessField = assertThrows(
+                IllegalArgumentException.class,
+                () -> Frame.parse("RUN\t=value"));
+
+        assertTrue(blankField.getMessage().contains("RUN frame"), blankField.getMessage());
+        assertTrue(blankField.getMessage().contains("not name=value"), blankField.getMessage());
+        assertTrue(namelessField.getMessage().contains("RUN frame"), namelessField.getMessage());
+        assertTrue(namelessField.getMessage().contains("not name=value"), namelessField.getMessage());
+    }
+
+    @Test
+    void requiredFieldsRejectBlankValuesWithFieldName() {
+        Frame frame = Frame.parse("RUN\tid=");
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> frame.require("id", "JUnit worker request id"));
+
+        assertTrue(exception.getMessage().contains("RUN frame"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("JUnit worker request id"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("`id`"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("is required"), exception.getMessage());
+    }
+
+    @Test
     void rejectsUnexpectedFieldsWithContext() {
         Frame frame = Frame.parse("QUIT\tv=1\tid=request-1\tout=target/test-classes");
 

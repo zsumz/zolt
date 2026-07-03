@@ -125,6 +125,32 @@ final class JunitWorkerClientTest {
     }
 
     @Test
+    void sendsRunRequestWithSelectionFields() {
+        StringWriter input = new StringWriter();
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=0\n"),
+                input);
+        TestSelection selection = TestSelection.fromFields(
+                List.of("com.example.MainTest"),
+                List.of(new TestSelection.MethodSelector("com.example.OtherTest", "runs")),
+                List.of("*IntegrationTest"),
+                List.of("fast"),
+                List.of("slow"));
+
+        JunitWorkerClient.WorkerRunResult result = client.run(
+                Path.of("target/test-classes"),
+                selection,
+                Optional.empty(),
+                List.of());
+
+        assertEquals("""
+                RUN\tv=1\tid=junit-1\tout=target/test-classes\tclasses=com.example.MainTest\tmethods=com.example.OtherTest#runs\tpatterns=*IntegrationTest\tincludeTags=fast\texcludeTags=slow
+                """, input.toString());
+        assertEquals("", result.output());
+        assertEquals(0, result.exitCode());
+    }
+
+    @Test
     void closeIsIdempotent() {
         StringWriter input = new StringWriter();
         JunitWorkerClient client = new JunitWorkerClient(
@@ -218,6 +244,19 @@ final class JunitWorkerClientTest {
         JunitWorkerClientException exception = assertThrows(
                 JunitWorkerClientException.class,
                 () -> client.run(Path.of("target/test-classes")));
+
+        assertTrue(exception.getMessage().contains("Malformed JUnit worker result exit code"), exception.getMessage());
+    }
+
+    @Test
+    void closeWrapsMalformedQuitResult() {
+        JunitWorkerClient client = new JunitWorkerClient(
+                new StringReader("ZOLT_WORKER_RESULT\tid=junit-1\texit=nope\n"),
+                new StringWriter());
+
+        JunitWorkerClientException exception = assertThrows(
+                JunitWorkerClientException.class,
+                client::close);
 
         assertTrue(exception.getMessage().contains("Malformed JUnit worker result exit code"), exception.getMessage());
     }

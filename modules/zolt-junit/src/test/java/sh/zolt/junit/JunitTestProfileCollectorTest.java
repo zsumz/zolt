@@ -94,6 +94,24 @@ final class JunitTestProfileCollectorTest {
     }
 
     @Test
+    void recordsNullIdentityPartsAsEmptyStrings() throws Exception {
+        Path profile = tempDir.resolve("null-identity-profile");
+        JunitTestProfileCollector collector = new JunitTestProfileCollector(profile);
+        ListenerShape listener = (ListenerShape) collector.listener(ListenerShape.class);
+
+        listener.executionSkipped(FakeIdentifier.test(null, null, new MethodSource(null, null)), "disabled");
+        collector.write();
+
+        String json = Files.readString(profile.resolve("profile.json"));
+        assertTrue(json.contains("\"uniqueId\": \"\""), json);
+        assertTrue(json.contains("\"engineId\": \"\""), json);
+        assertTrue(json.contains("\"className\": \"\""), json);
+        assertTrue(json.contains("\"methodName\": \"\""), json);
+        assertTrue(json.contains("\"displayName\": \"\""), json);
+        assertTrue(json.contains("\"status\": \"skipped\""), json);
+    }
+
+    @Test
     void listenerObjectMethodsUseProxyIdentity() {
         JunitTestProfileCollector collector = new JunitTestProfileCollector(tempDir.resolve("profile"));
         ListenerShape listener = (ListenerShape) collector.listener(ListenerShape.class);

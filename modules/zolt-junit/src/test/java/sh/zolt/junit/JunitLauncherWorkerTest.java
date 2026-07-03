@@ -37,6 +37,28 @@ final class JunitLauncherWorkerTest {
     }
 
     @Test
+    void missingTestOutputDirectoryRejectsNullAndBlankArguments() {
+        ByteArrayOutputStream nullArgsStderr = new ByteArrayOutputStream();
+        ByteArrayOutputStream blankArgStderr = new ByteArrayOutputStream();
+
+        int nullArgsExitCode = new JunitLauncherWorker().run(
+                null,
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
+                new PrintStream(nullArgsStderr, true, StandardCharsets.UTF_8));
+        int blankArgExitCode = new JunitLauncherWorker().run(
+                new String[] {" "},
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8),
+                new PrintStream(blankArgStderr, true, StandardCharsets.UTF_8));
+
+        assertEquals(2, nullArgsExitCode);
+        assertEquals(2, blankArgExitCode);
+        assertTrue(nullArgsStderr.toString(StandardCharsets.UTF_8)
+                .contains("requires exactly one test output directory"));
+        assertTrue(blankArgStderr.toString(StandardCharsets.UTF_8)
+                .contains("requires exactly one test output directory"));
+    }
+
+    @Test
     void oneShotModeReturnsTwoWhenNoTestsAreDiscovered() throws Exception {
         Path emptyOutput = tempDir.resolve("empty-test-output");
         Files.createDirectories(emptyOutput);
@@ -113,6 +135,40 @@ final class JunitLauncherWorkerTest {
         assertEquals(1, exitCode);
         assertTrue(errorOutput.contains("Could not read JUnit launcher worker server input"), errorOutput);
         assertTrue(errorOutput.contains("boom"), errorOutput);
+    }
+
+    @Test
+    void serverModeReturnsFailureResultWhenReportsPathIsAFile() throws Exception {
+        Path reports = tempDir.resolve("reports-file");
+        Files.writeString(reports, "not a directory");
+        TestSelection selection = TestSelection.fromFields(
+                List.of("sh.zolt.junit.JunitWorkerProtocolTest"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+        String request = JunitWorkerProtocol.runRequest(
+                "request-1",
+                Path.of("target/test-classes"),
+                selection,
+                Optional.of(reports),
+                List.of());
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        int exitCode = new JunitLauncherWorker().run(
+                new String[] {"--server"},
+                new ByteArrayInputStream((request + "\n" + JunitWorkerProtocol.quitRequest("request-2") + "\n").getBytes(StandardCharsets.UTF_8)),
+                new PrintStream(stdout, true, StandardCharsets.UTF_8),
+                new PrintStream(stderr, true, StandardCharsets.UTF_8));
+
+        String workerOutput = stdout.toString(StandardCharsets.UTF_8);
+        String errorOutput = stderr.toString(StandardCharsets.UTF_8);
+        assertEquals(0, exitCode);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=1"), workerOutput);
+        assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-2\texit=0"), workerOutput);
+        assertTrue(errorOutput.contains("Could not run tests through Zolt's JUnit launcher worker"), errorOutput);
+        assertTrue(errorOutput.contains("FileAlreadyExistsException"), errorOutput);
     }
 
     @Test

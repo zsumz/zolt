@@ -194,6 +194,23 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void omitsBlankOptionalPathFields() {
+        String frame = JunitWorkerProtocol.runRequest(
+                "request-1",
+                OUTPUT,
+                TestSelection.empty(),
+                Optional.of(Path.of(" ")),
+                List.of(),
+                Optional.of(Path.of(" ")));
+
+        JunitWorkerProtocol.WorkerRequest request = JunitWorkerProtocol.parseRequest(frame);
+
+        assertEquals("RUN\tv=1\tid=request-1\tout=target/test-classes", frame);
+        assertTrue(request.reportsDirectory().isEmpty());
+        assertTrue(request.profileDirectory().isEmpty());
+    }
+
+    @Test
     void formatsAndParsesQuitRequests() {
         String frame = JunitWorkerProtocol.quitRequest("quit-1");
 
@@ -316,6 +333,17 @@ final class JunitWorkerProtocolTest {
     }
 
     @Test
+    void rejectsMalformedEventListsWithEventLabel() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.parseRequest(
+                        "RUN\tv=1\tid=request-1\tout=target/test-classes\tevents=failed,,skipped"));
+
+        assertTrue(exception.getMessage().contains("JUnit worker events"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("empty value"), exception.getMessage());
+    }
+
+    @Test
     void rejectsUnknownRequestCommands() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
@@ -351,6 +379,12 @@ final class JunitWorkerProtocolTest {
         IllegalArgumentException missingId = assertThrows(
                 IllegalArgumentException.class,
                 () -> JunitWorkerProtocol.quitRequest(" "));
+        IllegalArgumentException nullRunId = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.runRequest(null, OUTPUT));
+        IllegalArgumentException nullResultId = assertThrows(
+                IllegalArgumentException.class,
+                () -> JunitWorkerProtocol.result(null, 0));
         IllegalArgumentException missingOutput = assertThrows(
                 IllegalArgumentException.class,
                 () -> JunitWorkerProtocol.runRequest("request-1", Path.of(" ")));
@@ -359,6 +393,8 @@ final class JunitWorkerProtocolTest {
                 () -> JunitWorkerProtocol.runRequest("request-1", null));
 
         assertTrue(missingId.getMessage().contains("request id is required"), missingId.getMessage());
+        assertTrue(nullRunId.getMessage().contains("request id is required"), nullRunId.getMessage());
+        assertTrue(nullResultId.getMessage().contains("request id is required"), nullResultId.getMessage());
         assertTrue(missingOutput.getMessage().contains("test output directory is required"), missingOutput.getMessage());
         assertTrue(nullOutput.getMessage().contains("test output directory is required"), nullOutput.getMessage());
     }
@@ -431,6 +467,20 @@ final class JunitWorkerProtocolTest {
         assertTrue(request.profileDirectory().isEmpty());
         assertEquals(List.of("failed"), request.events());
         assertThrows(UnsupportedOperationException.class, () -> request.events().add("passed"));
+    }
+
+    @Test
+    void workerRequestNormalizesNullEventsToEmptyList() {
+        JunitWorkerProtocol.WorkerRequest request = new JunitWorkerProtocol.WorkerRequest(
+                JunitWorkerProtocol.WorkerCommand.RUN,
+                "request-1",
+                "target/test-classes",
+                Optional.empty(),
+                Optional.empty(),
+                null,
+                TestSelection.empty());
+
+        assertEquals(List.of(), request.events());
     }
 
     private static void assertSelectionRoundTrips(TestSelection selection) {
