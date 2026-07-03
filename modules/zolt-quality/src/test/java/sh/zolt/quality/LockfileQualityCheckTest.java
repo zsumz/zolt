@@ -44,6 +44,66 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     @Test
+    void projectLockfileCheckReportsStaleLockfileWithResolveAction() throws IOException {
+        Path projectDir = tempDir.resolve("stale-project-lock");
+        ProjectConfig config = parseProject(projectDir, "");
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "com.example:stale"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/stale/1.0.0/stale-1.0.0.jar"
+                dependencies = []
+                """);
+
+        QualityCheckResult result = check.checkProjectLockfile(request(projectDir), config);
+
+        assertEquals(QualityCheckService.LOCKFILE, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().startsWith("zolt.lock is out of date."));
+        assertEquals("Run `zolt resolve`.", result.nextStep());
+    }
+
+    @Test
+    void projectLockfileOfflineFailureUsesOfflineRetryAction() throws IOException {
+        Path projectDir = tempDir.resolve("offline-cache-missing");
+        ProjectConfig config = parseProject(projectDir, dependencyBody());
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        QualityCheckResult result = check.checkProjectLockfile(request(projectDir, true, false), config);
+
+        assertEquals(QualityCheckService.LOCKFILE, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Offline mode requires cached POM for com.example:offline-missing:1.0.0"));
+        assertEquals(
+                "Run `zolt resolve` without --offline to seed the cache, then retry `zolt check --check lockfile --offline`.",
+                result.nextStep());
+    }
+
+    @Test
+    void projectLockfileRequireOfflineReadyFailureUsesCiRetryAction() throws IOException {
+        Path projectDir = tempDir.resolve("require-offline-ready-missing-cache");
+        ProjectConfig config = parseProject(projectDir, dependencyBody());
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        QualityCheckResult result = check.checkProjectLockfile(request(projectDir, false, true), config);
+
+        assertEquals(QualityCheckService.LOCKFILE, result.id());
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertEquals("zolt.lock", result.subject());
+        assertTrue(result.message().contains("Offline mode requires cached POM for com.example:offline-missing:1.0.0"));
+        assertEquals(
+                "Run `zolt resolve` to seed the cache, then retry `zolt check --context ci --require-offline-ready`.",
+                result.nextStep());
+    }
+
+    @Test
     void projectCacheIntegrityRequiresLockfile() throws IOException {
         Path projectDir = tempDir.resolve("missing-cache-lock");
         Files.createDirectories(projectDir);
@@ -126,10 +186,14 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
     }
 
     private QualityCheckRequest request(Path projectDir) {
+        return request(projectDir, false, false);
+    }
+
+    private QualityCheckRequest request(Path projectDir, boolean offline, boolean requireOfflineReady) {
         return new QualityCheckRequest(
                 projectDir,
                 tempDir.resolve("cache"),
-                false,
+                offline,
                 false,
                 List.of(),
                 QualityCheckContext.CI,
@@ -137,8 +201,16 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
                 null,
                 false,
                 false,
-                false,
+                requireOfflineReady,
                 WorkspaceSelectionRequest.defaults());
+    }
+
+    private static String dependencyBody() {
+        return """
+
+                [dependencies]
+                "com.example:offline-missing" = "1.0.0"
+                """;
     }
 
     private static Workspace workspace(Path root) {

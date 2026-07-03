@@ -68,6 +68,55 @@ final class QualityCheckServiceRoutingTest {
     }
 
     @Test
+    void localContextPrependsExecutionContextOnceBeforeExplicitChecks() throws IOException {
+        Path projectDir = tempDir.resolve("local-with-explicit-checks");
+        writeProject(projectDir, "local-with-explicit-checks");
+
+        QualityCheckReport report = new QualityCheckService(Map.<String, String>of()::get).check(request(
+                projectDir,
+                false,
+                List.of(QualityCheckService.EXECUTION_CONTEXT, QualityCheckService.COMMAND_SURFACE),
+                QualityCheckContext.LOCAL,
+                WorkspaceSelectionRequest.defaults()));
+
+        assertEquals("ok", report.status());
+        assertEquals(2, report.passedCount());
+        assertEquals(0, report.failedCount());
+        assertEquals(0, report.skippedCount());
+        assertEquals(
+                List.of(QualityCheckService.EXECUTION_CONTEXT, QualityCheckService.COMMAND_SURFACE),
+                report.checks().stream().map(QualityCheckResult::id).toList());
+        assertEquals("local", report.checks().getFirst().subject());
+        assertEquals("local-with-explicit-checks", report.checks().get(1).subject());
+    }
+
+    @Test
+    void ciContextPrependsExecutionContextToUnsupportedCheckAndAggregatesFailures() throws IOException {
+        Path projectDir = tempDir.resolve("ci-unsupported");
+        writeProject(projectDir, "ci-unsupported");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+
+        QualityCheckReport report = new QualityCheckService(Map.<String, String>of()::get).check(request(
+                projectDir,
+                false,
+                List.of("mvn verify"),
+                QualityCheckContext.CI,
+                WorkspaceSelectionRequest.defaults()));
+
+        assertEquals("error", report.status());
+        assertEquals(1, report.passedCount());
+        assertEquals(1, report.failedCount());
+        assertEquals(0, report.skippedCount());
+        assertEquals(List.of(QualityCheckService.EXECUTION_CONTEXT, "unsupported-check"), report.checks().stream()
+                .map(QualityCheckResult::id)
+                .toList());
+        assertEquals("ci", report.checks().getFirst().subject());
+        assertEquals("mvn verify", report.checks().get(1).subject());
+        assertTrue(report.checks().get(1).nextStep().contains(
+                "Zolt does not run Maven goals, Gradle tasks, shell commands, or arbitrary hooks."));
+    }
+
+    @Test
     void workspaceConfigErrorsReturnUnavailableResultsForRequestedChecks() throws IOException {
         Path workspaceDir = tempDir.resolve("bad-workspace");
         Files.createDirectories(workspaceDir);
@@ -102,13 +151,22 @@ final class QualityCheckServiceRoutingTest {
             boolean workspace,
             List<String> checks,
             WorkspaceSelectionRequest selection) {
+        return request(projectRoot, workspace, checks, null, selection);
+    }
+
+    private QualityCheckRequest request(
+            Path projectRoot,
+            boolean workspace,
+            List<String> checks,
+            QualityCheckContext context,
+            WorkspaceSelectionRequest selection) {
         return new QualityCheckRequest(
                 projectRoot,
                 tempDir.resolve("cache"),
                 false,
                 workspace,
                 checks,
-                null,
+                context,
                 null,
                 null,
                 false,
