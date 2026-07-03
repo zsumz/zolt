@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Model.CommandSpec;
@@ -142,7 +143,12 @@ public final class ResolveCommand implements Runnable {
                             options),
                     ResolveCommand::resolveAttributes));
             CommandResolveOutput.print(spec, result, !locked);
-            CommandHumanOutput.of(spec).action("zolt build");
+            Optional<String> draftWarning = ResolveDraftWarning.forResult(projectRoot, config, result);
+            if (draftWarning.isPresent()) {
+                CommandHumanOutput.of(spec).statusDetail("warning", draftWarning.get());
+            } else {
+                CommandHumanOutput.of(spec).action("zolt build");
+            }
             progress.result("Resolved " + result.resolvedCount() + " packages");
         } catch (ArtifactCacheException | ResolveException | WorkspaceConfigException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
