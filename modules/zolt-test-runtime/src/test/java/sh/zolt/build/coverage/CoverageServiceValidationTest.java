@@ -78,6 +78,90 @@ final class CoverageServiceValidationTest {
         assertTrue(exception.getMessage().contains("zolt resolve"));
     }
 
+    @Test
+    void nonRuntimeJacocoAgentExplainsHowToRefreshLockfile() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.agent"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "tool-coverage"
+                direct = false
+                jar = "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14.jar"
+                dependencies = []
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.cli"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "tool-coverage"
+                direct = false
+                jar = "org/jacoco/org.jacoco.cli/0.8.14/org.jacoco.cli-0.8.14.jar"
+                dependencies = []
+                """);
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                new ArrayList<>());
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> service.runCoverage(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        CoverageReportSettings.defaults(),
+                        List.of()));
+
+        assertTrue(exception.getMessage().contains("org.jacoco:org.jacoco.agent:runtime"));
+        assertTrue(exception.getMessage().contains("zolt resolve"));
+    }
+
+    @Test
+    void rejectsCoverageOutputThatEscapesProject() {
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> new CoverageReportSettings(
+                        true,
+                        true,
+                        Path.of("../coverage/jacoco.exec"),
+                        Path.of("target/coverage/jacoco.xml"),
+                        Path.of("target/coverage/html"),
+                        TestReportSettings.reportsDirectory(Path.of("target/coverage/test-reports"))));
+
+        assertTrue(exception.getMessage().contains("coverage exec file"));
+        assertTrue(exception.getMessage().contains("must stay inside the project"));
+        assertTrue(exception.getMessage().contains("target/coverage/jacoco.exec"));
+    }
+
+    @Test
+    void mergeExecFilesSortsInputsForDeterministicCommand() {
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                reportCommands);
+
+        Path workerB = projectDir.resolve("target/coverage/workers/wave-2-worker-1/jacoco.exec");
+        Path workerA = projectDir.resolve("target/coverage/workers/wave-1-worker-1/jacoco.exec");
+        service.mergeExecFiles(
+                projectDir,
+                config(),
+                projectDir.resolve("target/coverage/jacoco.exec"),
+                List.of(workerB, workerA),
+                List.of(Path.of("/tools/org.jacoco.cli.jar")));
+
+        List<String> command = reportCommands.getFirst();
+        int workerAIndex = command.indexOf(workerA.toAbsolutePath().normalize().toString());
+        int workerBIndex = command.indexOf(workerB.toAbsolutePath().normalize().toString());
+        assertTrue(workerAIndex >= 0);
+        assertTrue(workerBIndex >= 0);
+        assertTrue(workerAIndex < workerBIndex);
+    }
+
     private static CoverageService service(
             CoverageTestRunner testRunner,
             List<List<String>> reportCommands) {

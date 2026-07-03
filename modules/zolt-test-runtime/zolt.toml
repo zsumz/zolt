@@ -29,6 +29,7 @@ includeClassname = [
     "sh.zolt.build.testruntime.execution.JunitLauncherClasspathTest",
     "sh.zolt.build.testruntime.execution.TestConsoleFailureHandlerTest",
     "sh.zolt.build.testruntime.execution.TestRuntimeInputBuilderTest",
+    "sh.zolt.build.testruntime.TestRuntimeValueObjectsTest",
     "sh.zolt.build.testruntime.TestRunServiceFailureTest",
     "sh.zolt.build.testruntime.TestRunServiceFrameworkRunnerTest",
     "sh.zolt.build.testruntime.TestRunServiceRuntimeOptionsTest",

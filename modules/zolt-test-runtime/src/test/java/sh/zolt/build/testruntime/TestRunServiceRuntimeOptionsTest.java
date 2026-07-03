@@ -11,16 +11,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.build.BuildResult;
+import sh.zolt.build.testruntime.compile.TestCompileResult;
 import sh.zolt.build.run.JavaRunner;
 import sh.zolt.build.profile.TestProfileSettings;
+import sh.zolt.classpath.Classpath;
+import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.lockfile.toml.LockfileReadException;
+import sh.zolt.project.BuildSettings;
+import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.TestSuiteSettings;
+import sh.zolt.test.TestProfileHistory;
 import sh.zolt.test.runtime.TestJvmArguments;
 import sh.zolt.test.runtime.TestRunException;
 import sh.zolt.test.TestSelection;
+import sh.zolt.test.shard.TestShardSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -376,6 +386,100 @@ final class TestRunServiceRuntimeOptionsTest {
         assertTrue(exception.getMessage().contains("700 ms com.example.SlowTest (1 test)"));
     }
 
+    @Test
+    void workerPoolProfilesAreMergedAndReadableAsHistory() throws IOException {
+        Path testOutput = projectDir.resolve("target/test-classes");
+        writeClassFile(testOutput, "com/example/AlphaTest.class");
+        writeClassFile(testOutput, "com/example/BetaTest.class");
+        writeClassFile(testOutput, "com/example/DeltaTest.class");
+        writeClassFile(testOutput, "com/example/GammaTest.class");
+        Path mainOutput = projectDir.resolve("target/classes");
+        Files.createDirectories(mainOutput);
+        List<Map<String, String>> environments = Collections.synchronizedList(new ArrayList<>());
+        TestRunService service = service(
+                (command, outputConsumer) -> {
+                    throw new AssertionError("Console should not run for pooled profiled workers.");
+                },
+                new TestRunServiceTestSupport.CachingJdkChecker(),
+                sh.zolt.framework.FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                (javaExecutable, workerClasspath, projectDirectory, testRuntimeClasspath, testOutputDirectory, testSelection, jvmArguments, environment, reportsDirectory, testEvents, profileDirectory) -> {
+                    environments.add(environment);
+                    String className = testSelection.classSelectors().getFirst();
+                    writeProfile(
+                            profileDirectory.orElseThrow(),
+                            profileJson(environment.get("ZOLT_TEST_WORKER_ID"), className, durationFor(className), environment));
+                    return new sh.zolt.build.junit.PlainJunitWorkerRunResult(
+                            new sh.zolt.junit.JunitWorkerClient.WorkerRunResult("passed " + className + "\n", 0),
+                            10L,
+                            20L);
+                },
+                true);
+        ProjectConfig profiledSuiteConfig = config().withBuildSettings(BuildSettings.defaults().withTestSuites(Map.of(
+                "fast",
+                new TestSuiteSettings(
+                        List.of("*Test"),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        true,
+                        2,
+                        Map.of()))));
+        TestRunResult result = service.runCompiledTests(
+                projectDir,
+                profiledSuiteConfig,
+                classpathSetWithConsoleJar(),
+                new TestCompileResult(
+                        new BuildResult(Optional.empty(), 0, 0, mainOutput, ""),
+                        4,
+                        0,
+                        testOutput,
+                        ""),
+                TestSelection.empty(),
+                TestJvmArguments.empty(),
+                TestReportSettings.disabled(),
+                List.of(),
+                "fast",
+                new TestShardSpec(1, 2),
+                TestProfileSettings.fromCli(true, Path.of("target/test-profile"), 5, "100ms")
+                        .forWorkspaceMember("modules/zolt-test-runtime"));
+
+        Path profileDirectory = projectDir.resolve(
+                        "target/test-profile/modules/zolt-test-runtime/shards/fast/shard-1-of-2")
+                .toAbsolutePath()
+                .normalize();
+        assertEquals("zolt-junit-worker", result.testRunner());
+        assertEquals(2, result.testDiscoveryScanRoots());
+        assertEquals(Optional.of(profileDirectory), result.profileDirectory());
+        assertTrue(environments.stream().allMatch(environment ->
+                environment.get("ZOLT_TEST_PROFILE_PROJECT_ROOT").equals(projectDir.toAbsolutePath().normalize().toString())));
+        assertTrue(environments.stream().allMatch(environment -> environment.get("ZOLT_TEST_PROFILE_PROJECT").equals("demo")));
+        assertTrue(environments.stream().allMatch(environment -> environment.get("ZOLT_TEST_PROFILE_MEMBER").equals("modules/zolt-test-runtime")));
+        assertTrue(environments.stream().allMatch(environment -> environment.get("ZOLT_TEST_PROFILE_SUITE").equals("fast")));
+        assertTrue(environments.stream().allMatch(environment -> environment.get("ZOLT_TEST_PROFILE_SHARD").equals("1/2")));
+
+        String shardManifest = Files.readString(projectDir.resolve("target/test-shards/fast/shard-1-of-2.json"));
+        assertTrue(shardManifest.contains("\"selectedEntries\": 2"));
+        assertTrue(shardManifest.contains("\"com.example.AlphaTest\""));
+        assertTrue(shardManifest.contains("\"com.example.DeltaTest\""));
+
+        String mergedProfile = Files.readString(profileDirectory.resolve("profile.json"));
+        assertTrue(mergedProfile.contains("\"member\": \"modules/zolt-test-runtime\""));
+        assertTrue(mergedProfile.contains("\"suite\": \"fast\""));
+        assertTrue(mergedProfile.contains("\"shard\": \"1/2\""));
+        assertTrue(mergedProfile.contains("\"testsFound\": 2"));
+        assertTrue(mergedProfile.contains("\"com.example.AlphaTest\""));
+        assertTrue(mergedProfile.contains("\"com.example.DeltaTest\""));
+        TestProfileHistory history = TestProfileHistory.read(projectDir, profileDirectory.resolve("profile.json"));
+        assertEquals(Optional.of(profileDirectory.resolve("profile.json")), history.source());
+        assertEquals(
+                Map.of(
+                        "com.example.AlphaTest", 101L,
+                        "com.example.DeltaTest", 303L),
+                history.classDurations());
+        assertEquals(List.of(), history.diagnostics());
+    }
+
     private static void writeProfile(Path profileDirectory, String profileJson) {
         try {
             Files.createDirectories(profileDirectory);
@@ -383,5 +487,95 @@ final class TestRunServiceRuntimeOptionsTest {
         } catch (IOException exception) {
             throw new AssertionError("could not write test profile fixture", exception);
         }
+    }
+
+    private static void writeClassFile(Path testOutput, String relativePath) throws IOException {
+        Path classFile = testOutput.resolve(relativePath);
+        Files.createDirectories(classFile.getParent());
+        Files.write(classFile, new byte[] {0});
+    }
+
+    private ClasspathSet classpathSetWithConsoleJar() {
+        Classpath empty = new Classpath(List.of());
+        return new ClasspathSet(
+                empty,
+                empty,
+                new Classpath(List.of(projectDir.resolve(
+                        "cache/org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.jar"))),
+                empty,
+                empty,
+                empty);
+    }
+
+    private static long durationFor(String className) {
+        return switch (className) {
+            case "com.example.AlphaTest" -> 101L;
+            case "com.example.DeltaTest" -> 303L;
+            default -> throw new AssertionError("unexpected class " + className);
+        };
+    }
+
+    private static String profileJson(
+            String workerId,
+            String className,
+            long durationMillis,
+            Map<String, String> environment) {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "runner": "zolt-junit-worker",
+                  "workerId": "%s",
+                  "projectRoot": "%s",
+                  "project": "%s",
+                  "member": "%s",
+                  "suite": "%s",
+                  "shard": "%s",
+                  "summary": {
+                    "testsFound": 1,
+                    "testsSucceeded": 1,
+                    "testsFailed": 0,
+                    "testsSkipped": 0,
+                    "testsAborted": 0,
+                    "durationMillis": %d
+                  },
+                  "tests": [
+                    {
+                      "uniqueId": "%s#runs",
+                      "className": "%s",
+                      "methodName": "runs",
+                      "displayName": "runs()",
+                      "durationMillis": %d,
+                      "workerId": "%s"
+                    }
+                  ],
+                  "containers": [
+                    {
+                      "uniqueId": "%s",
+                      "className": "%s",
+                      "methodName": "",
+                      "displayName": "%s",
+                      "durationMillis": %d,
+                      "workerId": "%s",
+                      "testCount": 1
+                    }
+                  ]
+                }
+                """.formatted(
+                workerId,
+                environment.get("ZOLT_TEST_PROFILE_PROJECT_ROOT"),
+                environment.get("ZOLT_TEST_PROFILE_PROJECT"),
+                environment.get("ZOLT_TEST_PROFILE_MEMBER"),
+                environment.get("ZOLT_TEST_PROFILE_SUITE"),
+                environment.get("ZOLT_TEST_PROFILE_SHARD"),
+                durationMillis,
+                className,
+                className,
+                durationMillis,
+                workerId,
+                className,
+                className,
+                className.substring(className.lastIndexOf('.') + 1),
+                durationMillis,
+                workerId);
     }
 }
