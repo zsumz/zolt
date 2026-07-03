@@ -14,6 +14,7 @@ import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.project.VersionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -231,6 +232,12 @@ final class MavenInspectionMapper {
     private static String version(MavenProjectInspection project, List<String> notes) {
         String version = project.version();
         if (version != null && !version.isBlank()) {
+            if (VersionPolicy.isSnapshot(version)) {
+                notes.add(
+                        "Project version `" + version + "` is a SNAPSHOT, a documented non-determinism"
+                                + " signal (version-policy rule: snapshot-version); it resolves as-is but"
+                                + " pin it to a fixed release before relying on the draft.");
+            }
             return version;
         }
         notes.add(
