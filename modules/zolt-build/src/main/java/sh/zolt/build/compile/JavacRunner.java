@@ -11,8 +11,12 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.regex.Pattern;
 
 public final class JavacRunner {
+    private static final Pattern MISSING_PACKAGE_PATTERN =
+            Pattern.compile("package \\S+ does not exist");
+
     private final String pathSeparator;
     private final ProcessRunner processRunner;
 
@@ -92,13 +96,24 @@ public final class JavacRunner {
             String diagnostics = result.output().stripTrailing();
             String summary = "javac failed with exit code " + result.exitCode() + "."
                     + (diagnostics.isEmpty() ? "" : "\n" + diagnostics);
-            throw new JavacException(sh.zolt.error.ActionableError.of(
-                    summary,
-                    "Fix the Java compilation errors and try again. "
-                            + "If annotation processing is configured, inspect [annotationProcessors], "
-                            + "[test.annotationProcessors], and processor-scoped entries in zolt.lock."));
+            throw new JavacException(sh.zolt.error.ActionableError.of(summary, remediation(diagnostics)));
         }
         return new JavacResult(sortedSources.size(), outputDirectory, result.output());
+    }
+
+    private static String remediation(String diagnostics) {
+        if (isMissingDependencyFailure(diagnostics)) {
+            return "Fix the Java compilation errors and try again. "
+                    + "A referenced package could not be found, so a required dependency is likely "
+                    + "missing or unresolved: check the declared dependencies and zolt.lock.";
+        }
+        return "Fix the Java compilation errors and try again. "
+                + "If annotation processing is configured, inspect [annotationProcessors], "
+                + "[test.annotationProcessors], and processor-scoped entries in zolt.lock.";
+    }
+
+    private static boolean isMissingDependencyFailure(String diagnostics) {
+        return MISSING_PACKAGE_PATTERN.matcher(diagnostics).find();
     }
 
     private List<String> command(
