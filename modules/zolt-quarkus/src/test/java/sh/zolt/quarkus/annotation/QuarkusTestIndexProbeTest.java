@@ -3,13 +3,17 @@ package sh.zolt.quarkus.annotation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.quarkus.testsupport.QuarkusJandexFixtureCompiler;
+import sh.zolt.quarkus.testsupport.QuarkusJandexFixtureCompiler.FixtureRuntime;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class QuarkusTestIndexProbeTest {
     @Test
@@ -102,6 +106,56 @@ final class QuarkusTestIndexProbeTest {
         assertTrue(output.contains("Build-chain test bean candidates:"));
         assertTrue(output.contains("<none>"));
         assertTrue(output.contains("com.example.HttpTest"));
+    }
+
+    @Test
+    void probesRealIndexAndReportsSyntheticQuarkusTestExtensionCandidate(@TempDir Path tempDir)
+            throws Exception {
+        Path testOutputDirectory = QuarkusJandexFixtureCompiler.compile(
+                tempDir.resolve("test-classes"),
+                Map.of("com.example.HttpQuarkusCase", """
+                        package com.example;
+
+                        @io.quarkus.test.junit.QuarkusTest
+                        public class HttpQuarkusCase {
+                        }
+                        """));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+
+        int exitCode;
+        try (FixtureRuntime runtime = QuarkusJandexFixtureCompiler.fixtureRuntime()) {
+            Object probe = runtime.newInstance(QuarkusTestIndexProbe.MAIN_CLASS);
+            Method run = probe.getClass().getDeclaredMethod(
+                    "run",
+                    String[].class,
+                    PrintStream.class,
+                    PrintStream.class);
+            run.setAccessible(true);
+            exitCode = (int) run.invoke(
+                    probe,
+                    new String[] {
+                            testOutputDirectory.toString(),
+                            "com.example.HttpQuarkusCase",
+                            "com.example.MissingCase"
+                    },
+                    stream(out),
+                    stream(err));
+        }
+
+        assertEquals(0, exitCode, output(err));
+        String output = output(out);
+        assertTrue(output.contains("com.example.HttpQuarkusCase location=<unavailable: ClassNotFoundException>"));
+        assertTrue(output.contains("Raw index:"));
+        assertTrue(output.contains("com.example.HttpQuarkusCase present=true @QuarkusTest=true @ExtendWith=false"));
+        assertTrue(output.contains("Enriched index:"));
+        assertTrue(output.contains("com.example.HttpQuarkusCase present=true @QuarkusTest=true @ExtendWith=true"));
+        assertTrue(output.contains("com.example.MissingCase present=false @QuarkusTest=false @ExtendWith=false"));
+        assertTrue(output.contains("org.junit.jupiter.api.extension.ExtendWith=0"));
+        assertTrue(output.contains("org.junit.jupiter.api.extension.ExtendWith=1"));
+        assertTrue(output.contains("annotations: io.quarkus.test.junit.QuarkusTest"));
+        assertTrue(output.contains("    <none>"));
+        assertTrue(output.contains("    com.example.HttpQuarkusCase"));
     }
 
     private static PrintStream stream(ByteArrayOutputStream output) {
