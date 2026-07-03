@@ -3,6 +3,7 @@ package sh.zolt.maven.repository;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,8 +11,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.xml.sax.ErrorHandler;
+import org.xml.sax.SAXParseException;
 
 final class RawPomParserTest {
     private final RawPomParser parser = new RawPomParser();
@@ -170,6 +174,79 @@ final class RawPomParserTest {
     }
 
     @Test
+    void trimsDependencyPropertiesClassifierAndRelocationValues() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId> org.example </groupId>
+                  <artifactId> metadata </artifactId>
+                  <version> 1.0.0 </version>
+                  <properties>
+                    <dep.version> 2.1.0 </dep.version>
+                  </properties>
+                  <dependencies>
+                    <dependency>
+                      <groupId> org.example </groupId>
+                      <artifactId> helper </artifactId>
+                      <version> ${dep.version} </version>
+                      <scope> runtime </scope>
+                      <type> test-jar </type>
+                      <classifier> tests </classifier>
+                      <optional> false </optional>
+                    </dependency>
+                  </dependencies>
+                  <distributionManagement>
+                    <relocation>
+                      <groupId> org.example.new </groupId>
+                      <artifactId> metadata-new </artifactId>
+                      <version> 2.0.0 </version>
+                      <message> Use metadata-new. </message>
+                    </relocation>
+                  </distributionManagement>
+                </project>
+                """);
+
+        assertEquals("org.example", pom.groupId().orElseThrow());
+        assertEquals("metadata", pom.artifactId());
+        assertEquals("1.0.0", pom.version().orElseThrow());
+        assertEquals("2.1.0", pom.properties().get("dep.version"));
+
+        RawPomDependency dependency = pom.dependencies().getFirst();
+        assertEquals("org.example", dependency.groupId());
+        assertEquals("helper", dependency.artifactId());
+        assertEquals("${dep.version}", dependency.version().orElseThrow());
+        assertEquals("runtime", dependency.scope().orElseThrow());
+        assertEquals("test-jar", dependency.type().orElseThrow());
+        assertEquals("tests", dependency.classifier().orElseThrow());
+        assertFalse(dependency.optional());
+
+        RawPomRelocation relocation = pom.relocation().orElseThrow();
+        assertEquals("org.example.new", relocation.groupId().orElseThrow());
+        assertEquals("metadata-new", relocation.artifactId().orElseThrow());
+        assertEquals("2.0.0", relocation.version().orElseThrow());
+        assertEquals("Use metadata-new.", relocation.message().orElseThrow());
+    }
+
+    @Test
+    void emptyDependencyContainersProduceEmptyLists() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>no-dependencies</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                  </dependencies>
+                </project>
+                """);
+
+        assertTrue(pom.dependencyManagement().isEmpty());
+        assertTrue(pom.dependencies().isEmpty());
+    }
+
+    @Test
     void defaultsPackagingToJar() {
         RawPom pom = parser.parse("""
                 <project>
@@ -277,6 +354,18 @@ final class RawPomParserTest {
         }
 
         assertEquals("", captured.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void quietErrorHandlerRethrowsParserWarningsErrorsAndFatalErrors() throws Exception {
+        ErrorHandler handler = quietErrorHandler();
+        SAXParseException warning = new SAXParseException("warning", null);
+        SAXParseException error = new SAXParseException("error", null);
+        SAXParseException fatal = new SAXParseException("fatal", null);
+
+        assertSame(warning, assertThrows(SAXParseException.class, () -> handler.warning(warning)));
+        assertSame(error, assertThrows(SAXParseException.class, () -> handler.error(error)));
+        assertSame(fatal, assertThrows(SAXParseException.class, () -> handler.fatalError(fatal)));
     }
 
     @Test
@@ -428,5 +517,15 @@ final class RawPomParserTest {
             }
             return parser.parse(inputStream);
         }
+    }
+
+    private ErrorHandler quietErrorHandler() throws ReflectiveOperationException {
+        Class<?> handlerType = java.util.Arrays.stream(RawPomParser.class.getDeclaredClasses())
+                .filter(type -> type.getSimpleName().equals("QuietErrorHandler"))
+                .findFirst()
+                .orElseThrow();
+        Constructor<?> constructor = handlerType.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        return (ErrorHandler) constructor.newInstance();
     }
 }
