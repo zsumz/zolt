@@ -13,6 +13,14 @@ final class CurrentWorkerClasspathTest {
     private final CurrentWorkerClasspath currentWorkerClasspath = new CurrentWorkerClasspath();
 
     @Test
+    void discoversCurrentJvmClasspathEntries() {
+        List<Path> result = currentWorkerClasspath.discover();
+
+        assertTrue(!result.isEmpty());
+        assertTrue(result.stream().allMatch(Path::isAbsolute));
+    }
+
+    @Test
     void normalizesNonBlankClasspathEntries() {
         List<Path> result = currentWorkerClasspath.discover("lib/zolt.jar::target/classes", ":");
 

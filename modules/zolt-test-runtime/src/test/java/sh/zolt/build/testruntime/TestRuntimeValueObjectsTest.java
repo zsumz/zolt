@@ -88,6 +88,17 @@ final class TestRuntimeValueObjectsTest {
     }
 
     @Test
+    void disabledReportSettingsStayInertForWorkspaceAndShardEvidence() {
+        TestReportSettings disabled = new TestReportSettings(null);
+
+        assertTrue(disabled.reportsDirectory().isEmpty());
+        assertTrue(disabled.forWorkspaceMember("modules/zolt-test-runtime").reportsDirectory().isEmpty());
+        assertEquals(disabled, disabled.forShard("fast", new TestShardSpec(1, 2)));
+        assertTrue(disabled.projectRelativeReportsDirectory(projectDir).isEmpty());
+        assertTrue(disabled.absoluteReportsDirectory(projectDir).isEmpty());
+    }
+
+    @Test
     void reportSettingsRejectOutputOutsideProjectWithRemediation() {
         TestRunException exception = assertThrows(
                 TestRunException.class,
@@ -119,6 +130,45 @@ final class TestRuntimeValueObjectsTest {
         assertEquals(Path.of("target/coverage/jacoco.xml"), settings.xmlReport());
         assertEquals(Path.of("target/coverage/html"), settings.htmlDirectory());
         assertEquals(Optional.of(Path.of("target/coverage/test-reports")), settings.testReports().reportsDirectory());
+    }
+
+    @Test
+    void coverageSettingsForOutputRootUsesTargetFallbackAndCustomReportsDirectory() {
+        CoverageReportSettings settings = CoverageReportSettings.forOutputRoot(
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                Path.of("target/custom-test-reports"));
+
+        assertEquals(Path.of("target/coverage/jacoco.exec"), settings.execFile());
+        assertEquals(Path.of("target/coverage/jacoco.xml"), settings.xmlReport());
+        assertEquals(Path.of("target/coverage/html"), settings.htmlDirectory());
+        assertEquals(Optional.of(Path.of("target/custom-test-reports")), settings.testReports().reportsDirectory());
+        assertEquals(Optional.of(projectDir.resolve("target/coverage/jacoco.xml").toAbsolutePath().normalize()),
+                settings.absoluteXmlReport(projectDir));
+        assertTrue(settings.absoluteHtmlDirectory(projectDir).isEmpty());
+    }
+
+    @Test
+    void coverageShardPathsStayDeterministicWhenBasePathsHaveNoParent() {
+        CoverageReportSettings settings = new CoverageReportSettings(
+                true,
+                true,
+                Path.of("jacoco.exec"),
+                Path.of("jacoco.xml"),
+                Path.of("html"),
+                TestReportSettings.disabled());
+
+        CoverageReportSettings shardSettings = settings.forShard("fast suite!", new TestShardSpec(2, 3));
+
+        Path shardRoot = Path.of("shards/fast_suite_/shard-2-of-3");
+        assertEquals(shardRoot.resolve("jacoco.exec"), shardSettings.execFile());
+        assertEquals(shardRoot.resolve("jacoco.xml"), shardSettings.xmlReport());
+        assertEquals(shardRoot.resolve("html"), shardSettings.htmlDirectory());
+        assertTrue(shardSettings.testReports().reportsDirectory().isEmpty());
     }
 
     @Test
@@ -161,6 +211,41 @@ final class TestRuntimeValueObjectsTest {
     }
 
     @Test
+    void testCompileResultLegacyConstructorsPreserveMetricsAndModes() {
+        BuildResult buildResult = new BuildResult(Optional.empty(), 0, 0, Path.of("target/classes"), "");
+        TestCompileResult full = new TestCompileResult(
+                buildResult,
+                3,
+                1,
+                Path.of("target/test-classes"),
+                "compiled tests\n");
+        TestCompileResult skipped = new TestCompileResult(
+                buildResult,
+                0,
+                0,
+                Path.of("target/test-classes"),
+                "",
+                true);
+        TestCompileResult timed = new TestCompileResult(
+                buildResult,
+                1,
+                0,
+                Path.of("target/test-classes"),
+                "",
+                false,
+                2_000_000L,
+                3_000_000L);
+
+        assertEquals("full", full.testCompilationMode());
+        assertEquals(3, full.testCompileDiagnostics().sourcesRecompiled());
+        assertEquals(1, full.resourceCount());
+        assertEquals("skipped", skipped.testCompilationMode());
+        assertEquals(0, skipped.testCompileDiagnostics().sourcesRecompiled());
+        assertEquals(2L, timed.testFingerprintCheckMillis());
+        assertEquals(3L, timed.testFingerprintWriteMillis());
+    }
+
+    @Test
     void testRunResultKeepsExplicitSelectionArgumentsAndReports() {
         TestSelection selection = TestSelection.fromCli(
                 List.of("com.example.MainTest"),
@@ -182,5 +267,33 @@ final class TestRuntimeValueObjectsTest {
         assertEquals(jvmArguments, result.testJvmArguments());
         assertEquals(Optional.of(Path.of("target/test-reports")), result.reportsDirectory());
         assertEquals(Optional.of(Path.of("target/test-profile")), result.profileDirectory());
+    }
+
+    @Test
+    void testRunResultConvenienceConstructorsPreserveSelectionReportsAndDefaults() {
+        TestSelection selection = TestSelection.fromCli(
+                List.of("com.example.MainTest", "com.example.MainTest#runs"),
+                List.of("*MainTest"),
+                List.of(),
+                List.of());
+        TestJvmArguments jvmArguments = new TestJvmArguments(List.of("-Dsmoke=true"));
+        TestRunMetrics metrics = TestRunResult.metrics("junit-console", 4, 2, 1, 30L, 40L);
+
+        TestRunResult withSelection = new TestRunResult(null, "ok\n", metrics, selection);
+        TestRunResult withReports = new TestRunResult(
+                null,
+                "ok\n",
+                metrics,
+                selection,
+                jvmArguments,
+                Optional.of(Path.of("target/test-reports")));
+
+        assertEquals(selection, withSelection.testSelection());
+        assertEquals(List.of(), withSelection.testJvmArguments().values());
+        assertTrue(withSelection.reportsDirectory().isEmpty());
+        assertEquals(selection, withReports.testSelection());
+        assertEquals(jvmArguments, withReports.testJvmArguments());
+        assertEquals(Optional.of(Path.of("target/test-reports")), withReports.reportsDirectory());
+        assertTrue(withReports.profileDirectory().isEmpty());
     }
 }
