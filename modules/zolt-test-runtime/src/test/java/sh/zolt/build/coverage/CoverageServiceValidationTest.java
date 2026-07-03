@@ -31,6 +31,13 @@ final class CoverageServiceValidationTest {
     private Path projectDir;
 
     @Test
+    void defaultConstructorWiresCliCoverageServiceDependencies() {
+        CoverageService service = new CoverageService();
+
+        assertEquals(CoverageService.class, service.getClass());
+    }
+
+    @Test
     void rejectsCoverageWhenAllReportsAreDisabled() {
         CoverageException exception = assertThrows(
                 CoverageException.class,
@@ -76,6 +83,73 @@ final class CoverageServiceValidationTest {
                         CoverageReportSettings.defaults(),
                         List.of()));
 
+        assertTrue(exception.getMessage().contains("tool-coverage"));
+        assertTrue(exception.getMessage().contains("zolt resolve"));
+    }
+
+    @Test
+    void nonCoverageScopedToolingIsIgnoredWithRefreshGuidance() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.agent"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14-runtime.jar"
+                dependencies = []
+                """);
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                new ArrayList<>());
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> service.runCoverage(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        CoverageReportSettings.defaults(),
+                        List.of()));
+
+        assertTrue(exception.getMessage().contains("tool-coverage"));
+        assertTrue(exception.getMessage().contains("zolt resolve"));
+    }
+
+    @Test
+    void missingCoverageAgentExplainsHowToRefreshLockfile() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[package]]
+                id = "org.jacoco:org.jacoco.cli"
+                version = "0.8.14"
+                source = "maven-central"
+                scope = "tool-coverage"
+                direct = false
+                jar = "org/jacoco/org.jacoco.cli/0.8.14/org.jacoco.cli-0.8.14.jar"
+                dependencies = []
+                """);
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                new ArrayList<>());
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> service.runCoverage(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("cache"),
+                        TestSelection.empty(),
+                        CoverageReportSettings.defaults(),
+                        List.of()));
+
+        assertTrue(exception.getMessage().contains("org.jacoco:org.jacoco.agent"));
         assertTrue(exception.getMessage().contains("tool-coverage"));
         assertTrue(exception.getMessage().contains("zolt resolve"));
     }
@@ -280,6 +354,56 @@ final class CoverageServiceValidationTest {
         assertTrue(exception.getMessage().contains("Missing `java`"));
         assertTrue(exception.getMessage().contains("Install a JDK"));
         assertTrue(reportCommands.isEmpty());
+    }
+
+    @Test
+    void mergeExecFilesRejectsBadJdkBeforeLaunchingJacocoCli() {
+        List<List<String>> reportCommands = new ArrayList<>();
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                reportCommands,
+                badJdkStatus(),
+                successfulRunner(reportCommands));
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> service.mergeExecFiles(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("target/coverage/jacoco.exec"),
+                        List.of(
+                                projectDir.resolve("target/coverage/workers/wave-1-worker-1/jacoco.exec"),
+                                projectDir.resolve("target/coverage/workers/wave-2-worker-1/jacoco.exec")),
+                        List.of(Path.of("/tools/org.jacoco.cli.jar"))));
+
+        assertTrue(exception.getMessage().contains("JDK check failed"));
+        assertTrue(exception.getMessage().contains("Missing `java`"));
+        assertTrue(reportCommands.isEmpty());
+    }
+
+    @Test
+    void mergeExecFilesWrapsOutputDirectoryCreationFailure() throws IOException {
+        Path sourceExec = projectDir.resolve("workers/wave-1-worker-1/jacoco.exec");
+        Files.createDirectories(sourceExec.getParent());
+        Files.writeString(sourceExec, "single worker coverage\n");
+        Files.writeString(projectDir.resolve("target"), "not a directory\n");
+        CoverageService service = service(
+                (projectDirectory, config, cacheRoot, selection, jvmArguments, reportSettings, cliEvents, suiteName, shard) ->
+                        new TestRunResult(null, ""),
+                new ArrayList<>());
+
+        CoverageException exception = assertThrows(
+                CoverageException.class,
+                () -> service.mergeExecFiles(
+                        projectDir,
+                        config(),
+                        projectDir.resolve("target/coverage/jacoco.exec"),
+                        List.of(sourceExec),
+                        List.of(Path.of("/tools/org.jacoco.cli.jar"))));
+
+        assertTrue(exception.getMessage().contains("Could not create coverage output directory"));
+        assertTrue(exception.getMessage().contains("target/coverage"));
     }
 
     @Test
