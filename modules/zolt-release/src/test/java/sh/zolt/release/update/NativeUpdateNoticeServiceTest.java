@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -134,6 +135,54 @@ final class NativeUpdateNoticeServiceTest {
         assertTrue(notice.isEmpty());
     }
 
+    @Test
+    void fallsBackToCachedNoticeWhenDueCheckCannotReadManifest() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        URI missingChannel = tempDir.resolve("missing-channel.json").toUri();
+        Path state = tempDir.resolve("state");
+        writeCache(
+                state,
+                missingChannel,
+                "linux-x64",
+                "stable",
+                "0.1.2",
+                "not-an-instant");
+
+        Optional<NativeUpdateNotice> notice = service.check(request(
+                installed,
+                missingChannel,
+                now,
+                state,
+                Duration.ofHours(24)));
+
+        assertTrue(notice.isPresent());
+        assertTrue(notice.orElseThrow().cached());
+        assertEquals("0.1.2", notice.orElseThrow().availableVersion());
+    }
+
+    @Test
+    void cachedNoticeInsideIntervalMustMatchChannelUriAndTarget() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        URI channel = tempDir.resolve("channel.json").toUri();
+        Path state = tempDir.resolve("state");
+        writeCache(
+                state,
+                channel,
+                "macos-arm64",
+                "stable",
+                "0.1.2",
+                now.minus(Duration.ofMinutes(5)).toString());
+
+        Optional<NativeUpdateNotice> notice = service.check(request(
+                installed,
+                channel,
+                now,
+                state,
+                Duration.ofHours(24)));
+
+        assertTrue(notice.isEmpty());
+    }
+
     private NativeUpdateNoticeRequest request(InstalledFixture installed, URI channel, Instant time) {
         return request(installed, channel, time, tempDir.resolve("state"));
     }
@@ -233,6 +282,25 @@ final class NativeUpdateNoticeServiceTest {
                         version,
                         version));
         return path;
+    }
+
+    private static void writeCache(
+            Path stateDirectory,
+            URI channelUri,
+            String target,
+            String channel,
+            String latestVersion,
+            String lastCheckedAt) throws IOException {
+        Properties properties = new Properties();
+        properties.setProperty("lastCheckedAt", lastCheckedAt);
+        properties.setProperty("channelUri", channelUri.toString());
+        properties.setProperty("target", target);
+        properties.setProperty("channel", channel);
+        properties.setProperty("latestVersion", latestVersion);
+        Files.createDirectories(stateDirectory);
+        try (var output = Files.newOutputStream(stateDirectory.resolve("update-check.properties"))) {
+            properties.store(output, "test cache");
+        }
     }
 
     private record InstalledFixture(Path installRoot, Path binLink) {

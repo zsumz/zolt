@@ -143,6 +143,106 @@ final class ReleaseVerificationFailureTest {
     }
 
     @Test
+    void versionSmokeUnexpectedOutputReportsExpectedVersion() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = writeBinary(projectDir, "target/native/zolt");
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) ->
+                new ReleaseVerificationService.ProcessResult(0, "0.1.0 extra\n"));
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive.archivePath()), projectDir.resolve("verify-output"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("did not print only expected version 0.1.0"));
+        assertTrue(exception.getMessage().contains("0.1.0 extra"));
+    }
+
+    @Test
+    void initSmokeFailureReportsOutput() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = writeBinary(projectDir, "target/native/zolt");
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            if (command.contains("init")) {
+                return new ReleaseVerificationService.ProcessResult(2, "cannot init\n");
+            }
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive.archivePath()), projectDir.resolve("verify-init"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("`zolt init smoke` failed with exit code 2"));
+        assertTrue(exception.getMessage().contains("cannot init"));
+    }
+
+    @Test
+    void initSmokeSuccessMustCreateProjectConfig() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = writeBinary(projectDir, "target/native/zolt");
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) ->
+                new ReleaseVerificationService.ProcessResult(0, "0.1.0\n"));
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive.archivePath()), projectDir.resolve("verify-missing-init"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("`zolt init smoke` did not create smoke/zolt.toml"));
+    }
+
+    @Test
+    void buildSmokeFailureReportsOutput() throws IOException {
+        writeProjectFiles(projectDir);
+        Path binary = writeBinary(projectDir, "target/native/zolt");
+        ReleaseArchiveResult archive = new ReleaseArchiveService().assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            if (command.contains("init")) {
+                Path cwd = Path.of(command.get(command.indexOf("--cwd") + 1));
+                try {
+                    Files.createDirectories(cwd.resolve("smoke"));
+                    Files.writeString(cwd.resolve("smoke/zolt.toml"), "[project]\n");
+                } catch (IOException exception) {
+                    throw new AssertionError(exception);
+                }
+            }
+            if (command.contains("build")) {
+                return new ReleaseVerificationService.ProcessResult(3, "cannot build\n");
+            }
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive.archivePath()), projectDir.resolve("verify-build"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("`zolt build` on the initialized smoke project failed with exit code 3"));
+        assertTrue(exception.getMessage().contains("cannot build"));
+    }
+
+    @Test
     void unsafeZipEntryFailsBeforeSmokeCommands() throws IOException {
         Path archive = projectDir.resolve("zolt-0.1.0-windows-x64.zip");
         try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive))) {
