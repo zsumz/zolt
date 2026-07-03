@@ -1,20 +1,31 @@
 package sh.zolt.build.compile;
 
 import sh.zolt.build.JavacException;
+import java.nio.file.Path;
 import java.util.List;
 
 public record JavacOptions(
         String release,
         String encoding,
-        List<String> arguments) {
+        List<String> arguments,
+        List<Path> modulePath) {
     public JavacOptions {
         release = normalize(release);
         encoding = normalize(encoding);
         arguments = copyArguments(arguments);
+        modulePath = copyModulePath(modulePath);
+    }
+
+    public JavacOptions(String release, String encoding, List<String> arguments) {
+        this(release, encoding, arguments, List.of());
     }
 
     public static JavacOptions empty() {
-        return new JavacOptions("", "", List.of());
+        return new JavacOptions("", "", List.of(), List.of());
+    }
+
+    public JavacOptions withModulePath(List<Path> modulePath) {
+        return new JavacOptions(release, encoding, arguments, modulePath);
     }
 
     private static String normalize(String value) {
@@ -31,5 +42,9 @@ public record JavacOptions(
             }
         }
         return List.copyOf(values);
+    }
+
+    private static List<Path> copyModulePath(List<Path> values) {
+        return values == null ? List.of() : List.copyOf(values);
     }
 }

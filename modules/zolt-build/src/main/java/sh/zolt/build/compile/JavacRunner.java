@@ -121,10 +121,15 @@ public final class JavacRunner {
             command.add("-encoding");
             command.add(options.encoding());
         }
-        List<Path> classpathEntries = sortedEntries(classpath);
+        List<Path> modulePathEntries = sortedModulePath(options);
+        List<Path> classpathEntries = classpathWithoutModulePath(sortedEntries(classpath), modulePathEntries);
         if (!classpathEntries.isEmpty()) {
             command.add("-classpath");
             command.add(joinedPath(classpathEntries));
+        }
+        if (!modulePathEntries.isEmpty()) {
+            command.add("--module-path");
+            command.add(joinedPath(modulePathEntries));
         }
         List<Path> processorClasspathEntries = sortedEntries(processorClasspath);
         if (processorClasspathEntries.isEmpty()) {
@@ -142,6 +147,27 @@ public final class JavacRunner {
             command.add(source.toString());
         }
         return List.copyOf(command);
+    }
+
+    private static List<Path> sortedModulePath(JavacOptions options) {
+        if (options == null || options.modulePath().isEmpty()) {
+            return List.of();
+        }
+        return options.modulePath().stream()
+                .map(Path::normalize)
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .toList();
+    }
+
+    private static List<Path> classpathWithoutModulePath(List<Path> classpathEntries, List<Path> modulePathEntries) {
+        if (modulePathEntries.isEmpty()) {
+            return classpathEntries;
+        }
+        LinkedHashSet<Path> moduleEntries = new LinkedHashSet<>(modulePathEntries);
+        return classpathEntries.stream()
+                .filter(entry -> !moduleEntries.contains(entry))
+                .toList();
     }
 
     private static List<Path> sortedEntries(Classpath classpath) {

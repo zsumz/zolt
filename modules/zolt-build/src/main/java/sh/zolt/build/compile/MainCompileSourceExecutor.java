@@ -49,7 +49,7 @@ public final class MainCompileSourceExecutor {
                     "",
                     CompileDiagnostics.empty());
         }
-        JavacOptions options = javacOptions(config);
+        JavacOptions options = javacOptions(config, sources.mainSources(), classpaths.compile());
         IncrementalCompilePlan plan = incrementalCompilePlanner.planMain(
                 projectDirectory,
                 config,
@@ -179,12 +179,27 @@ public final class MainCompileSourceExecutor {
         return first + "\n" + second;
     }
 
-    private static JavacOptions javacOptions(ProjectConfig config) {
+    private static JavacOptions javacOptions(
+            ProjectConfig config, List<Path> mainSources, Classpath compileClasspath) {
         CompilerSettings compiler = config.compilerSettings();
-        return new JavacOptions(
+        JavacOptions options = new JavacOptions(
                 effectiveRelease(config),
                 compiler.encoding(),
                 compiler.args());
+        if (isModularSourceSet(mainSources)) {
+            return options.withModulePath(compileClasspath.entries());
+        }
+        return options;
+    }
+
+    private static boolean isModularSourceSet(List<Path> mainSources) {
+        for (Path source : mainSources) {
+            Path fileName = source.getFileName();
+            if (fileName != null && fileName.toString().equals("module-info.java")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String effectiveRelease(ProjectConfig config) {
