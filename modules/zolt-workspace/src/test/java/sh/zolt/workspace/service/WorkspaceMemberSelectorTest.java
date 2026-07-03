@@ -55,6 +55,18 @@ final class WorkspaceMemberSelectorTest {
     }
 
     @Test
+    void normalizesAndDeduplicatesRequestedMembers() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
+
+        WorkspaceSelection selection = selector.select(
+                workspace,
+                new WorkspaceSelectionRequest(false, List.of("apps/./api", "apps/api")));
+
+        assertEquals(List.of("modules/core", "apps/api"), selection.includedMembers());
+        assertEquals(List.of("apps/api"), selection.selectedMembers());
+    }
+
+    @Test
     void selectsAllMembersWhenNoExplicitSelectionOrDefaultsExist() {
         Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
 
@@ -76,6 +88,32 @@ final class WorkspaceMemberSelectorTest {
 
         assertEquals(
                 "Workspace member `apps/missing` is not declared in [workspace].members. Choose a declared member or use --all.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsRequestedMembersThatEscapeWorkspaceRoot() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core"), List.of());
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> selector.select(workspace, new WorkspaceSelectionRequest(false, List.of("../apps/api"))));
+
+        assertEquals(
+                "Invalid workspace member `../apps/api`. Use a relative member path declared in [workspace].members.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsBlankRequestedMembers() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core"), List.of());
+
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> selector.select(workspace, new WorkspaceSelectionRequest(false, List.of(" "))));
+
+        assertEquals(
+                "Invalid workspace member ` `. Use a relative member path declared in [workspace].members.",
                 exception.getMessage());
     }
 

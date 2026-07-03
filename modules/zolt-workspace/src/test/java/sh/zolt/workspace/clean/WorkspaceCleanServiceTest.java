@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.build.CleanException;
+import sh.zolt.workspace.WorkspaceConfigException;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -89,6 +90,17 @@ final class WorkspaceCleanServiceTest {
         assertEquals(1, result.deletedCount());
         assertFalse(Files.exists(tempDir.resolve("zolt.lock")));
         assertFalse(Files.exists(tempDir.resolve("apps/api/target")));
+    }
+
+    @Test
+    void reportsMissingWorkspaceConfigWithCleanNextStep() {
+        WorkspaceConfigException exception = assertThrows(
+                WorkspaceConfigException.class,
+                () -> service.clean(tempDir, WorkspaceSelectionRequest.defaults()));
+
+        assertEquals(
+                "Could not find workspace config. Run `zolt clean --workspace` from a workspace directory or add zolt.toml with [workspace].",
+                exception.getMessage());
     }
 
     @Test

@@ -23,6 +23,22 @@ final class WorkspaceBuildOrderPlannerTest {
     }
 
     @Test
+    void ordersNewlyReadyDependentsByWorkspaceDeclaration() {
+        List<String> buildOrder = planner.buildOrder(
+                List.of(
+                        member("apps/worker"),
+                        member("apps/api"),
+                        member("modules/core"),
+                        member("modules/util")),
+                List.of(
+                        new WorkspaceProjectEdge("apps/worker", "modules/core", "compile", "com.acme:core"),
+                        new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core"),
+                        new WorkspaceProjectEdge("modules/util", "apps/api", "compile", "com.acme:api")));
+
+        assertEquals(List.of("modules/core", "apps/worker", "apps/api", "modules/util"), buildOrder);
+    }
+
+    @Test
     void reportsDeterministicCyclePath() {
         WorkspaceConfigException exception = assertThrows(
                 WorkspaceConfigException.class,

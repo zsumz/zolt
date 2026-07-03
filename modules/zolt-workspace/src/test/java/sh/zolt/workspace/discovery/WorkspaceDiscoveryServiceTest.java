@@ -191,6 +191,48 @@ final class WorkspaceDiscoveryServiceTest {
     }
 
     @Test
+    void createsProcessorEdgesInDeterministicCoordinateOrder() throws IOException {
+        workspace(tempDir, """
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/beta-processor", "modules/alpha-processor", "modules/test-processor"]
+                """);
+        member(tempDir, "apps/api", "api", "com.acme", """
+
+                [annotationProcessors]
+                "com.acme:beta-processor" = { workspace = "modules/beta-processor" }
+                "com.acme:alpha-processor" = { workspace = "modules/alpha-processor" }
+
+                [test.annotationProcessors]
+                "com.acme:test-processor" = { workspace = "modules/test-processor" }
+                """);
+        member(tempDir, "modules/beta-processor", "beta-processor", "com.acme", "");
+        member(tempDir, "modules/alpha-processor", "alpha-processor", "com.acme", "");
+        member(tempDir, "modules/test-processor", "test-processor", "com.acme", "");
+
+        Workspace workspace = service.load(tempDir);
+
+        assertEquals(
+                List.of(
+                        new WorkspaceProjectEdge(
+                                "apps/api",
+                                "modules/alpha-processor",
+                                "processor",
+                                "com.acme:alpha-processor"),
+                        new WorkspaceProjectEdge(
+                                "apps/api",
+                                "modules/beta-processor",
+                                "processor",
+                                "com.acme:beta-processor"),
+                        new WorkspaceProjectEdge(
+                                "apps/api",
+                                "modules/test-processor",
+                                "test-processor",
+                                "com.acme:test-processor")),
+                workspace.edges());
+    }
+
+    @Test
     void createsDependencyFirstBuildOrder() throws IOException {
         workspace(tempDir, """
                 [workspace]
