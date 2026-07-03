@@ -59,6 +59,47 @@ final class TestCompileServiceDependencyTest {
     }
 
     @Test
+    void testCompileClasspathIncludesProvidedDependenciesButTestRuntimeDoesNot() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");
+        createHelperJar(projectDir, helperJar);
+        writeLockfile(projectDir, """
+                version = 1
+
+                [[package]]
+                id = "com.example:helper"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "provided"
+                direct = true
+                jar = "com/example/helper/1.0.0/helper-1.0.0.jar"
+                dependencies = []
+                """);
+        source(projectDir, "src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source(projectDir, "src/test/java/com/example/MainTest.java", """
+                package com.example;
+
+                import com.example.helper.Helper;
+
+                public final class MainTest {
+                    public String message() {
+                        return Helper.message();
+                    }
+                }
+                """);
+
+        TestCompileResultWithClasspaths result =
+                testCompileService.compileTestsWithClasspaths(projectDir, config(), cacheRoot);
+
+        assertEquals(1, result.testCompileResult().sourceCount());
+        assertTrue(Files.exists(projectDir.resolve("target/test-classes/com/example/MainTest.class")));
+        assertTrue(result.classpaths().testCompile().entries().contains(helperJar),
+                "provided dependency must be on the test compile classpath");
+        assertEquals(List.of(), result.classpaths().test().entries(),
+                "provided dependency must stay off the test runtime classpath");
+    }
+
+    @Test
     void compileTestsWithClasspathsReturnsReusedClasspaths() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path helperJar = cacheRoot.resolve("com/example/helper/1.0.0/helper-1.0.0.jar");

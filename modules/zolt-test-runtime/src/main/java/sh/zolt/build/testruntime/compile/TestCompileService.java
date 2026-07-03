@@ -156,7 +156,7 @@ public final class TestCompileService {
 
         List<Path> testCompileEntries = new ArrayList<>();
         testCompileEntries.add(buildResult.outputDirectory());
-        testCompileEntries.addAll(classpaths.test().entries());
+        testCompileEntries.addAll(classpaths.testCompile().entries());
         Path outputDirectory = projectDirectory.resolve(config.build().testOutput());
         Classpath testCompileClasspath = new Classpath(testCompileEntries);
         List<Path> groovyCompileEntries = new ArrayList<>();

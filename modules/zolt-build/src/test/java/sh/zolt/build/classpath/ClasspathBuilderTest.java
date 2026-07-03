@@ -57,12 +57,37 @@ final class ClasspathBuilderTest {
     }
 
     @Test
-    void providedDependenciesAreIncludedOnCompileClasspathOnly() {
+    void providedDependenciesAreIncludedOnMainCompileAndTestCompileButNotTestRuntime() {
         ClasspathSet classpaths = builder.build(List.of(packageWithScope("com.example", "provided-lib", "1.0.0", DependencyScope.PROVIDED)));
 
         Path jar = jar("provided-lib", "1.0.0");
         assertEquals(List.of(jar), classpaths.compile().entries());
         assertEquals(List.of(), classpaths.runtime().entries());
+        assertEquals(List.of(jar), classpaths.testCompile().entries());
+        assertEquals(List.of(), classpaths.test().entries());
+        assertEquals(List.of(), classpaths.processor().entries());
+        assertEquals(List.of(), classpaths.testProcessor().entries());
+    }
+
+    @Test
+    void testCompileClasspathMatchesTestRuntimeForNonProvidedScopes() {
+        ClasspathSet classpaths = builder.build(List.of(
+                packageWithScope("com.example", "compile-lib", "1.0.0", DependencyScope.COMPILE),
+                packageWithScope("com.example", "runtime-lib", "1.0.0", DependencyScope.RUNTIME),
+                packageWithScope("com.example", "test-lib", "1.0.0", DependencyScope.TEST)));
+
+        assertEquals(classpaths.test().entries(), classpaths.testCompile().entries());
+    }
+
+    @Test
+    void nonProvidedCompileOnlyScopeStaysOffTestCompileClasspath() {
+        ClasspathSet classpaths = builder.build(List.of(packageWithScope(
+                "com.example",
+                "processor-only-lib",
+                "1.0.0",
+                DependencyScope.PROCESSOR)));
+
+        assertEquals(List.of(), classpaths.testCompile().entries());
         assertEquals(List.of(), classpaths.test().entries());
     }
 
