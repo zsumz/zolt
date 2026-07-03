@@ -2,6 +2,7 @@ package sh.zolt.test.shard;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.TestSuiteSettings;
@@ -100,6 +101,37 @@ final class TestWorkerPoolSchedulerTest {
                 List.of("com.example.FirstTest", "com.example.ThirdTest"),
                 List.of("com.example.SecondTest")),
                 waveClassNames(plan));
+    }
+
+    @Test
+    void workerPoolPlanDefaultsNullWavesAndRejectsInvalidMaxWorkers() {
+        TestWorkerPoolPlan plan = new TestWorkerPoolPlan(true, 2, null);
+
+        assertTrue(plan.empty());
+        assertEquals(List.of(), plan.waves());
+        assertThrows(UnsupportedOperationException.class, () -> plan.waves().add(new TestWorkerPoolWave(List.of(), Map.of())));
+        assertEquals(
+                "Test worker pool maxWorkers must be greater than zero.",
+                assertThrows(IllegalArgumentException.class, () -> new TestWorkerPoolPlan(true, 0, List.of()))
+                        .getMessage());
+    }
+
+    @Test
+    void workerPoolWaveSortsResourceLocksAndCopiesNestedLists() {
+        java.util.ArrayList<String> databaseLocks = new java.util.ArrayList<>(List.of("database"));
+        TestWorkerPoolWave wave = new TestWorkerPoolWave(
+                List.of(entry("com.example.DbTest")),
+                Map.of(
+                        "com.example.ZedTest",
+                        List.of("z"),
+                        "com.example.DbTest",
+                        databaseLocks));
+
+        databaseLocks.add("late");
+
+        assertEquals(List.of("com.example.DbTest", "com.example.ZedTest"), List.copyOf(wave.resourceLocks().keySet()));
+        assertEquals(List.of("database"), wave.resourceLocks().get("com.example.DbTest"));
+        assertThrows(UnsupportedOperationException.class, () -> wave.resourceLocks().get("com.example.DbTest").add("late"));
     }
 
     private static TestSuiteSettings parallelSuite(int maxWorkers, Map<String, List<String>> resourceLocks) {

@@ -32,6 +32,17 @@ final class TestShardSpecTest {
     }
 
     @Test
+    void rejectsMissingShardPartsAndExtraSeparators() {
+        TestShardException missingIndex = assertThrows(TestShardException.class, () -> TestShardSpec.parse("/4"));
+        TestShardException missingTotal = assertThrows(TestShardException.class, () -> TestShardSpec.parse("1/ "));
+        TestShardException extraSeparator = assertThrows(TestShardException.class, () -> TestShardSpec.parse("1/2/3"));
+
+        assertTrue(missingIndex.getMessage().contains("index must be a positive integer"));
+        assertTrue(missingTotal.getMessage().contains("total must be a positive integer"));
+        assertTrue(extraSeparator.getMessage().contains("Use index/total"));
+    }
+
+    @Test
     void rejectsShardIndexGreaterThanTotal() {
         TestShardException exception = assertThrows(TestShardException.class, () -> TestShardSpec.parse("5/4"));
 
@@ -43,5 +54,14 @@ final class TestShardSpecTest {
     void parsesShardCount() {
         assertEquals(4, TestShardSpec.parseShardCount("4"));
         assertEquals(0, TestShardSpec.parseShardCount(null));
+    }
+
+    @Test
+    void rejectsInvalidShardCounts() {
+        TestShardException nonNumeric = assertThrows(TestShardException.class, () -> TestShardSpec.parseShardCount("many"));
+        TestShardException zero = assertThrows(TestShardException.class, () -> TestShardSpec.parseShardCount("0"));
+
+        assertEquals("Invalid --shard-count `many`. Use a positive integer.", nonNumeric.getMessage());
+        assertEquals("Invalid --shard-count `0`. Use a positive integer.", zero.getMessage());
     }
 }
