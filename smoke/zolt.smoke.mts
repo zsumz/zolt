@@ -1,4 +1,4 @@
-import { expect, smoke } from "smoque";
+import { expect, smoke, type CommandOptions, type CommandResult, type PathRef, type SmokeContext } from "smoque";
 import { chmod, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -6,10 +6,17 @@ const CACHE_ROOT = ".zolt/cache";
 const CLI_MEMBER = "apps/zolt";
 const JUNIT_WORKER_MEMBER = "apps/zolt-junit-worker";
 
-smoke.suite("zolt packaged JVM smoke", { tags: ["jvm"] }, async (t) => {
+interface ZoltRuntime {
+  cacheRoot: string;
+  command: string;
+  env: Record<string, string>;
+  root: PathRef;
+}
+
+smoke.suite("zolt packaged JVM smoke", { tags: ["jvm"] }, async (t: SmokeContext) => {
   const root = t.repoRoot();
   const work = await t.tempDir("zolt-jvm-smoke");
-  let zolt;
+  let zolt: ZoltRuntime;
 
   await t.step("required tools are available", async () => {
     await t.tools.node({ minVersion: 22 });
@@ -310,7 +317,7 @@ java = "21"
   });
 });
 
-async function buildPackagedZolt(t, root) {
+async function buildPackagedZolt(t: SmokeContext, root: PathRef): Promise<ZoltRuntime> {
   const cacheRoot = root.path(CACHE_ROOT);
 
   await t.cmd(script(root, "bootstrap-zolt-jvm"), [
@@ -349,7 +356,12 @@ async function buildPackagedZolt(t, root) {
   };
 }
 
-async function copyFixture(root, work, fixtureName, destinationName = fixtureName) {
+async function copyFixture(
+  root: PathRef,
+  work: PathRef,
+  fixtureName: string,
+  destinationName = fixtureName,
+): Promise<string> {
   const destination = work.path(destinationName);
   await rm(destination, { recursive: true, force: true });
   await cp(root.path("examples", fixtureName), destination, { recursive: true });
@@ -357,12 +369,12 @@ async function copyFixture(root, work, fixtureName, destinationName = fixtureNam
   return destination;
 }
 
-async function pruneGeneratedState(directory) {
+async function pruneGeneratedState(directory: string): Promise<void> {
   let entries;
   try {
     entries = await readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error && error.code === "ENOENT") {
+    if (hasErrorCode(error, "ENOENT")) {
       return;
     }
     throw error;
@@ -380,14 +392,24 @@ async function pruneGeneratedState(directory) {
   }
 }
 
-async function expectTestsFound(t, zolt, expected, args) {
+async function expectTestsFound(
+  t: SmokeContext,
+  zolt: ZoltRuntime,
+  expected: number,
+  args: string[],
+): Promise<void> {
   const result = await runZolt(t, zolt, args);
   const output = `${result.stdout}\n${result.stderr}`;
   expect.value(output).toMatch(new RegExp(`(Tests found: ${expected}|${expected} tests found)`, "u"));
   expect.value(output).toMatch(/(Tests succeeded:|Tests passed)/u);
 }
 
-async function expectCommandFailureContains(t, zolt, args, expected) {
+async function expectCommandFailureContains(
+  t: SmokeContext,
+  zolt: ZoltRuntime,
+  args: string[],
+  expected: string,
+): Promise<void> {
   const result = await runZolt(t, zolt, args, { check: false });
   if (result.exitCode === 0) {
     t.fail(`Expected command to fail: ${[zolt.command, ...args].join(" ")}`);
@@ -395,7 +417,12 @@ async function expectCommandFailureContains(t, zolt, args, expected) {
   expect.value(`${result.stdout}\n${result.stderr}`).toContain(expected);
 }
 
-async function runZolt(t, zolt, args, options = {}) {
+async function runZolt(
+  t: SmokeContext,
+  zolt: ZoltRuntime,
+  args: string[],
+  options: CommandOptions = {},
+): Promise<CommandResult> {
   const { env, timeout, ...rest } = options;
   return await t.cmd(zolt.command, args, {
     cwd: zolt.root,
@@ -408,7 +435,7 @@ async function runZolt(t, zolt, args, options = {}) {
   });
 }
 
-async function singleJar(directory) {
+async function singleJar(directory: string): Promise<string> {
   const jars = (await readdir(directory))
     .filter((name) => name.endsWith(".jar"))
     .filter((name) => !name.endsWith("-sources.jar") && !name.endsWith("-javadoc.jar"))
@@ -419,11 +446,18 @@ async function singleJar(directory) {
   return join(directory, jars[0]);
 }
 
-async function writeOutput(path) {
+async function writeOutput(path: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, "output\n", "utf8");
 }
 
-function script(root, name) {
+function script(root: PathRef, name: string): string {
   return root.path("scripts", name);
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return typeof error === "object"
+    && error !== null
+    && "code" in error
+    && (error as { code?: unknown }).code === code;
 }
