@@ -267,13 +267,13 @@ collect_java_sources() {
   done
 }
 
-for source_root in modules/*/src/main/java apps/*/src/main/java src/main/java; do
+for source_root in modules/*/src/main/java apps/zolt/src/main/java apps/*/src/main/java src/main/java; do
   collect_java_sources "$source_root"
 done
 printf '%s\n' "${source_files[@]}" | sort > "$SOURCE_LIST"
 
 if [[ ! -s "$SOURCE_LIST" ]]; then
-  printf 'error: no Java source files found under modules/*/src/main/java or apps/*/src/main/java\n' >&2
+  printf 'error: no Java source files found under modules/*/src/main/java, apps/zolt/src/main/java, or apps/*/src/main/java\n' >&2
   printf 'hint: check the repository layout before scripts/bootstrap-zolt-jvm\n' >&2
   exit 1
 fi

@@ -22,14 +22,14 @@ final class WorkspaceSelfCheckServiceTest {
     }
 
     private static void writeWorkspaceApp(Path root) throws IOException {
-        Path app = root.resolve("apps/zolt");
+        Path app = root.resolve("zolt");
         Files.createDirectories(app.resolve("src/main/java"));
         Files.createDirectories(app.resolve("src/test/java"));
         Files.writeString(root.resolve("zolt-workspace.toml"), """
                 [workspace]
                 name = "zolt"
-                members = ["apps/zolt"]
-                defaultMembers = ["apps/zolt"]
+                members = ["zolt"]
+                defaultMembers = ["zolt"]
                 """);
         Files.writeString(app.resolve("zolt.toml"), """
                 [project]
