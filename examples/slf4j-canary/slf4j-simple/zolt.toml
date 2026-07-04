@@ -21,6 +21,9 @@ test = "src/test/java"
 output = "target/classes"
 testOutput = "target/test-classes"
 
+[test.runtime]
+systemProperties = { "slf4j.canary.mode" = "workspace" }
+
 [compiler]
 release = "8"
 encoding = "UTF-8"
