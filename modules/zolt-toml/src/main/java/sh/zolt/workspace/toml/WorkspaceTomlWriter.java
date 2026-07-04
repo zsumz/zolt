@@ -45,6 +45,17 @@ public final class WorkspaceTomlWriter {
     }
 
     private static String stringArray(List<String> values) {
+        if (values.size() <= 1) {
+            return inlineStringArray(values);
+        }
+        StringBuilder array = new StringBuilder("[\n");
+        for (String value : values) {
+            array.append("    \"").append(escape(value)).append("\",\n");
+        }
+        return array.append(']').toString();
+    }
+
+    private static String inlineStringArray(List<String> values) {
         StringBuilder array = new StringBuilder("[");
         for (int index = 0; index < values.size(); index++) {
             if (index > 0) {

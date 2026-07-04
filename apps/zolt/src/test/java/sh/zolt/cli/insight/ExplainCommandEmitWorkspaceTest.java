@@ -122,7 +122,12 @@ final class ExplainCommandEmitWorkspaceTest {
         String toml = result.stdout();
         assertTrue(toml.contains("[workspace]"), () -> toml);
         assertTrue(toml.contains("name = \"shop-parent\""), () -> toml);
-        assertTrue(toml.contains("members = [\"orders-api\", \"orders-core\"]"), () -> toml);
+        assertTrue(toml.contains("""
+                members = [
+                    "orders-api",
+                    "orders-core",
+                ]
+                """), () -> toml);
         assertTrue(toml.contains("# --- orders-api/zolt.toml ---"), () -> toml);
         assertTrue(toml.contains("# --- orders-core/zolt.toml ---"), () -> toml);
         // The inter-module edge is a workspace dep, not an external coordinate.
@@ -220,7 +225,12 @@ final class ExplainCommandEmitWorkspaceTest {
         String toml = result.stdout();
         assertTrue(toml.contains("[workspace]"), () -> toml);
         assertTrue(toml.contains("name = \"sales\""), () -> toml);
-        assertTrue(toml.contains("members = [\"app\", \"core\"]"), () -> toml);
+        assertTrue(toml.contains("""
+                members = [
+                    "app",
+                    "core",
+                ]
+                """), () -> toml);
         assertTrue(toml.contains("# --- app/zolt.toml ---"), () -> toml);
         assertTrue(toml.contains("# --- core/zolt.toml ---"), () -> toml);
         assertTrue(toml.contains("\"com.example:core\" = { workspace = \"core\" }"), () -> toml);
