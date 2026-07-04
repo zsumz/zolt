@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-/tmp/zolt-smoque-npm-cache}"
+SMOQUE_PACKAGE="${SMOQUE_PACKAGE:-smoque@alpha}"
+export NPM_CONFIG_CACHE
+
+cd "$ROOT"
+case "${1:-}" in
+  agents | doctor | init | list | run | snippets | --help | -h | --version)
+    exec npx --yes "$SMOQUE_PACKAGE" "$@"
+    ;;
+  *)
+    exec npx --yes "$SMOQUE_PACKAGE" run smoke/ "$@"
+    ;;
+esac
