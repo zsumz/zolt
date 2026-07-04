@@ -14,6 +14,8 @@ import java.util.HexFormat;
 import java.util.List;
 
 public final class ReleaseVerificationService {
+    private static final String JUNIT_WORKER_ARCHIVE_NAME = "zolt-junit-worker.jar";
+
     private final ProcessRunner processRunner;
 
     public ReleaseVerificationService() {
@@ -74,7 +76,9 @@ public final class ReleaseVerificationService {
             throw archiveFailure(archive, "expected binary at " + binary + " after unpacking.");
         }
         binary.toFile().setExecutable(true);
-        verifyVersionMetadata(archive, unpackDirectory.resolve(rootName), expectedVersion);
+        Path rootDirectory = unpackDirectory.resolve(rootName);
+        verifyVersionMetadata(archive, rootDirectory, expectedVersion);
+        verifyJunitWorker(archive, rootDirectory);
         verifyVersion(archive, binary, expectedVersion);
         Path smokeProject = verifyInit(archive, binary, unpackDirectory);
         verifyBuild(archive, binary, unpackDirectory, smokeProject);
@@ -133,6 +137,13 @@ public final class ReleaseVerificationService {
             }
         } catch (IOException exception) {
             throw archiveFailure(archive, "could not read VERSION metadata at " + versionFile + ".");
+        }
+    }
+
+    private static void verifyJunitWorker(Path archive, Path rootDirectory) {
+        Path workerJar = rootDirectory.resolve("libexec").resolve(JUNIT_WORKER_ARCHIVE_NAME);
+        if (!Files.isRegularFile(workerJar)) {
+            throw archiveFailure(archive, "expected bundled JUnit worker at " + workerJar + " after unpacking.");
         }
     }
 

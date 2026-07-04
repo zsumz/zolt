@@ -3,6 +3,7 @@ package sh.zolt.workspace.service;
 import sh.zolt.build.BuildResult;
 import sh.zolt.build.CompileDiagnostics;
 import sh.zolt.classpath.ClasspathSet;
+import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.resolve.ResolveResult;
 import java.util.List;
 import java.util.Optional;
@@ -89,6 +90,10 @@ public record WorkspaceBuildResult(
     public record MemberBuildResult(
             String member,
             BuildResult result,
-            ClasspathSet classpaths) {
+            ClasspathSet classpaths,
+            List<ResolvedClasspathPackage> classpathPackages) {
+        public MemberBuildResult {
+            classpathPackages = List.copyOf(classpathPackages);
+        }
     }
 }

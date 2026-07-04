@@ -98,6 +98,65 @@ final class WorkspacePackageServiceTest {
     }
 
     @Test
+    void packagesUberWorkspaceMemberWithWorkspaceDependencyClasses() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api", "modules/core"]
+                """);
+        member("modules/core", "core", "");
+        source("modules/core/src/main/java/com/acme/core/Core.java", """
+                package com.acme.core;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String message() {
+                        return "core";
+                    }
+                }
+                """);
+        member("apps/api", "api", """
+                main = "com.acme.api.Api"
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+
+                [package]
+                mode = "uber"
+                """);
+        source("apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                import com.acme.core.Core;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static void main(String[] args) {
+                        System.out.println(Core.message());
+                    }
+                }
+                """);
+
+        WorkspacePackageResult result = service.packageJars(
+                tempDir,
+                tempDir.resolve("cache"),
+                new WorkspaceSelectionRequest(false, List.of("apps/api")));
+
+        assertEquals(1, result.members().size());
+        Path apiJar = tempDir.resolve("apps/api/target/api-0.1.0.jar");
+        assertTrue(Files.exists(apiJar));
+        assertFalse(Files.exists(tempDir.resolve("apps/api/target/api-0.1.0.runtime-classpath")));
+        try (JarFile jar = new JarFile(apiJar.toFile())) {
+            assertNotNull(jar.getEntry("com/acme/api/Api.class"));
+            assertNotNull(jar.getEntry("com/acme/core/Core.class"));
+        }
+    }
+
+    @Test
     void packagesWorkspaceMemberJavadocsWithWorkspaceCompileClasspath() throws IOException {
         workspace("""
                 [workspace]

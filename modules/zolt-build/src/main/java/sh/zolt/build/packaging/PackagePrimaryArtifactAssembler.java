@@ -123,8 +123,9 @@ final class PackageModePackagerRegistry {
                 request.config(),
                 request.buildResult(),
                 artifactPathPlanner.jarPath(request.projectDirectory(), request.config()),
-                requiredCacheRoot(
+                optionalCacheRoot(
                         request.cacheRoot(),
+                        request.classpathPackages(),
                         "Uber package mode requires dependency jar access from zolt.lock. Use single-project `zolt package --mode uber` for now; workspace uber packaging is not wired yet."),
                 request.classpathPackages()));
         return new PackageModePackagerRegistry(packagers);
@@ -154,6 +155,16 @@ final class PackageModePackagerRegistry {
 
     private static Path requiredCacheRoot(Optional<Path> cacheRoot, String message) {
         return cacheRoot.orElseThrow(() -> new PackageException(message));
+    }
+
+    private static Path optionalCacheRoot(
+            Optional<Path> cacheRoot,
+            Optional<List<ResolvedClasspathPackage>> classpathPackages,
+            String message) {
+        if (classpathPackages.isPresent()) {
+            return cacheRoot.orElse(Path.of(""));
+        }
+        return requiredCacheRoot(cacheRoot, message);
     }
 }
 

@@ -3,6 +3,7 @@ package sh.zolt.workspace.service;
 import sh.zolt.build.BuildService;
 import sh.zolt.build.JavacException;
 import sh.zolt.classpath.ClasspathSet;
+import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.doctor.JdkChecker;
 import sh.zolt.doctor.JdkDetector;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -125,6 +126,12 @@ public final class WorkspaceBuildService {
                 cacheRoot,
                 selection.includedMembers(),
                 fullClasspathMembers);
+        Map<String, List<ResolvedClasspathPackage>> classpathPackagesByMember =
+                workspaceClasspathService.classpathPackagesForMembers(
+                        workspace,
+                        lockfile,
+                        cacheRoot,
+                        selection.includedMembers());
         List<WorkspaceBuildResult.MemberBuildResult> results = new ArrayList<>();
         for (String memberPath : selection.includedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
@@ -133,7 +140,8 @@ public final class WorkspaceBuildService {
                 results.add(new WorkspaceBuildResult.MemberBuildResult(
                         member.path(),
                         buildService.build(member.directory(), member.config(), classpaths),
-                        classpaths));
+                        classpaths,
+                        classpathPackagesByMember.get(member.path())));
             } catch (JavacException exception) {
                 throw new JavacException(
                         exception.getMessage()

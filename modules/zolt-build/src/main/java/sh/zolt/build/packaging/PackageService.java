@@ -192,6 +192,23 @@ public final class PackageService {
                 Optional.of(classpaths));
     }
 
+    public PackageResult packageJar(
+            Path projectDirectory,
+            ProjectConfig config,
+            BuildResult buildResult,
+            ClasspathSet classpaths,
+            List<ResolvedClasspathPackage> classpathPackages) {
+        PackageMode mode = config.packageSettings().mode();
+        PackageModeValidator.ensureSupported(mode);
+        return packageJar(
+                projectRoot(projectDirectory),
+                config,
+                buildResult,
+                Optional.empty(),
+                Optional.of(classpathPackages),
+                Optional.of(classpaths));
+    }
+
     private static Path projectRoot(Path projectDirectory) {
         return projectDirectory.toAbsolutePath().normalize();
     }

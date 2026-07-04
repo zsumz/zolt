@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -231,25 +230,10 @@ final class JunitWorkerProcessLauncherTest {
     }
 
     @Test
-    void publicLauncherStartsRealServerProcessAndClosesWithQuit(@TempDir Path tempDir) {
-        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
-                javaExecutable(),
-                compiledWorkerClasspath());
-
-        try (JunitWorkerProcess ignored = launcher.start(
-                Path.of(".").toAbsolutePath().normalize(),
-                List.of(Path.of("target/test-classes").toAbsolutePath().normalize()),
-                List.of("-Dzolt.junit.launcher.process.test=true"),
-                Map.of("ZOLT_JUNIT_PROCESS_LAUNCHER_TEST", "true"))) {
-            // Closing the process sends QUIT and waits for the forked worker to acknowledge it.
-        }
-    }
-
-    @Test
     void publicLauncherReportsJavaProcessStartFailures(@TempDir Path tempDir) {
         JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
                 tempDir.resolve("missing-java"),
-                compiledWorkerClasspath());
+                List.of(tempDir.resolve("worker.jar")));
 
         JunitWorkerClientException exception = assertThrows(
                 JunitWorkerClientException.class,
@@ -402,23 +386,4 @@ final class JunitWorkerProcessLauncherTest {
                         }));
     }
 
-    private static Path javaExecutable() {
-        String executable = System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java";
-        Path java = Path.of(System.getProperty("java.home"), "bin", executable);
-        assertTrue(Files.exists(java), java + " should exist");
-        return java;
-    }
-
-    private static List<Path> compiledWorkerClasspath() {
-        List<Path> classpath = List.of(
-                Path.of("target/classes"),
-                Path.of("../zolt-test-model/target/classes"),
-                Path.of("../zolt-model/target/classes")).stream()
-                .map(path -> path.toAbsolutePath().normalize())
-                .toList();
-        for (Path entry : classpath) {
-            assertTrue(Files.exists(entry), entry + " should exist");
-        }
-        return classpath;
-    }
 }

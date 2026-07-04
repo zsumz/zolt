@@ -312,7 +312,8 @@ final class WorkspaceCoverageServiceTest {
         return new WorkspaceBuildResult.MemberBuildResult(
                 member,
                 build(memberDir),
-                emptyClasspaths());
+                emptyClasspaths(),
+                List.of());
     }
 
     private static TestCompileResult testCompile(Path memberDir) {

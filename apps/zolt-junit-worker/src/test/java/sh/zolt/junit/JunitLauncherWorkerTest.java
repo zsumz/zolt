@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -103,6 +104,21 @@ final class JunitLauncherWorkerTest {
         String workerOutput = stdout.toString(StandardCharsets.UTF_8);
         assertEquals(0, exitCode);
         assertTrue(workerOutput.contains("ZOLT_WORKER_RESULT\tid=request-1\texit=0"), workerOutput);
+    }
+
+    @Test
+    void clientLauncherStartsRealServerProcessAndClosesWithQuit() {
+        JunitWorkerProcessLauncher launcher = new JunitWorkerProcessLauncher(
+                javaExecutable(),
+                compiledWorkerClasspath());
+
+        try (JunitWorkerProcess ignored = launcher.start(
+                Path.of(".").toAbsolutePath().normalize(),
+                List.of(Path.of("target/test-classes").toAbsolutePath().normalize()),
+                List.of("-Dzolt.junit.launcher.process.test=true"),
+                Map.of("ZOLT_JUNIT_PROCESS_LAUNCHER_TEST", "true"))) {
+            // Closing the process sends QUIT and waits for the forked worker to acknowledge it.
+        }
     }
 
     @Test
@@ -405,6 +421,27 @@ final class JunitLauncherWorkerTest {
         public int read() throws IOException {
             throw new IOException("boom");
         }
+    }
+
+    private static Path javaExecutable() {
+        String executable = System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java";
+        Path java = Path.of(System.getProperty("java.home"), "bin", executable);
+        assertTrue(Files.exists(java), java + " should exist");
+        return java;
+    }
+
+    private static List<Path> compiledWorkerClasspath() {
+        List<Path> classpath = List.of(
+                Path.of("target/classes"),
+                Path.of("../../modules/zolt-junit-client/target/classes"),
+                Path.of("../../modules/zolt-test-model/target/classes"),
+                Path.of("../../modules/zolt-model/target/classes")).stream()
+                .map(path -> path.toAbsolutePath().normalize())
+                .toList();
+        for (Path entry : classpath) {
+            assertTrue(Files.exists(entry), entry + " should exist");
+        }
+        return classpath;
     }
 }
 

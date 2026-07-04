@@ -2,6 +2,7 @@ package sh.zolt.workspace.service;
 
 import sh.zolt.build.classpath.ClasspathBuilder;
 import sh.zolt.classpath.ClasspathSet;
+import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -89,6 +90,21 @@ public final class WorkspaceClasspathService {
         return Collections.unmodifiableMap(classpathsByMember);
     }
 
+    public Map<String, List<ResolvedClasspathPackage>> classpathPackagesForMembers(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            List<String> memberPaths) {
+        Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
+        Map<String, List<ResolvedClasspathPackage>> packagesByMember = new LinkedHashMap<>();
+        for (String memberPath : memberPaths) {
+            packagesByMember.put(
+                    memberPath,
+                    classpathPackagesFor(workspace, lockfile, cacheRoot, memberPath, dependenciesByMember));
+        }
+        return Collections.unmodifiableMap(packagesByMember);
+    }
+
     private ClasspathSet mainBuildClasspathsFor(
             Workspace workspace,
             ZoltLockfile lockfile,
@@ -173,6 +189,26 @@ public final class WorkspaceClasspathService {
                 processor,
                 testProcessor,
                 runtimeClasspaths.quarkusDeployment());
+    }
+
+    private List<ResolvedClasspathPackage> classpathPackagesFor(
+            Workspace workspace,
+            ZoltLockfile lockfile,
+            Path cacheRoot,
+            String memberPath,
+            Map<String, List<String>> dependenciesByMember) {
+        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
+        Set<String> visibleMembers = new LinkedHashSet<>();
+        visibleMembers.add(memberPath);
+        visibleMembers.addAll(dependencyClosure);
+        ZoltLockfile runtimeLockfile = new ZoltLockfile(
+                lockfile.version(),
+                runtimeClasspathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
+                List.of());
+        return LockfileClasspathPackageConverter.classpathPackages(
+                runtimeLockfile,
+                cacheRoot,
+                workspace.root());
     }
 
     private static List<LockPackage> compileClasspathPackagesFor(

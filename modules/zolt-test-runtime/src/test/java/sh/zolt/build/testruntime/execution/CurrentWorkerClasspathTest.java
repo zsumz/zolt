@@ -30,12 +30,50 @@ final class CurrentWorkerClasspathTest {
     }
 
     @Test
+    void configuredPropertyWinsOverEnvironmentBundledAndCurrentClasspath() {
+        List<Path> result = currentWorkerClasspath.discover(
+                "lib/property-worker.jar",
+                "lib/env-worker.jar",
+                () -> List.of(Path.of("lib/bundled-worker.jar")),
+                "lib/current.jar",
+                ":");
+
+        assertEquals(List.of(Path.of("lib/property-worker.jar").toAbsolutePath().normalize()), result);
+    }
+
+    @Test
+    void configuredEnvironmentWinsWhenPropertyIsBlank() {
+        List<Path> result = currentWorkerClasspath.discover(
+                "",
+                "lib/env-worker.jar",
+                () -> List.of(Path.of("lib/bundled-worker.jar")),
+                "lib/current.jar",
+                ":");
+
+        assertEquals(List.of(Path.of("lib/env-worker.jar").toAbsolutePath().normalize()), result);
+    }
+
+    @Test
+    void bundledWorkerWinsWhenExplicitClasspathIsAbsent() {
+        List<Path> result = currentWorkerClasspath.discover(
+                "",
+                "",
+                () -> List.of(Path.of("lib/bundled-worker.jar")),
+                "lib/current.jar",
+                ":");
+
+        assertEquals(List.of(Path.of("lib/bundled-worker.jar").toAbsolutePath().normalize()), result);
+    }
+
+    @Test
     void emptyClasspathIsActionable() {
         TestRunException exception = assertThrows(
                 TestRunException.class,
-                () -> currentWorkerClasspath.discover("", ":"));
+                () -> currentWorkerClasspath.discover("", "", List::of, "", ":"));
 
         assertTrue(exception.getMessage().contains("Could not determine Zolt worker classpath"));
+        assertTrue(exception.getMessage().contains(CurrentWorkerClasspath.PROPERTY));
+        assertTrue(exception.getMessage().contains(CurrentWorkerClasspath.ENVIRONMENT));
         assertTrue(exception.getMessage().contains("java.class.path"));
     }
 }

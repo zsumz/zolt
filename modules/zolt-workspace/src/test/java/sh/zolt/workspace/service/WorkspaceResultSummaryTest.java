@@ -181,7 +181,7 @@ final class WorkspaceResultSummaryTest {
     }
 
     private static WorkspaceBuildResult.MemberBuildResult memberBuild(String member, BuildResult buildResult) {
-        return new WorkspaceBuildResult.MemberBuildResult(member, buildResult, emptyClasspaths());
+        return new WorkspaceBuildResult.MemberBuildResult(member, buildResult, emptyClasspaths(), List.of());
     }
 
     private static BuildResult build(

@@ -66,7 +66,7 @@ public final class UberJarLayoutAssembler {
                     }
                 }
                 for (PackageRuntimeJar runtimeJar : runtimeJars) {
-                    entryCount += mergeRuntimeJar(archive, entries, merges, mergeDecisions, runtimeJar);
+                    entryCount += mergeRuntimeInput(archive, entries, merges, mergeDecisions, runtimeJar);
                 }
                 entryCount += merges.writeEntries(archive, entries);
                 mergeDecisions.addAll(merges.decisions());
@@ -86,6 +86,39 @@ public final class UberJarLayoutAssembler {
                             + ". Check that target/ is writable and try again.",
                     exception);
         }
+    }
+
+    private static int mergeRuntimeInput(
+            PackageArchiveWriter archive,
+            Set<String> entries,
+            UberJarMergeAccumulator merges,
+            List<PackageMergeDecision> mergeDecisions,
+            PackageRuntimeJar runtimeJar) throws IOException {
+        if (Files.isDirectory(runtimeJar.jarPath())) {
+            return mergeRuntimeDirectory(archive, entries, merges, runtimeJar);
+        }
+        return mergeRuntimeJar(archive, entries, merges, mergeDecisions, runtimeJar);
+    }
+
+    private static int mergeRuntimeDirectory(
+            PackageArchiveWriter archive,
+            Set<String> entries,
+            UberJarMergeAccumulator merges,
+            PackageRuntimeJar runtimeJar) throws IOException {
+        Path directory = runtimeJar.jarPath();
+        int merged = 0;
+        for (Path file : compiledFiles(directory)) {
+            if (writeOrCollectEntry(
+                    archive,
+                    entries,
+                    merges,
+                    entryName(directory, file),
+                    Files.readAllBytes(file),
+                    runtimeJar.packageId().toString())) {
+                merged++;
+            }
+        }
+        return merged;
     }
 
     private static int mergeRuntimeJar(

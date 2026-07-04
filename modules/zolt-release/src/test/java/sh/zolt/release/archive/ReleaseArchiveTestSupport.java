@@ -34,6 +34,13 @@ abstract class ReleaseArchiveTestSupport {
         return Path.of(path);
     }
 
+    protected Path writeWorkerJar(String path) throws IOException {
+        Path workerJar = projectDir.resolve(path).toAbsolutePath().normalize();
+        Files.createDirectories(workerJar.getParent());
+        Files.writeString(workerJar, "worker");
+        return workerJar;
+    }
+
     protected static ProjectConfig config() {
         return config(new ProjectMetadata(
                 "zolt",

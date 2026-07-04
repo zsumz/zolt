@@ -165,20 +165,21 @@ final class ReflectionInventoryTest {
 
     private static List<Path> mainSourceRoots(Path root) throws IOException {
         List<Path> sourceRoots = new ArrayList<>();
-        Path appSource = root.resolve("apps/zolt/src/main/java");
-        if (Files.isDirectory(appSource)) {
-            sourceRoots.add(appSource);
-        }
-        Path modulesRoot = root.resolve("modules");
-        if (Files.isDirectory(modulesRoot)) {
-            try (Stream<Path> modules = Files.list(modulesRoot)) {
-                modules.map(module -> module.resolve("src/main/java"))
-                        .filter(Files::isDirectory)
-                        .sorted()
-                        .forEach(sourceRoots::add);
-            }
-        }
+        addChildMainSourceRoots(root.resolve("apps"), sourceRoots);
+        addChildMainSourceRoots(root.resolve("modules"), sourceRoots);
         return sourceRoots;
+    }
+
+    private static void addChildMainSourceRoots(Path parent, List<Path> sourceRoots) throws IOException {
+        if (!Files.isDirectory(parent)) {
+            return;
+        }
+        try (Stream<Path> children = Files.list(parent)) {
+            children.map(child -> child.resolve("src/main/java"))
+                    .filter(Files::isDirectory)
+                    .sorted()
+                    .forEach(sourceRoots::add);
+        }
     }
 
     private static String relativePath(Path root, Path file) {
