@@ -1,6 +1,5 @@
 package sh.zolt.explain;
 
-import java.util.Comparator;
 import java.util.List;
 
 public final class ExplainSignals {
@@ -265,92 +264,14 @@ public final class ExplainSignals {
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Do not execute Gradle framework-native or dev-mode tasks; migrate supported cases to typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`.");
 
-    private static final List<ExplainSignalDefinition> DEFINITIONS = List.of(
-            MAVEN_MODULE_MISSING_POM,
-            MAVEN_PACKAGING_UNSUPPORTED,
-            MAVEN_DEPENDENCY_DYNAMIC_VERSION,
-            MAVEN_PLUGIN_LIFECYCLE_BINDING,
-            MAVEN_PLUGIN_STATIC_SIGNAL,
-            MAVEN_PROFILE_DETECTED,
-            MAVEN_LANGUAGE_UNSUPPORTED,
-            MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED,
-            MAVEN_REACTOR_DETECTED,
-            MAVEN_ANNOTATION_PROCESSOR_PATH,
-            MAVEN_PARENT_SNAPSHOT,
-            MAVEN_PARENT_UNRESOLVED,
-            MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
-            MAVEN_DEPENDENCY_MISSING_VERSION,
-            MAVEN_JAVA_VERSION_UNKNOWN,
-            MAVEN_JPMS_MODULE_INFO_DETECTED,
-            MAVEN_TEST_JAVA_VERSION_DIVERGENT,
-            MAVEN_COMPILER_PLATFORM_API_HOST_CANDIDATE,
-            MAVEN_REPOSITORY_DECLARED,
-            MAVEN_REPOSITORY_SNAPSHOTS_ENABLED,
-            GRADLE_BUILD_SRC_DETECTED,
-            GRADLE_PROJECT_MISSING_BUILD_FILE,
-            GRADLE_PROJECT_BUILD_FILE_NAME_UNRESOLVED,
-            GRADLE_PLUGIN_CONVENTION,
-            GRADLE_SCRIPT_PLUGIN_APPLY_FROM,
-            GRADLE_PLUGIN_CONDITIONAL_APPLY,
-            GRADLE_ENVIRONMENT_VARIABLE_READ,
-            GRADLE_SETTINGS_INCLUDE_CONDITIONAL,
-            GRADLE_INCLUDED_BUILD_DETECTED,
-            GRADLE_IMPERATIVE_DEPENDENCY_LOGIC,
-            GRADLE_DEPENDENCY_DYNAMIC_VERSION,
-            GRADLE_DEPENDENCY_UNRESOLVED_NOTATION,
-            GRADLE_CROSS_PROJECT_BUILD_LOGIC,
-            GRADLE_CUSTOM_TASK_DETECTED,
-            GRADLE_START_PARAMETER_MUTATION,
-            GRADLE_TASK_MUTATION_DETECTED,
-            GRADLE_VERSION_CATALOG_MALFORMED,
-            GRADLE_VERSION_CATALOG_BUNDLE_UNRESOLVED,
-            GRADLE_ENTERPRISE_PLUGIN_MAPPED,
-            GRADLE_REPOSITORY_CREDENTIALS,
-            GRADLE_REPOSITORY_MAVEN_LOCAL,
-            GRADLE_DEPENDENCY_POLICY_MUTATION,
-            GRADLE_OPENAPI_GENERATED_SOURCES,
-            GRADLE_RESOURCE_FILTERING,
-            GRADLE_TEST_RUNTIME_SETTINGS,
-            GRADLE_PACKAGE_ARCHIVE_MUTATION,
-            GRADLE_PUBLICATION_DETECTED,
-            GRADLE_LANGUAGE_UNSUPPORTED,
-            GRADLE_ANDROID_UNSUPPORTED,
-            GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED);
-    private static final Comparator<ExplainSignal> COMPARATOR = Comparator
-            .comparingInt((ExplainSignal signal) -> severityRank(signal.severity()))
-            .thenComparingInt(signal -> categoryRank(signal.category()))
-            .thenComparing(ExplainSignal::project)
-            .thenComparing(ExplainSignal::id)
-            .thenComparing(ExplainSignal::message);
-
     private ExplainSignals() {
     }
 
     public static List<ExplainSignalDefinition> definitions() {
-        return DEFINITIONS;
+        return ExplainSignalRegistry.definitions();
     }
 
     public static List<ExplainSignal> sorted(List<ExplainSignal> signals) {
-        return signals.stream()
-                .sorted(COMPARATOR)
-                .toList();
-    }
-
-    private static int severityRank(ExplainSignal.Severity severity) {
-        return switch (severity) {
-            case BLOCK -> 0;
-            case UNKNOWN -> 1;
-            case WARN -> 2;
-            case OK -> 3;
-        };
-    }
-
-    private static int categoryRank(ExplainSignal.Category category) {
-        return switch (category) {
-            case BUILDABILITY -> 0;
-            case CACHEABILITY -> 1;
-            case NON_DETERMINISM -> 2;
-            case MIGRATION_BLOCKER -> 3;
-        };
+        return ExplainSignalRegistry.sorted(signals);
     }
 }

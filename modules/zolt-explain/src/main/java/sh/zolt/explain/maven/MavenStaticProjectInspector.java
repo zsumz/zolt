@@ -22,9 +22,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 
 public final class MavenStaticProjectInspector {
     public MavenInspectionResult inspect(Path root) {
@@ -103,7 +101,7 @@ public final class MavenStaticProjectInspector {
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
             factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
             var builder = factory.newDocumentBuilder();
-            builder.setErrorHandler(new QuietErrorHandler());
+            builder.setErrorHandler(new ThrowingXmlErrorHandler());
             try (InputStream inputStream = Files.newInputStream(pom)) {
                 return builder.parse(inputStream);
             }
@@ -330,22 +328,5 @@ public final class MavenStaticProjectInspector {
             Path relativePath,
             String projectLabel,
             Element project) {
-    }
-
-    private static final class QuietErrorHandler implements ErrorHandler {
-        @Override
-        public void warning(SAXParseException exception) throws SAXException {
-            throw exception;
-        }
-
-        @Override
-        public void error(SAXParseException exception) throws SAXException {
-            throw exception;
-        }
-
-        @Override
-        public void fatalError(SAXParseException exception) throws SAXException {
-            throw exception;
-        }
     }
 }
