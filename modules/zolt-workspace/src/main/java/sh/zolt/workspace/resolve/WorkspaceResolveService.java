@@ -1,5 +1,6 @@
 package sh.zolt.workspace.resolve;
 
+import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockfileFreshnessSummary;
 import sh.zolt.lockfile.toml.LockfileReadException;
@@ -29,6 +30,7 @@ import java.util.Set;
 public final class WorkspaceResolveService {
     private final WorkspaceDiscoveryService workspaceDiscoveryService;
     private final ResolveService resolveService;
+    private final ZoltLockfileReader lockfileReader;
     private final ZoltLockfileWriter lockfileWriter;
     private final WorkspacePolicyMerger policyMerger;
     private final WorkspaceLockfileAggregator lockfileAggregator;
@@ -55,6 +57,7 @@ public final class WorkspaceResolveService {
             WorkspacePolicyMerger policyMerger) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.resolveService = resolveService;
+        this.lockfileReader = new ZoltLockfileReader();
         this.lockfileWriter = lockfileWriter;
         this.policyMerger = policyMerger;
         this.lockfileAggregator = new WorkspaceLockfileAggregator();
@@ -88,6 +91,7 @@ public final class WorkspaceResolveService {
                             + lockfilePath
                             + ". Run `zolt resolve --workspace` to create it, then retry `zolt resolve --workspace --locked`.");
         }
+        options = prepareOptions(lockfilePath, options);
 
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<WorkspaceMemberResolveOutput> memberOutputs = new ArrayList<>();
@@ -127,6 +131,25 @@ public final class WorkspaceResolveService {
 
     private static long elapsedSince(long started) {
         return Math.max(0L, System.nanoTime() - started);
+    }
+
+    private ResolveOptions prepareOptions(Path lockfilePath, ResolveOptions options) {
+        if (!options.includeCoverageTooling() && existingLockfileHasCoverageTooling(lockfilePath)) {
+            return options.withCoverageTooling();
+        }
+        return options;
+    }
+
+    private boolean existingLockfileHasCoverageTooling(Path lockfilePath) {
+        if (!Files.isRegularFile(lockfilePath)) {
+            return false;
+        }
+        try {
+            return lockfileReader.read(lockfilePath).packages().stream()
+                    .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_COVERAGE);
+        } catch (LockfileReadException exception) {
+            return false;
+        }
     }
 
     private void verifyLocked(Path lockfilePath, ZoltLockfile candidate) {

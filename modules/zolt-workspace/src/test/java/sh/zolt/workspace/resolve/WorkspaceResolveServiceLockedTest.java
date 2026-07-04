@@ -90,6 +90,42 @@ final class WorkspaceResolveServiceLockedTest {
         assertEquals(existing, Files.readString(first.lockfilePath()));
     }
 
+    @Test
+    void lockedWorkspaceResolveCarriesForwardExistingCoverageTooling() throws IOException {
+        addArtifact(
+                "org.junit.platform",
+                "junit-platform-console-standalone",
+                "1.11.4",
+                pom("org.junit.platform", "junit-platform-console-standalone", "1.11.4"));
+        addPom("org.jacoco", "org.jacoco.agent", "0.8.14", pom("org.jacoco", "org.jacoco.agent", "0.8.14"));
+        addArtifactWithClassifier("org.jacoco", "org.jacoco.agent", "0.8.14", "runtime");
+        addArtifact("org.jacoco", "org.jacoco.cli", "0.8.14", pom("org.jacoco", "org.jacoco.cli", "0.8.14"));
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+
+                [test.dependencies]
+                "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+                """);
+        ResolveResult coverage = service.resolveWithCoverageTooling(tempDir, tempDir.resolve("cache"));
+        String existing = Files.readString(coverage.lockfilePath());
+
+        ResolveResult locked = service.resolve(tempDir, tempDir.resolve("cache"), true, false);
+
+        assertTrue(existing.contains("scope = \"tool-coverage\""));
+        assertEquals(coverage.resolvedCount(), locked.resolvedCount());
+        assertEquals(existing, Files.readString(coverage.lockfilePath()));
+    }
+
     private void workspace(String content) throws IOException {
         Files.writeString(tempDir.resolve("zolt-workspace.toml"), content);
     }
@@ -110,6 +146,11 @@ final class WorkspaceResolveServiceLockedTest {
         String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
         responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
         responses.put(base + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
+    }
+
+    private void addArtifactWithClassifier(String groupId, String artifactId, String version, String classifier) {
+        String base = "/maven2/" + groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        responses.put(base + "-" + classifier + ".jar", new byte[] {0x50, 0x4b, 0x03, 0x04});
     }
 
     private void addPom(String groupId, String artifactId, String version, String pom) {
