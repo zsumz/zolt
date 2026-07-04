@@ -142,7 +142,7 @@ final class JunitLauncherWorkerTest {
         Path reports = tempDir.resolve("reports-file");
         Files.writeString(reports, "not a directory");
         TestSelection selection = TestSelection.fromFields(
-                List.of("sh.zolt.junit.JunitWorkerProtocolTest"),
+                List.of("sh.zolt.junit.ProfileSuccessFixture"),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -297,7 +297,7 @@ final class JunitLauncherWorkerTest {
     void serverModeWritesJUnitXmlReports() throws Exception {
         Path reports = tempDir.resolve("reports");
         TestSelection selection = TestSelection.fromFields(
-                List.of("sh.zolt.junit.JunitWorkerProtocolTest"),
+                List.of("sh.zolt.junit.ProfileSuccessFixture"),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -328,7 +328,7 @@ final class JunitLauncherWorkerTest {
     void serverModeWritesTestProfileJson() throws Exception {
         Path profile = tempDir.resolve("profile");
         TestSelection selection = TestSelection.fromFields(
-                List.of("sh.zolt.junit.JunitWorkerProtocolTest"),
+                List.of("sh.zolt.junit.ProfileSuccessFixture"),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -359,7 +359,7 @@ final class JunitLauncherWorkerTest {
         assertTrue(json.contains("\"member\": \"\""), json);
         assertTrue(json.contains("\"suite\": \"\""), json);
         assertTrue(json.contains("\"shard\": \"\""), json);
-        assertTrue(json.contains("\"className\": \"sh.zolt.junit.JunitWorkerProtocolTest\""), json);
+        assertTrue(json.contains("\"className\": \"sh.zolt.junit.ProfileSuccessFixture\""), json);
         assertTrue(json.contains("\"status\": \"passed\""), json);
         assertTrue(json.contains("\"durationMillis\""), json);
         assertTrue(json.contains("\"tests\""), json);
@@ -412,6 +412,12 @@ final class ProfileFailureFixture {
     @Test
     void failsForProfileEvidence() {
         org.junit.jupiter.api.Assertions.fail("profile failure");
+    }
+}
+
+final class ProfileSuccessFixture {
+    @Test
+    void passesForProfileEvidence() {
     }
 }
 

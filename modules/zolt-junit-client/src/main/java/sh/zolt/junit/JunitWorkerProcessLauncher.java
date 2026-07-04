@@ -12,6 +12,8 @@ import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
 public final class JunitWorkerProcessLauncher {
+    public static final String DEFAULT_MAIN_CLASS = "sh.zolt.junit.JunitLauncherWorker";
+
     private static final int CLOSE_TIMEOUT_SECONDS = 5;
 
     private final String pathSeparator;
@@ -110,7 +112,7 @@ public final class JunitWorkerProcessLauncher {
         command.add("-Duser.dir=" + projectDirectory.toAbsolutePath().normalize());
         command.add("-classpath");
         command.add(joinedClasspath(testRuntimeClasspath));
-        command.add(JunitLauncherWorker.MAIN_CLASS);
+        command.add(DEFAULT_MAIN_CLASS);
         command.add("--server");
         return List.copyOf(command);
     }

@@ -2,6 +2,7 @@
 /target/
 /apps/*/target/
 /apps/zolt/target/
+/apps/zolt-junit-worker/target/
 /modules/*/target/
 /build/
 /out/

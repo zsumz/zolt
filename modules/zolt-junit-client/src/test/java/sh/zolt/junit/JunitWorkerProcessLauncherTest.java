@@ -28,7 +28,7 @@ final class JunitWorkerProcessLauncherTest {
                 "-Duser.dir=/repo",
                 "-classpath",
                 "/zolt/zolt.jar:/repo/target/test-classes:/repo/target/classes:/cache/junit.jar",
-                JunitLauncherWorker.MAIN_CLASS,
+                JunitWorkerProcessLauncher.DEFAULT_MAIN_CLASS,
                 "--server"), launcher.command(
                 Path.of("/repo"),
                 List.of(
@@ -47,7 +47,7 @@ final class JunitWorkerProcessLauncherTest {
                 "-Duser.dir=/repo",
                 "-classpath",
                 "/zolt/zolt.jar:/repo/target/test-classes",
-                JunitLauncherWorker.MAIN_CLASS,
+                JunitWorkerProcessLauncher.DEFAULT_MAIN_CLASS,
                 "--server"), launcher.command(
                 Path.of("/repo"),
                 List.of(Path.of("/repo/target/test-classes")),
@@ -73,7 +73,7 @@ final class JunitWorkerProcessLauncherTest {
                 "-Duser.dir=/repo/app",
                 "-classpath",
                 "/zolt/worker.jar;/repo/app/target/test-classes",
-                JunitLauncherWorker.MAIN_CLASS,
+                JunitWorkerProcessLauncher.DEFAULT_MAIN_CLASS,
                 "--server"), command);
         assertThrows(UnsupportedOperationException.class, () -> command.add("-Dlate=true"));
     }

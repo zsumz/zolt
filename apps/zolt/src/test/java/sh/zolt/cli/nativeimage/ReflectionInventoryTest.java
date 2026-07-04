@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Ties Zolt's main-source reflection sites to the native-image reflect-config.
  *
- * <p>Every main-source file under {@code modules/*&#47;src/main/java} or {@code apps/zolt/src/main/java}
+ * <p>Every main-source file under {@code modules/*&#47;src/main/java} or {@code apps/*&#47;src/main/java}
  * that performs reflection must appear in {@code reflection-inventory.json} with a disposition:
  *
  * <ul>

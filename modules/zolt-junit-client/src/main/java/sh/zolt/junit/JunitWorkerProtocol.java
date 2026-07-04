@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The line-oriented wire protocol spoken between {@link JunitWorkerClient} (parent) and
- * {@link JunitLauncherWorker} (forked worker JVM).
+ * The line-oriented wire protocol spoken between {@link JunitWorkerClient} (parent) and the forked
+ * JUnit worker JVM.
  *
  * <p>Each request and result is a single line of UTF-8 text. A line is a tab-delimited list of
  * fields. The first field is always a bare verb ({@code RUN}, {@code QUIT}, or the result prefix);

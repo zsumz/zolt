@@ -1,5 +1,5 @@
 [project]
-name = "zolt-junit"
+name = "zolt-junit-client"
 version = "0.1.0-SNAPSHOT"
 group = "sh.zolt"
 java = "21"
@@ -8,7 +8,6 @@ java = "21"
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "sh.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
 
 [test.dependencies]

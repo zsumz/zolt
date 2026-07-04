@@ -1,30 +1,20 @@
 [project]
-name = "zolt-build"
+name = "zolt-junit-worker"
 version = "0.1.0-SNAPSHOT"
 group = "sh.zolt"
 java = "21"
+main = "sh.zolt.junit.JunitLauncherWorker"
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"sh.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
 "sh.zolt:zolt-junit-client" = { workspace = "modules/zolt-junit-client" }
 "sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
-"sh.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
-"sh.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "sh.zolt:zolt-test-model" = { workspace = "modules/zolt-test-model" }
-"sh.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
 
 [test.dependencies]
 "org.junit.platform:junit-platform-console-standalone" = "1.11.4"
-
-[test.suites.test-execution]
-includeClassname = [
-    "sh.zolt.build.profile.TestProfileMergerTest",
-    "sh.zolt.build.profile.TestProfileSummaryFormatterTest",
-    "sh.zolt.build.junit.PlainJunitWorkerPoolRunnerTest",
-]
 
 [build]
 source = "src/main/java"

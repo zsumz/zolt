@@ -7,7 +7,7 @@ members = [
     "modules/zolt-repository",
     "modules/zolt-resolve",
     "modules/zolt-test-model",
-    "modules/zolt-junit",
+    "modules/zolt-junit-client",
     "modules/zolt-build",
     "modules/zolt-test-runtime",
     "modules/zolt-native-image",
@@ -24,6 +24,7 @@ members = [
     "modules/zolt-config",
     "modules/zolt-selfhost",
     "modules/zolt-init",
+    "apps/zolt-junit-worker",
     "apps/zolt",
 ]
 defaultMembers = ["apps/zolt"]
