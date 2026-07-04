@@ -21,7 +21,7 @@ final class TestProfileMergerTest {
         Path api = tempDir.resolve("apps/api/profile.json");
         Path core = tempDir.resolve("modules/core/profile.json");
         writeProfile(api, "com.example.ApiTest", "apps-api", "api", "apps/api", "fast", "1/2");
-        writeProfile(core, "com.example.CoreTest", "libs-core", "core", "modules/core", "fast", "2/2");
+        writeProfile(core, "com.example.CoreTest", "modules-core", "core", "modules/core", "fast", "2/2");
 
         TestProfileMerger.mergeProfiles(tempDir, List.of(api, core));
 
@@ -31,7 +31,7 @@ final class TestProfileMergerTest {
         assertTrue(merged.contains("\"className\": \"com.example.ApiTest\""));
         assertTrue(merged.contains("\"className\": \"com.example.CoreTest\""));
         assertTrue(merged.contains("\"workerId\": \"apps-api\""));
-        assertTrue(merged.contains("\"workerId\": \"libs-core\""));
+        assertTrue(merged.contains("\"workerId\": \"modules-core\""));
         assertTrue(merged.contains("\"project\": \"api\""));
         assertTrue(merged.contains("\"project\": \"core\""));
         assertTrue(merged.contains("\"member\": \"apps/api\""));

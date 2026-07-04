@@ -169,9 +169,9 @@ final class ReflectionInventoryTest {
         if (Files.isDirectory(appSource)) {
             sourceRoots.add(appSource);
         }
-        Path libs = root.resolve("modules");
-        if (Files.isDirectory(libs)) {
-            try (Stream<Path> modules = Files.list(libs)) {
+        Path modulesRoot = root.resolve("modules");
+        if (Files.isDirectory(modulesRoot)) {
+            try (Stream<Path> modules = Files.list(modulesRoot)) {
                 modules.map(module -> module.resolve("src/main/java"))
                         .filter(Files::isDirectory)
                         .sorted()

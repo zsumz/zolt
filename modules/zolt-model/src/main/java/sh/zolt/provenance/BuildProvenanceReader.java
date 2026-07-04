@@ -9,7 +9,7 @@ import java.util.Properties;
 
 /**
  * Assembles a {@link BuildProvenance} from injected inputs so that {@code zolt-model} stays the leaf
- * lib (it does not read {@code ZoltCli.version()} or the lockfile — those live in other libs and are
+ * module (it does not read {@code ZoltCli.version()} or the lockfile — those live in other modules and are
  * passed in by the caller, ).
  *
  * <p>Sources:
