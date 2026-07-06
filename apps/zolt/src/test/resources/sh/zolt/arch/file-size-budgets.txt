@@ -1,0 +1,5 @@
+# rootPattern|softThreshold|hardThreshold
+apps/*/src/main/java|350|500
+apps/*/src/test/java|450|650
+modules/*/src/main/java|350|500
+modules/*/src/test/java|450|650

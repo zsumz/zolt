@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 final class ArchitectureBoundaryTest {
     private static final String ALLOWLIST = "apps/zolt/src/test/resources/sh/zolt/arch/architecture-allowlist.txt";
+    private static final List<Path> MAIN_SOURCES = RepositoryPaths.mainSourceRoots();
 
     private static final String NO_FORBIDDEN_MAVEN_LIBRARIES = "no-forbidden-maven-libraries";
     private static final String NO_CLI_IN_CORE_MODULES = "no-cli-in-core-modules";
@@ -55,6 +57,19 @@ final class ArchitectureBoundaryTest {
             "RepositoryFetch",
             "RepositoryHttp",
             "RepositorySession");
+
+    @Test
+    void mainSourcesDoNotIntroducePackageCycles() throws IOException {
+        PackageGraph graph = PackageGraph.scan(MAIN_SOURCES);
+        List<Set<String>> cycles = graph.stronglyConnectedComponents().stream()
+                .filter(component -> component.size() > 1)
+                .sorted(Comparator.comparing(component -> String.join(",", component)))
+                .toList();
+
+        assertTrue(
+                cycles.isEmpty(),
+                () -> "Unexpected package cycle(s):\n" + describeCycles(graph, cycles));
+    }
 
     @Test
     void architectureBoundariesHoldOrHaveExplicitAllowance() throws IOException {
@@ -185,6 +200,18 @@ final class ArchitectureBoundaryTest {
         lines.add("If an exception is deliberate, add it to " + ALLOWLIST + " with a concrete reason.");
         lines.addAll(problems);
         return String.join(System.lineSeparator(), lines);
+    }
+
+    private static String describeCycles(PackageGraph graph, List<Set<String>> cycles) {
+        StringBuilder description = new StringBuilder();
+        for (Set<String> cycle : cycles) {
+            description.append("- ")
+                    .append(graph.cyclePath(cycle))
+                    .append(" packages=")
+                    .append(cycle)
+                    .append(System.lineSeparator());
+        }
+        return description.toString();
     }
 
     private record Violation(String ruleId, String path, int line, String detail) {

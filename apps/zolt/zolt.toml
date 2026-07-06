@@ -47,8 +47,7 @@ includeClassname = [
 
 [test.suites.arch-guardrails]
 includeClassname = [
-    "sh.zolt.arch.FileSizeBudgetTest",
-    "sh.zolt.arch.ArchitectureBoundaryTest",
+    "sh.zolt.arch.*",
     "sh.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
     "sh.zolt.cli.nativeimage.ReflectionInventoryTest",
 ]

@@ -1,0 +1,5 @@
+# Tracked exceptions to single-module package ownership.
+# Format: package|tracking|reason
+# A package listed here is allowed to be declared in more than one module until the
+# referenced work resolves the split.
+sh.zolt.junit|dev-junit-worker-split|client/protocol and worker implementation currently share stable wire types while the worker app owns JUnit-heavy launch code
