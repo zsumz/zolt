@@ -45,6 +45,14 @@ includeClassname = [
     "sh.zolt.cli.nativeimage.ReflectionInventoryTest",
 ]
 
+[test.suites.arch-guardrails]
+includeClassname = [
+    "sh.zolt.arch.FileSizeBudgetTest",
+    "sh.zolt.arch.ArchitectureBoundaryTest",
+    "sh.zolt.cli.nativeimage.CliNativeReflectionConfigTest",
+    "sh.zolt.cli.nativeimage.ReflectionInventoryTest",
+]
+
 [test.suites.cli-help-highlighting]
 includeClassname = [
     "sh.zolt.cli.HelpOptionHighlighterTest",

@@ -1,0 +1,2 @@
+# Format: <rule-id> | <repo-relative-path> | <reason>
+# No current architecture exceptions.

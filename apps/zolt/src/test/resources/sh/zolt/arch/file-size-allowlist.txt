@@ -1,0 +1,5 @@
+# Format: <repo-relative-path> | <reason>
+# Allowances are intentionally strict: remove the entry when the file drops back under budget.
+
+modules/zolt-release/src/main/java/sh/zolt/release/archive/ReleaseArchiveService.java | Release archive orchestration is the only current main-source file over the 350-line budget.
+apps/zolt-junit-worker/src/test/java/sh/zolt/junit/JunitLauncherWorkerTest.java | Worker-process coverage still shares setup fixtures and is the only current test file over the 450-line budget.
