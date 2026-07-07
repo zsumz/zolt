@@ -15,27 +15,63 @@ import sh.zolt.build.packageplan.PackagePlanDependency;
 import sh.zolt.build.packaging.PackageResult;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ResourceFilteringSettings;
+import sh.zolt.provenance.BuildProvenance;
+import sh.zolt.provenance.BuildProvenanceSource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 public final class PackageEvidenceManifestWriter {
     private static final String SCHEMA = "zolt.package-evidence.v1";
+    private static final String SOURCE_DATE_EPOCH = "SOURCE_DATE_EPOCH";
 
     private final PackageEvidenceGeneratedSourceWriter generatedSourceWriter;
     private final PackageResourceEvidence packageResourceEvidence;
+    private final BuildProvenanceSource provenanceSource;
+    private final Clock clock;
+    private final Map<String, String> environment;
 
     public PackageEvidenceManifestWriter() {
-        this(new PackageEvidenceGeneratedSourceWriter(), new PackageResourceEvidence());
+        this(BuildProvenanceSource.empty());
+    }
+
+    public PackageEvidenceManifestWriter(BuildProvenanceSource provenanceSource) {
+        this(
+                new PackageEvidenceGeneratedSourceWriter(),
+                new PackageResourceEvidence(),
+                provenanceSource,
+                Clock.systemUTC(),
+                System.getenv());
     }
 
     PackageEvidenceManifestWriter(
             PackageEvidenceGeneratedSourceWriter generatedSourceWriter,
             PackageResourceEvidence packageResourceEvidence) {
+        this(
+                generatedSourceWriter,
+                packageResourceEvidence,
+                BuildProvenanceSource.empty(),
+                Clock.systemUTC(),
+                System.getenv());
+    }
+
+    PackageEvidenceManifestWriter(
+            PackageEvidenceGeneratedSourceWriter generatedSourceWriter,
+            PackageResourceEvidence packageResourceEvidence,
+            BuildProvenanceSource provenanceSource,
+            Clock clock,
+            Map<String, String> environment) {
         this.generatedSourceWriter = generatedSourceWriter;
         this.packageResourceEvidence = packageResourceEvidence;
+        this.provenanceSource = provenanceSource == null ? BuildProvenanceSource.empty() : provenanceSource;
+        this.clock = clock;
+        this.environment = environment == null ? Map.of() : Map.copyOf(environment);
     }
 
     public Path write(
@@ -73,8 +109,16 @@ public final class PackageEvidenceManifestWriter {
             PackageResult result,
             List<PackageArtifact> artifacts) throws IOException {
         StringBuilder json = new StringBuilder();
+        BuildProvenance provenance = provenanceSource.read(
+                projectRoot,
+                effectiveEnvironment(config.build().metadata().reproducible()),
+                clock);
         json.append("{\n");
         stringField(json, 1, "schema", SCHEMA, true);
+        if (!provenance.zoltVersion().isBlank()) {
+            builder(json, provenance);
+            json.append(",\n");
+        }
         project(json, config);
         json.append(",\n");
         packageInfo(json, projectRoot, config, plan, result);
@@ -90,6 +134,18 @@ public final class PackageEvidenceManifestWriter {
         resourceFiltering(json, projectRoot, packageResourceEvidence.collect(projectRoot, config.build()));
         json.append("\n}\n");
         return json.toString();
+    }
+
+    private static void builder(StringBuilder json, BuildProvenance provenance) {
+        indent(json, 1).append("\"builder\": {\n");
+        stringField(json, 2, "name", "zolt", true);
+        stringField(json, 2, "version", provenance.zoltVersion(), true);
+        stringField(json, 2, "jdkVersion", provenance.jdkVersion(), true);
+        stringField(json, 2, "jdkVendor", provenance.jdkVendor(), true);
+        stringField(json, 2, "builtAt", DateTimeFormatter.ISO_INSTANT.format(provenance.buildTimestamp()), true);
+        nullableStringField(json, 2, "commit", provenance.git().commitSha(), true);
+        nullableStringField(json, 2, "resolutionFingerprint", provenance.resolutionFingerprint(), false);
+        indent(json, 1).append("}");
     }
 
     private static void project(StringBuilder json, ProjectConfig config) {
@@ -184,5 +240,32 @@ public final class PackageEvidenceManifestWriter {
             indent(json, 2);
         }
         json.append("]");
+    }
+
+    private Map<String, String> effectiveEnvironment(boolean reproducible) {
+        if (!reproducible) {
+            Map<String, String> effective = new TreeMap<>(environment);
+            effective.remove(SOURCE_DATE_EPOCH);
+            return effective;
+        }
+        if (hasValidSourceDateEpoch(environment)) {
+            return environment;
+        }
+        Map<String, String> effective = new TreeMap<>(environment);
+        effective.put(SOURCE_DATE_EPOCH, "0");
+        return effective;
+    }
+
+    private static boolean hasValidSourceDateEpoch(Map<String, String> environment) {
+        String value = environment.get(SOURCE_DATE_EPOCH);
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            Long.parseLong(value.trim());
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 }

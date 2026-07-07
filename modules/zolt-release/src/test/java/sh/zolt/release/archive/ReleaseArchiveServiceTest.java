@@ -5,11 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.provenance.BuildProvenance;
+import sh.zolt.provenance.BuildProvenanceSource;
+import sh.zolt.provenance.GitProvenance;
 import sh.zolt.release.ReleaseTarget;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -74,6 +81,36 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                 "zolt-0.1.0-linux-x64/VERSION",
                 "zolt-0.1.0-linux-x64/README.md",
                 "zolt-0.1.0-linux-x64/LICENSE"), tarEntries(result.archivePath()));
+    }
+
+    @Test
+    void includesReleaseProvenanceWhenBuilderVersionIsAvailable() throws IOException {
+        writeProjectFiles();
+        Path binary = writeBinary("target/native/zolt");
+        ReleaseArchiveService service = new ReleaseArchiveService(
+                new ReleaseArchiveManifestWriter(),
+                provenanceSource(),
+                Clock.fixed(Instant.parse("2026-07-07T12:00:00Z"), ZoneOffset.UTC),
+                Map.of());
+
+        ReleaseArchiveResult result = service.assemble(
+                projectDir,
+                config(),
+                ReleaseTarget.LINUX_X64,
+                binary,
+                Path.of("dist"));
+
+        assertEquals(5, result.fileCount());
+        assertTrue(tarEntries(result.archivePath()).contains("zolt-0.1.0-linux-x64/BUILD.json"));
+        String build = tarEntryContent(result.archivePath(), "zolt-0.1.0-linux-x64/BUILD.json");
+        assertTrue(build.contains("\"schema\": \"zolt.release-provenance.v1\""), build);
+        assertTrue(build.contains("\"target\": \"linux-x64\""), build);
+        assertTrue(build.contains("\"version\": \"0.1.0-zap.20260707.abcdef123456\""), build);
+        assertTrue(build.contains("\"commit\": \"0123456789abcdef0123456789abcdef01234567\""), build);
+        assertTrue(build.contains("\"resolutionFingerprint\": \"sha256:release-inputs\""), build);
+        String manifest = Files.readString(result.manifestPath());
+        assertTrue(manifest.contains("\"builder\": {"), manifest);
+        assertTrue(manifest.contains("\"version\": \"0.1.0-zap.20260707.abcdef123456\""), manifest);
     }
 
     @Test
@@ -183,5 +220,20 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                         Path.of("dist")));
 
         assertTrue(exception.getMessage().contains("Release archive entry name is too long for tar format"));
+    }
+
+    private static BuildProvenanceSource provenanceSource() {
+        return (projectRoot, environment, clock) -> new BuildProvenance(
+                new GitProvenance(
+                        Optional.of("0123456789abcdef0123456789abcdef01234567"),
+                        Optional.of("0123456789ab"),
+                        Optional.of("main"),
+                        false,
+                        Optional.empty()),
+                clock.instant(),
+                "0.1.0-zap.20260707.abcdef123456",
+                "21.0.2",
+                "Eclipse Adoptium",
+                Optional.of("sha256:release-inputs"));
     }
 }

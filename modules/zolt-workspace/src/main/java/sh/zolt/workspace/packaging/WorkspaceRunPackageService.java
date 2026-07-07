@@ -11,6 +11,7 @@ import sh.zolt.doctor.JdkDetector;
 import sh.zolt.doctor.JdkStatus;
 import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.project.PackageMode;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
@@ -44,6 +45,14 @@ public final class WorkspaceRunPackageService {
         this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
     }
 
+    public WorkspaceRunPackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource);
+    }
+
     WorkspaceRunPackageService(JdkChecker jdkDetector) {
         this(jdkDetector, new ResolveService(), FrameworkPackageAugmenter.none());
     }
@@ -60,8 +69,22 @@ public final class WorkspaceRunPackageService {
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackagePlanService packagePlanService) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService, BuildProvenanceSource.empty());
+    }
+
+    WorkspaceRunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
         this(
-                new WorkspacePackageService(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService),
+                new WorkspacePackageService(
+                        jdkDetector,
+                        resolveService,
+                        frameworkPackageAugmenter,
+                        packagePlanService,
+                        provenanceSource),
                 jdkDetector,
                 new JavaRunner());
     }

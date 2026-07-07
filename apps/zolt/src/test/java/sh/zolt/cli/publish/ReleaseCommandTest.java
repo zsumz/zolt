@@ -32,7 +32,7 @@ final class ReleaseCommandTest {
         Path archive = projectDir.resolve("dist/demo-0.1.0-linux-x64.tar.gz");
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("✔ Assembled linux-x64 release archive"));
-        assertTrue(result.stdout().contains("3 files"));
+        assertTrue(result.stdout().contains("4 files"));
         assertTrue(result.stdout().contains("root demo-0.1.0-linux-x64"));
         assertTrue(result.stdout().contains("→ wrote " + archive));
         assertTrue(result.stdout().contains("→ wrote " + archive + ".sha256"));
@@ -68,7 +68,7 @@ final class ReleaseCommandTest {
         assertEquals(0, color.exitCode(), color.stderr());
         assertTrue(color.stdout().contains("\u001B[32m✔\u001B[0m Assembled linux-x64 release archive"));
         assertFalse(color.stdout().contains("\u001B[32mAssembled linux-x64 release archive\u001B[0m"));
-        assertTrue(color.stdout().contains("2 files\u001B[0m"));
+        assertTrue(color.stdout().contains("3 files\u001B[0m"));
         assertTrue(color.stdout().contains("root demo-0.1.0-linux-x64\u001B[0m"));
         assertTrue(color.stdout().contains("\u001B[36m→\u001B[0m wrote \u001B[36m" + archive + "\u001B[0m"));
         assertFalse(color.stdout().contains("\u001B[32mWrote archive to "));

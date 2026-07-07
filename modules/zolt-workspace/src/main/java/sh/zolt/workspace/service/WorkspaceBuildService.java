@@ -8,6 +8,7 @@ import sh.zolt.doctor.JdkChecker;
 import sh.zolt.doctor.JdkDetector;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.ResolveResult;
 import sh.zolt.resolve.ResolveService;
@@ -39,17 +40,28 @@ public final class WorkspaceBuildService {
         this(new JdkDetector(), resolveService);
     }
 
+    public WorkspaceBuildService(ResolveService resolveService, BuildProvenanceSource provenanceSource) {
+        this(new JdkDetector(), resolveService, provenanceSource);
+    }
+
     WorkspaceBuildService(JdkChecker jdkDetector) {
         this(jdkDetector, new ResolveService());
     }
 
     public WorkspaceBuildService(JdkChecker jdkDetector, ResolveService resolveService) {
+        this(jdkDetector, resolveService, BuildProvenanceSource.empty());
+    }
+
+    public WorkspaceBuildService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            BuildProvenanceSource provenanceSource) {
         this(
                 new WorkspaceDiscoveryService(),
                 new WorkspaceResolveService(resolveService),
                 new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
-                new BuildService(jdkDetector, resolveService),
+                new BuildService(jdkDetector, resolveService, provenanceSource),
                 new WorkspaceMemberSelector());
     }
 

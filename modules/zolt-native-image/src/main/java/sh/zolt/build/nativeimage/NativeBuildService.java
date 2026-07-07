@@ -17,6 +17,7 @@ import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.project.ProjectPaths;
+import sh.zolt.provenance.BuildProvenanceSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,8 +38,12 @@ public final class NativeBuildService {
     private final NativeImageRunner nativeImageRunner;
 
     public NativeBuildService() {
+        this(BuildProvenanceSource.empty());
+    }
+
+    public NativeBuildService(BuildProvenanceSource provenanceSource) {
         this(
-                new PackageService(),
+                new PackageService(provenanceSource),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 new NativeImageRunner());

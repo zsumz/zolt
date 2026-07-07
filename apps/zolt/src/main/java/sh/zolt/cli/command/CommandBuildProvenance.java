@@ -4,6 +4,7 @@ import sh.zolt.cli.ZoltCli;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.provenance.BuildProvenance;
 import sh.zolt.provenance.BuildProvenanceReader;
+import sh.zolt.provenance.BuildProvenanceSource;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -20,6 +21,10 @@ public final class CommandBuildProvenance {
                 resolutionFingerprint(projectRoot),
                 System.getenv(),
                 Clock.systemUTC());
+    }
+
+    public static BuildProvenanceSource source() {
+        return BuildProvenanceSource.system(ZoltCli.version(), CommandBuildProvenance::resolutionFingerprint);
     }
 
     private static Optional<String> resolutionFingerprint(Path projectRoot) {

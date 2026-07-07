@@ -7,6 +7,8 @@ import sh.zolt.project.BuildSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.provenance.BuildProvenance;
+import sh.zolt.provenance.GitProvenance;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -88,6 +90,22 @@ final class BuildMetadataGeneratorTest {
                 "build.time"));
     }
 
+    @Test
+    void buildInfoIncludesZoltBuilderMetadataWhenSupplied() throws IOException {
+        ProjectConfig config = configWithMetadata(new BuildMetadataSettings(true, false, true));
+        BuildMetadataGenerator generator = new BuildMetadataGenerator(
+                Clock.fixed(FIXED_TIME, ZoneOffset.UTC),
+                (projectRoot, environment, clock) -> provenance(clock.instant()),
+                Map.of());
+
+        generator.generate(projectDir, config, projectDir.resolve("target/classes"));
+
+        String properties = Files.readString(projectDir.resolve("target/classes/META-INF/build-info.properties"));
+        assertEquals("zolt", value(properties, "build.tool.name"));
+        assertEquals("0.1.0-zap.20260707.abcdef123456", value(properties, "build.tool.version"));
+        assertEquals("sha256:build-info-inputs", value(properties, "build.resolution.fingerprint"));
+    }
+
     private static ProjectConfig configWithMetadata(BuildMetadataSettings metadataSettings) {
         return ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("demo", "0.1.0", "com.example", "21", Optional.empty()),
@@ -107,6 +125,21 @@ final class BuildMetadataGeneratorTest {
         return new BuildMetadataGenerator(
                 Clock.fixed(FIXED_TIME, ZoneOffset.UTC),
                 environment);
+    }
+
+    private static BuildProvenance provenance(Instant instant) {
+        return new BuildProvenance(
+                new GitProvenance(
+                        Optional.of(COMMIT_SHA),
+                        Optional.of("0123456789ab"),
+                        Optional.of("main"),
+                        false,
+                        Optional.empty()),
+                instant,
+                "0.1.0-zap.20260707.abcdef123456",
+                "21.0.2",
+                "Eclipse Adoptium",
+                Optional.of("sha256:build-info-inputs"));
     }
 
     private static void writeGitMetadata(Path projectDir, String sha) throws IOException {

@@ -3,7 +3,7 @@ package sh.zolt.build.metadata;
 import sh.zolt.project.BuildMetadataSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.provenance.BuildProvenance;
-import sh.zolt.provenance.BuildProvenanceReader;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.provenance.GitProvenance;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,23 +23,27 @@ public final class BuildMetadataGenerator {
     private static final Path GIT_PROPERTIES_PATH = Path.of("git.properties");
 
     private final Clock clock;
-    private final BuildProvenanceReader provenanceReader;
+    private final BuildProvenanceSource provenanceSource;
     private final Map<String, String> environment;
 
     public BuildMetadataGenerator() {
-        this(Clock.systemUTC(), new BuildProvenanceReader(), System.getenv());
+        this(Clock.systemUTC(), BuildProvenanceSource.empty(), System.getenv());
+    }
+
+    public BuildMetadataGenerator(BuildProvenanceSource provenanceSource) {
+        this(Clock.systemUTC(), provenanceSource, System.getenv());
     }
 
     BuildMetadataGenerator(Clock clock, Map<String, String> environment) {
-        this(clock, new BuildProvenanceReader(), environment);
+        this(clock, BuildProvenanceSource.empty(), environment);
     }
 
     BuildMetadataGenerator(
             Clock clock,
-            BuildProvenanceReader provenanceReader,
+            BuildProvenanceSource provenanceSource,
             Map<String, String> environment) {
         this.clock = clock;
-        this.provenanceReader = provenanceReader;
+        this.provenanceSource = provenanceSource == null ? BuildProvenanceSource.empty() : provenanceSource;
         this.environment = environment == null ? Map.of() : Map.copyOf(environment);
     }
 
@@ -49,10 +53,8 @@ public final class BuildMetadataGenerator {
             return new BuildMetadataResult(List.of());
         }
 
-        BuildProvenance provenance = provenanceReader.read(
+        BuildProvenance provenance = provenanceSource.read(
                 projectDirectory,
-                "",
-                Optional.empty(),
                 effectiveEnvironment(settings.reproducible()),
                 clock);
         List<Path> generated = new ArrayList<>();
@@ -76,6 +78,12 @@ public final class BuildMetadataGenerator {
         values.put("build.name", config.project().name());
         values.put("build.time", DateTimeFormatter.ISO_INSTANT.format(provenance.buildTimestamp()));
         values.put("build.version", config.project().version());
+        if (!provenance.zoltVersion().isBlank()) {
+            values.put("build.tool.name", "zolt");
+            values.put("build.tool.version", provenance.zoltVersion());
+        }
+        provenance.resolutionFingerprint()
+                .ifPresent(fingerprint -> values.put("build.resolution.fingerprint", fingerprint));
         return values;
     }
 

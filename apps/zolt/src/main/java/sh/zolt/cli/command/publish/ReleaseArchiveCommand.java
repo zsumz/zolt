@@ -2,6 +2,7 @@ package sh.zolt.cli.command.publish;
 
 import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.CommandProgress;
+import sh.zolt.cli.command.CommandBuildProvenance;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.console.ProgressWriter;
@@ -43,7 +44,7 @@ public final class ReleaseArchiveCommand implements Runnable {
     private CommandSpec spec;
 
     public ReleaseArchiveCommand() {
-        this(new ZoltTomlParser(), new ReleaseArchiveService());
+        this(new ZoltTomlParser(), new ReleaseArchiveService(CommandBuildProvenance.source()));
     }
 
     ReleaseArchiveCommand(ZoltTomlParser tomlParser, ReleaseArchiveService releaseArchiveService) {

@@ -8,6 +8,7 @@ import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectVersionOverride;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
@@ -37,9 +38,17 @@ public final class WorkspaceNativeBuildService {
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackagePlanService packagePlanService) {
+        this(resolveService, frameworkPackageAugmenter, packagePlanService, BuildProvenanceSource.empty());
+    }
+
+    public WorkspaceNativeBuildService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
         this(
-                new WorkspacePackageService(resolveService, frameworkPackageAugmenter, packagePlanService),
-                new NativeBuildService());
+                new WorkspacePackageService(resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource),
+                new NativeBuildService(provenanceSource));
     }
 
     WorkspaceNativeBuildService(

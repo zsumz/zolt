@@ -205,6 +205,8 @@ STAMP="$(date -u +%Y%m%d)"
 CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 VERSION="${ZOLT_RELEASE_VERSION:-${BASE_VERSION}-${CHANNEL}.${STAMP}.${SHORT_COMMIT}}"
 export ZOLT_VERSION_OVERRIDE="$VERSION"
+BUILDER_JDK_VERSION="$(java -version 2>&1 | awk -F '"' '/version/ { print $2; exit }')"
+BUILDER_JDK_VENDOR="$(java -XshowSettings:properties -version 2>&1 | awk -F '= ' '/java.vendor =/ { print $2; exit }')"
 
 APP_DIR="$ROOT/apps/zolt"
 OUTPUT_DIR="target/release/${CHANNEL}/${VERSION}"
@@ -462,6 +464,15 @@ publish_combined_artifacts() {
 {
   "name": "zolt",
   "version": "${VERSION}",
+  "builder": {
+    "name": "zolt",
+    "version": "${VERSION}",
+    "jdkVersion": "$(json_string "$BUILDER_JDK_VERSION")",
+    "jdkVendor": "$(json_string "$BUILDER_JDK_VENDOR")",
+    "builtAt": "${CREATED_AT}",
+    "commit": "${COMMIT}",
+    "resolutionFingerprint": null
+  },
   "archives": [
 ${release_entries}
   ]

@@ -21,6 +21,7 @@ import sh.zolt.quarkus.QuarkusPackageAugmenter;
 import sh.zolt.quarkus.QuarkusPackagePlanRules;
 import sh.zolt.quarkus.QuarkusRunAugmenter;
 import sh.zolt.quarkus.testworker.QuarkusFrameworkTestRunner;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.toml.ZoltTomlWriter;
@@ -39,6 +40,10 @@ public final class CommandFrameworkServices {
 
     static ResolveService resolveService() {
         return new ResolveService(new QuarkusDependencyRequestPlanner());
+    }
+
+    static BuildProvenanceSource provenanceSource() {
+        return CommandBuildProvenance.source();
     }
 
     static CommandConfigEditServices configEditServices() {
@@ -94,11 +99,11 @@ public final class CommandFrameworkServices {
     }
 
     private static BuildService buildService(CommandBuildFrameworkServices buildFrameworkServices) {
-        return new BuildService(buildFrameworkServices.resolveService());
+        return new BuildService(buildFrameworkServices.resolveService(), provenanceSource());
     }
 
     private static WorkspaceBuildService workspaceBuildService(CommandBuildFrameworkServices buildFrameworkServices) {
-        return new WorkspaceBuildService(buildFrameworkServices.resolveService());
+        return new WorkspaceBuildService(buildFrameworkServices.resolveService(), provenanceSource());
     }
 
     static PackagePlanService packagePlanService() {
@@ -114,11 +119,12 @@ public final class CommandFrameworkServices {
         CommandPackageFrameworkServices packageFrameworkServices = packageFrameworkServices();
         PackagePlanService packagePlanService = packageFrameworkServices.packagePlanService();
         FrameworkPackageAugmenter packageAugmenter = packageFrameworkServices.packageAugmenter();
+        BuildProvenanceSource provenanceSource = provenanceSource();
         return new CommandPackageServices(
                 packagePlanService,
-                new PackageService(resolveService, packageAugmenter, packagePlanService),
-                new BuildService(resolveService),
-                new WorkspacePackageService(resolveService, packageAugmenter, packagePlanService));
+                new PackageService(resolveService, packageAugmenter, packagePlanService, provenanceSource),
+                new BuildService(resolveService, provenanceSource),
+                new WorkspacePackageService(resolveService, packageAugmenter, packagePlanService, provenanceSource));
     }
 
     static RunService runService() {
@@ -156,7 +162,8 @@ public final class CommandFrameworkServices {
         return new PackageService(
                 resolveService(),
                 packageFrameworkServices.packageAugmenter(),
-                packageFrameworkServices.packagePlanService());
+                packageFrameworkServices.packagePlanService(),
+                provenanceSource());
     }
 
     static RunPackageService runPackageService() {
@@ -178,7 +185,8 @@ public final class CommandFrameworkServices {
         return new RunPackageService(
                 resolveService(),
                 packageFrameworkServices.packageAugmenter(),
-                packageFrameworkServices.packagePlanService());
+                packageFrameworkServices.packagePlanService(),
+                provenanceSource());
     }
 
     static WorkspacePackageService workspacePackageService() {
@@ -195,7 +203,8 @@ public final class CommandFrameworkServices {
         return new WorkspacePackageService(
                 resolveService(),
                 packageFrameworkServices.packageAugmenter(),
-                packageFrameworkServices.packagePlanService());
+                packageFrameworkServices.packagePlanService(),
+                provenanceSource());
     }
 
     static WorkspaceNativeBuildService workspaceNativeBuildService() {
@@ -203,13 +212,14 @@ public final class CommandFrameworkServices {
         return new WorkspaceNativeBuildService(
                 resolveService(),
                 packageFrameworkServices.packageAugmenter(),
-                packageFrameworkServices.packagePlanService());
+                packageFrameworkServices.packagePlanService(),
+                provenanceSource());
     }
 
     public static CommandNativeServices nativeCommandServices() {
         return new CommandNativeServices(
                 new ZoltTomlParser(),
-                new NativeBuildService(),
+                new NativeBuildService(provenanceSource()),
                 workspaceNativeBuildService());
     }
 
@@ -234,7 +244,8 @@ public final class CommandFrameworkServices {
         return new WorkspaceRunPackageService(
                 resolveService(),
                 packageFrameworkServices.packageAugmenter(),
-                packageFrameworkServices.packagePlanService());
+                packageFrameworkServices.packagePlanService(),
+                provenanceSource());
     }
 
     static WorkspaceRunService workspaceRunService() {

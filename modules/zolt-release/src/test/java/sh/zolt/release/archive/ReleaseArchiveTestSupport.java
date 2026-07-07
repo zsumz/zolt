@@ -61,11 +61,14 @@ abstract class ReleaseArchiveTestSupport {
     }
 
     protected static String versionFileContent(Path archivePath, String rootDirectory) throws IOException {
+        return tarEntryContent(archivePath, rootDirectory + "/VERSION");
+    }
+
+    protected static String tarEntryContent(Path archivePath, String target) throws IOException {
         byte[] content;
         try (GZIPInputStream input = new GZIPInputStream(Files.newInputStream(archivePath))) {
             content = input.readAllBytes();
         }
-        String target = rootDirectory + "/VERSION";
         int offset = 0;
         while (offset + 512 <= content.length) {
             byte[] header = java.util.Arrays.copyOfRange(content, offset, offset + 512);
@@ -81,7 +84,7 @@ abstract class ReleaseArchiveTestSupport {
             }
             offset += 512 + paddedSize(size);
         }
-        throw new IOException("VERSION entry " + target + " not found in " + archivePath);
+        throw new IOException("tar entry " + target + " not found in " + archivePath);
     }
 
     protected static List<String> tarEntries(Path archivePath) throws IOException {

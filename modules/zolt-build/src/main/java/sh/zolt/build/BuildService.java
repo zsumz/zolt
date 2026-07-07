@@ -26,6 +26,7 @@ import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveResult;
 import sh.zolt.resolve.ResolveOptions;
 import sh.zolt.resolve.ResolveService;
@@ -58,12 +59,23 @@ public final class BuildService {
         this(new JdkDetector(), resolveService);
     }
 
+    public BuildService(ResolveService resolveService, BuildProvenanceSource provenanceSource) {
+        this(new JdkDetector(), resolveService, provenanceSource);
+    }
+
     public BuildService(JdkChecker jdkDetector) {
         this(jdkDetector, new ResolveService());
     }
 
     public BuildService(JdkChecker jdkDetector, ResolveService resolveService) {
         this(BuildServiceDependencies.create(jdkDetector, resolveService));
+    }
+
+    public BuildService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            BuildProvenanceSource provenanceSource) {
+        this(BuildServiceDependencies.create(jdkDetector, resolveService, provenanceSource));
     }
 
     BuildService(BuildServiceDependencies dependencies) {

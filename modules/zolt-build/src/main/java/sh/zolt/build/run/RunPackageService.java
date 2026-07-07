@@ -15,6 +15,7 @@ import sh.zolt.doctor.JdkStatus;
 import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,6 +56,14 @@ public final class RunPackageService {
     }
 
     public RunPackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource);
+    }
+
+    public RunPackageService(
             JdkChecker jdkDetector,
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter) {
@@ -66,9 +75,18 @@ public final class RunPackageService {
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackagePlanService packagePlanService) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService, BuildProvenanceSource.empty());
+    }
+
+    public RunPackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
         this(
-                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService),
-                new BuildService(jdkDetector, resolveService),
+                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource),
+                new BuildService(jdkDetector, resolveService, provenanceSource),
                 new ClasspathBuilder(),
                 jdkDetector,
                 new JavaRunner());

@@ -4,7 +4,7 @@ import sh.zolt.build.ManifestGenerationException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.provenance.BuildProvenance;
-import sh.zolt.provenance.BuildProvenanceReader;
+import sh.zolt.provenance.BuildProvenanceSource;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -23,25 +23,32 @@ public final class ManifestGenerator {
     private static final String SCM_REVISION = "SCM-Revision";
     private static final String BUILD_JDK = "Build-Jdk";
     private static final String BUILD_TIMESTAMP = "Build-Timestamp";
+    private static final String CREATED_BY = "Created-By";
+    private static final String ZOLT_VERSION = "Zolt-Version";
+    private static final String ZOLT_RESOLUTION_FINGERPRINT = "Zolt-Resolution-Fingerprint";
 
     private final Clock clock;
-    private final BuildProvenanceReader provenanceReader;
+    private final BuildProvenanceSource provenanceSource;
     private final Map<String, String> environment;
 
     public ManifestGenerator() {
-        this(Clock.systemUTC(), new BuildProvenanceReader(), System.getenv());
+        this(Clock.systemUTC(), BuildProvenanceSource.empty(), System.getenv());
+    }
+
+    public ManifestGenerator(BuildProvenanceSource provenanceSource) {
+        this(Clock.systemUTC(), provenanceSource, System.getenv());
     }
 
     ManifestGenerator(Clock clock, Map<String, String> environment) {
-        this(clock, new BuildProvenanceReader(), environment);
+        this(clock, BuildProvenanceSource.empty(), environment);
     }
 
     ManifestGenerator(
             Clock clock,
-            BuildProvenanceReader provenanceReader,
+            BuildProvenanceSource provenanceSource,
             Map<String, String> environment) {
         this.clock = clock;
-        this.provenanceReader = provenanceReader;
+        this.provenanceSource = provenanceSource == null ? BuildProvenanceSource.empty() : provenanceSource;
         this.environment = environment == null ? Map.of() : Map.copyOf(environment);
     }
 
@@ -107,10 +114,8 @@ public final class ManifestGenerator {
     }
 
     private BuildProvenance readProvenance(Path projectDirectory, ProjectConfig config) {
-        return provenanceReader.read(
+        return provenanceSource.read(
                 projectDirectory,
-                "",
-                Optional.empty(),
                 effectiveEnvironment(config.build().metadata().reproducible()),
                 clock);
     }
@@ -147,7 +152,13 @@ public final class ManifestGenerator {
             ProjectMetadata project,
             BuildProvenance provenance) {
         writeAttribute(output, IMPLEMENTATION_VERSION, project.version());
+        if (!provenance.zoltVersion().isBlank()) {
+            writeAttribute(output, CREATED_BY, "Zolt " + provenance.zoltVersion());
+            writeAttribute(output, ZOLT_VERSION, provenance.zoltVersion());
+        }
         provenance.git().commitSha().ifPresent(commit -> writeAttribute(output, SCM_REVISION, commit));
+        provenance.resolutionFingerprint()
+                .ifPresent(fingerprint -> writeAttribute(output, ZOLT_RESOLUTION_FINGERPRINT, fingerprint));
         if (!provenance.jdkVersion().isBlank()) {
             writeAttribute(output, BUILD_JDK, provenance.jdkVersion());
         }
@@ -190,11 +201,14 @@ public final class ManifestGenerator {
         if (name.equalsIgnoreCase(IMPLEMENTATION_VERSION)
                 || name.equalsIgnoreCase(SCM_REVISION)
                 || name.equalsIgnoreCase(BUILD_JDK)
-                || name.equalsIgnoreCase(BUILD_TIMESTAMP)) {
+                || name.equalsIgnoreCase(BUILD_TIMESTAMP)
+                || name.equalsIgnoreCase(CREATED_BY)
+                || name.equalsIgnoreCase(ZOLT_VERSION)
+                || name.equalsIgnoreCase(ZOLT_RESOLUTION_FINGERPRINT)) {
             throw new ManifestGenerationException(
                     "Invalid [package.manifest]."
                             + name
-                            + " in zolt.toml. Zolt owns Implementation-Version, SCM-Revision, Build-Jdk, and Build-Timestamp; use project metadata and build provenance instead.");
+                            + " in zolt.toml. Zolt owns Implementation-Version, Created-By, Zolt-Version, Zolt-Resolution-Fingerprint, SCM-Revision, Build-Jdk, and Build-Timestamp; use project metadata and build provenance instead.");
         }
         try {
             new Attributes.Name(name);

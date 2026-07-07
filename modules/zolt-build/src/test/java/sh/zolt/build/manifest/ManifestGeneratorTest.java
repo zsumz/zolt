@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.build.ManifestGenerationException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.provenance.BuildProvenance;
+import sh.zolt.provenance.GitProvenance;
 import sh.zolt.toml.ZoltTomlParser;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -88,6 +90,21 @@ final class ManifestGeneratorTest {
         assertEquals(COMMIT_SHA, attributes.getValue("SCM-Revision"));
         assertEquals("2023-11-14T22:13:20Z", attributes.getValue("Build-Timestamp"));
         assertFalse(attributes.getValue("Build-Jdk").isBlank());
+    }
+
+    @Test
+    void includesZoltBuilderProvenanceWhenSupplied() throws IOException {
+        ManifestGenerator generator = new ManifestGenerator(
+                Clock.fixed(Instant.parse("2026-07-07T12:00:00Z"), ZoneOffset.UTC),
+                (projectRoot, environment, clock) -> provenance(clock.instant()),
+                Map.of());
+
+        GeneratedManifest generated = generator.generate(projectDir, config(false));
+        Attributes attributes = parse(generated).getMainAttributes();
+
+        assertEquals("Zolt 0.1.0-zap.20260707.abcdef123456", attributes.getValue("Created-By"));
+        assertEquals("0.1.0-zap.20260707.abcdef123456", attributes.getValue("Zolt-Version"));
+        assertEquals("sha256:manifest-inputs", attributes.getValue("Zolt-Resolution-Fingerprint"));
     }
 
     @Test
@@ -203,6 +220,21 @@ final class ManifestGeneratorTest {
                 [build.metadata]
                 reproducible = %s
                 """.formatted(reproducible));
+    }
+
+    private static BuildProvenance provenance(Instant instant) {
+        return new BuildProvenance(
+                new GitProvenance(
+                        Optional.of(COMMIT_SHA),
+                        Optional.of("0123456789ab"),
+                        Optional.of("main"),
+                        false,
+                        Optional.empty()),
+                instant,
+                "0.1.0-zap.20260707.abcdef123456",
+                "21.0.2",
+                "Eclipse Adoptium",
+                Optional.of("sha256:manifest-inputs"));
     }
 
     private static void writeGitMetadata(Path projectDir, String sha) throws IOException {

@@ -15,6 +15,7 @@ import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +38,10 @@ public final class PackageService {
         this(new ResolveService(), frameworkPackageAugmenter);
     }
 
+    public PackageService(BuildProvenanceSource provenanceSource) {
+        this(new ResolveService(), FrameworkPackageAugmenter.none(), new PackagePlanService(), provenanceSource);
+    }
+
     public PackageService(ResolveService resolveService, FrameworkPackageAugmenter frameworkPackageAugmenter) {
         this(resolveService, frameworkPackageAugmenter, new PackagePlanService());
     }
@@ -45,14 +50,23 @@ public final class PackageService {
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackagePlanService packagePlanService) {
+        this(resolveService, frameworkPackageAugmenter, packagePlanService, BuildProvenanceSource.empty());
+    }
+
+    public PackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
         this(
-                new BuildService(resolveService),
+                new BuildService(resolveService, provenanceSource),
                 resolveService,
-                new ManifestGenerator(),
+                new ManifestGenerator(provenanceSource),
                 new ZoltLockfileReader(),
                 new ClasspathBuilder(),
                 frameworkPackageAugmenter,
-                packagePlanService);
+                packagePlanService,
+                new PackageEvidenceManifestWriter(provenanceSource));
     }
 
     PackageService(

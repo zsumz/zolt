@@ -8,6 +8,7 @@ import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
@@ -42,6 +43,14 @@ public final class WorkspacePackageService {
         this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService);
     }
 
+    public WorkspacePackageService(
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
+        this(new JdkDetector(), resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource);
+    }
+
     WorkspacePackageService(JdkChecker jdkDetector) {
         this(jdkDetector, new ResolveService(), FrameworkPackageAugmenter.none());
     }
@@ -58,9 +67,18 @@ public final class WorkspacePackageService {
             ResolveService resolveService,
             FrameworkPackageAugmenter frameworkPackageAugmenter,
             PackagePlanService packagePlanService) {
+        this(jdkDetector, resolveService, frameworkPackageAugmenter, packagePlanService, BuildProvenanceSource.empty());
+    }
+
+    WorkspacePackageService(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            FrameworkPackageAugmenter frameworkPackageAugmenter,
+            PackagePlanService packagePlanService,
+            BuildProvenanceSource provenanceSource) {
         this(
-                new WorkspaceBuildService(jdkDetector, resolveService),
-                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService));
+                new WorkspaceBuildService(jdkDetector, resolveService, provenanceSource),
+                new PackageService(resolveService, frameworkPackageAugmenter, packagePlanService, provenanceSource));
     }
 
     WorkspacePackageService(

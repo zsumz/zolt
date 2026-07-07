@@ -14,6 +14,7 @@ import sh.zolt.build.classpath.ClasspathBuilder;
 import sh.zolt.doctor.JdkChecker;
 import sh.zolt.generated.ProtobufGeneratedSourceService;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
+import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveService;
 
 final class BuildServiceDependencies {
@@ -51,6 +52,13 @@ final class BuildServiceDependencies {
     }
 
     static BuildServiceDependencies create(JdkChecker jdkDetector, ResolveService resolveService) {
+        return create(jdkDetector, resolveService, BuildProvenanceSource.empty());
+    }
+
+    static BuildServiceDependencies create(
+            JdkChecker jdkDetector,
+            ResolveService resolveService,
+            BuildProvenanceSource provenanceSource) {
         JavacRunner javacRunner = new JavacRunner();
         IncrementalCompileStateRecorder incrementalCompileStateRecorder = new IncrementalCompileStateRecorder();
         return new BuildServiceDependencies(
@@ -61,7 +69,7 @@ final class BuildServiceDependencies {
                 new OutputDependencies(
                         new SourceDiscoverer(),
                         new ResourceCopier(),
-                        new BuildMetadataGenerator(),
+                        new BuildMetadataGenerator(provenanceSource),
                         new BuildFingerprintService()),
                 new GeneratedSourceDependencies(
                         jdkDetector,

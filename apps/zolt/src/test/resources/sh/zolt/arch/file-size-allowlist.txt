@@ -1,4 +1,3 @@
 # path|maxLines|reason
 # Allowances are intentionally strict: remove the entry when the file drops back under budget.
-modules/zolt-release/src/main/java/sh/zolt/release/archive/ReleaseArchiveService.java|374|release archive orchestration currently bundles native binary and junit worker layout decisions
 apps/zolt-junit-worker/src/test/java/sh/zolt/junit/JunitLauncherWorkerTest.java|477|worker-process coverage still shares setup fixtures
