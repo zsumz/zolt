@@ -191,6 +191,7 @@ jobs:
       DO_SPACES_ENDPOINT: ${{ vars.DO_SPACES_ENDPOINT || secrets.DO_SPACES_ENDPOINT }}
       DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
       DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+      ZOLT_RELEASE_ED25519_PRIVATE_KEY: ${{ secrets.ZOLT_RELEASE_ED25519_PRIVATE_KEY }}
 
     steps:
       - name: Check publish configuration
@@ -209,6 +210,10 @@ jobs:
           fi
           if [ -z "$DO_SPACES_SECRET_ACCESS_KEY" ]; then
             printf 'DO_SPACES_SECRET_ACCESS_KEY must be configured as an Actions secret.\n' >&2
+            exit 2
+          fi
+          if [ -z "$ZOLT_RELEASE_ED25519_PRIVATE_KEY" ]; then
+            printf 'ZOLT_RELEASE_ED25519_PRIVATE_KEY must be configured as an Actions secret.\n' >&2
             exit 2
           fi
 
@@ -232,6 +237,8 @@ jobs:
       AWS_DEFAULT_REGION: ${{ vars.DO_SPACES_REGION || secrets.DO_SPACES_REGION || 'us-east-1' }}
       ZOLT_RELEASE_VERSION: ${{ needs.zap-version.outputs.version }}
       ZOLT_DISTRIBUTION_ORIGIN: ${{ vars.ZOLT_DISTRIBUTION_ORIGIN || secrets.ZOLT_DISTRIBUTION_ORIGIN || 'https://dist.zolt.sh' }}
+      ZOLT_RELEASE_ED25519_PRIVATE_KEY: ${{ secrets.ZOLT_RELEASE_ED25519_PRIVATE_KEY }}
+      ZOLT_RELEASE_SIGNING_KEY_ID: zolt-release-2026
 
     steps:
       - name: Check out repository
@@ -239,20 +246,49 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache npx packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-smoque-alpha
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
+
       - name: Download zap target artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: zolt-zap-*
           path: target/zap-artifacts
 
+      - name: Capture previous zap channel
+        run: |
+          mkdir -p target/release-update-smoke
+          curl -fsSL "${ZOLT_DISTRIBUTION_ORIGIN}/channels/zap.json" \
+            -o target/release-update-smoke/previous-zap.json
+
       - name: Publish combined zap channel
         run: scripts/zap-distribution --publish --publish-from target/zap-artifacts
 
-      - name: Upload zap channel manifests
+      - name: Upload zap release manifests
         uses: actions/upload-artifact@v4
         with:
           name: zolt-zap-channel
           path: |
             apps/zolt/target/release/zap/${{ needs.zap-version.outputs.version }}/release-manifest.json
             apps/zolt/target/release/channels/zap.json
+            apps/zolt/target/release/channels/zap.json.sig
+            apps/zolt/target/release/releases/zap.json
+            apps/zolt/target/release/releases/zap.json.sig
           if-no-files-found: error
+
+      - name: Smoke published self update
+        env:
+          ZOLT_RELEASE_UPDATE_EXPECTED_VERSION: ${{ needs.zap-version.outputs.version }}
+          ZOLT_RELEASE_UPDATE_PREVIOUS_CHANNEL: ${{ github.workspace }}/target/release-update-smoke/previous-zap.json
+          ZOLT_RELEASE_UPDATE_TARGET: linux-x64
+        run: scripts/smoke-smoque ci/smoke/release-update.smoke.mts

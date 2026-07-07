@@ -1,18 +1,11 @@
 package sh.zolt.cli.command.update;
 
-import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.command.CommandFailures;
-import sh.zolt.release.ReleaseTarget;
 import sh.zolt.release.archive.ReleaseArchiveException;
 import sh.zolt.release.channel.ReleaseChannelManifestException;
-import sh.zolt.release.channel.ReleaseDistributionUrlLayout;
 import sh.zolt.release.update.NativeUpdateException;
-import sh.zolt.release.update.NativeUpdateRequest;
 import sh.zolt.release.update.NativeUpdateResult;
 import sh.zolt.release.update.NativeUpdateService;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
@@ -20,7 +13,7 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-@Command(name = "update", description = "Update the Zolt executable in place.", hidden = true)
+@Command(name = "update", description = "Update the installer-managed Zolt binary.")
 public final class UpdateCommand implements Callable<Integer> {
     private final NativeUpdateService nativeUpdateService;
 
@@ -39,9 +32,6 @@ public final class UpdateCommand implements Callable<Integer> {
     @Option(names = "--work-dir", hidden = true)
     private Path workDirectory;
 
-    @Option(names = "--internal-enable-update", hidden = true)
-    private boolean internalEnableUpdate;
-
     @Spec
     private CommandSpec spec;
 
@@ -56,18 +46,14 @@ public final class UpdateCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            if (!internalEnableUpdate) {
-                throw new NativeUpdateException(
-                        "zolt update is not a public-alpha install path. Download the native archive, verify its checksum, extract it, and put its bin directory on PATH.");
-            }
-            ReleaseTarget releaseTarget = target == null ? ReleaseTarget.current() : ReleaseTarget.fromId(target);
-            NativeUpdateResult result = nativeUpdateService.update(new NativeUpdateRequest(
+            NativeUpdateResult result = NativeInstallCommandSupport.update(
+                    nativeUpdateService,
                     installRoot,
-                    effectiveCurrentExecutable(),
-                    URI.create(effectiveChannelUrl()),
-                    releaseTarget,
-                    workDirectory));
-            print(result);
+                    currentExecutable,
+                    channelUrl,
+                    target,
+                    workDirectory);
+            NativeInstallCommandSupport.printUpdate(spec, result);
             return 0;
         } catch (IllegalArgumentException
                 | NativeUpdateException
@@ -75,55 +61,5 @@ public final class UpdateCommand implements Callable<Integer> {
                 | ReleaseChannelManifestException exception) {
             throw CommandFailures.user(spec, exception);
         }
-    }
-
-    private void print(NativeUpdateResult result) {
-        CommandHumanOutput output = CommandHumanOutput.of(spec);
-        if (result.updated()) {
-            output.summary(
-                    "Updated native Zolt to " + result.availableVersion(),
-                    "from " + result.previousVersion(),
-                    result.channel() + " channel",
-                    result.target().id());
-        } else {
-            output.summary(
-                    "Zolt is already current at " + result.previousVersion(),
-                    result.channel() + " channel",
-                    result.target().id());
-        }
-        output.pointer("wrote", result.executable().toString());
-        if (result.updated()) {
-            output.next("Run `zolt --version` to confirm the active native executable.");
-        }
-    }
-
-    private Path effectiveCurrentExecutable() {
-        if (currentExecutable != null) {
-            return currentExecutable;
-        }
-        return ProcessHandle.current()
-                .info()
-                .command()
-                .map(Path::of)
-                .orElseThrow(() -> new NativeUpdateException(
-                        "zolt update only supports installer-managed native Zolt layouts. Could not determine the current Zolt executable. Reinstall with the native installer."));
-    }
-
-    private String effectiveChannelUrl() {
-        if (channelUrl != null && !channelUrl.isBlank()) {
-            return channelUrl;
-        }
-        Path installedChannelUrl = installRoot.resolve("channel-url");
-        if (Files.isRegularFile(installedChannelUrl)) {
-            try {
-                String value = Files.readString(installedChannelUrl, StandardCharsets.UTF_8).strip();
-                if (!value.isBlank()) {
-                    return value;
-                }
-            } catch (java.io.IOException exception) {
-                // Fall back to the stable channel; update will still validate the install layout.
-            }
-        }
-        return new ReleaseDistributionUrlLayout().channelManifestUrl("stable");
     }
 }

@@ -49,6 +49,7 @@ public final class ZoltTomlParser {
             "publish",
             "framework",
             "native",
+            "toolchain",
             "workspace",
             "commands");
     public ProjectConfig parse(Path path) {
@@ -72,6 +73,7 @@ public final class ZoltTomlParser {
         }
 
         validateTopLevelSections(result);
+        ToolchainSectionCodec.parseZoltVersion(result, "zolt.toml");
 
         ProjectMetadata project = ProjectSectionCodec.parse(result);
 

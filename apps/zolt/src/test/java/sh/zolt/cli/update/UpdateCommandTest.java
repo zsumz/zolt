@@ -2,6 +2,7 @@ package sh.zolt.cli.update;
 
 import static sh.zolt.cli.CliTestSupport.execute;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.cli.CliTestSupport.CommandResult;
@@ -28,14 +29,13 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "update",
-                "--internal-enable-update",
                 "--install-root", installRoot.toString(),
                 "--current-executable", devExecutable.toString(),
                 "--channel-url", channel.toUri().toString(),
                 "--target", "linux-x64");
 
         assertEquals(1, result.exitCode());
-        assertTrue(result.stderr().contains("installer-managed native Zolt layouts"));
+        assertTrue(result.stderr().contains("Installer-managed native Zolt layouts"));
     }
 
     @Test
@@ -79,7 +79,6 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "update",
-                "--internal-enable-update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
                 "--target", "linux-x64",
@@ -100,7 +99,6 @@ final class UpdateCommandTest {
 
         CommandResult result = execute(
                 "update",
-                "--internal-enable-update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
                 "--target", "linux-x64",
@@ -148,6 +146,53 @@ final class UpdateCommandTest {
     }
 
     @Test
+    void selfUpdateInstallsNewNativeVersionAndSwitchesCurrentSymlink() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
+
+        CommandResult result = execute(
+                "self",
+                "update",
+                "--install-root", installed.installRoot().toString(),
+                "--current-executable", installed.binLink().toString(),
+                "--channel-url", channel.toUri().toString(),
+                "--target", "linux-x64",
+                "--work-dir", tempDir.resolve("self-update-work").toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains("✔ Updated native Zolt to 0.1.1"));
+        assertTrue(result.stdout().contains("from 0.1.0"));
+        assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        assertEquals("0.1.0", Files.readString(installed.installRoot().resolve("previous-version")).strip());
+    }
+
+    @Test
+    void selfInstallDownloadsVersionWithoutSwitchingCurrentSymlink() throws IOException {
+        InstalledFixture installed = install("0.1.0");
+        Path archive = archive("0.1.1", "linux-x64", "0.1.1");
+        Path index = writeReleaseIndex("zap", "0.1.1", "linux-x64", archive, "sidecar");
+
+        CommandResult result = execute(
+                "self",
+                "install",
+                "0.1.1",
+                "--install-root", installed.installRoot().toString(),
+                "--current-executable", installed.binLink().toString(),
+                "--release-index-url", index.toUri().toString(),
+                "--target", "linux-x64",
+                "--work-dir", tempDir.resolve("self-install-work").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("✔ Installed native Zolt 0.1.1"));
+        assertTrue(result.stdout().contains("zap channel"));
+        assertTrue(result.stdout().contains("linux-x64"));
+        assertTrue(result.stdout().contains("Run `zolt self use 0.1.1`"));
+        assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
+        assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        assertFalse(Files.exists(installed.installRoot().resolve("previous-version")));
+    }
+
+    @Test
     void successfulCommandPrintsUpdateAvailableNoticeWhenForced() throws IOException {
         InstalledFixture installed = install("0.1.0");
         Path channel = writeChannel("0.1.1", "linux-x64", archive("0.1.1", "linux-x64", "0.1.1"), "sidecar");
@@ -165,7 +210,7 @@ final class UpdateCommandTest {
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("0.1.0-SNAPSHOT"));
         assertTrue(result.stderr().contains(
-                "A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Download and verify the latest native archive for this channel."));
+                "A newer Zolt is available on stable: 0.1.0 -> 0.1.1. Run `zolt self update` to download and verify it."));
     }
 
     @Test
@@ -209,7 +254,7 @@ final class UpdateCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stderr().contains(
-                "A newer Zolt is available on nightly: 0.1.0-nightly.20260627.abcdef1 -> 0.1.0-nightly.20260628.0123456. Download and verify the latest native archive for this channel."));
+                "A newer Zolt is available on nightly: 0.1.0-nightly.20260627.abcdef1 -> 0.1.0-nightly.20260628.0123456. Run `zolt self update` to download and verify it."));
     }
 
     @Test
@@ -251,7 +296,6 @@ final class UpdateCommandTest {
     private CommandResult update(InstalledFixture installed, Path channel) {
         return execute(
                 "update",
-                "--internal-enable-update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
                 "--channel-url", channel.toUri().toString(),
@@ -323,6 +367,38 @@ final class UpdateCommandTest {
                 }
                 """.formatted(channelName, version, target, archive.getFileName(), archive.toUri(), checksumField));
         return channel;
+    }
+
+    private Path writeReleaseIndex(String channelName, String version, String target, Path archive, String checksum) throws IOException {
+        String checksumField = checksum.equals("sidecar")
+                ? "\"checksumUrl\": \"" + archive.resolveSibling(archive.getFileName() + ".sha256").toUri() + "\","
+                : "\"sha256\": \"" + checksum + "\",";
+        Path index = tempDir.resolve("release-index-" + version + "-" + target + ".json");
+        Files.writeString(index, """
+                {
+                  "schemaVersion": 1,
+                  "channel": "%s",
+                  "updatedAt": "2026-07-07T00:00:00Z",
+                  "versions": [
+                    {
+                      "version": "%s",
+                      "commit": "0123456789abcdef",
+                      "createdAt": "2026-07-07T00:00:00Z",
+                      "artifacts": [
+                        {
+                          "target": "%s",
+                          "archive": "%s",
+                          "archiveUrl": "%s",
+                          %s
+                          "format": "tar.gz",
+                          "binaryName": "zolt"
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.formatted(channelName, version, target, archive.getFileName(), archive.toUri(), checksumField));
+        return index;
     }
 
     private static void writeFakeZolt(Path executable, String version) throws IOException {

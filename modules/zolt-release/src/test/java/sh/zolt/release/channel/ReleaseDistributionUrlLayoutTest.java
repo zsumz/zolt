@@ -17,6 +17,7 @@ final class ReleaseDistributionUrlLayoutTest {
         assertEquals("https://dist.zolt.sh/channels/stable.json", urls.channelManifestUrl("stable"));
         assertEquals("https://dist.zolt.sh/channels/nightly.json", urls.channelManifestUrl("nightly"));
         assertEquals("https://dist.zolt.sh/channels/zap.json", urls.channelManifestUrl("zap"));
+        assertEquals("https://dist.zolt.sh/releases/zap.json", urls.releaseIndexUrl("zap"));
         assertEquals(
                 "https://dist.zolt.sh/artifacts/stable/0.1.0/zolt-0.1.0-linux-x64.tar.gz",
                 urls.archiveUrl("stable", "0.1.0", "zolt-0.1.0-linux-x64.tar.gz"));

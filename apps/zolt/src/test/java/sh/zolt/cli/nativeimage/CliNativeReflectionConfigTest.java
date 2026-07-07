@@ -103,6 +103,9 @@ final class CliNativeReflectionConfigTest {
         }
         Class<?> current = type;
         while (current != null && current != Object.class) {
+            if (current != type && declaresPicocliFields(current)) {
+                types.add(current.getName());
+            }
             for (Field field : current.getDeclaredFields()) {
                 if (field.isAnnotationPresent(Mixin.class)) {
                     addAnnotatedType(field.getType(), types);
@@ -113,6 +116,17 @@ final class CliNativeReflectionConfigTest {
             }
             current = current.getSuperclass();
         }
+    }
+
+    private static boolean declaresPicocliFields(Class<?> type) {
+        for (Field field : type.getDeclaredFields()) {
+            if (field.isAnnotationPresent(Mixin.class)
+                    || field.isAnnotationPresent(Option.class)
+                    || field.isAnnotationPresent(Parameters.class)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void addOptionValueType(Class<?> type, Set<String> types) {

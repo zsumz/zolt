@@ -24,6 +24,7 @@ final class NativeUpdateServiceTest extends NativeUpdateServiceTestCase {
         assertEquals("0.1.1", result.availableVersion());
         assertEquals("../versions/0.1.1/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
         assertTrue(Files.isExecutable(installed.installRoot().resolve("versions/0.1.1/bin/zolt")));
+        assertEquals("0.1.0", Files.readString(installed.installRoot().resolve("previous-version")).strip());
     }
 
     @Test
@@ -64,6 +65,7 @@ final class NativeUpdateServiceTest extends NativeUpdateServiceTestCase {
         assertEquals("0.1.0", result.availableVersion());
         assertFalse(Files.exists(workDirectory));
         assertEquals("../versions/0.1.0/bin/zolt", Files.readSymbolicLink(installed.binLink()).toString());
+        assertFalse(Files.exists(installed.installRoot().resolve("previous-version")));
     }
 
     @Test

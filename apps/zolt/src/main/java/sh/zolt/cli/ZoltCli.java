@@ -54,6 +54,7 @@ import picocli.CommandLine.Spec;
                 ZoltHelpCommand.class,
                 InitCommand.class,
                 VersionCommand.class,
+                sh.zolt.cli.command.self.SelfCommand.class,
                 UpdateCommand.class,
                 ConfigCommand.class,
                 CheckCommand.class,
@@ -84,6 +85,7 @@ import picocli.CommandLine.Spec;
                 NativeCommand.class,
                 NativeSmokeCommand.class,
                 ReleaseArchiveCommand.class,
+                sh.zolt.cli.command.publish.ReleaseIndexCommand.class,
                 ReleaseVerifyCommand.class,
                 SelfCheckCommand.class,
                 SelfParityCommand.class,
@@ -160,6 +162,9 @@ public final class ZoltCli implements Runnable {
     @Mixin
     private ZoltUpdateNoticeHook updateNoticeHook = new ZoltUpdateNoticeHook();
 
+    @Mixin
+    private ZoltToolchainNoticeHook toolchainNoticeHook = new ZoltToolchainNoticeHook();
+
     @Option(names = "--list", description = "List available commands.")
     private boolean listCommands;
 
@@ -188,10 +193,14 @@ public final class ZoltCli implements Runnable {
     }
 
     private static void configureExecutionHandling(CommandLine commandLine, ZoltCli rootCommand) {
-        commandLine.setExecutionStrategy(parseResult -> rootCommand.updateNoticeHook.executeWithNotice(
-                commandLine,
-                parseResult,
-                rootCommand.quiet));
+        commandLine.setExecutionStrategy(parseResult -> {
+            int exitCode = new CommandLine.RunLast().execute(parseResult);
+            if (exitCode == 0) {
+                rootCommand.updateNoticeHook.printAfterSuccess(commandLine, parseResult, rootCommand.quiet);
+                rootCommand.toolchainNoticeHook.printAfterSuccess(commandLine, parseResult, rootCommand.quiet);
+            }
+            return exitCode;
+        });
         commandLine.setExecutionExceptionHandler(ZoltCli::handleExecutionException);
         commandLine.getSubcommands().values().forEach(ZoltCli::configureExecutionHandling);
     }

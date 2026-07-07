@@ -72,6 +72,7 @@ imageName = "zolt"
 output = "target/native"
 args = [
     "--initialize-at-build-time=sh.zolt.cli.ZoltBuildVersion",
+    "--enable-url-protocols=https",
     "--no-fallback",
     "--native-image-info",
 ]

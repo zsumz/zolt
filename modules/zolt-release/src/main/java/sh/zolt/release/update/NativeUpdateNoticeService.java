@@ -2,6 +2,8 @@ package sh.zolt.release.update;
 
 import sh.zolt.release.channel.ReleaseChannelManifest;
 import sh.zolt.release.channel.ReleaseChannelManifestValidator;
+import sh.zolt.release.signing.ReleaseSignatureException;
+import sh.zolt.release.signing.ReleaseSignatureVerifier;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.URI;
@@ -19,8 +21,22 @@ public final class NativeUpdateNoticeService {
     private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofHours(24);
     private static final int NOTICE_CONNECT_TIMEOUT_MILLIS = 2_000;
     private static final int NOTICE_READ_TIMEOUT_MILLIS = 2_000;
+    private static final int MAX_CHANNEL_MANIFEST_BYTES = 1_048_576;
+    private static final int MAX_CHANNEL_SIGNATURE_BYTES = 8_192;
 
-    private final ReleaseChannelManifestValidator manifestValidator = new ReleaseChannelManifestValidator();
+    private final ReleaseChannelManifestValidator manifestValidator;
+    private final ReleaseSignatureVerifier signatureVerifier;
+
+    public NativeUpdateNoticeService() {
+        this(new ReleaseChannelManifestValidator(), ReleaseSignatureVerifier.bundled());
+    }
+
+    NativeUpdateNoticeService(
+            ReleaseChannelManifestValidator manifestValidator,
+            ReleaseSignatureVerifier signatureVerifier) {
+        this.manifestValidator = manifestValidator;
+        this.signatureVerifier = signatureVerifier;
+    }
 
     public Optional<NativeUpdateNotice> check(NativeUpdateNoticeRequest request) {
         if (request.disabled() || request.offline() || request.ci() || !request.interactive()) {
@@ -43,7 +59,14 @@ public final class NativeUpdateNoticeService {
         }
 
         try {
-            ReleaseChannelManifest manifest = validateManifest(request.channelUri(), downloadText(request.channelUri()));
+            byte[] manifestBytes = downloadBytes(
+                    request.channelUri(),
+                    MAX_CHANNEL_MANIFEST_BYTES,
+                    "release channel manifest");
+            verifyManifestSignature(request.channelUri(), manifestBytes);
+            ReleaseChannelManifest manifest = validateManifest(
+                    request.channelUri(),
+                    new String(manifestBytes, StandardCharsets.UTF_8));
             writeCache(request, manifest.version(), manifest.channel());
             if (isNewer(installed.version(), manifest.version())) {
                 return Optional.of(new NativeUpdateNotice(
@@ -57,6 +80,26 @@ public final class NativeUpdateNoticeService {
         } catch (IOException | RuntimeException exception) {
             writeCache(request, cache.getProperty("latestVersion", ""), cache.getProperty("channel", ""));
             return cachedNotice(cache, request, installed);
+        }
+    }
+
+    private void verifyManifestSignature(URI channelUri, byte[] manifestBytes) throws IOException {
+        if (ReleaseChannelUriPolicy.isLocalFile(channelUri)) {
+            return;
+        }
+        URI signatureUri = ReleaseChannelSignatureUris.sidecar(channelUri);
+        String sidecarText = new String(
+                downloadBytes(
+                        signatureUri,
+                        MAX_CHANNEL_SIGNATURE_BYTES,
+                        "release channel signature"),
+                StandardCharsets.UTF_8);
+        try {
+            signatureVerifier.verify(manifestBytes, sidecarText);
+        } catch (ReleaseSignatureException exception) {
+            throw new NativeUpdateException(
+                    "Release channel signature verification failed: " + exception.getMessage(),
+                    exception);
         }
     }
 
@@ -140,16 +183,26 @@ public final class NativeUpdateNoticeService {
         return stateDirectory.resolve("update-check.properties");
     }
 
-    private static String downloadText(URI uri) throws IOException {
+    private static byte[] downloadBytes(URI uri, int maxBytes, String description) throws IOException {
         if ("file".equals(uri.getScheme())) {
-            return Files.readString(Path.of(uri), StandardCharsets.UTF_8);
+            try (var input = Files.newInputStream(Path.of(uri))) {
+                return readBytes(input, maxBytes, description);
+            }
         }
         URLConnection connection = uri.toURL().openConnection();
         connection.setConnectTimeout(NOTICE_CONNECT_TIMEOUT_MILLIS);
         connection.setReadTimeout(NOTICE_READ_TIMEOUT_MILLIS);
         try (var input = connection.getInputStream()) {
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            return readBytes(input, maxBytes, description);
         }
+    }
+
+    private static byte[] readBytes(java.io.InputStream input, int maxBytes, String description) throws IOException {
+        byte[] bytes = input.readNBytes(maxBytes + 1);
+        if (bytes.length > maxBytes) {
+            throw new NativeUpdateException("Downloaded " + description + " is too large.");
+        }
+        return bytes;
     }
 
     private static boolean isNewer(String currentVersion, String availableVersion) {

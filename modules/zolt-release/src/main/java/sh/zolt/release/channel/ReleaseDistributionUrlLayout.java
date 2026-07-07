@@ -34,6 +34,10 @@ public final class ReleaseDistributionUrlLayout {
         return origin + "/channels/" + safePathSegment(channel, "channel") + ".json";
     }
 
+    public String releaseIndexUrl(String channel) {
+        return origin + "/releases/" + safePathSegment(channel, "channel") + ".json";
+    }
+
     public String archiveUrl(String channel, String version, String archive) {
         return artifactBase(channel, version) + "/" + safePathSegment(archive, "archive");
     }

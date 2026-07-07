@@ -263,4 +263,24 @@ final class ZoltTomlParserValidationTest {
                 "Unknown field [project].packaging in zolt.toml. Remove it or check the spelling.",
                 exception.getMessage());
     }
+
+    @Test
+    void rejectsUnknownToolchainField() {
+        ZoltConfigException exception = assertThrows(
+                ZoltConfigException.class,
+                () -> parser.parse("""
+                        [project]
+                        name = "bad"
+                        version = "0.1.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [toolchain.zolt]
+                        versoin = "0.2.0"
+                        """));
+
+        assertEquals(
+                "Unknown field [toolchain.zolt].versoin in zolt.toml. Remove it or check the spelling.",
+                exception.getMessage());
+    }
 }

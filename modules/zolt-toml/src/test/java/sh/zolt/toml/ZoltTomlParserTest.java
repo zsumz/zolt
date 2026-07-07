@@ -84,6 +84,22 @@ final class ZoltTomlParserTest {
     }
 
     @Test
+    void acceptsZoltToolchainVersion() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "tiny"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [toolchain.zolt]
+                version = "0.2.0"
+                """);
+
+        assertEquals("tiny", config.project().name());
+    }
+
+    @Test
     void parsesCompilerGeneratedSourceDirectories() {
         ProjectConfig config = parser.parse("""
                 [project]

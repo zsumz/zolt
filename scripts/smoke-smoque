@@ -8,6 +8,9 @@ export NPM_CONFIG_CACHE
 
 cd "$ROOT"
 case "${1:-}" in
+  *.smoke.mts | */*.smoke.mts)
+    exec npx --yes "$SMOQUE_PACKAGE" run "$@"
+    ;;
   agents | doctor | init | list | run | snippets | --help | -h | --version)
     exec npx --yes "$SMOQUE_PACKAGE" "$@"
     ;;

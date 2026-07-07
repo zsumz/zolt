@@ -121,7 +121,10 @@ public final class CommandAliasExpansionHandler implements IParameterExceptionHa
                 || "--update-check-target".equals(arg)
                 || "--update-check-current-executable".equals(arg)
                 || "--update-check-state-dir".equals(arg)
-                || "--update-check-interval-seconds".equals(arg);
+                || "--update-check-interval-seconds".equals(arg)
+                || "--toolchain-check".equals(arg)
+                || "--toolchain-check-cwd".equals(arg)
+                || "--toolchain-check-install-root".equals(arg);
     }
 
     private static boolean hasInlineValue(String arg) {
@@ -134,7 +137,10 @@ public final class CommandAliasExpansionHandler implements IParameterExceptionHa
                 || arg.startsWith("--update-check-target=")
                 || arg.startsWith("--update-check-current-executable=")
                 || arg.startsWith("--update-check-state-dir=")
-                || arg.startsWith("--update-check-interval-seconds=");
+                || arg.startsWith("--update-check-interval-seconds=")
+                || arg.startsWith("--toolchain-check=")
+                || arg.startsWith("--toolchain-check-cwd=")
+                || arg.startsWith("--toolchain-check-install-root=");
     }
 
     private static boolean isBooleanGlobalOption(String arg) {

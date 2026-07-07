@@ -50,8 +50,8 @@ final class NativeInstalledLayoutTest {
                 NativeUpdateException.class,
                 () -> NativeInstalledLayout.detect(installRoot, bin.resolve("zolt")));
 
-        assertTrue(exception.getMessage().contains("installer-managed native Zolt layouts"));
-        assertTrue(exception.getMessage().contains("to be a symlink"));
+        assertTrue(exception.getMessage().contains("Installer-managed native Zolt layouts"));
+        assertTrue(exception.getMessage().contains("must use a symlink"));
     }
 
     @Test
@@ -65,7 +65,7 @@ final class NativeInstalledLayoutTest {
                 NativeUpdateException.class,
                 () -> NativeInstalledLayout.detect(installRoot, otherExecutable));
 
-        assertTrue(exception.getMessage().contains("active installer-managed native Zolt executable"));
+        assertTrue(exception.getMessage().contains("active executable"));
         assertTrue(exception.getMessage().contains(installRoot.resolve("bin/zolt").toString()));
     }
 
@@ -82,7 +82,7 @@ final class NativeInstalledLayoutTest {
                 NativeUpdateException.class,
                 () -> NativeInstalledLayout.detect(installRoot, binLink));
 
-        assertTrue(exception.getMessage().contains("versioned native installs"));
+        assertTrue(exception.getMessage().contains("versioned installs"));
         assertTrue(exception.getMessage().contains(installRoot.resolve("versions").toString()));
     }
 
@@ -99,7 +99,7 @@ final class NativeInstalledLayoutTest {
                 NativeUpdateException.class,
                 () -> NativeInstalledLayout.detect(installRoot, binLink));
 
-        assertTrue(exception.getMessage().contains("versioned native installs"));
+        assertTrue(exception.getMessage().contains("versioned installs"));
     }
 
     private Path install(String version) throws IOException {

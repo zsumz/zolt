@@ -17,9 +17,8 @@ smoke.suite("zolt command options smoke", { tags: ["commands"] }, async (t: Smok
     const list = await runZolt(t, zolt, ["--color=never", "--list"], { timeout: "30s" });
     expect.value(list.stdout).toContain("resolve");
     expect.value(list.stdout).toContain("package");
-    if (list.stdout.includes("update")) {
-      t.fail("Public command list should not advertise zolt update.");
-    }
+    expect.value(list.stdout).toContain("self");
+    expect.value(list.stdout).toContain("update");
 
     const quietHelp = await runZolt(t, zolt, ["--quiet", "help"], { timeout: "30s" });
     expect.value(quietHelp.stdout).toContain("The modern Java build toolkit.");

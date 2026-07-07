@@ -39,12 +39,8 @@ final class ZoltUpdateNoticeHook {
     @Option(names = "--internal-enable-update-notices", scope = CommandLine.ScopeType.INHERIT, hidden = true)
     private boolean internalEnableUpdateNotices;
 
-    int executeWithNotice(CommandLine commandLine, ParseResult parseResult, boolean quiet) {
-        int exitCode = new CommandLine.RunLast().execute(parseResult);
-        if (exitCode == 0) {
-            printUpdateNotice(commandLine, parseResult, quiet);
-        }
-        return exitCode;
+    void printAfterSuccess(CommandLine commandLine, ParseResult parseResult, boolean quiet) {
+        printUpdateNotice(commandLine, parseResult, quiet);
     }
 
     private void printUpdateNotice(CommandLine commandLine, ParseResult parseResult, boolean quiet) {

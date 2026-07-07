@@ -17,35 +17,36 @@ final class CliSurfaceTest {
     private Path tempDir;
 
     @Test
-    void updateIsNotAPublicAlphaInstallPathByDefault() {
-        CommandResult result = execute("update");
+    void updateRequiresInstallerManagedLayoutByDefault() {
+        CommandResult result = execute("update", "--install-root", tempDir.resolve("install").toString());
 
         assertEquals(1, result.exitCode());
         assertEquals("", result.stdout());
-        assertTrue(result.stderr().contains("zolt update is not a public-alpha install path"));
-        assertTrue(result.stderr().contains("Download the native archive"));
+        assertTrue(result.stderr().contains("Installer-managed native Zolt layouts"));
     }
 
     @Test
-    void updateDisabledErrorsUseModernHumanOutputControls() {
-        CommandResult color = execute("--color", "always", "update");
-        CommandResult quiet = execute("--quiet", "update");
+    void updateLayoutErrorsUseModernHumanOutputControls() {
+        Path installRoot = tempDir.resolve("install");
+        CommandResult color = execute("--color", "always", "update", "--install-root", installRoot.toString());
+        CommandResult quiet = execute("--quiet", "update", "--install-root", installRoot.toString());
 
         assertEquals(1, color.exitCode());
-        assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m zolt update is not a public-alpha install path"));
+        assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m Installer-managed native Zolt layouts"));
         assertEquals("", color.stdout());
         assertFalse(color.stderr().contains("\u001B[31mNext"));
         assertEquals(1, quiet.exitCode());
         assertEquals("", quiet.stdout());
-        assertTrue(quiet.stderr().contains("zolt update is not a public-alpha install path"));
+        assertTrue(quiet.stderr().contains("Installer-managed native Zolt layouts"));
     }
 
     @Test
-    void rootHelpDoesNotAdvertiseUpdateForPublicAlpha() {
+    void rootHelpAdvertisesSelfManagedNativeUpdate() {
         CommandResult result = execute("--list");
 
         assertEquals(0, result.exitCode());
-        assertFalse(result.stdout().contains("update"));
+        assertTrue(result.stdout().contains("self"));
+        assertTrue(result.stdout().contains("update"));
         assertTrue(result.stdout().contains("version"));
     }
 
@@ -189,6 +190,7 @@ final class CliSurfaceTest {
                 "help",
                 "init",
                 "version",
+                "self",
                 "update",
                 "config",
                 "check",
@@ -219,6 +221,7 @@ final class CliSurfaceTest {
                 "native",
                 "native-smoke",
                 "release-archive",
+                "release-index",
                 "release-verify",
                 "self-check",
                 "self-parity",
@@ -227,6 +230,7 @@ final class CliSurfaceTest {
         assertEquals(commandClass("classpath"), "sh.zolt.cli.command.resolve.ClasspathCommand");
         assertEquals(commandClass("config"), "sh.zolt.cli.command.config.ConfigCommand");
         assertEquals(commandClass("version"), "sh.zolt.cli.command.dependency.VersionCommand");
+        assertEquals(commandClass("self"), "sh.zolt.cli.command.self.SelfCommand");
         assertEquals(commandClass("update"), "sh.zolt.cli.command.update.UpdateCommand");
         assertEquals(commandClass("native-smoke"), "sh.zolt.cli.command.nativeimage.NativeSmokeCommand");
         assertEquals(commandClass("aliases"), "sh.zolt.cli.command.task.AliasesCommand");
@@ -234,6 +238,7 @@ final class CliSurfaceTest {
         assertEquals(commandClass("task"), "sh.zolt.cli.command.task.TaskCommand");
         assertEquals(commandClass("release-verify"), "sh.zolt.cli.command.publish.ReleaseVerifyCommand");
         assertEquals(commandClass("release-archive"), "sh.zolt.cli.command.publish.ReleaseArchiveCommand");
+        assertEquals(commandClass("release-index"), "sh.zolt.cli.command.publish.ReleaseIndexCommand");
         assertEquals(commandClass("publish"), "sh.zolt.cli.command.publish.PublishCommand");
         assertEquals(commandClass("native"), "sh.zolt.cli.command.nativeimage.NativeCommand");
         assertEquals(commandClass("plan"), "sh.zolt.cli.command.build.PlanCommand");

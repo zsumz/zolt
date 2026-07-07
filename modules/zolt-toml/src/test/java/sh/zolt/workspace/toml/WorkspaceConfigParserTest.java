@@ -20,6 +20,9 @@ final class WorkspaceConfigParserTest {
                 members = ["apps/api", "modules/core"]
                 defaultMembers = ["apps/api"]
 
+                [toolchain.zolt]
+                version = "0.2.0"
+
                 [repositories]
                 central = "https://repo.maven.apache.org/maven2"
                 internal = "https://repo.acme.example/maven"

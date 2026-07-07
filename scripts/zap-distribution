@@ -31,6 +31,7 @@ default_target() {
 CHANNEL="${ZOLT_RELEASE_CHANNEL:-zap}"
 TARGET="${ZOLT_RELEASE_TARGET:-$(default_target)}"
 ORIGIN="${ZOLT_DISTRIBUTION_ORIGIN:-https://dist.zolt.sh}"
+SIGNING_KEY_ID="${ZOLT_RELEASE_SIGNING_KEY_ID:-zolt-release-2026}"
 PUBLISH=0
 PUBLISH_FROM=""
 
@@ -48,6 +49,10 @@ Environment:
   ZOLT_DISTRIBUTION_ORIGIN    Public HTTPS origin. Default: https://dist.zolt.sh.
   DO_SPACES_BUCKET            Bucket name used with --publish.
   DO_SPACES_ENDPOINT          S3-compatible endpoint used with --publish.
+  ZOLT_RELEASE_ED25519_PRIVATE_KEY
+                              PEM Ed25519 private key used to sign release manifests with --publish.
+  ZOLT_RELEASE_SIGNING_KEY_ID Signing key id. Default: zolt-release-2026.
+  ZOLT_RELEASE_INDEX_LIMIT    Maximum versions to keep in releases/<channel>.json. Default: 200.
 USAGE
 }
 
@@ -141,6 +146,10 @@ json_string() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+release_signing_private_key() {
+  printf '%s' "${ZOLT_RELEASE_ED25519_PRIVATE_KEY:-${ZOLT_RELEASE_SIGNING_KEY:-}}"
+}
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --publish)
@@ -200,6 +209,8 @@ export ZOLT_VERSION_OVERRIDE="$VERSION"
 APP_DIR="$ROOT/apps/zolt"
 OUTPUT_DIR="target/release/${CHANNEL}/${VERSION}"
 CHANNEL_DIR="target/release/channels"
+RELEASES_DIR="target/release/releases"
+RELEASE_INDEX_LIMIT="${ZOLT_RELEASE_INDEX_LIMIT:-200}"
 ARCHIVE_EXTENSION="$(target_archive_extension "$TARGET")"
 FORMAT="$(target_format "$TARGET")"
 BINARY_NAME="$(target_binary_name "$TARGET")"
@@ -209,6 +220,7 @@ ARCHIVE_PATH="${APP_DIR}/${OUTPUT_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
 RELEASE_MANIFEST_PATH="${APP_DIR}/${OUTPUT_DIR}/release-manifest.json"
 CHANNEL_MANIFEST_PATH="${APP_DIR}/${CHANNEL_DIR}/${CHANNEL}.json"
+RELEASE_INDEX_PATH="${APP_DIR}/${RELEASES_DIR}/${CHANNEL}.json"
 ARCHIVE_URL="${ORIGIN}/artifacts/${CHANNEL}/${VERSION}/${ARCHIVE_NAME}"
 CHECKSUM_URL="${ARCHIVE_URL}.sha256"
 APP_LOCKFILE="${APP_DIR}/zolt.lock"
@@ -229,10 +241,86 @@ require_publish_environment() {
     printf 'error: --publish requires DO_SPACES_BUCKET and DO_SPACES_ENDPOINT\n' >&2
     exit 2
   fi
+  if [[ -z "$(release_signing_private_key)" ]]; then
+    printf 'error: --publish requires ZOLT_RELEASE_ED25519_PRIVATE_KEY\n' >&2
+    exit 2
+  fi
   if ! command -v aws >/dev/null 2>&1; then
     printf 'error: --publish requires aws CLI on PATH\n' >&2
     exit 2
   fi
+  if ! command -v openssl >/dev/null 2>&1; then
+    printf 'error: --publish requires openssl on PATH to sign channel manifests\n' >&2
+    exit 2
+  fi
+}
+
+sign_manifest() {
+  local manifest_path
+  local private_key_path
+  local signature
+  local signature_path
+
+  manifest_path="$1"
+  signature_path="${manifest_path}.sig"
+  private_key_path="$(mktemp)"
+  chmod 600 "$private_key_path"
+  printf '%s\n' "$(release_signing_private_key)" > "$private_key_path"
+  if ! signature="$(openssl pkeyutl -sign -rawin -inkey "$private_key_path" -in "$manifest_path" | openssl base64 -A)"; then
+    rm -f "$private_key_path"
+    printf 'error: could not sign manifest %s\n' "$manifest_path" >&2
+    exit 1
+  fi
+  rm -f "$private_key_path"
+
+  cat > "$signature_path" <<EOF
+version: zolt-ed25519-v1
+keyId: ${SIGNING_KEY_ID}
+signature: ${signature}
+EOF
+}
+
+publish_signed_manifest() {
+  local manifest_path
+  local manifest_uri
+
+  manifest_path="$1"
+  manifest_uri="$2"
+  sign_manifest "$manifest_path"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "${manifest_path}.sig" "${manifest_uri}.sig" \
+    --acl public-read \
+    --cache-control "no-cache" \
+    --content-type "text/plain"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$manifest_path" "$manifest_uri" \
+    --acl public-read \
+    --cache-control "no-cache" \
+    --content-type "application/json"
+}
+
+prepare_release_index() {
+  local channel_manifest_path
+  local release_index_path
+  local previous_index_uri
+  local previous_index_path
+
+  channel_manifest_path="$1"
+  release_index_path="$2"
+  previous_index_uri="${3:-}"
+  previous_index_path="${release_index_path%.json}.previous.json"
+
+  mkdir -p "$(dirname "$release_index_path")"
+  rm -f "$previous_index_path"
+  if [[ -n "$previous_index_uri" ]]; then
+    if ! aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$previous_index_uri" "$previous_index_path" >/dev/null 2>&1; then
+      rm -f "$previous_index_path"
+    fi
+  fi
+
+  scripts/bootstrap-zolt-jvm --no-progress release-index \
+    --channel-manifest "$channel_manifest_path" \
+    --previous "$previous_index_path" \
+    --output "$release_index_path" \
+    --limit "$RELEASE_INDEX_LIMIT"
 }
 
 publish_install_script() {
@@ -255,6 +343,7 @@ publish_combined_artifacts() {
   local publish_output_dir
   local combined_release_manifest
   local combined_channel_manifest
+  local combined_release_index
   local archive
   local archive_name
   local checksum_path
@@ -265,6 +354,7 @@ publish_combined_artifacts() {
   local binary_name
   local artifact_uri
   local channel_uri
+  local release_index_uri
   local release_entries
   local channel_entries
   local targets_seen
@@ -345,6 +435,7 @@ publish_combined_artifacts() {
   mkdir -p "$publish_output_dir" "${APP_DIR}/${CHANNEL_DIR}"
   combined_release_manifest="${publish_output_dir}/release-manifest.json"
   combined_channel_manifest="${APP_DIR}/${CHANNEL_DIR}/${CHANNEL}.json"
+  combined_release_index="${APP_DIR}/${RELEASES_DIR}/${CHANNEL}.json"
 
   cat > "$combined_release_manifest" <<EOF
 {
@@ -371,6 +462,7 @@ EOF
 
   artifact_uri="s3://${DO_SPACES_BUCKET}/artifacts/${CHANNEL}/${VERSION}"
   channel_uri="s3://${DO_SPACES_BUCKET}/channels/${CHANNEL}.json"
+  release_index_uri="s3://${DO_SPACES_BUCKET}/releases/${CHANNEL}.json"
 
   while IFS= read -r archive; do
     archive_name="$(basename "$archive")"
@@ -390,16 +482,16 @@ EOF
     --acl public-read \
     --cache-control "public, max-age=31536000, immutable" \
     --content-type "application/json"
-  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$combined_channel_manifest" "$channel_uri" \
-    --acl public-read \
-    --cache-control "no-cache" \
-    --content-type "application/json"
+  prepare_release_index "$combined_channel_manifest" "$combined_release_index" "$release_index_uri"
+  publish_signed_manifest "$combined_release_index" "$release_index_uri"
+  publish_signed_manifest "$combined_channel_manifest" "$channel_uri"
   publish_install_script
 
-  printf 'Published %s, %s, and s3://%s/install.sh\n' "$artifact_uri" "$channel_uri" "$DO_SPACES_BUCKET"
+  printf 'Published %s, %s, %s, and s3://%s/install.sh\n' "$artifact_uri" "$release_index_uri" "$channel_uri" "$DO_SPACES_BUCKET"
   printf 'ZOLT_ZAP_VERSION=%s\n' "$VERSION"
   printf 'ZOLT_ZAP_RELEASE_MANIFEST=%s\n' "$combined_release_manifest"
   printf 'ZOLT_ZAP_CHANNEL_MANIFEST=%s\n' "$combined_channel_manifest"
+  printf 'ZOLT_ZAP_RELEASE_INDEX=%s\n' "$combined_release_index"
 }
 
 if [[ -n "$PUBLISH_FROM" ]]; then
@@ -470,12 +562,14 @@ cat > "$CHANNEL_MANIFEST_PATH" <<EOF
 EOF
 
 printf 'Wrote %s\n' "$CHANNEL_MANIFEST_PATH"
+prepare_release_index "$CHANNEL_MANIFEST_PATH" "$RELEASE_INDEX_PATH"
 
 if [[ "$PUBLISH" -eq 1 ]]; then
   require_publish_environment
 
   ARTIFACT_URI="s3://${DO_SPACES_BUCKET}/artifacts/${CHANNEL}/${VERSION}"
   CHANNEL_URI="s3://${DO_SPACES_BUCKET}/channels/${CHANNEL}.json"
+  RELEASE_INDEX_URI="s3://${DO_SPACES_BUCKET}/releases/${CHANNEL}.json"
 
   aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$ARCHIVE_PATH" "${ARTIFACT_URI}/${ARCHIVE_NAME}" \
     --acl public-read \
@@ -489,15 +583,15 @@ if [[ "$PUBLISH" -eq 1 ]]; then
     --acl public-read \
     --cache-control "public, max-age=31536000, immutable" \
     --content-type "application/json"
-  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$CHANNEL_MANIFEST_PATH" "$CHANNEL_URI" \
-    --acl public-read \
-    --cache-control "no-cache" \
-    --content-type "application/json"
+  prepare_release_index "$CHANNEL_MANIFEST_PATH" "$RELEASE_INDEX_PATH" "$RELEASE_INDEX_URI"
+  publish_signed_manifest "$RELEASE_INDEX_PATH" "$RELEASE_INDEX_URI"
+  publish_signed_manifest "$CHANNEL_MANIFEST_PATH" "$CHANNEL_URI"
   publish_install_script
 
-  printf 'Published %s, %s, and s3://%s/install.sh\n' "$ARTIFACT_URI" "$CHANNEL_URI" "$DO_SPACES_BUCKET"
+  printf 'Published %s, %s, %s, and s3://%s/install.sh\n' "$ARTIFACT_URI" "$RELEASE_INDEX_URI" "$CHANNEL_URI" "$DO_SPACES_BUCKET"
 fi
 
 printf 'ZOLT_ZAP_VERSION=%s\n' "$VERSION"
 printf 'ZOLT_ZAP_ARCHIVE=%s\n' "$ARCHIVE_PATH"
 printf 'ZOLT_ZAP_CHANNEL_MANIFEST=%s\n' "$CHANNEL_MANIFEST_PATH"
+printf 'ZOLT_ZAP_RELEASE_INDEX=%s\n' "$RELEASE_INDEX_PATH"

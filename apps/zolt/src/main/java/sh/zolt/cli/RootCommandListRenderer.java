@@ -23,6 +23,7 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "version",
                     "config",
                     "doctor",
+                    "self",
                     "update")),
             new CommandGroup("Dependencies", List.of(
                     "add",

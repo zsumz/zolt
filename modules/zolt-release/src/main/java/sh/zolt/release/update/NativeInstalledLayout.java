@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 record NativeInstalledLayout(
+        Path installRoot,
         Path binLink,
         Path linkTarget,
         Path versionsDirectory,
@@ -13,7 +14,7 @@ record NativeInstalledLayout(
         Path root = installRoot.toAbsolutePath().normalize();
         Path binLink = root.resolve("bin").resolve("zolt");
         if (!Files.isSymbolicLink(binLink)) {
-            throw new NativeUpdateException("zolt update only supports installer-managed native Zolt layouts. Expected " + binLink + " to be a symlink.");
+            throw new NativeUpdateException("Installer-managed native Zolt layouts must use a symlink at " + binLink + ".");
         }
         Path linkTarget = Files.readSymbolicLink(binLink);
         Path linkedExecutable = binLink.getParent().resolve(linkTarget).normalize();
@@ -21,16 +22,16 @@ record NativeInstalledLayout(
         Path currentReal = Files.exists(current) ? current.toRealPath() : current;
         Path linkedReal = Files.exists(linkedExecutable) ? linkedExecutable.toRealPath() : linkedExecutable;
         if (!current.equals(binLink) && !currentReal.equals(linkedReal)) {
-            throw new NativeUpdateException("zolt update only supports the active installer-managed native Zolt executable under " + binLink + ".");
+            throw new NativeUpdateException("Installer-managed native Zolt operations must run from the active executable under " + binLink + ".");
         }
         Path versions = root.resolve("versions");
         if (!linkedExecutable.startsWith(versions)) {
-            throw new NativeUpdateException("zolt update only supports versioned native installs under " + versions + ".");
+            throw new NativeUpdateException("Installer-managed native Zolt layouts must use versioned installs under " + versions + ".");
         }
         Path relative = versions.relativize(linkedExecutable);
         if (relative.getNameCount() < 3 || !relative.getName(1).toString().equals("bin")) {
-            throw new NativeUpdateException("zolt update only supports versioned native installs under " + versions + ".");
+            throw new NativeUpdateException("Installer-managed native Zolt layouts must use versioned installs under " + versions + ".");
         }
-        return new NativeInstalledLayout(binLink, linkTarget, versions, relative.getName(0).toString());
+        return new NativeInstalledLayout(root, binLink, linkTarget, versions, relative.getName(0).toString());
     }
 }

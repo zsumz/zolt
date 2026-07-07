@@ -21,7 +21,7 @@ final class NativeUpdateValueModelTest {
         assertFalse(notice.cached());
         assertEquals(ReleaseTarget.LINUX_X64, notice.target());
         assertEquals(
-                "A newer Zolt is available on zap: 0.1.0-zap.20260702.0123456 -> 0.1.0-zap.20260703.abcdef0. Download and verify the latest native archive for this channel.",
+                "A newer Zolt is available on zap: 0.1.0-zap.20260702.0123456 -> 0.1.0-zap.20260703.abcdef0. Run `zolt self update` to download and verify it.",
                 notice.message());
     }
 

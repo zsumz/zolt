@@ -14,6 +14,6 @@ public record NativeUpdateNotice(
                 + currentVersion
                 + " -> "
                 + availableVersion
-                + ". Download and verify the latest native archive for this channel.";
+                + ". Run `zolt self update` to download and verify it.";
     }
 }

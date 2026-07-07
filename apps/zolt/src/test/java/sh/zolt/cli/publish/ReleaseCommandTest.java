@@ -177,6 +177,35 @@ final class ReleaseCommandTest {
         assertTrue(result.stderr().contains("archive does not exist"));
     }
 
+    @Test
+    void releaseIndexMergesCurrentChannelManifestWithPreviousIndex() throws IOException {
+        Path channel = tempDir.resolve("zap-channel.json");
+        Path previous = tempDir.resolve("zap-previous-index.json");
+        Path output = tempDir.resolve("zap-index.json");
+        Files.writeString(channel, channelManifest("0.1.0-zap.20260707.333333333333"));
+        Files.writeString(previous, releaseIndex(
+                releaseIndexVersion("0.1.0-zap.20260706.222222222222"),
+                releaseIndexVersion("0.1.0-zap.20260705.111111111111")));
+
+        CommandResult result = execute(
+                "release-index",
+                "--channel-manifest", channel.toString(),
+                "--previous", previous.toString(),
+                "--output", output.toString(),
+                "--limit", "2");
+        String index = Files.readString(output);
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("✔ Wrote zap release index"));
+        assertTrue(result.stdout().contains("2 versions"));
+        assertTrue(result.stdout().contains("latest 0.1.0-zap.20260707.333333333333"));
+        assertTrue(result.stdout().contains("→ wrote " + output));
+        assertTrue(index.contains("\"schemaVersion\": 1"));
+        assertTrue(index.indexOf("0.1.0-zap.20260707.333333333333")
+                < index.indexOf("0.1.0-zap.20260706.222222222222"));
+        assertFalse(index.contains("0.1.0-zap.20260705.111111111111"));
+    }
+
     private static void writeProjectConfig(Path projectDir, String repositoryUrl) throws IOException {
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), """
@@ -200,6 +229,63 @@ final class ReleaseCommandTest {
                 output = "target/classes"
                 testOutput = "target/test-classes"
                 """.formatted(currentJavaMajorVersion(), repositoryUrl));
+    }
+
+    private static String channelManifest(String version) {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "channel": "zap",
+                  "version": "%s",
+                  "commit": "0123456789abcdef",
+                  "createdAt": "2026-07-07T00:00:00Z",
+                  "artifacts": [
+                    {
+                      "target": "linux-x64",
+                      "archive": "zolt-%s-linux-x64.tar.gz",
+                      "archiveUrl": "https://dist.zolt.sh/artifacts/zap/%s/zolt-%s-linux-x64.tar.gz",
+                      "checksumUrl": "https://dist.zolt.sh/artifacts/zap/%s/zolt-%s-linux-x64.tar.gz.sha256",
+                      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                      "format": "tar.gz",
+                      "binaryName": "zolt"
+                    }
+                  ]
+                }
+                """.formatted(version, version, version, version, version, version);
+    }
+
+    private static String releaseIndex(String... versions) {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "channel": "zap",
+                  "updatedAt": "2026-07-06T20:00:00Z",
+                  "versions": [
+                %s
+                  ]
+                }
+                """.formatted(String.join(",\n", versions).indent(4));
+    }
+
+    private static String releaseIndexVersion(String version) {
+        return """
+                {
+                  "version": "%s",
+                  "commit": "0123456789abcdef",
+                  "createdAt": "2026-07-06T20:00:00Z",
+                  "artifacts": [
+                    {
+                      "target": "linux-x64",
+                      "archive": "zolt-%s-linux-x64.tar.gz",
+                      "archiveUrl": "https://dist.zolt.sh/artifacts/zap/%s/zolt-%s-linux-x64.tar.gz",
+                      "checksumUrl": "https://dist.zolt.sh/artifacts/zap/%s/zolt-%s-linux-x64.tar.gz.sha256",
+                      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                      "format": "tar.gz",
+                      "binaryName": "zolt"
+                    }
+                  ]
+                }
+                """.formatted(version, version, version, version, version, version);
     }
 
     private static void writeFakeZoltBinary(Path binary) throws IOException {

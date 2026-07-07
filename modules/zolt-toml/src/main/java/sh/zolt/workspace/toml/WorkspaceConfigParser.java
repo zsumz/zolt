@@ -1,5 +1,6 @@
 package sh.zolt.workspace.toml;
 
+import sh.zolt.toml.ToolchainSectionCodec;
 import sh.zolt.workspace.WorkspaceConfig;
 import sh.zolt.workspace.WorkspaceConfigException;
 import java.io.IOException;
@@ -20,7 +21,7 @@ public final class WorkspaceConfigParser {
     public static final String WORKSPACE_FILE = "zolt-workspace.toml";
     public static final String ROOT_CONFIG_FILE = "zolt.toml";
 
-    private static final Set<String> TOP_LEVEL_SECTIONS = Set.of("workspace", "repositories", "platforms");
+    private static final Set<String> TOP_LEVEL_SECTIONS = Set.of("workspace", "repositories", "platforms", "toolchain");
     private static final Set<String> ROOT_TOP_LEVEL_SECTIONS = Set.of(
             "project",
             "repositories",
@@ -45,6 +46,7 @@ public final class WorkspaceConfigParser {
             "publish",
             "framework",
             "native",
+            "toolchain",
             "workspace",
             "commands");
     private static final Set<String> WORKSPACE_KEYS = Set.of("name", "members", "defaultMembers");
@@ -96,6 +98,7 @@ public final class WorkspaceConfigParser {
             throw new WorkspaceConfigException(parseErrorMessage(result, sourceName));
         }
         validateTopLevelSections(result, sourceName, allowedTopLevelSections);
+        validateToolchain(result, sourceName);
 
         TomlTable workspaceTable = requiredTable(result, "workspace", sourceName);
         validateKeys("workspace", workspaceTable, WORKSPACE_KEYS, sourceName);
@@ -138,6 +141,14 @@ public final class WorkspaceConfigParser {
                 throw new WorkspaceConfigException(
                         "Unknown field [" + section + "]." + key + " in " + sourceName + ". Remove it or check the spelling.");
             }
+        }
+    }
+
+    private static void validateToolchain(TomlParseResult result, String sourceName) {
+        try {
+            ToolchainSectionCodec.parseZoltVersion(result, sourceName);
+        } catch (sh.zolt.toml.ZoltConfigException exception) {
+            throw new WorkspaceConfigException(exception.getMessage());
         }
     }
 
