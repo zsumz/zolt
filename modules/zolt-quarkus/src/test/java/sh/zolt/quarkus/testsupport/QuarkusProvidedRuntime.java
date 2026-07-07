@@ -1,7 +1,6 @@
 package sh.zolt.quarkus.testsupport;
 
 import java.io.IOException;
-import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +23,7 @@ public final class QuarkusProvidedRuntime {
     }
 
     public static URLClassLoader open() throws IOException {
-        List<URL> urls = new ArrayList<>();
+        List<java.net.URL> urls = new ArrayList<>();
         Path repoRoot = repoRoot();
         try (Stream<Path> paths = Files.walk(repoRoot.resolve("modules"), 3)) {
             for (Path classesDirectory : paths
@@ -32,14 +31,14 @@ public final class QuarkusProvidedRuntime {
                     .filter(path -> path.endsWith("target/classes") || path.endsWith("target/test-classes"))
                     .sorted()
                     .toList()) {
-                urls.add(classesDirectory.toUri().toURL());
+                urls.add(QuarkusTestRuntimeClasspath.url(classesDirectory));
             }
         }
-        Path cacheRoot = repoRoot.resolve(".zolt/cache");
-        for (String jar : PROVIDED_JARS) {
-            urls.add(cacheRoot.resolve(jar).toUri().toURL());
+        urls.addAll(QuarkusTestRuntimeClasspath.currentJvmUrls());
+        for (Path jar : QuarkusTestRuntimeClasspath.existingRepoCacheJars(repoRoot, PROVIDED_JARS)) {
+            urls.add(QuarkusTestRuntimeClasspath.url(jar));
         }
-        return new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
+        return new URLClassLoader(urls.toArray(java.net.URL[]::new), ClassLoader.getPlatformClassLoader());
     }
 
     public static Path repoRoot() {

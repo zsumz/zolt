@@ -178,13 +178,17 @@ final class DownloadCoordinatorTest {
     void runAllInterruptedWaitReportsActionableFailuresAndPreservesInterruptFlag() {
         clearInterruptFlag();
         DownloadCoordinator coordinator = new DownloadCoordinator(1);
+        CountDownLatch neverReleased = new CountDownLatch(1);
 
         try {
             Thread.currentThread().interrupt();
             DownloadCoordinatorException exception = assertThrows(
                     DownloadCoordinatorException.class,
                     () -> coordinator.runAll(List.of(
-                            new DownloadTask<>("repo/a.jar", () -> "a"))));
+                            new DownloadTask<>("repo/a.jar", () -> {
+                                await(neverReleased);
+                                return "a";
+                            }))));
 
             assertTrue(Thread.currentThread().isInterrupted());
             assertEquals(List.of(

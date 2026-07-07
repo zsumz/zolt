@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -284,7 +283,7 @@ final class TestRunServiceFrameworkRunnerTest {
         source(projectDir, "src/test/java/com/example/SlowOneTest.java", "package com.example; public final class SlowOneTest {}\n");
         source(projectDir, "src/test/java/com/example/SlowTwoTest.java", "package com.example; public final class SlowTwoTest {}\n");
         CountDownLatch workerStarted = new CountDownLatch(1);
-        AtomicBoolean workerInterrupted = new AtomicBoolean();
+        CountDownLatch workerInterrupted = new CountDownLatch(1);
         TestRunService service = service(
                 (command, outputConsumer) -> new JavaRunner.ProcessResult(0, "direct java should not run\n"),
                 new JdkDetector(),
@@ -295,7 +294,7 @@ final class TestRunServiceFrameworkRunnerTest {
                     try {
                         new CountDownLatch(1).await();
                     } catch (InterruptedException exception) {
-                        workerInterrupted.set(true);
+                        workerInterrupted.countDown();
                         Thread.currentThread().interrupt();
                     }
                     return new PlainJunitWorkerRunResult(
@@ -329,7 +328,7 @@ final class TestRunServiceFrameworkRunnerTest {
         assertFalse(runnerThread.isAlive());
         assertTrue(thrown.get() instanceof TestRunException);
         assertTrue(thrown.get().getMessage().contains("JUnit worker pool was interrupted"));
-        assertTrue(workerInterrupted.get());
+        assertTrue(workerInterrupted.await(5, TimeUnit.SECONDS));
     }
 
     @Test

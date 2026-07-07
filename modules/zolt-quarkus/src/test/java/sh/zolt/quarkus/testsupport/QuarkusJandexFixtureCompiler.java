@@ -2,7 +2,6 @@ package sh.zolt.quarkus.testsupport;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,7 +59,7 @@ public final class QuarkusJandexFixtureCompiler {
     }
 
     public static FixtureRuntime fixtureRuntime() throws IOException {
-        List<URL> urls = new ArrayList<>();
+        List<java.net.URL> urls = new ArrayList<>();
         Path repoRoot = repoRoot();
         try (Stream<Path> paths = Files.walk(repoRoot.resolve("modules"), 3)) {
             for (Path classesDirectory : paths
@@ -68,31 +67,29 @@ public final class QuarkusJandexFixtureCompiler {
                     .filter(path -> path.endsWith("target/classes"))
                     .sorted()
                     .toList()) {
-                urls.add(classesDirectory.toUri().toURL());
+                urls.add(QuarkusTestRuntimeClasspath.url(classesDirectory));
             }
         }
-        for (Path jar : providedJars(repoRoot)) {
-            urls.add(jar.toUri().toURL());
+        urls.addAll(QuarkusTestRuntimeClasspath.currentJvmUrls());
+        for (Path jar : repoCacheJars(repoRoot)) {
+            urls.add(QuarkusTestRuntimeClasspath.url(jar));
         }
         return new FixtureRuntime(new URLClassLoader(
-                urls.toArray(URL[]::new),
+                urls.toArray(java.net.URL[]::new),
                 ClassLoader.getPlatformClassLoader()));
     }
 
     private static String compilerClasspath() {
         List<String> entries = new ArrayList<>();
         entries.add(System.getProperty("java.class.path"));
-        for (Path jar : providedJars(repoRoot())) {
+        for (Path jar : repoCacheJars(repoRoot())) {
             entries.add(jar.toString());
         }
         return String.join(java.io.File.pathSeparator, entries);
     }
 
-    private static List<Path> providedJars(Path repoRoot) {
-        Path cacheRoot = repoRoot.resolve(".zolt/cache");
-        return PROVIDED_JARS.stream()
-                .map(cacheRoot::resolve)
-                .toList();
+    private static List<Path> repoCacheJars(Path repoRoot) {
+        return QuarkusTestRuntimeClasspath.existingRepoCacheJars(repoRoot, PROVIDED_JARS);
     }
 
     private static Path repoRoot() {

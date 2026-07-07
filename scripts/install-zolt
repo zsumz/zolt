@@ -1,0 +1,378 @@
+#!/bin/sh
+set -eu
+
+INSTALL_ROOT="${ZOLT_INSTALL_ROOT:-$HOME/.zolt}"
+CHANNEL="${ZOLT_INSTALL_CHANNEL:-zap}"
+CHANNEL_URL="${ZOLT_INSTALL_CHANNEL_URL:-https://dist.zolt.sh/channels/$CHANNEL.json}"
+REQUESTED_VERSION="${ZOLT_INSTALL_VERSION:-}"
+REQUESTED_TARGET="${ZOLT_INSTALL_TARGET:-}"
+CURL="${ZOLT_INSTALL_CURL:-curl}"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+info() {
+  printf '%s\n' "$1"
+}
+
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+detect_target() {
+  if [ -n "$REQUESTED_TARGET" ]; then
+    printf '%s\n' "$REQUESTED_TARGET"
+    return
+  fi
+
+  os="${ZOLT_INSTALL_UNAME_S:-$(uname -s)}"
+  arch="${ZOLT_INSTALL_UNAME_M:-$(uname -m)}"
+  case "$(printf '%s' "$os" | tr '[:upper:]' '[:lower:]'):$arch" in
+    linux:x86_64|linux:amd64)
+      printf 'linux-x64\n'
+      ;;
+    linux:aarch64|linux:arm64)
+      printf 'linux-arm64\n'
+      ;;
+    darwin:x86_64|darwin:amd64)
+      printf 'macos-x64\n'
+      ;;
+    darwin:aarch64|darwin:arm64)
+      printf 'macos-arm64\n'
+      ;;
+    *)
+      fail "unsupported platform os=$os arch=$arch. Supported Unix targets: macos-arm64, macos-x64, linux-arm64, linux-x64."
+      ;;
+  esac
+}
+
+download() {
+  url="$1"
+  output="$2"
+  "$CURL" -fsSL "$url" -o "$output"
+}
+
+json_string() {
+  field="$1"
+  sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+
+json_number() {
+  field="$1"
+  sed -n 's/.*"'"$field"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1
+}
+
+artifact_for_target() {
+  target="$1"
+  awk -v target="$target" '
+    /{/ {
+      depth++
+      if (depth == 2 && !in_object) {
+        record = ""
+        in_object = 1
+      }
+    }
+    in_object {
+      record = record $0 "\n"
+    }
+    /}/ {
+      if (in_object && depth == 2) {
+        if (record ~ "\"target\"[[:space:]]*:[[:space:]]*\"" target "\"") {
+          printf "%s", record
+          exit
+        }
+        record = ""
+        in_object = 0
+      }
+      depth--
+    }
+  '
+}
+
+sha256_file() {
+  path="$1"
+  if command_exists sha256sum; then
+    sha256sum "$path" | awk '{ print $1 }'
+  elif command_exists openssl; then
+    openssl dgst -sha256 "$path" | awk '{ print $NF }'
+  elif command_exists shasum; then
+    shasum -a 256 "$path" | awk '{ print $1 }'
+  else
+    fail "sha256sum, openssl, or shasum is required to verify the Zolt archive."
+  fi
+}
+
+verify_checksum() {
+  archive="$1"
+  expected="$2"
+  actual="$(sha256_file "$archive")"
+  if [ "$actual" != "$expected" ]; then
+    fail "checksum mismatch for native Zolt archive. Expected $expected but found $actual."
+  fi
+}
+
+validate_safe_segment() {
+  label="$1"
+  value="$2"
+  case "$value" in
+    ""|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      fail "$label must be one safe path segment."
+      ;;
+  esac
+}
+
+validate_channel() {
+  label="$1"
+  value="$2"
+  case "$value" in
+    stable|nightly|zap)
+      ;;
+    *)
+      fail "$label must be stable, nightly, or zap."
+      ;;
+  esac
+}
+
+validate_version() {
+  label="$1"
+  value="$2"
+  validate_safe_segment "$label" "$value"
+  if ! printf '%s\n' "$value" | grep -Eq '^([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z._-]*)?|[0-9A-Za-z._-]+-(nightly|zap)\.[0-9]{8}\.[0-9A-Fa-f]{7,40})$'; then
+    fail "$label must look like 0.1.0, <base>-nightly.YYYYMMDD.<commit>, or <base>-zap.YYYYMMDD.<commit>."
+  fi
+}
+
+validate_archive_name() {
+  label="$1"
+  value="$2"
+  validate_safe_segment "$label" "$value"
+  case "$value" in
+    *.tar.gz)
+      ;;
+    *.jar|*jre*|*JRE*|*.zip)
+      fail "refusing non-Unix-native Zolt install artifact $value."
+      ;;
+    *)
+      fail "unsupported Zolt archive format for Unix installer: $value."
+      ;;
+  esac
+}
+
+validate_url() {
+  label="$1"
+  value="$2"
+  if [ -z "$value" ]; then
+    fail "$label is missing."
+  fi
+  case "$value" in
+    file://*)
+      if [ "${allow_file_urls:-false}" = "true" ]; then
+        return
+      fi
+      fail "$label must be an HTTPS URL."
+      ;;
+    https://*)
+      rest="${value#https://}"
+      case "$rest" in
+        ""|*@*)
+          fail "$label must not include URL credentials."
+          ;;
+      esac
+      ;;
+    *)
+      fail "$label must be an HTTPS URL."
+      ;;
+  esac
+}
+
+validate_sha256() {
+  label="$1"
+  value="$2"
+  if ! printf '%s\n' "$value" | grep -Eq '^[0-9A-Fa-f]{64}$'; then
+    fail "$label must be exactly 64 hexadecimal characters."
+  fi
+}
+
+real_dir() {
+  path="$1"
+  mkdir -p "$path"
+  (cd "$path" && pwd -P) || fail "could not resolve directory $path."
+}
+
+require_under_root() {
+  root="$1"
+  path="$2"
+  label="$3"
+  case "$path" in
+    "$root"/*)
+      ;;
+    *)
+      fail "$label must stay under $root."
+      ;;
+  esac
+}
+
+safe_rm_rf() {
+  root="$1"
+  path="$2"
+  label="$3"
+  require_under_root "$root" "$path" "$label"
+  if [ "$path" = "$root" ]; then
+    fail "$label must not target its root directory."
+  fi
+  rm -rf "$path"
+}
+
+validate_tar_entry_path() {
+  entry="$1"
+  case "$entry" in
+    ""|/*|*\\*|..|../*|*/..|*/../*)
+      fail "native Zolt archive contains unsafe tar entry path: $entry."
+      ;;
+  esac
+}
+
+validate_tar_entries() {
+  archive="$1"
+  entries="$work_dir/archive.entries"
+  tar -tzf "$archive" >"$entries" || fail "could not inspect native Zolt archive."
+  while IFS= read -r entry; do
+    validate_tar_entry_path "$entry"
+  done <"$entries"
+  if ! tar -tvzf "$archive" | awk 'substr($1, 1, 1) == "l" || substr($1, 1, 1) == "h" { bad = 1 } END { exit bad }'; then
+    fail "native Zolt archive must not contain symbolic or hard link entries."
+  fi
+}
+
+selected_target="$(detect_target)"
+validate_channel "release channel" "$CHANNEL"
+if [ -n "$REQUESTED_VERSION" ]; then
+  validate_version "requested Zolt version" "$REQUESTED_VERSION"
+fi
+case "$selected_target" in
+  linux-x64|linux-arm64|macos-x64|macos-arm64)
+    ;;
+  windows-x64)
+    fail "scripts/install-zolt is the Unix installer and cannot install windows-x64."
+    ;;
+  *)
+    fail "unsupported target $selected_target. Supported Unix targets: macos-arm64, macos-x64, linux-arm64, linux-x64."
+    ;;
+esac
+
+allow_file_urls=false
+case "$CHANNEL_URL" in
+  file://*)
+    allow_file_urls=true
+    ;;
+esac
+validate_url "release channel URL" "$CHANNEL_URL"
+
+work_dir="$(mktemp -d "${TMPDIR:-/tmp}/zolt-install.XXXXXX")"
+trap 'rm -rf "$work_dir"' EXIT INT TERM
+
+manifest="$work_dir/channel.json"
+download "$CHANNEL_URL" "$manifest"
+
+schema_version="$(json_number schemaVersion <"$manifest" || true)"
+channel="$(json_string channel <"$manifest" || true)"
+version="$(json_string version <"$manifest" || true)"
+if [ "$schema_version" != "1" ]; then
+  fail "unsupported release channel manifest schemaVersion ${schema_version:-missing}; expected 1."
+fi
+validate_channel "release channel manifest channel" "$channel"
+if [ -z "$version" ]; then
+  fail "release channel manifest is missing version."
+fi
+validate_version "release channel manifest version" "$version"
+if [ -n "$REQUESTED_VERSION" ] && [ "$REQUESTED_VERSION" != "$version" ]; then
+  fail "requested Zolt version $REQUESTED_VERSION is not available on channel ${channel:-unknown}; found $version."
+fi
+
+artifact="$(artifact_for_target "$selected_target" <"$manifest")"
+if [ -z "$artifact" ]; then
+  fail "release channel ${channel:-unknown} does not include native archive target $selected_target."
+fi
+
+archive="$(printf '%s\n' "$artifact" | json_string archive)"
+archive_url="$(printf '%s\n' "$artifact" | json_string archiveUrl)"
+checksum_url="$(printf '%s\n' "$artifact" | json_string checksumUrl || true)"
+expected_sha256="$(printf '%s\n' "$artifact" | json_string sha256 || true)"
+format="$(printf '%s\n' "$artifact" | json_string format)"
+binary_name="$(printf '%s\n' "$artifact" | json_string binaryName)"
+signature_url="$(printf '%s\n' "$artifact" | json_string url || true)"
+
+validate_archive_name "release channel artifact $selected_target archive" "$archive"
+if [ "$format" != "tar.gz" ]; then
+  fail "release channel artifact $selected_target has format $format; expected tar.gz."
+fi
+validate_safe_segment "release channel artifact $selected_target binaryName" "$binary_name"
+if [ "$binary_name" != "zolt" ]; then
+  fail "release channel artifact $selected_target has binaryName $binary_name; expected zolt."
+fi
+validate_url "release channel artifact $selected_target archiveUrl" "$archive_url"
+if [ -n "$checksum_url" ]; then
+  validate_url "release channel artifact $selected_target checksumUrl" "$checksum_url"
+fi
+if [ -n "$signature_url" ]; then
+  validate_url "release channel artifact $selected_target signatureUrl" "$signature_url"
+fi
+
+archive_path="$work_dir/$archive"
+require_under_root "$work_dir" "$archive_path" "native archive download path"
+download "$archive_url" "$archive_path"
+if [ -n "$checksum_url" ]; then
+  checksum_path="$work_dir/$archive.sha256"
+  require_under_root "$work_dir" "$checksum_path" "native checksum download path"
+  download "$checksum_url" "$checksum_path"
+  expected_sha256="$(awk '{ print $1; exit }' "$checksum_path")"
+fi
+if [ -z "$expected_sha256" ]; then
+  fail "release channel artifact $selected_target must include checksumUrl or sha256."
+fi
+validate_sha256 "release channel artifact $selected_target sha256" "$expected_sha256"
+verify_checksum "$archive_path" "$expected_sha256"
+validate_tar_entries "$archive_path"
+
+install_root="$(real_dir "$INSTALL_ROOT")"
+versions_dir="$(real_dir "$install_root/versions")"
+bin_dir="$(real_dir "$install_root/bin")"
+install_dir="$versions_dir/$version"
+install_tmp_dir="$versions_dir/$version.tmp"
+extract_dir="$work_dir/extract"
+mkdir -p "$versions_dir" "$bin_dir" "$extract_dir"
+require_under_root "$work_dir" "$extract_dir" "native archive extraction directory"
+tar -xzf "$archive_path" -C "$extract_dir"
+top_count="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+top_dir="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+if [ -z "$top_dir" ] || [ ! -x "$top_dir/bin/zolt" ]; then
+  fail "native Zolt archive did not unpack to a directory containing bin/zolt."
+fi
+if [ "$top_count" != "1" ]; then
+  fail "native Zolt archive must unpack to exactly one top-level directory."
+fi
+require_under_root "$work_dir" "$top_dir" "native archive top-level directory"
+require_under_root "$versions_dir" "$install_dir" "native install directory"
+require_under_root "$versions_dir" "$install_tmp_dir" "native temporary install directory"
+require_under_root "$versions_dir" "$install_dir/bin/zolt" "native installed binary path"
+
+safe_rm_rf "$versions_dir" "$install_tmp_dir" "native temporary install directory"
+safe_rm_rf "$versions_dir" "$install_dir" "native install directory"
+mv "$top_dir" "$install_tmp_dir"
+mv "$install_tmp_dir" "$install_dir"
+installed_version="$("$install_dir/bin/zolt" --version)"
+if [ "$installed_version" != "$version" ]; then
+  fail "installed native Zolt failed version smoke. Expected $version but got $installed_version."
+fi
+smoke_dir="$work_dir/smoke"
+"$install_dir/bin/zolt" init --cwd "$smoke_dir" smoke >/dev/null
+require_under_root "$bin_dir" "$bin_dir/zolt" "native bin symlink"
+safe_rm_rf "$bin_dir" "$bin_dir/zolt" "native bin symlink"
+ln -s "../versions/$version/bin/zolt" "$bin_dir/zolt"
+printf '%s\n' "${channel:-$CHANNEL}" >"$install_root/channel"
+printf '%s\n' "$CHANNEL_URL" >"$install_root/channel-url"
+
+info "Installed native Zolt $version for $selected_target from channel ${channel:-unknown}."
+info "Add $bin_dir to PATH to run zolt."

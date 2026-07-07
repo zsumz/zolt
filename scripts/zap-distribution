@@ -32,12 +32,15 @@ CHANNEL="${ZOLT_RELEASE_CHANNEL:-zap}"
 TARGET="${ZOLT_RELEASE_TARGET:-$(default_target)}"
 ORIGIN="${ZOLT_DISTRIBUTION_ORIGIN:-https://dist.zolt.sh}"
 PUBLISH=0
+PUBLISH_FROM=""
 
 usage() {
   cat <<'USAGE'
 Usage: scripts/zap-distribution [--publish] [--target <target>] [--origin <url>]
+       scripts/zap-distribution --publish --publish-from <artifact-root> [--origin <url>]
 
 Build, verify, and optionally publish a zap-channel native Zolt distribution.
+With --publish-from, publish already-built target artifacts and write a combined channel manifest.
 
 Environment:
   ZOLT_RELEASE_VERSION        Override computed version.
@@ -48,6 +51,96 @@ Environment:
 USAGE
 }
 
+target_archive_extension() {
+  case "$1" in
+    linux-x64 | linux-arm64 | macos-x64 | macos-arm64)
+      printf '.tar.gz'
+      ;;
+    windows-x64)
+      printf '.zip'
+      ;;
+    *)
+      printf 'error: unsupported release target %s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+}
+
+target_format() {
+  case "$(target_archive_extension "$1")" in
+    .tar.gz)
+      printf 'tar.gz'
+      ;;
+    .zip)
+      printf 'zip'
+      ;;
+  esac
+}
+
+target_binary_name() {
+  case "$1" in
+    windows-x64)
+      printf 'zolt.exe'
+      ;;
+    *)
+      printf 'zolt'
+      ;;
+  esac
+}
+
+target_from_archive() {
+  local archive
+  archive="$1"
+  case "$archive" in
+    zolt-*-linux-x64.tar.gz)
+      printf 'linux-x64'
+      ;;
+    zolt-*-linux-arm64.tar.gz)
+      printf 'linux-arm64'
+      ;;
+    zolt-*-macos-x64.tar.gz)
+      printf 'macos-x64'
+      ;;
+    zolt-*-macos-arm64.tar.gz)
+      printf 'macos-arm64'
+      ;;
+    zolt-*-windows-x64.zip)
+      printf 'windows-x64'
+      ;;
+    *)
+      printf 'error: could not infer release target from archive %s\n' "$archive" >&2
+      exit 1
+      ;;
+  esac
+}
+
+version_from_archive() {
+  local archive
+  local target
+  local extension
+  archive="$1"
+  target="$(target_from_archive "$archive")"
+  extension="$(target_archive_extension "$target")"
+  archive="${archive#zolt-}"
+  archive="${archive%-${target}${extension}}"
+  printf '%s' "$archive"
+}
+
+archive_content_type() {
+  case "$(target_archive_extension "$1")" in
+    .tar.gz)
+      printf 'application/gzip'
+      ;;
+    .zip)
+      printf 'application/zip'
+      ;;
+  esac
+}
+
+json_string() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --publish)
@@ -56,6 +149,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --target)
       TARGET="${2:?missing value for --target}"
+      shift 2
+      ;;
+    --publish-from)
+      PUBLISH_FROM="${2:?missing value for --publish-from}"
       shift 2
       ;;
     --origin)
@@ -100,26 +197,13 @@ CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 VERSION="${ZOLT_RELEASE_VERSION:-${BASE_VERSION}-${CHANNEL}.${STAMP}.${SHORT_COMMIT}}"
 export ZOLT_VERSION_OVERRIDE="$VERSION"
 
-case "$TARGET" in
-  linux-x64 | linux-arm64 | macos-x64 | macos-arm64)
-    ARCHIVE_EXTENSION=".tar.gz"
-    FORMAT="tar.gz"
-    BINARY_NAME="zolt"
-    ;;
-  windows-x64)
-    ARCHIVE_EXTENSION=".zip"
-    FORMAT="zip"
-    BINARY_NAME="zolt.exe"
-    ;;
-  *)
-    printf 'error: unsupported release target %s\n' "$TARGET" >&2
-    exit 2
-    ;;
-esac
-
 APP_DIR="$ROOT/apps/zolt"
 OUTPUT_DIR="target/release/${CHANNEL}/${VERSION}"
 CHANNEL_DIR="target/release/channels"
+ARCHIVE_EXTENSION="$(target_archive_extension "$TARGET")"
+FORMAT="$(target_format "$TARGET")"
+BINARY_NAME="$(target_binary_name "$TARGET")"
+INSTALL_SCRIPT_PATH="$ROOT/scripts/install-zolt"
 ARCHIVE_NAME="zolt-${VERSION}-${TARGET}${ARCHIVE_EXTENSION}"
 ARCHIVE_PATH="${APP_DIR}/${OUTPUT_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
@@ -140,11 +224,198 @@ cleanup_app_lockfile() {
 }
 trap cleanup_app_lockfile EXIT
 
+require_publish_environment() {
+  if [[ -z "${DO_SPACES_BUCKET:-}" || -z "${DO_SPACES_ENDPOINT:-}" ]]; then
+    printf 'error: --publish requires DO_SPACES_BUCKET and DO_SPACES_ENDPOINT\n' >&2
+    exit 2
+  fi
+  if ! command -v aws >/dev/null 2>&1; then
+    printf 'error: --publish requires aws CLI on PATH\n' >&2
+    exit 2
+  fi
+}
+
+publish_install_script() {
+  local install_script_uri
+
+  if [[ ! -f "$INSTALL_SCRIPT_PATH" ]]; then
+    printf 'error: install script is missing: %s\n' "$INSTALL_SCRIPT_PATH" >&2
+    exit 1
+  fi
+
+  install_script_uri="s3://${DO_SPACES_BUCKET}/install.sh"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$INSTALL_SCRIPT_PATH" "$install_script_uri" \
+    --acl public-read \
+    --cache-control "no-cache" \
+    --content-type "text/x-shellscript"
+}
+
+publish_combined_artifacts() {
+  local artifact_root
+  local publish_output_dir
+  local combined_release_manifest
+  local combined_channel_manifest
+  local archive
+  local archive_name
+  local checksum_path
+  local sha256
+  local target
+  local version
+  local format
+  local binary_name
+  local artifact_uri
+  local channel_uri
+  local release_entries
+  local channel_entries
+  local targets_seen
+  local first_entry
+  local content_type
+
+  artifact_root="$1"
+  if [[ ! -d "$artifact_root" ]]; then
+    printf 'error: --publish-from directory does not exist: %s\n' "$artifact_root" >&2
+    exit 2
+  fi
+  require_publish_environment
+
+  release_entries=""
+  channel_entries=""
+  targets_seen=""
+  first_entry=1
+
+  while IFS= read -r archive; do
+    archive_name="$(basename "$archive")"
+    target="$(target_from_archive "$archive_name")"
+    version="$(version_from_archive "$archive_name")"
+    if [[ "$version" != "$VERSION" ]]; then
+      printf 'error: archive %s has version %s but expected %s\n' "$archive_name" "$version" "$VERSION" >&2
+      exit 1
+    fi
+    if [[ " $targets_seen " == *" $target "* ]]; then
+      printf 'error: duplicate zap artifact for target %s\n' "$target" >&2
+      exit 1
+    fi
+    targets_seen="${targets_seen} ${target}"
+
+    checksum_path="${archive}.sha256"
+    if [[ ! -f "$checksum_path" ]]; then
+      printf 'error: missing checksum sidecar for %s\n' "$archive" >&2
+      exit 1
+    fi
+    sha256="$(awk '{ print $1; exit }' "$checksum_path")"
+    if [[ ! "$sha256" =~ ^[0-9a-f]{64}$ ]]; then
+      printf 'error: invalid SHA-256 in %s\n' "$checksum_path" >&2
+      exit 1
+    fi
+
+    format="$(target_format "$target")"
+    binary_name="$(target_binary_name "$target")"
+    if [[ "$first_entry" -eq 0 ]]; then
+      release_entries="${release_entries},
+"
+      channel_entries="${channel_entries},
+"
+    fi
+    first_entry=0
+
+    release_entries="${release_entries}    {
+      \"archive\": \"$(json_string "$archive_name")\",
+      \"target\": \"$(json_string "$target")\",
+      \"version\": \"$(json_string "$VERSION")\",
+      \"format\": \"$(json_string "$format")\",
+      \"sha256\": \"$(json_string "$sha256")\"
+    }"
+    channel_entries="${channel_entries}    {
+      \"target\": \"$(json_string "$target")\",
+      \"archive\": \"$(json_string "$archive_name")\",
+      \"archiveUrl\": \"$(json_string "${ORIGIN}/artifacts/${CHANNEL}/${VERSION}/${archive_name}")\",
+      \"checksumUrl\": \"$(json_string "${ORIGIN}/artifacts/${CHANNEL}/${VERSION}/${archive_name}.sha256")\",
+      \"sha256\": \"$(json_string "$sha256")\",
+      \"format\": \"$(json_string "$format")\",
+      \"binaryName\": \"$(json_string "$binary_name")\"
+    }"
+  done < <(find "$artifact_root" -type f \( -name "zolt-${VERSION}-*.tar.gz" -o -name "zolt-${VERSION}-*.zip" \) | sort)
+
+  if [[ -z "$release_entries" ]]; then
+    printf 'error: no zap archives found under %s for version %s\n' "$artifact_root" "$VERSION" >&2
+    exit 1
+  fi
+
+  publish_output_dir="${APP_DIR}/${OUTPUT_DIR}"
+  mkdir -p "$publish_output_dir" "${APP_DIR}/${CHANNEL_DIR}"
+  combined_release_manifest="${publish_output_dir}/release-manifest.json"
+  combined_channel_manifest="${APP_DIR}/${CHANNEL_DIR}/${CHANNEL}.json"
+
+  cat > "$combined_release_manifest" <<EOF
+{
+  "name": "zolt",
+  "version": "${VERSION}",
+  "archives": [
+${release_entries}
+  ]
+}
+EOF
+
+  cat > "$combined_channel_manifest" <<EOF
+{
+  "schemaVersion": 1,
+  "channel": "${CHANNEL}",
+  "version": "${VERSION}",
+  "commit": "${COMMIT}",
+  "createdAt": "${CREATED_AT}",
+  "artifacts": [
+${channel_entries}
+  ]
+}
+EOF
+
+  artifact_uri="s3://${DO_SPACES_BUCKET}/artifacts/${CHANNEL}/${VERSION}"
+  channel_uri="s3://${DO_SPACES_BUCKET}/channels/${CHANNEL}.json"
+
+  while IFS= read -r archive; do
+    archive_name="$(basename "$archive")"
+    target="$(target_from_archive "$archive_name")"
+    content_type="$(archive_content_type "$target")"
+    aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$archive" "${artifact_uri}/${archive_name}" \
+      --acl public-read \
+      --cache-control "public, max-age=31536000, immutable" \
+      --content-type "$content_type"
+    aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "${archive}.sha256" "${artifact_uri}/${archive_name}.sha256" \
+      --acl public-read \
+      --cache-control "public, max-age=31536000, immutable" \
+      --content-type "text/plain"
+  done < <(find "$artifact_root" -type f \( -name "zolt-${VERSION}-*.tar.gz" -o -name "zolt-${VERSION}-*.zip" \) | sort)
+
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$combined_release_manifest" "${artifact_uri}/release-manifest.json" \
+    --acl public-read \
+    --cache-control "public, max-age=31536000, immutable" \
+    --content-type "application/json"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$combined_channel_manifest" "$channel_uri" \
+    --acl public-read \
+    --cache-control "no-cache" \
+    --content-type "application/json"
+  publish_install_script
+
+  printf 'Published %s, %s, and s3://%s/install.sh\n' "$artifact_uri" "$channel_uri" "$DO_SPACES_BUCKET"
+  printf 'ZOLT_ZAP_VERSION=%s\n' "$VERSION"
+  printf 'ZOLT_ZAP_RELEASE_MANIFEST=%s\n' "$combined_release_manifest"
+  printf 'ZOLT_ZAP_CHANNEL_MANIFEST=%s\n' "$combined_channel_manifest"
+}
+
+if [[ -n "$PUBLISH_FROM" ]]; then
+  if [[ "$PUBLISH" -ne 1 ]]; then
+    printf 'error: --publish-from requires --publish\n' >&2
+    exit 2
+  fi
+  publish_combined_artifacts "$PUBLISH_FROM"
+  exit 0
+fi
+
 printf 'Building %s distribution %s for %s\n' "$CHANNEL" "$VERSION" "$TARGET"
 
 rm -f apps/zolt-junit-worker/target/zolt-junit-worker-*.jar
 rm -f apps/zolt/target/libexec/zolt-junit-worker.jar
-scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt-junit-worker
+scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt-junit-worker --cache-root .zolt/cache
 shopt -s nullglob
 WORKER_JARS=(apps/zolt-junit-worker/target/zolt-junit-worker-*.jar)
 shopt -u nullglob
@@ -154,7 +425,7 @@ if [[ "${#WORKER_JARS[@]}" -ne 1 ]]; then
 fi
 mkdir -p apps/zolt/target/libexec
 cp "${WORKER_JARS[0]}" apps/zolt/target/libexec/zolt-junit-worker.jar
-scripts/bootstrap-zolt-jvm --no-progress native --workspace --member apps/zolt
+scripts/bootstrap-zolt-jvm --no-progress native --workspace --member apps/zolt --cache-root .zolt/cache
 scripts/bootstrap-zolt-jvm --no-progress release-archive \
   --directory "$APP_DIR" \
   --target "$TARGET" \
@@ -201,14 +472,7 @@ EOF
 printf 'Wrote %s\n' "$CHANNEL_MANIFEST_PATH"
 
 if [[ "$PUBLISH" -eq 1 ]]; then
-  if [[ -z "${DO_SPACES_BUCKET:-}" || -z "${DO_SPACES_ENDPOINT:-}" ]]; then
-    printf 'error: --publish requires DO_SPACES_BUCKET and DO_SPACES_ENDPOINT\n' >&2
-    exit 2
-  fi
-  if ! command -v aws >/dev/null 2>&1; then
-    printf 'error: --publish requires aws CLI on PATH\n' >&2
-    exit 2
-  fi
+  require_publish_environment
 
   ARTIFACT_URI="s3://${DO_SPACES_BUCKET}/artifacts/${CHANNEL}/${VERSION}"
   CHANNEL_URI="s3://${DO_SPACES_BUCKET}/channels/${CHANNEL}.json"
@@ -216,7 +480,7 @@ if [[ "$PUBLISH" -eq 1 ]]; then
   aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$ARCHIVE_PATH" "${ARTIFACT_URI}/${ARCHIVE_NAME}" \
     --acl public-read \
     --cache-control "public, max-age=31536000, immutable" \
-    --content-type "application/gzip"
+    --content-type "$(archive_content_type "$TARGET")"
   aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$CHECKSUM_PATH" "${ARTIFACT_URI}/${ARCHIVE_NAME}.sha256" \
     --acl public-read \
     --cache-control "public, max-age=31536000, immutable" \
@@ -229,8 +493,9 @@ if [[ "$PUBLISH" -eq 1 ]]; then
     --acl public-read \
     --cache-control "no-cache" \
     --content-type "application/json"
+  publish_install_script
 
-  printf 'Published %s and %s\n' "$ARTIFACT_URI" "$CHANNEL_URI"
+  printf 'Published %s, %s, and s3://%s/install.sh\n' "$ARTIFACT_URI" "$CHANNEL_URI" "$DO_SPACES_BUCKET"
 fi
 
 printf 'ZOLT_ZAP_VERSION=%s\n' "$VERSION"

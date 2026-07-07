@@ -13,7 +13,48 @@ permissions:
 
 jobs:
   test:
-    name: test
+    name: test ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: foundation
+            members: modules/zolt-model,modules/zolt-framework-api,modules/zolt-toml,modules/zolt-repository,modules/zolt-resolve,modules/zolt-test-model,modules/zolt-junit-client
+          - name: build-runtime
+            members: modules/zolt-build,modules/zolt-test-runtime,modules/zolt-native-image,modules/zolt-workspace
+          - name: quarkus
+            members: modules/zolt-ide,modules/zolt-quarkus
+          - name: release-quality
+            members: modules/zolt-release,modules/zolt-publish,modules/zolt-policy,modules/zolt-quality,modules/zolt-tree,modules/zolt-plan
+          - name: cli-apps
+            members: modules/zolt-explain,modules/zolt-config,modules/zolt-selfhost,modules/zolt-init,apps/zolt-junit-worker,apps/zolt
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Zolt artifacts
+        uses: actions/cache@v4
+        with:
+          path: .zolt/cache
+          key: zolt-cache-${{ runner.os }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-cache-${{ runner.os }}-
+
+      - name: Test workspace group
+        run: scripts/bootstrap-zolt-jvm --no-progress test --workspace --members "${{ matrix.members }}" --cache-root .zolt/cache
+
+  smoke:
+    name: smoke packaged workflows
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -48,24 +89,55 @@ jobs:
           restore-keys: |
             npm-cache-${{ runner.os }}-
 
-      - name: Test workspace
-        run: scripts/bootstrap-zolt-jvm test --workspace --all
-
       - name: Smoke packaged workflows
         run: scripts/smoke-smoque
 
-  zap:
-    name: zap distribution
-    needs: test
+  zap-version:
+    name: zap version
+    needs: smoke
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute zap version
+        id: version
+        run: |
+          base="$(awk -F '"' '/^version = / { print $2; exit }' apps/zolt/zolt.toml | sed 's/-SNAPSHOT$//')"
+          short_commit="$(git rev-parse --short=12 HEAD)"
+          stamp="$(date -u +%Y%m%d)"
+          version="${base}-zap.${stamp}.${short_commit}"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          printf 'Zap version: %s\n' "$version"
+
+  zap-build:
+    name: zap ${{ matrix.target }}
+    needs:
+      - test
+      - zap-version
+      - zap-config
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: macos-arm64
+            runner: macos-15
 
     env:
       AWS_EC2_METADATA_DISABLED: "true"
-      DO_SPACES_BUCKET: ${{ vars.DO_SPACES_BUCKET }}
-      DO_SPACES_ENDPOINT: ${{ vars.DO_SPACES_ENDPOINT }}
-      ZOLT_DISTRIBUTION_ORIGIN: ${{ vars.ZOLT_DISTRIBUTION_ORIGIN || 'https://dist.zolt.sh' }}
+      ZOLT_RELEASE_VERSION: ${{ needs.zap-version.outputs.version }}
+      ZOLT_DISTRIBUTION_ORIGIN: ${{ vars.ZOLT_DISTRIBUTION_ORIGIN || secrets.ZOLT_DISTRIBUTION_ORIGIN || 'https://dist.zolt.sh' }}
 
     steps:
       - name: Check out repository
@@ -90,24 +162,97 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .zolt/cache
-          key: zolt-cache-${{ runner.os }}-${{ hashFiles('zolt.lock') }}
+          key: zolt-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
           restore-keys: |
+            zolt-cache-${{ runner.os }}-${{ runner.arch }}-
             zolt-cache-${{ runner.os }}-
 
-      - name: Configure Spaces credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.DO_SPACES_REGION || 'us-east-1' }}
+      - name: Build and verify zap distribution
+        run: scripts/zap-distribution --target "${{ matrix.target }}"
 
-      - name: Build, verify, and publish zap distribution
-        run: scripts/zap-distribution --publish --target linux-x64
-
-      - name: Upload zap distribution artifact
+      - name: Upload zap target artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zolt-zap-linux-x64
+          name: zolt-zap-${{ matrix.target }}
+          path: apps/zolt/target/release/zap/${{ needs.zap-version.outputs.version }}/**
+          if-no-files-found: error
+
+  zap-config:
+    name: zap publish config
+    needs:
+      - test
+      - zap-version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      DO_SPACES_BUCKET: ${{ vars.DO_SPACES_BUCKET || secrets.DO_SPACES_BUCKET }}
+      DO_SPACES_ENDPOINT: ${{ vars.DO_SPACES_ENDPOINT || secrets.DO_SPACES_ENDPOINT }}
+      DO_SPACES_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+      DO_SPACES_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Check publish configuration
+        run: |
+          if [ -z "$DO_SPACES_BUCKET" ]; then
+            printf 'DO_SPACES_BUCKET must be configured as an Actions variable or secret.\n' >&2
+            exit 2
+          fi
+          if [ -z "$DO_SPACES_ENDPOINT" ]; then
+            printf 'DO_SPACES_ENDPOINT must be configured as an Actions variable or secret.\n' >&2
+            exit 2
+          fi
+          if [ -z "$DO_SPACES_ACCESS_KEY_ID" ]; then
+            printf 'DO_SPACES_ACCESS_KEY_ID must be configured as an Actions secret.\n' >&2
+            exit 2
+          fi
+          if [ -z "$DO_SPACES_SECRET_ACCESS_KEY" ]; then
+            printf 'DO_SPACES_SECRET_ACCESS_KEY must be configured as an Actions secret.\n' >&2
+            exit 2
+          fi
+
+  zap-publish:
+    name: publish zap distribution
+    needs:
+      - test
+      - zap-version
+      - zap-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      AWS_EC2_METADATA_DISABLED: "true"
+      DO_SPACES_BUCKET: ${{ vars.DO_SPACES_BUCKET || secrets.DO_SPACES_BUCKET }}
+      DO_SPACES_ENDPOINT: ${{ vars.DO_SPACES_ENDPOINT || secrets.DO_SPACES_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.DO_SPACES_REGION || secrets.DO_SPACES_REGION || 'us-east-1' }}
+      AWS_DEFAULT_REGION: ${{ vars.DO_SPACES_REGION || secrets.DO_SPACES_REGION || 'us-east-1' }}
+      ZOLT_RELEASE_VERSION: ${{ needs.zap-version.outputs.version }}
+      ZOLT_DISTRIBUTION_ORIGIN: ${{ vars.ZOLT_DISTRIBUTION_ORIGIN || secrets.ZOLT_DISTRIBUTION_ORIGIN || 'https://dist.zolt.sh' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download zap target artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: zolt-zap-*
+          path: target/zap-artifacts
+
+      - name: Publish combined zap channel
+        run: scripts/zap-distribution --publish --publish-from target/zap-artifacts
+
+      - name: Upload zap channel manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: zolt-zap-channel
           path: |
-            apps/zolt/target/release/zap/**
+            apps/zolt/target/release/zap/${{ needs.zap-version.outputs.version }}/release-manifest.json
             apps/zolt/target/release/channels/zap.json
+          if-no-files-found: error
