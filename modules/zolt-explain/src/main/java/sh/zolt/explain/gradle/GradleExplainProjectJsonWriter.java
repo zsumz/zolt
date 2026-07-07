@@ -28,7 +28,8 @@ final class GradleExplainProjectJsonWriter {
                 repositoryArray(json, 3, "repositories", project.repositories(), true);
                 dependencyArray(json, 3, "dependencies", project.dependencies(), true);
                 stringArrayField(json, 3, "sourceRoots", project.sourceRoots(), true);
-                stringArrayField(json, 3, "testSourceRoots", project.testSourceRoots(), false);
+                stringArrayField(json, 3, "testSourceRoots", project.testSourceRoots(), true);
+                stringArrayField(json, 3, "groovyTestSourceRoots", project.groovyTestSourceRoots(), false);
                 indent(json, 2).append("}");
                 if (index < projects.size() - 1) {
                     json.append(',');

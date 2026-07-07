@@ -156,7 +156,12 @@ public final class GradleStaticProjectInspector {
                         content,
                         "test",
                         "src/test/java",
-                        Files.isDirectory(projectDirectory.resolve("src/test/java"))));
+                        Files.isDirectory(projectDirectory.resolve("src/test/java"))),
+                buildFileParser.sourceRoots(
+                        content,
+                        "test",
+                        "src/test/groovy",
+                        hasGroovyTestSources(projectDirectory, content)));
     }
 
     private List<GradleRepositoryInspection> repositories(
@@ -213,6 +218,11 @@ public final class GradleStaticProjectInspector {
     private static boolean hasGroovyMainSources(Path projectDirectory, String content) {
         return Files.isDirectory(projectDirectory.resolve("src/main/groovy"))
                 || content.contains("src/main/groovy");
+    }
+
+    private static boolean hasGroovyTestSources(Path projectDirectory, String content) {
+        return Files.isDirectory(projectDirectory.resolve("src/test/groovy"))
+                || content.contains("src/test/groovy");
     }
 
 }

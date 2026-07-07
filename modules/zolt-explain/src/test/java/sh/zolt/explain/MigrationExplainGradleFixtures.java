@@ -99,7 +99,8 @@ final class MigrationExplainGradleFixtures {
                         }
                       ],
                       "sourceRoots": [],
-                      "testSourceRoots": []
+                      "testSourceRoots": [],
+                      "groovyTestSourceRoots": []
                     }
                   ],
                   "signals": [],

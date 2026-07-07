@@ -138,6 +138,7 @@ final class GradleInspectionMapper {
                 InspectionBuildSettingsMapper.fromRoots(
                         primary.sourceRoots(),
                         primary.testSourceRoots(),
+                        primary.groovyTestSourceRoots(),
                         defaultBuild.resourceRoots(),
                         defaultBuild.testResourceRoots(),
                         notes),

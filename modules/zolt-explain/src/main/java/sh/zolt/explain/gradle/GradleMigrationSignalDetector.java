@@ -48,7 +48,7 @@ final class GradleMigrationSignalDetector {
                         project,
                         "Gradle plugin `" + plugin.id() + "` declares an Android project, which is outside the Zolt public beta."));
             }
-            if (id.startsWith("org.jetbrains.kotlin") || id.equals("kotlin") || id.equals("scala") || id.equals("groovy")) {
+            if (id.startsWith("org.jetbrains.kotlin") || id.equals("kotlin") || id.equals("scala")) {
                 signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(
                         project,
                         "Gradle plugin `" + plugin.id() + "` declares an unsupported public-beta language."));

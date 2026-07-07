@@ -10,6 +10,7 @@ import sh.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -217,5 +218,35 @@ final class InspectionToProjectConfigGradleTest {
 
         assertEquals("2.17.1", config.apiDependencies().get("com.fasterxml.jackson.core:jackson-core"));
         assertEquals("2.17.1", config.apiDependencies().get("com.fasterxml.jackson.core:jackson-databind"));
+    }
+
+    @Test
+    void gradleDraftCarriesSpockGroovyTestSources() throws IOException {
+        Files.createDirectories(tempDir.resolve("src/main/java"));
+        Files.createDirectories(tempDir.resolve("src/test/groovy/com/example"));
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'spock-gradle'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'groovy'
+                }
+                group = 'com.example'
+                version = '1.0.0'
+
+                dependencies {
+                    testImplementation 'org.apache.groovy:groovy:4.0.22'
+                    testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
+                    testImplementation 'org.junit.platform:junit-platform-console-standalone:1.11.4'
+                }
+                """);
+
+        GradleInspectionResult result = new GradleStaticProjectInspector().inspect(tempDir);
+        DraftZoltToml draft = mapper.fromGradle(result);
+        ProjectConfig config = draft.config();
+
+        assertEquals(List.of("src/test/groovy"), config.build().groovyTestSources());
+        assertEquals("4.0.22", config.testDependencies().get("org.apache.groovy:groovy"));
+        assertEquals("2.3-groovy-4.0", config.testDependencies().get("org.spockframework:spock-core"));
+        assertEquals("1.11.4", config.testDependencies().get("org.junit.platform:junit-platform-console-standalone"));
     }
 }

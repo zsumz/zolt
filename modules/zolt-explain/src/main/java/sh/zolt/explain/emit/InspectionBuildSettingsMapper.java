@@ -18,9 +18,20 @@ final class InspectionBuildSettingsMapper {
             List<String> resourceRoots,
             List<String> testResourceRoots,
             List<String> notes) {
+        return fromRoots(sourceRoots, testSourceRoots, List.of(), resourceRoots, testResourceRoots, notes);
+    }
+
+    static BuildSettings fromRoots(
+            List<String> sourceRoots,
+            List<String> testSourceRoots,
+            List<String> groovyTestSourceRoots,
+            List<String> resourceRoots,
+            List<String> testResourceRoots,
+            List<String> notes) {
         BuildSettings defaults = BuildSettings.defaults();
         List<String> mainRoots = distinct(sourceRoots);
         List<String> testRoots = distinct(testSourceRoots);
+        List<String> groovyTestRoots = distinct(groovyTestSourceRoots);
         String source = mainRoots.isEmpty() ? defaults.source() : mainRoots.getFirst();
         String test = testRoots.isEmpty() ? defaults.test() : testRoots.getFirst();
         if (mainRoots.isEmpty()) {
@@ -36,7 +47,7 @@ final class InspectionBuildSettingsMapper {
                 defaults.output(),
                 defaults.testOutput(),
                 testRoots,
-                defaults.groovyTestSources(),
+                groovyTestRoots,
                 withoutProjectRoot(distinct(resourceRoots), "main", notes),
                 withoutProjectRoot(distinct(testResourceRoots), "test", notes),
                 BuildMetadataSettings.defaults());

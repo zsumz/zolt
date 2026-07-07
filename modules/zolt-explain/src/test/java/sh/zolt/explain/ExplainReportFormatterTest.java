@@ -151,7 +151,8 @@ final class ExplainReportFormatterTest {
                                 "com.google.guava:guava:33.4.8-jre",
                                 "guava")),
                         List.of("src/main/java"),
-                        List.of("src/test/java"))),
+                        List.of("src/test/java"),
+                        List.of())),
                 ExplainSignals.sorted(List.of(
                         ExplainSignals.GRADLE_CUSTOM_TASK_DETECTED.signal(
                                 ".",
@@ -211,7 +212,8 @@ final class ExplainReportFormatterTest {
                         }
                       ],
                       "sourceRoots": ["src/main/java"],
-                      "testSourceRoots": ["src/test/java"]
+                      "testSourceRoots": ["src/test/java"],
+                      "groovyTestSourceRoots": []
                     }
                   ],
                   "signals": [
@@ -253,7 +255,8 @@ final class ExplainReportFormatterTest {
                         List.of(),
                         List.of(),
                         List.of("src/main/java"),
-                        List.of("src/test/java"))),
+                        List.of("src/test/java"),
+                        List.of())),
                 List.of());
 
         String text = new GradleExplainFormatter().text(result);
@@ -329,7 +332,8 @@ final class ExplainReportFormatterTest {
                 List.of(),
                 List.of(),
                 List.of("src/main/java"),
-                List.of("src/test/java"));
+                List.of("src/test/java"),
+                List.of());
     }
 
     private static void assertSummaryValue(String json, String key, int value) {

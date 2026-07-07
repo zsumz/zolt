@@ -169,7 +169,8 @@ final class MigrationExplainGradleEnterpriseFixtures {
                       ],
                       "testSourceRoots": [
                         "src/test/java"
-                      ]
+                      ],
+                      "groovyTestSourceRoots": []
                     }
                   ],
                   "signals": [

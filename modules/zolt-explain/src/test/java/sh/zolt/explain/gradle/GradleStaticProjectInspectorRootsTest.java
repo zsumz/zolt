@@ -1,6 +1,7 @@
 package sh.zolt.explain.gradle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,5 +50,31 @@ final class GradleStaticProjectInspectorRootsTest {
 
         assertEquals(List.of("src/java"), project.sourceRoots());
         assertEquals(List.of("src/tests"), project.testSourceRoots());
+    }
+
+    @Test
+    void recognizesGroovyTestSourcesWithoutBlockingSpockGradleProjects() throws IOException {
+        Files.createDirectories(tempDir.resolve("src/main/java"));
+        Files.createDirectories(tempDir.resolve("src/test/groovy/com/example"));
+        Files.writeString(tempDir.resolve("settings.gradle"), "rootProject.name = 'spock-gradle'\n");
+        Files.writeString(tempDir.resolve("build.gradle"), """
+                plugins {
+                    id 'java'
+                    id 'groovy'
+                }
+
+                dependencies {
+                    testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
+                }
+                """);
+
+        GradleInspectionResult result = inspector.inspect(tempDir);
+        GradleProjectInspection project = result.projects().getFirst();
+
+        assertEquals(List.of("src/main/java"), project.sourceRoots());
+        assertEquals(List.of(), project.testSourceRoots());
+        assertEquals(List.of("src/test/groovy"), project.groovyTestSourceRoots());
+        assertFalse(result.signals().stream().anyMatch(signal -> signal.id().equals("gradle.language.unsupported")),
+                () -> "test-only Groovy should not block migration: " + result.signals());
     }
 }

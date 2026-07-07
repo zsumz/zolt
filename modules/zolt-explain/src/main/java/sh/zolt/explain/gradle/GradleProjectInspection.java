@@ -17,7 +17,8 @@ public record GradleProjectInspection(
         List<GradleRepositoryInspection> repositories,
         List<GradleDependencyInspection> dependencies,
         List<String> sourceRoots,
-        List<String> testSourceRoots) {
+        List<String> testSourceRoots,
+        List<String> groovyTestSourceRoots) {
     public GradleProjectInspection {
         group = group == null ? Optional.empty() : group;
         version = version == null ? Optional.empty() : version;
@@ -27,5 +28,6 @@ public record GradleProjectInspection(
         dependencies = List.copyOf(dependencies);
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);
+        groovyTestSourceRoots = List.copyOf(groovyTestSourceRoots);
     }
 }
