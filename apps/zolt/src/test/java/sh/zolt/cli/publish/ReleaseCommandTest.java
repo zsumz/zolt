@@ -120,6 +120,7 @@ final class ReleaseCommandTest {
         Path projectDir = tempDir.resolve("verify-output");
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
         writeFakeZoltBinary(projectDir.resolve("target/native/zolt"));
+        writeFakeJunitWorker(projectDir.resolve("target/libexec/zolt-junit-worker.jar"));
         CommandResult archiveResult = execute(
                 "release-archive",
                 "--directory", projectDir.toString(),
@@ -208,6 +209,7 @@ final class ReleaseCommandTest {
                 set -euo pipefail
                 command="${1:-}"
                 shift || true
+                java_version="%s"
 
                 option_value() {
                   local option="$1"
@@ -229,19 +231,18 @@ final class ReleaseCommandTest {
                     cwd="$(option_value --cwd "$@")"
                     name="${@: -1}"
                     mkdir -p "$cwd/$name"
-                    cat > "$cwd/$name/zolt.toml" <<'EOF'
-                [project]
-                name = "smoke"
-                version = "0.1.0"
-                group = "com.example"
-                java = "%s"
-
-                [build]
-                source = "src/main/java"
-                test = "src/test/java"
-                output = "target/classes"
-                testOutput = "target/test-classes"
-                EOF
+                    {
+                      printf '[project]\\n'
+                      printf 'name = "smoke"\\n'
+                      printf 'version = "0.1.0"\\n'
+                      printf 'group = "com.example"\\n'
+                      printf 'java = "%%s"\\n' "$java_version"
+                      printf '\\n[build]\\n'
+                      printf 'source = "src/main/java"\\n'
+                      printf 'test = "src/test/java"\\n'
+                      printf 'output = "target/classes"\\n'
+                      printf 'testOutput = "target/test-classes"\\n'
+                    } > "$cwd/$name/zolt.toml"
                     ;;
                   build)
                     ;;
@@ -252,6 +253,11 @@ final class ReleaseCommandTest {
                 esac
                 """.formatted(currentJavaMajorVersion()));
         assertTrue(binary.toFile().setExecutable(true));
+    }
+
+    private static void writeFakeJunitWorker(Path workerJar) throws IOException {
+        Files.createDirectories(workerJar.getParent());
+        Files.writeString(workerJar, "worker\n");
     }
 
     private static String currentJavaMajorVersion() {

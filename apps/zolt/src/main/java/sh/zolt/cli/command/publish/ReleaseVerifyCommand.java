@@ -6,6 +6,7 @@ import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.console.ProgressWriter;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.release.verification.ReleaseVerificationException;
 import sh.zolt.release.verification.ReleaseVerificationResult;
 import sh.zolt.release.verification.ReleaseVerificationService;
@@ -53,7 +54,8 @@ public final class ReleaseVerifyCommand implements Runnable {
         ProgressWriter progress = CommandProgress.human(spec);
         Path projectRoot = projectDirectory.path();
         try {
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ProjectConfig config = ProjectVersionOverride.apply(
+                    tomlParser.parse(projectRoot.resolve("zolt.toml")));
             List<Path> resolvedArchives = archives.stream()
                     .map(path -> projectRoot.resolve(path).normalize())
                     .toList();
