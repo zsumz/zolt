@@ -89,6 +89,10 @@ installer-managed Zolt self updates
 self-hosted builds
 ```
 
+## Security
+
+Please report suspected vulnerabilities privately. See [SECURITY.md](./SECURITY.md).
+
 ## License
 
 Apache-2.0. See [LICENSE](./LICENSE).

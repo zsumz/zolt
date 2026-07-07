@@ -6,6 +6,7 @@ It is not only a "build a basic Java app" scaffold.
 Primary docs:
 - README.md: short install and positioning page.
 - USAGE.md: fuller command/config/example guide.
+- SECURITY.md: private vulnerability reporting and supported version policy.
 - LICENSE: Apache-2.0.
 - examples/: real fixtures covering simple apps, workspaces, frameworks,
   generated sources, migration explain inputs, and library canaries.
