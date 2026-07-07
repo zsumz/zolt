@@ -253,6 +253,27 @@ require_publish_environment() {
     printf 'error: --publish requires openssl on PATH to sign channel manifests\n' >&2
     exit 2
   fi
+  require_javac_21
+}
+
+require_javac_21() {
+  local javac_version
+  local javac_major
+
+  if ! command -v javac >/dev/null 2>&1; then
+    printf 'error: publishing requires JDK 21 or newer on PATH because release indexes are built by Zolt\n' >&2
+    exit 2
+  fi
+  javac_version="$(javac -version 2>&1 | awk '{ print $2 }')"
+  javac_major="${javac_version%%.*}"
+  if [[ "$javac_major" == "1" ]]; then
+    javac_major="$(printf '%s' "$javac_version" | cut -d. -f2)"
+  fi
+  javac_major="${javac_major%%[!0-9]*}"
+  if [[ -z "$javac_major" || "$javac_major" -lt 21 ]]; then
+    printf 'error: publishing requires JDK 21 or newer on PATH; found javac %s\n' "$javac_version" >&2
+    exit 2
+  fi
 }
 
 sign_manifest() {

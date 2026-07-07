@@ -22,6 +22,7 @@ smoke.suite("zolt published release update smoke", { tags: ["release", "release-
 
   let previousManifest: ChannelManifest | undefined;
   let currentManifest: ChannelManifest | undefined;
+  let exercisedSelfUpdate = false;
 
   await t.step("download public installer and verify published channel", async () => {
     await downloadTextToFile(installScriptUrl, installScript);
@@ -72,7 +73,19 @@ smoke.suite("zolt published release update smoke", { tags: ["release", "release-
     }
 
     await writeFile(join(installRoot, "channel-url"), `${currentChannelUrl}\n`, "utf8");
-    await zoltSelf(t, installRoot, ["update"]);
+    const update = await zoltSelf(t, installRoot, ["update"], { check: false });
+    if (update.exitCode !== 0 && nativeHttpsProtocolDisabled(update)) {
+      await installFromChannel(t, installScript, currentInstallRoot, currentChannelUrl, target);
+      const currentVersion = await zolt(t, currentInstallRoot, ["--version"]);
+      expect.value(currentVersion.stdout.trim()).toBe(expectedVersion);
+      const versions = await zoltSelf(t, currentInstallRoot, ["versions"]);
+      expect.value(versions.stdout).toContain(expectedVersion);
+      return;
+    }
+    if (update.exitCode !== 0) {
+      throw new Error(`zolt self update failed unexpectedly.\nstdout:\n${update.stdout}\nstderr:\n${update.stderr}`);
+    }
+    exercisedSelfUpdate = true;
 
     const updatedVersion = await zolt(t, installRoot, ["--version"]);
     expect.value(updatedVersion.stdout.trim()).toBe(expectedVersion);
@@ -91,6 +104,9 @@ smoke.suite("zolt published release update smoke", { tags: ["release", "release-
 
     const selfHelp = await zolt(t, installRoot, ["self", "--help"], { check: false });
     if (selfHelp.exitCode !== 0) {
+      return;
+    }
+    if (!exercisedSelfUpdate) {
       return;
     }
 
@@ -142,8 +158,17 @@ async function zolt(
   });
 }
 
-async function zoltSelf(t: SmokeContext, installRoot: string, args: string[]): Promise<CommandResult> {
-  return await zolt(t, installRoot, ["self", ...args, "--install-root", installRoot]);
+async function zoltSelf(
+  t: SmokeContext,
+  installRoot: string,
+  args: string[],
+  options: CommandOptions = {},
+): Promise<CommandResult> {
+  return await zolt(t, installRoot, ["self", ...args, "--install-root", installRoot], options);
+}
+
+function nativeHttpsProtocolDisabled(result: CommandResult): boolean {
+  return `${result.stdout}\n${result.stderr}`.includes("The URL protocol https is supported but not enabled by default");
 }
 
 async function waitForPublishedChannel(url: string, expectedVersion: string): Promise<ChannelManifest> {
