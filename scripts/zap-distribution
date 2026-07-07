@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+default_target() {
+  local os
+  local arch
+  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  arch="$(uname -m | tr '[:upper:]' '[:lower:]')"
+  case "$os:$arch" in
+    linux:x86_64 | linux:amd64)
+      printf 'linux-x64'
+      ;;
+    linux:aarch64 | linux:arm64)
+      printf 'linux-arm64'
+      ;;
+    darwin:x86_64 | darwin:amd64)
+      printf 'macos-x64'
+      ;;
+    darwin:aarch64 | darwin:arm64)
+      printf 'macos-arm64'
+      ;;
+    *)
+      printf 'linux-x64'
+      ;;
+  esac
+}
+
+CHANNEL="${ZOLT_RELEASE_CHANNEL:-zap}"
+TARGET="${ZOLT_RELEASE_TARGET:-$(default_target)}"
+ORIGIN="${ZOLT_DISTRIBUTION_ORIGIN:-https://dist.zolt.sh}"
+PUBLISH=0
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/zap-distribution [--publish] [--target <target>] [--origin <url>]
+
+Build, verify, and optionally publish a zap-channel native Zolt distribution.
+
+Environment:
+  ZOLT_RELEASE_VERSION        Override computed version.
+  ZOLT_RELEASE_TARGET         Release target. Default: current host target.
+  ZOLT_DISTRIBUTION_ORIGIN    Public HTTPS origin. Default: https://dist.zolt.sh.
+  DO_SPACES_BUCKET            Bucket name used with --publish.
+  DO_SPACES_ENDPOINT          S3-compatible endpoint used with --publish.
+USAGE
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --publish)
+      PUBLISH=1
+      shift
+      ;;
+    --target)
+      TARGET="${2:?missing value for --target}"
+      shift 2
+      ;;
+    --origin)
+      ORIGIN="${2:?missing value for --origin}"
+      shift 2
+      ;;
+    --help | -h)
+      usage
+      exit 0
+      ;;
+    *)
+      printf 'error: unknown argument %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$CHANNEL" != "zap" ]]; then
+  printf 'error: scripts/zap-distribution only publishes the zap channel; got %s\n' "$CHANNEL" >&2
+  exit 2
+fi
+
+if [[ "$ORIGIN" != https://* ]]; then
+  printf 'error: ZOLT_DISTRIBUTION_ORIGIN must be an HTTPS URL\n' >&2
+  exit 2
+fi
+ORIGIN="${ORIGIN%/}"
+
+BASE_VERSION="$(
+  awk -F '"' '/^version = / { print $2; exit }' apps/zolt/zolt.toml | sed 's/-SNAPSHOT$//'
+)"
+if [[ -z "$BASE_VERSION" ]]; then
+  printf 'error: could not read apps/zolt/zolt.toml project version\n' >&2
+  exit 1
+fi
+
+COMMIT="$(git rev-parse HEAD)"
+SHORT_COMMIT="$(git rev-parse --short=12 HEAD)"
+STAMP="$(date -u +%Y%m%d)"
+CREATED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+VERSION="${ZOLT_RELEASE_VERSION:-${BASE_VERSION}-${CHANNEL}.${STAMP}.${SHORT_COMMIT}}"
+export ZOLT_VERSION_OVERRIDE="$VERSION"
+
+case "$TARGET" in
+  linux-x64 | linux-arm64 | macos-x64 | macos-arm64)
+    ARCHIVE_EXTENSION=".tar.gz"
+    FORMAT="tar.gz"
+    BINARY_NAME="zolt"
+    ;;
+  windows-x64)
+    ARCHIVE_EXTENSION=".zip"
+    FORMAT="zip"
+    BINARY_NAME="zolt.exe"
+    ;;
+  *)
+    printf 'error: unsupported release target %s\n' "$TARGET" >&2
+    exit 2
+    ;;
+esac
+
+APP_DIR="$ROOT/apps/zolt"
+OUTPUT_DIR="target/release/${CHANNEL}/${VERSION}"
+CHANNEL_DIR="target/release/channels"
+ARCHIVE_NAME="zolt-${VERSION}-${TARGET}${ARCHIVE_EXTENSION}"
+ARCHIVE_PATH="${APP_DIR}/${OUTPUT_DIR}/${ARCHIVE_NAME}"
+CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
+RELEASE_MANIFEST_PATH="${APP_DIR}/${OUTPUT_DIR}/release-manifest.json"
+CHANNEL_MANIFEST_PATH="${APP_DIR}/${CHANNEL_DIR}/${CHANNEL}.json"
+ARCHIVE_URL="${ORIGIN}/artifacts/${CHANNEL}/${VERSION}/${ARCHIVE_NAME}"
+CHECKSUM_URL="${ARCHIVE_URL}.sha256"
+APP_LOCKFILE="${APP_DIR}/zolt.lock"
+APP_LOCKFILE_WAS_PRESENT=0
+if [[ -e "$APP_LOCKFILE" ]]; then
+  APP_LOCKFILE_WAS_PRESENT=1
+fi
+
+cleanup_app_lockfile() {
+  if [[ "$APP_LOCKFILE_WAS_PRESENT" -eq 0 ]]; then
+    rm -f "$APP_LOCKFILE"
+  fi
+}
+trap cleanup_app_lockfile EXIT
+
+printf 'Building %s distribution %s for %s\n' "$CHANNEL" "$VERSION" "$TARGET"
+
+rm -f apps/zolt-junit-worker/target/zolt-junit-worker-*.jar
+rm -f apps/zolt/target/libexec/zolt-junit-worker.jar
+scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt-junit-worker
+shopt -s nullglob
+WORKER_JARS=(apps/zolt-junit-worker/target/zolt-junit-worker-*.jar)
+shopt -u nullglob
+if [[ "${#WORKER_JARS[@]}" -ne 1 ]]; then
+  printf 'error: expected exactly one JUnit worker jar, found %s\n' "${#WORKER_JARS[@]}" >&2
+  exit 1
+fi
+mkdir -p apps/zolt/target/libexec
+cp "${WORKER_JARS[0]}" apps/zolt/target/libexec/zolt-junit-worker.jar
+scripts/bootstrap-zolt-jvm --no-progress native --workspace --member apps/zolt
+scripts/bootstrap-zolt-jvm --no-progress release-archive \
+  --directory "$APP_DIR" \
+  --target "$TARGET" \
+  --binary target/native/zolt \
+  --output "$OUTPUT_DIR"
+scripts/bootstrap-zolt-jvm --no-progress release-verify \
+  --directory "$APP_DIR" \
+  --work-dir "target/release-verify/${CHANNEL}/${VERSION}" \
+  "$OUTPUT_DIR/$ARCHIVE_NAME"
+
+if [[ ! -f "$ARCHIVE_PATH" || ! -f "$CHECKSUM_PATH" || ! -f "$RELEASE_MANIFEST_PATH" ]]; then
+  printf 'error: expected release outputs were not created under %s/%s\n' "$APP_DIR" "$OUTPUT_DIR" >&2
+  exit 1
+fi
+
+SHA256="$(awk '{ print $1; exit }' "$CHECKSUM_PATH")"
+if [[ ! "$SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+  printf 'error: invalid SHA-256 in %s\n' "$CHECKSUM_PATH" >&2
+  exit 1
+fi
+
+mkdir -p "${APP_DIR}/${CHANNEL_DIR}"
+cat > "$CHANNEL_MANIFEST_PATH" <<EOF
+{
+  "schemaVersion": 1,
+  "channel": "${CHANNEL}",
+  "version": "${VERSION}",
+  "commit": "${COMMIT}",
+  "createdAt": "${CREATED_AT}",
+  "artifacts": [
+    {
+      "target": "${TARGET}",
+      "archive": "${ARCHIVE_NAME}",
+      "archiveUrl": "${ARCHIVE_URL}",
+      "checksumUrl": "${CHECKSUM_URL}",
+      "sha256": "${SHA256}",
+      "format": "${FORMAT}",
+      "binaryName": "${BINARY_NAME}"
+    }
+  ]
+}
+EOF
+
+printf 'Wrote %s\n' "$CHANNEL_MANIFEST_PATH"
+
+if [[ "$PUBLISH" -eq 1 ]]; then
+  if [[ -z "${DO_SPACES_BUCKET:-}" || -z "${DO_SPACES_ENDPOINT:-}" ]]; then
+    printf 'error: --publish requires DO_SPACES_BUCKET and DO_SPACES_ENDPOINT\n' >&2
+    exit 2
+  fi
+  if ! command -v aws >/dev/null 2>&1; then
+    printf 'error: --publish requires aws CLI on PATH\n' >&2
+    exit 2
+  fi
+
+  ARTIFACT_URI="s3://${DO_SPACES_BUCKET}/artifacts/${CHANNEL}/${VERSION}"
+  CHANNEL_URI="s3://${DO_SPACES_BUCKET}/channels/${CHANNEL}.json"
+
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$ARCHIVE_PATH" "${ARTIFACT_URI}/${ARCHIVE_NAME}" \
+    --acl public-read \
+    --cache-control "public, max-age=31536000, immutable" \
+    --content-type "application/gzip"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$CHECKSUM_PATH" "${ARTIFACT_URI}/${ARCHIVE_NAME}.sha256" \
+    --acl public-read \
+    --cache-control "public, max-age=31536000, immutable" \
+    --content-type "text/plain"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$RELEASE_MANIFEST_PATH" "${ARTIFACT_URI}/release-manifest.json" \
+    --acl public-read \
+    --cache-control "public, max-age=31536000, immutable" \
+    --content-type "application/json"
+  aws --endpoint-url "$DO_SPACES_ENDPOINT" s3 cp "$CHANNEL_MANIFEST_PATH" "$CHANNEL_URI" \
+    --acl public-read \
+    --cache-control "no-cache" \
+    --content-type "application/json"
+
+  printf 'Published %s and %s\n' "$ARTIFACT_URI" "$CHANNEL_URI"
+fi
+
+printf 'ZOLT_ZAP_VERSION=%s\n' "$VERSION"
+printf 'ZOLT_ZAP_ARCHIVE=%s\n' "$ARCHIVE_PATH"
+printf 'ZOLT_ZAP_CHANNEL_MANIFEST=%s\n' "$CHANNEL_MANIFEST_PATH"

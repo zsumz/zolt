@@ -9,6 +9,7 @@
 /.gradle/
 /.gradle-user/
 /.zolt/
+javac.*.args
 
 # IDE
 .idea/

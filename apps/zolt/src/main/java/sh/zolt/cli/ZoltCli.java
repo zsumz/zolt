@@ -99,7 +99,15 @@ public final class ZoltCli implements Runnable {
      * into the override so the binary's {@code --version} output agrees with the stamped archives.
      */
     public static String version() {
-        return sh.zolt.project.ProjectVersionOverride.resolveVersion(VERSION);
+        String buildVersion = ZoltBuildVersion.version();
+        if (!VERSION.equals(buildVersion)) {
+            return buildVersion;
+        }
+        String implementationVersion = ZoltCli.class.getPackage().getImplementationVersion();
+        if (implementationVersion != null && !implementationVersion.isBlank()) {
+            return implementationVersion;
+        }
+        return buildVersion;
     }
 
     /**

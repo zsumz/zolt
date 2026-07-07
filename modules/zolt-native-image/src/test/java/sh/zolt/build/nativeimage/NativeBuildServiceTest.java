@@ -60,6 +60,7 @@ final class NativeBuildServiceTest extends NativeBuildServiceTestSupport {
         assertEquals("native ok\n", Files.readString(logFile));
         assertEquals(List.of(
                 "custom-native-image",
+                "-J-Dzolt.build.version=0.1.0",
                 "--no-fallback",
                 "--native-image-info",
                 "-cp",

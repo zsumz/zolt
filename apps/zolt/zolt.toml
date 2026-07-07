@@ -70,4 +70,8 @@ testOutput = "target/test-classes"
 [native]
 imageName = "zolt"
 output = "target/native"
-args = ["--no-fallback", "--native-image-info"]
+args = [
+    "--initialize-at-build-time=sh.zolt.cli.ZoltBuildVersion",
+    "--no-fallback",
+    "--native-image-info",
+]

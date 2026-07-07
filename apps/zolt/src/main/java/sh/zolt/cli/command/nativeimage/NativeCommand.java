@@ -22,6 +22,7 @@ import sh.zolt.cli.command.CommandWorkspaceSelections;
 import sh.zolt.cli.console.ProgressWriter;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
@@ -123,7 +124,8 @@ public final class NativeCommand implements Runnable {
                 progress.result("Built native binaries for " + result.members().size() + " workspace members");
                 return;
             }
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            ProjectConfig config = ProjectVersionOverride.apply(
+                    tomlParser.parse(projectRoot.resolve("zolt.toml")));
             progress.start("Building native image");
             NativeBuildResult result = nativeBuildService.buildNative(
                     projectRoot,

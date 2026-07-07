@@ -15,6 +15,7 @@ import sh.zolt.project.NativeSettings;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.project.ProjectPaths;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -147,9 +148,16 @@ public final class NativeBuildService {
                 mainClass,
                 outputDirectory.resolve(imageName),
                 outputDirectory.resolve("native-image.log"),
-                nativeSettings.args()), progress);
+                nativeImageArguments(config, nativeSettings)), progress);
         reportSeriousWarnings(nativeImageResult);
         return new NativeBuildResult(packageResult, nativeImageResult, springBootAotEvidencePath);
+    }
+
+    private static List<String> nativeImageArguments(ProjectConfig config, NativeSettings nativeSettings) {
+        List<String> arguments = new ArrayList<>();
+        arguments.add("-J-D" + ProjectVersionOverride.BUILD_PROPERTY + "=" + config.project().version());
+        arguments.addAll(nativeSettings.args());
+        return List.copyOf(arguments);
     }
 
     private static String nativeMainClass(ProjectConfig config) {

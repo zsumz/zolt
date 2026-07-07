@@ -53,6 +53,15 @@ final class ProjectVersionOverrideTest {
     }
 
     @Test
+    void resolveBuildVersionPrefersCapturedBuildValueOverCompiledDefault() {
+        assertEquals(
+                "0.1.0-zap.20260706.0123456789ab",
+                ProjectVersionOverride.resolveBuildVersion(
+                        "0.1.0-zap.20260706.0123456789ab",
+                        "0.1.0-SNAPSHOT"));
+    }
+
+    @Test
     void withVersionReplacesOnlyTheVersionField() {
         ProjectConfig base = config();
         ProjectConfig updated = base.withVersion("0.1.0-nightly.20260628.0123456789ab");

@@ -6,6 +6,8 @@ import sh.zolt.build.NativeImageException;
 import sh.zolt.build.packageplan.PackagePlanService;
 import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.project.PackageMode;
+import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.resolve.ResolveService;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
@@ -113,9 +115,10 @@ public final class WorkspaceNativeBuildService {
             WorkspaceMember member = membersByPath.get(memberPackage.member());
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPackage.member());
             requireMainClass(member);
+            ProjectConfig config = ProjectVersionOverride.apply(member.config());
             NativeBuildResult result = nativeBuildService.buildNativeImage(
                     member.directory(),
-                    member.config(),
+                    config,
                     memberPackage.result(),
                     memberBuild.classpaths().runtime().entries(),
                     nativeImageExecutable,

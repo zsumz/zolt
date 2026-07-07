@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ProjectVersionOverride {
     public static final String ENV_VAR = "ZOLT_VERSION_OVERRIDE";
+    public static final String BUILD_PROPERTY = "zolt.build.version";
 
     private static final Pattern ACCEPTED = Pattern.compile(
             "^([0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z._-]*)?"
@@ -69,6 +70,12 @@ public final class ProjectVersionOverride {
      */
     public static String resolveVersion(String compiledDefault) {
         return fromEnvironment().orElse(compiledDefault);
+    }
+
+    public static String resolveBuildVersion(String buildVersion, String compiledDefault) {
+        return fromValue(buildVersion)
+                .or(() -> fromEnvironment())
+                .orElse(compiledDefault);
     }
 
     /**
