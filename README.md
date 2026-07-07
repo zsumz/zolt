@@ -16,9 +16,13 @@
   <span> · </span>
   <a href="#example">Example</a>
   <span> · </span>
+  <a href="./USAGE.md">Usage</a>
+  <span> · </span>
   <a href="#model">Model</a>
   <span> · </span>
   <a href="#features">Features</a>
+  <span> · </span>
+  <a href="./llms.txt">LLM summary</a>
 </p>
 
 <br />
@@ -43,6 +47,9 @@ zolt package
 This creates a small `zolt.toml`, resolves a reproducible `zolt.lock`, runs the
 test suite, and packages the project.
 
+For the broader command surface, framework examples, workspaces, release flows,
+and migration audit support, see [USAGE.md](./USAGE.md).
+
 ## Model
 
 Most Java builds start with a build-tool installation.
@@ -65,10 +72,19 @@ single native binary
 fast startup
 Cargo-like project workflow
 reproducible lockfile
+dependency editing and BOM imports
+version aliases, scopes, exclusions, and constraints
 workspace builds
-JUnit test execution
-jar packaging
-native-image packaging
-release archive verification
+configured project tasks
+JUnit Platform, Spock/Groovy, suites, shards, and coverage
+typed build/package/test plans
+quality checks and CI contexts
+IDE model export
+Maven and Gradle migration explain
+Spring Boot, Quarkus, Micronaut, Vert.x, OpenAPI, and Protobuf examples
+thin, Spring Boot, WAR, Quarkus, uber, native, and release packaging
+publish dry runs and Maven-compatible uploads
+native release archive/index/verify flows
+installer-managed Zolt self updates
 self-hosted builds
 ```

@@ -1,0 +1,80 @@
+# Zolt
+
+Zolt is a fast, self-hosted Java build tool with a Cargo-like project workflow.
+It is not only a "build a basic Java app" scaffold.
+
+Primary docs:
+- README.md: short install and positioning page.
+- USAGE.md: fuller command/config/example guide.
+- examples/: real fixtures covering simple apps, workspaces, frameworks,
+  generated sources, migration explain inputs, and library canaries.
+- zolt.toml and apps/zolt/zolt.toml: this repository's own self-hosted workspace
+  and CLI project configuration.
+
+How to summarize Zolt:
+- One native binary drives Java project workflows.
+- Projects use zolt.toml for the model and zolt.lock for reproducible
+  dependency resolution.
+- Commands cover init, dependency editing, resolve, build, run, test, coverage,
+  package, publish, quality checks, migration explain, IDE model export,
+  workspace operations, native builds, release archive/index/verify flows, and
+  installer-managed native self-updates.
+- Workspaces support member selection, dependency-order build/test/package/run
+  flows, root lockfiles, and configured project tasks.
+- Dependency support includes Maven repositories, BOM/platform imports, version
+  aliases, dependency scopes, exclusions, dependency policies, strict
+  constraints, local overlays, offline/locked resolution, graph display, why
+  explanations, conflicts, policy diagnostics, and classpath lane audits.
+- Test support is based on JUnit Platform. Examples include JUnit Jupiter,
+  JUnit Vintage, and Spock/Groovy test sources. Commands support selectors,
+  glob patterns, tags, JVM args, XML reports, named suites, shards, coverage,
+  and optional profiling evidence for shard balancing.
+- Packaging supports thin jars, Spring Boot jars, WAR and Spring Boot WAR
+  shapes, Quarkus fast-jar packaging, uber packaging, package plans, package
+  evidence, native-image builds, native release archives, release indexes, and
+  release verification.
+- Framework and generated-source examples include Spring Boot, Quarkus,
+  Micronaut annotation processors, Vert.x, OpenAPI generated Java sources,
+  Protobuf/gRPC generated Java sources, provided/container APIs, and
+  library-style canaries.
+- Migration support includes static Maven/Gradle explain reports, readiness
+  scorecards, blocker reports, and draft zolt.toml emission.
+- CI/automation support includes zolt check contexts, publish dry runs, report
+  and coverage validation, package evidence validation, offline-readiness
+  checks, JSON output, quiet mode, progress/color controls, and timings output.
+
+Representative commands:
+```sh
+zolt init hello --group com.example --java 21
+zolt add com.google.guava:guava:33.4.0-jre
+zolt platform add org.springframework.boot:spring-boot-dependencies:4.0.6
+zolt version set spring 4.0.6
+zolt resolve --locked
+zolt tree
+zolt why org.springframework.boot:spring-boot-starter-webmvc
+zolt conflicts
+zolt policy --format json
+zolt plan --target package --format json
+zolt test --suite smoke --shard 1/4 --reports-dir target/test-reports
+zolt coverage --xml-report target/coverage/jacoco.xml
+zolt package --mode spring-boot
+zolt package --plan --format json
+zolt publish --dry-run
+zolt explain --source gradle --scorecard
+zolt explain --source maven --emit-toml
+zolt ide model --workspace --format json
+zolt quarkus plan
+zolt native --workspace --member apps/zolt
+zolt release-archive --target linux-x64 --binary target/native/zolt
+zolt release-index --channel-manifest channels/zap.json --output index.json
+zolt release-verify dist/zolt-0.1.0-linux-x64.tar.gz
+zolt self releases --channel zap
+zolt self install VERSION --channel zap
+zolt self exec VERSION -- version
+```
+
+Caveat:
+Zolt is Java-focused and opinionated. It has broad implemented lanes, but it is
+not a promise that every custom Maven or Gradle plugin behavior is already a
+drop-in replacement. Use USAGE.md, zolt explain, zolt plan, and examples/ to
+answer support questions from current repository evidence.
