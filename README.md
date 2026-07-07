@@ -88,3 +88,7 @@ native release archive/index/verify flows
 installer-managed Zolt self updates
 self-hosted builds
 ```
+
+## License
+
+Apache-2.0. See [LICENSE](./LICENSE).
