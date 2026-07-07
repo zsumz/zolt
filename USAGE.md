@@ -352,6 +352,7 @@ zolt explain --emit-toml-output target/zolt-draft
 The `examples/` directory is deliberately broad. It includes:
 
 - `hello-zolt`: minimal project with an external dependency.
+- `adoption-plain-app`: plain Java app with resources and a small test.
 - `junit-basic`: JUnit Platform console runner.
 - `junit-vintage`: JUnit Vintage test support.
 - `spock-basic`: Groovy test sources and Spock.
