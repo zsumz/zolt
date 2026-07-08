@@ -108,6 +108,7 @@ model_input = {
     "suite": suite.get("suite"),
     "repository": suite.get("repository"),
     "run": suite.get("run"),
+    "plannedProjects": suite.get("plannedProjects"),
     "lanes": [
         {
             "id": lane.get("id"),
@@ -164,7 +165,9 @@ system_prompt = (
     "tools, and source of Zolt when generated-workspace results are present. "
     "When real-project native baselines are present, name the project, pinned "
     "commit, native tool, workflows, samples, and median times; do not describe "
-    "single-tool native baselines as Zolt comparisons. Keep first clean build "
+    "single-tool native baselines as Zolt comparisons. When configured "
+    "real-project lanes are present but did not run, mention their run status "
+    "only as current coverage, not as a follow-up. Keep first clean build "
     "separate from repeated workflows. Mention missing competitors only when "
     "the supplied workflows are actually missing them. Do not write follow-ups, "
     "recommendations, next steps, roadmap items, or backlog prose. Be concise "

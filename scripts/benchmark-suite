@@ -399,6 +399,8 @@ def planned_projects(path):
                 "upstreamUrl": project.get("upstreamUrl"),
                 "nativeTool": project.get("nativeTool"),
                 "status": project.get("status"),
+                "adapterStatus": project.get("adapterStatus"),
+                "adapterPath": project.get("adapterPath"),
                 "priority": project.get("priority"),
                 "pin": project.get("pin"),
                 "workflows": project.get("workflows") or [],
@@ -590,18 +592,24 @@ if projects:
     lines.extend([
         "## Configured Real-Project Lanes",
         "",
-        "| Project | Native tool | Manifest status | Run status | Pin |",
-        "| --- | --- | --- | --- | --- |",
+        "| Project | Native tool | Manifest status | Adapter | Run status | Pin |",
+        "| --- | --- | --- | --- | --- | --- |",
     ])
     for project in projects:
         pin = project.get("pin") or {}
         pin_value = pin.get("value") or "needs pin"
+        adapter_status = project.get("adapterStatus") or "unknown"
+        adapter_path = project.get("adapterPath")
+        adapter_text = adapter_status
+        if adapter_path:
+            adapter_text = f"{adapter_status} ({adapter_path})"
         lines.append(
             "| "
             + " | ".join([
                 project.get("name") or project.get("id") or "unknown",
                 project.get("nativeTool") or "unknown",
                 project.get("status") or "unknown",
+                adapter_text,
                 project_run_status.get(project.get("id"), "not run"),
                 pin_value,
             ])
