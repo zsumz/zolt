@@ -6,10 +6,14 @@ headline number.
 The target suite is larger than the current harness: a generated enterprise-like
 Java workload, pinned real-project lanes, and optional OpenAI summaries over the
 structured result. See [plan.md](./plan.md) for the benchmark architecture.
+The real-project lane manifest lives in [projects.json](./projects.json).
 
-The first public harness is `scripts/benchmark-competitors`. It generates the
-same multi-module Java workspace shape for Zolt, Maven, and Gradle, then records
-wall-clock samples for workflows that matter on larger projects:
+The public entrypoint is `scripts/benchmark-suite`. It runs selected benchmark
+lanes, writes one suite-level summary, and keeps each lane's raw evidence under
+the suite artifact. The generated Java workspace lane uses
+`scripts/benchmark-competitors` underneath. It generates the same multi-module
+Java workspace shape for Zolt, Maven, and Gradle, then records wall-clock samples
+for workflows that matter on larger projects:
 
 - first clean build as a single setup lane;
 - warm no-op build;
@@ -20,25 +24,27 @@ The script writes raw JSON-lines samples, command logs, a JSON summary, and a
 Markdown report under `target/benchmarks/competitors` by default.
 
 ```sh
-scripts/benchmark-competitors --modules 40 --repeat 5
+scripts/benchmark-suite --modules 40 --repeat 5 --include-gradle-daemon
 ```
 
 Useful variants:
 
 ```sh
-scripts/benchmark-competitors --modules 100 --repeat 7
-scripts/benchmark-competitors --include-gradle-daemon
-scripts/benchmark-competitors --zolt ~/.zolt/bin/zolt
-scripts/benchmark-competitors --skip-maven --skip-gradle --modules 200
+scripts/benchmark-suite --modules 100 --repeat 7 --include-gradle-daemon
+scripts/benchmark-suite --zolt ~/.zolt/bin/zolt
+scripts/benchmark-suite --generated-summary target/benchmarks/competitors/generated-java-workspace/summary.json
+scripts/benchmark-competitors --modules 200 --skip-maven --skip-gradle
 ```
 
-After a benchmark run, generate compact and suite-level summaries:
+The generated-lane script can still be used directly while debugging:
 
 ```sh
-scripts/benchmark-llm-summary \
-  --summary target/benchmarks/competitors/summary.json \
-  --output-dir target/benchmarks/competitors
+scripts/benchmark-competitors --modules 40 --repeat 5 --include-gradle-daemon
+```
 
+After a direct generated-lane run, generate a suite-level summary:
+
+```sh
 scripts/benchmark-suite-summary \
   --summary target/benchmarks/competitors/summary.json \
   --output target/benchmarks/competitors/suite-summary.json
@@ -46,11 +52,11 @@ scripts/benchmark-suite-summary \
 
 That writes:
 
-- `summary-brief.md` for a deterministic lane-by-lane summary;
+- `summary-brief.md` for a deterministic suite summary;
 - `suite-summary.json` as the stable contract for CI, artifacts, and model
   summarization;
-- `llm-context.json` for structured downstream processing;
-- `llm-prompt.md` for model-generated summaries.
+- lane detail files under `generated-java-workspace/`;
+- `llm-summary.md` as a compatibility alias for the deterministic summary.
 
 To generate a model summary locally:
 
@@ -67,7 +73,7 @@ the deterministic summary when the key is absent.
 ## GitHub Actions
 
 Use the manual `benchmarks` workflow for public runs. It installs or builds a
-native Zolt binary, runs this harness, writes the deterministic compact summary
+native Zolt binary, runs the suite harness, writes the deterministic compact summary
 into the job summary, optionally appends a model-generated summary, and uploads
 the report, raw samples, JSON summaries, prompt context, and command logs as
 workflow artifacts.
@@ -99,6 +105,7 @@ not enough for public performance claims. Real-project benchmarks should use
 pinned upstream commits plus Zolt adapters that build the same meaningful source
 set. See [real-projects.md](./real-projects.md) for the project policy and
 initial candidate suite.
+`projects.json` is the machine-readable version used by the suite runner.
 
 ## Publishing Results
 

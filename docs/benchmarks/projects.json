@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "projects": [
+    {
+      "id": "spring-petclinic",
+      "name": "Spring PetClinic",
+      "upstreamUrl": "https://github.com/spring-projects/spring-petclinic",
+      "nativeTool": "maven",
+      "status": "adapter-planned",
+      "priority": 1,
+      "pin": {
+        "type": "commit",
+        "value": null
+      },
+      "workflows": [
+        "first-clean-build",
+        "warm-no-op-build",
+        "source-change-build",
+        "test"
+      ],
+      "coverageNotes": [
+        "Real Spring Boot application lane.",
+        "Needs a pinned upstream ref before results can be published.",
+        "Needs a Zolt adapter before native Maven results become a Zolt comparison."
+      ]
+    },
+    {
+      "id": "apache-commons-cli",
+      "name": "Apache Commons CLI",
+      "upstreamUrl": "https://github.com/apache/commons-cli",
+      "nativeTool": "maven",
+      "status": "adapter-planned",
+      "priority": 2,
+      "pin": {
+        "type": "commit",
+        "value": null
+      },
+      "workflows": [
+        "first-clean-build",
+        "warm-no-op-build",
+        "source-change-build",
+        "test"
+      ],
+      "coverageNotes": [
+        "Compact Maven library lane.",
+        "Good first adapter target after the suite runner is stable.",
+        "Needs a pinned upstream ref before results can be published."
+      ]
+    },
+    {
+      "id": "hikaricp",
+      "name": "HikariCP",
+      "upstreamUrl": "https://github.com/brettwooldridge/HikariCP",
+      "nativeTool": "gradle",
+      "status": "later",
+      "priority": 3,
+      "pin": {
+        "type": "commit",
+        "value": null
+      },
+      "workflows": [
+        "first-clean-build",
+        "warm-no-op-build",
+        "source-change-build",
+        "test"
+      ],
+      "coverageNotes": [
+        "First Gradle-library real-project lane.",
+        "Run after the Maven real-project lanes prove the manifest and artifact flow."
+      ]
+    },
+    {
+      "id": "netty",
+      "name": "Netty",
+      "upstreamUrl": "https://github.com/netty/netty",
+      "nativeTool": "maven",
+      "status": "native-baseline-planned",
+      "priority": 4,
+      "pin": {
+        "type": "commit",
+        "value": null
+      },
+      "workflows": [
+        "dependency-setup",
+        "sequential-clean-compile-all",
+        "parallel-clean-compile-all",
+        "clean-compile-single-module",
+        "warm-no-op-single-module",
+        "implementation-change-common",
+        "public-api-change-common",
+        "package-or-install"
+      ],
+      "coverageNotes": [
+        "Large Maven reactor lane.",
+        "Start as a native Maven baseline.",
+        "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."
+      ]
+    },
+    {
+      "id": "junit-framework",
+      "name": "JUnit Framework",
+      "upstreamUrl": "https://github.com/junit-team/junit-framework",
+      "nativeTool": "gradle",
+      "status": "later",
+      "priority": 5,
+      "pin": {
+        "type": "commit",
+        "value": null
+      },
+      "workflows": [
+        "first-clean-build",
+        "warm-no-op-build",
+        "source-change-build",
+        "test"
+      ],
+      "coverageNotes": [
+        "Large Gradle multi-module project.",
+        "Likely post-beta once Maven real-project and Netty lanes are stable."
+      ]
+    }
+  ]
+}

@@ -59,7 +59,7 @@ permissions:
 
 jobs:
   benchmark:
-    name: generated workspace
+    name: benchmark suite
     runs-on: ubuntu-24.04
     timeout-minutes: 90
 
@@ -156,32 +156,27 @@ jobs:
       - name: Run benchmark
         run: |
           export PATH="$JAVA_HOME/bin:$PATH"
+          artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
           args=(
             --modules "$BENCHMARK_MODULES"
             --repeat "$BENCHMARK_REPEAT"
             --work-dir "$BENCHMARK_DIR"
             --zolt "$ZOLT_BENCH_ZOLT"
+            --project-manifest docs/benchmarks/projects.json
+            --artifact-name "$artifact_name"
           )
           if [[ "$BENCHMARK_INCLUDE_GRADLE_DAEMON" == "true" ]]; then
             args+=(--include-gradle-daemon)
           fi
-          scripts/benchmark-competitors "${args[@]}"
+          scripts/benchmark-suite "${args[@]}"
 
       - name: Prepare benchmark summary files
         if: always()
         run: |
-          if [[ -f "$BENCHMARK_DIR/summary.json" ]]; then
-            scripts/benchmark-llm-summary --summary "$BENCHMARK_DIR/summary.json" --output-dir "$BENCHMARK_DIR"
-            artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
-            scripts/benchmark-suite-summary \
-              --summary "$BENCHMARK_DIR/summary.json" \
-              --output "$BENCHMARK_DIR/suite-summary.json" \
-              --lane-id generated-workspace \
-              --lane-name "Generated Java workspace" \
-              --lane-kind generated \
-              --artifact-name "$artifact_name"
+          if [[ -f "$BENCHMARK_DIR/suite-summary.json" ]]; then
+            printf 'Benchmark suite summary prepared: %s/suite-summary.json\n' "$BENCHMARK_DIR"
           else
-            printf 'Benchmark summary was not generated; skipping summary files.\n'
+            printf 'Benchmark suite summary was not generated; skipping summary files.\n'
           fi
 
       - name: Prepare model benchmark summary
@@ -267,16 +262,12 @@ jobs:
         with:
           name: zolt-benchmark-native-${{ env.BENCHMARK_ZOLT_SOURCE }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
           path: |
-            target/benchmarks/competitors/report.md
-            target/benchmarks/competitors/summary.json
-            target/benchmarks/competitors/samples.jsonl
             target/benchmarks/competitors/summary-brief.md
             target/benchmarks/competitors/suite-summary.json
             target/benchmarks/competitors/llm-summary.md
-            target/benchmarks/competitors/llm-context.json
-            target/benchmarks/competitors/llm-prompt.md
             target/benchmarks/competitors/summary-ai.json
             target/benchmarks/competitors/summary-ai.md
             target/benchmarks/competitors/summary-ai-request.json
-            target/benchmarks/competitors/logs/**
+            target/benchmarks/competitors/generated-java-workspace/**
+            docs/benchmarks/projects.json
           if-no-files-found: warn

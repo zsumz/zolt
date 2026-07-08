@@ -70,9 +70,12 @@ p95, min, max, and raw samples.
 
 ## Automation
 
-Add a suite runner on top of the current `scripts/benchmark-competitors` script:
+The suite runner sits on top of the generated-workspace
+`scripts/benchmark-competitors` script:
 
-- `scripts/benchmark-suite` reads a benchmark spec and runs all selected lanes;
+- `scripts/benchmark-suite` runs selected lanes and writes the overall suite
+  summary;
+- `docs/benchmarks/projects.json` records planned pinned real-project lanes;
 - `scripts/benchmark-enterprise-fixture` generates Zolt, Maven, and Gradle
   versions of the enterprise workload;
 - `scripts/benchmark-real-project` checks out pinned upstream refs, applies
@@ -163,11 +166,12 @@ fixture. The generated enterprise workload is the controllable centerpiece.
 
 ## Milestones
 
-1. Add the enterprise fixture generator and make `smoke`/`enterprise` modes use
+1. Add the suite runner and suite-level JSON contract for generated-workspace
+   runs. Done for the first generated lane.
+2. Add the enterprise fixture generator and make `smoke`/`enterprise` modes use
    it.
-2. Add suite-level JSON: one file with run metadata, lane metadata, summaries,
-   samples, and artifact paths.
-3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`.
+3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`. Done
+   for the current suite summary.
 4. Add real-project checkout/adapters for Spring PetClinic and Commons CLI.
 5. Add Netty as the large native-baseline project, then work toward a Zolt
    adapter.

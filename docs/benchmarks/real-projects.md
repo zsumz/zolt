@@ -22,6 +22,10 @@ included with the result.
 
 ## Candidate Suite
 
+The machine-readable suite manifest is [projects.json](./projects.json). Keep
+this table and that manifest in sync when adding or promoting real-project
+lanes.
+
 | Project | Upstream | Native tool | Why it matters | Zolt status |
 | --- | --- | --- | --- | --- |
 | Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Needs pinned adapter |

@@ -1,0 +1,421 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmarks/competitors"
+OUTPUT_FILE=""
+SUMMARY_BRIEF=""
+PROJECT_MANIFEST="docs/benchmarks/projects.json"
+MODULE_COUNT=40
+REPEAT_COUNT=5
+ZOLT_BIN="${ZOLT_BENCH_ZOLT:-}"
+MAVEN_BIN="${ZOLT_BENCH_MAVEN:-}"
+GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
+INCLUDE_GRADLE_DAEMON=false
+GENERATED_SUMMARY=""
+SKIP_GENERATED=false
+ARTIFACT_NAME=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-suite [options]
+
+Runs selected benchmark lanes and writes a suite-level summary.
+
+Options:
+  --work-dir DIR              Suite output directory. Default: target/benchmarks/competitors.
+  --output FILE               Suite summary JSON. Default: WORK_DIR/suite-summary.json.
+  --summary-brief FILE        Deterministic Markdown summary. Default: WORK_DIR/summary-brief.md.
+  --project-manifest FILE     Real-project manifest. Default: docs/benchmarks/projects.json.
+  --modules COUNT             Generated workspace module count. Default: 40.
+  --repeat COUNT              Generated workspace repeated samples. Default: 5.
+  --zolt PATH                 Zolt executable passed to generated lane.
+  --maven PATH                Maven executable passed to generated lane.
+  --gradle PATH               Gradle executable passed to generated lane.
+  --include-gradle-daemon     Include Gradle daemon in generated lane.
+  --generated-summary FILE    Use an existing generated-lane summary instead of running it.
+  --skip-generated            Do not run or summarize the generated lane.
+  --artifact-name NAME        Uploaded artifact name recorded in the suite summary.
+  -h, --help                  Show this help.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+positive_int() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+abs_path() {
+  case "$1" in
+    "") printf '\n' ;;
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT/$1" ;;
+  esac
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --work-dir)
+      [[ "$#" -ge 2 ]] || fail "--work-dir requires a value"
+      WORK_DIR="$2"
+      shift 2
+      ;;
+    --output)
+      [[ "$#" -ge 2 ]] || fail "--output requires a value"
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    --summary-brief)
+      [[ "$#" -ge 2 ]] || fail "--summary-brief requires a value"
+      SUMMARY_BRIEF="$2"
+      shift 2
+      ;;
+    --project-manifest)
+      [[ "$#" -ge 2 ]] || fail "--project-manifest requires a value"
+      PROJECT_MANIFEST="$2"
+      shift 2
+      ;;
+    --modules)
+      [[ "$#" -ge 2 ]] || fail "--modules requires a value"
+      positive_int "$2" || fail "--modules requires a positive integer"
+      MODULE_COUNT="$2"
+      shift 2
+      ;;
+    --repeat)
+      [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
+      positive_int "$2" || fail "--repeat requires a positive integer"
+      REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --zolt)
+      [[ "$#" -ge 2 ]] || fail "--zolt requires a value"
+      ZOLT_BIN="$2"
+      shift 2
+      ;;
+    --maven)
+      [[ "$#" -ge 2 ]] || fail "--maven requires a value"
+      MAVEN_BIN="$2"
+      shift 2
+      ;;
+    --gradle)
+      [[ "$#" -ge 2 ]] || fail "--gradle requires a value"
+      GRADLE_BIN="$2"
+      shift 2
+      ;;
+    --include-gradle-daemon)
+      INCLUDE_GRADLE_DAEMON=true
+      shift
+      ;;
+    --generated-summary)
+      [[ "$#" -ge 2 ]] || fail "--generated-summary requires a value"
+      GENERATED_SUMMARY="$2"
+      shift 2
+      ;;
+    --skip-generated)
+      SKIP_GENERATED=true
+      shift
+      ;;
+    --artifact-name)
+      [[ "$#" -ge 2 ]] || fail "--artifact-name requires a value"
+      ARTIFACT_NAME="$2"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+case "$WORK_DIR" in
+  "" | "." | "/" | "$ROOT")
+    fail "refusing unsafe benchmark work directory: $WORK_DIR"
+    ;;
+esac
+
+WORK_DIR="$(abs_path "$WORK_DIR")"
+PROJECT_MANIFEST="$(abs_path "$PROJECT_MANIFEST")"
+if [[ -z "$OUTPUT_FILE" ]]; then
+  OUTPUT_FILE="$WORK_DIR/suite-summary.json"
+else
+  OUTPUT_FILE="$(abs_path "$OUTPUT_FILE")"
+fi
+if [[ -z "$SUMMARY_BRIEF" ]]; then
+  SUMMARY_BRIEF="$WORK_DIR/summary-brief.md"
+else
+  SUMMARY_BRIEF="$(abs_path "$SUMMARY_BRIEF")"
+fi
+if [[ -n "$GENERATED_SUMMARY" ]]; then
+  GENERATED_SUMMARY="$(abs_path "$GENERATED_SUMMARY")"
+fi
+
+mkdir -p "$WORK_DIR" "$(dirname "$OUTPUT_FILE")" "$(dirname "$SUMMARY_BRIEF")"
+
+lane_summaries=()
+if [[ "$SKIP_GENERATED" == false ]]; then
+  generated_dir="$WORK_DIR/generated-java-workspace"
+  mkdir -p "$generated_dir"
+
+  if [[ -z "$GENERATED_SUMMARY" ]]; then
+    generated_args=(
+      --modules "$MODULE_COUNT"
+      --repeat "$REPEAT_COUNT"
+      --work-dir "$generated_dir"
+    )
+    if [[ -n "$ZOLT_BIN" ]]; then
+      generated_args+=(--zolt "$ZOLT_BIN")
+    fi
+    if [[ -n "$MAVEN_BIN" ]]; then
+      generated_args+=(--maven "$MAVEN_BIN")
+    fi
+    if [[ -n "$GRADLE_BIN" ]]; then
+      generated_args+=(--gradle "$GRADLE_BIN")
+    fi
+    if [[ "$INCLUDE_GRADLE_DAEMON" == true ]]; then
+      generated_args+=(--include-gradle-daemon)
+    fi
+    scripts/benchmark-competitors "${generated_args[@]}"
+    GENERATED_SUMMARY="$generated_dir/summary.json"
+  fi
+
+  scripts/benchmark-llm-summary \
+    --summary "$GENERATED_SUMMARY" \
+    --output-dir "$generated_dir"
+
+  generated_artifact_name="$ARTIFACT_NAME"
+  if [[ -z "$generated_artifact_name" ]]; then
+    generated_artifact_name="zolt-benchmark-generated-${MODULE_COUNT}-modules-${REPEAT_COUNT}-repeats"
+  fi
+
+  scripts/benchmark-suite-summary \
+    --summary "$GENERATED_SUMMARY" \
+    --output "$generated_dir/suite-summary.json" \
+    --lane-id generated-java-workspace \
+    --lane-name "Generated Java workspace" \
+    --lane-kind generated \
+    --artifact-name "$generated_artifact_name"
+
+  lane_summaries+=("$generated_dir/suite-summary.json")
+fi
+
+python3 - "$OUTPUT_FILE" "$SUMMARY_BRIEF" "$PROJECT_MANIFEST" "$ARTIFACT_NAME" "${lane_summaries[@]}" <<'PY'
+import json
+import os
+import pathlib
+import sys
+from datetime import datetime, timezone
+
+output_path = pathlib.Path(sys.argv[1])
+summary_brief_path = pathlib.Path(sys.argv[2])
+manifest_path = pathlib.Path(sys.argv[3])
+artifact_name = sys.argv[4] or None
+lane_summary_paths = [pathlib.Path(path) for path in sys.argv[5:]]
+
+workflow_order = [
+    "setup-warm-build",
+    "no-op-build",
+    "leaf-change-build",
+    "root-change-build",
+]
+workflow_labels = {
+    "setup-warm-build": "First clean build",
+    "no-op-build": "Warm no-op",
+    "leaf-change-build": "Leaf source change",
+    "root-change-build": "Root library change",
+}
+tool_order = ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"]
+tool_labels = {
+    "zolt": "Zolt",
+    "maven": "Maven",
+    "gradle-no-daemon": "Gradle no-daemon",
+    "gradle-daemon": "Gradle daemon",
+}
+
+
+def load_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def first_present(*values):
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def fmt_ms(value):
+    if not isinstance(value, (int, float)):
+        return "n/a"
+    return f"{int(value):,} ms"
+
+
+def workflow_sort_key(workflow):
+    workflow_id = workflow.get("id")
+    if workflow_id in workflow_order:
+        return (workflow_order.index(workflow_id), workflow_id)
+    return (len(workflow_order), workflow_id or "")
+
+
+def planned_projects(path):
+    if not path.is_file():
+        return []
+    manifest = load_json(path)
+    return sorted(
+        [
+            {
+                "id": project.get("id"),
+                "name": project.get("name"),
+                "upstreamUrl": project.get("upstreamUrl"),
+                "nativeTool": project.get("nativeTool"),
+                "status": project.get("status"),
+                "priority": project.get("priority"),
+                "pin": project.get("pin"),
+                "workflows": project.get("workflows") or [],
+                "coverageNotes": project.get("coverageNotes") or [],
+            }
+            for project in manifest.get("projects", [])
+        ],
+        key=lambda project: (project.get("priority") or 999, project.get("id") or ""),
+    )
+
+
+lane_summaries = [load_json(path) for path in lane_summary_paths if path.is_file()]
+lanes = []
+for lane_summary in lane_summaries:
+    lanes.extend(lane_summary.get("lanes", []))
+
+repository = {}
+for lane_summary in lane_summaries:
+    repository = first_present(lane_summary.get("repository")) or {}
+    if repository:
+        break
+if not repository:
+    run_url = None
+    if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
+        run_url = (
+            f"{os.environ['GITHUB_SERVER_URL']}/"
+            f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
+            f"{os.environ['GITHUB_RUN_ID']}"
+        )
+    repository = {
+        "name": os.environ.get("GITHUB_REPOSITORY"),
+        "ref": os.environ.get("GITHUB_REF_NAME"),
+        "commit": os.environ.get("GITHUB_SHA"),
+        "runId": os.environ.get("GITHUB_RUN_ID"),
+        "runUrl": run_url,
+    }
+
+projects = planned_projects(manifest_path)
+classifications = [
+    ((lane.get("summary") or {}).get("classification"))
+    for lane in lanes
+    if ((lane.get("summary") or {}).get("classification"))
+]
+classification = "Planned benchmark suite"
+if classifications:
+    if any(value == "Production-grade generated evidence" for value in classifications):
+        classification = "Production-grade generated evidence"
+    elif any(value == "Exploratory benchmark" for value in classifications):
+        classification = "Exploratory benchmark"
+    else:
+        classification = classifications[0]
+
+suite = {
+    "schemaVersion": 1,
+    "createdAt": datetime.now(timezone.utc).isoformat(),
+    "suite": {
+        "name": "zolt-benchmark-suite",
+        "mode": "multi-lane",
+    },
+    "repository": repository,
+    "run": {
+        "classification": classification,
+        "laneCount": len(lanes),
+        "completedLaneCount": sum(1 for lane in lanes if lane.get("status") == "complete"),
+        "plannedProjectCount": len(projects),
+        "artifactName": artifact_name,
+    },
+    "lanes": lanes,
+    "plannedProjects": projects,
+    "artifacts": {
+        "suiteSummary": str(output_path),
+        "summaryBrief": str(summary_brief_path),
+        "projectManifest": str(manifest_path) if manifest_path.is_file() else None,
+    },
+}
+
+output_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
+
+lines = ["# Benchmark Suite Summary", ""]
+if lanes:
+    completed = suite["run"]["completedLaneCount"]
+    lines.append(f"This suite contains {completed} completed benchmark lane{'s' if completed != 1 else ''}.")
+    if projects:
+        lines.append(f"{len(projects)} real-project lanes are defined in the manifest for upcoming runs.")
+    lines.append("")
+
+    lines.extend([
+        "## Completed Results",
+        "",
+        "| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
+        "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+    ])
+    for lane in lanes:
+        lane_name = lane.get("name") or lane.get("id") or "Benchmark lane"
+        for workflow in sorted(lane.get("workflows", []), key=workflow_sort_key):
+            workflow_id = workflow.get("id")
+            if workflow_id not in workflow_labels:
+                continue
+            tools = workflow.get("tools") or {}
+            if len(tools) <= 1:
+                continue
+            row = [
+                lane_name,
+                workflow_labels[workflow_id],
+                tool_labels.get(workflow.get("winner"), workflow.get("winner") or "n/a"),
+            ]
+            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in tool_order)
+            lines.append("| " + " | ".join(row) + " |")
+    lines.append("")
+else:
+    lines.append("No benchmark lanes completed in this run.")
+    lines.append("")
+
+if projects:
+    lines.extend([
+        "## Upcoming Real-Project Lanes",
+        "",
+        "| Project | Native tool | Status | Pin |",
+        "| --- | --- | --- | --- |",
+    ])
+    for project in projects:
+        pin = project.get("pin") or {}
+        pin_value = pin.get("value") or "needs pin"
+        lines.append(
+            "| "
+            + " | ".join([
+                project.get("name") or project.get("id") or "unknown",
+                project.get("nativeTool") or "unknown",
+                project.get("status") or "unknown",
+                pin_value,
+            ])
+            + " |"
+        )
+    lines.append("")
+
+summary_brief_path.write_text("\n".join(lines), encoding="utf-8")
+PY
+
+cp "$SUMMARY_BRIEF" "$WORK_DIR/llm-summary.md"
+
+printf 'wrote benchmark suite summary: %s\n' "$OUTPUT_FILE"
+printf 'wrote benchmark suite brief: %s\n' "$SUMMARY_BRIEF"
