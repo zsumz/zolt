@@ -76,7 +76,7 @@ To enable model-generated summaries in GitHub Actions, add a repository Actions
 secret named `OPENAI_API_KEY`. Optional repository variables:
 
 - `OPENAI_MODEL`, default `gpt-5.5`;
-- `OPENAI_REASONING_EFFORT`, default `medium`;
+- `OPENAI_REASONING_EFFORT`, default `high`;
 - `BENCHMARK_AI_SUMMARY=false` to disable the model step without removing the
   secret.
 

@@ -46,7 +46,7 @@ on:
       openai_reasoning_effort:
         description: Reasoning effort for optional OpenAI benchmark summary.
         required: true
-        default: medium
+        default: high
         type: choice
         options:
           - low
@@ -74,7 +74,7 @@ jobs:
       BENCHMARK_GRADLE_VERSION: "9.6.1"
       BENCHMARK_AI_SUMMARY: ${{ vars.BENCHMARK_AI_SUMMARY || 'true' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
-      OPENAI_REASONING_EFFORT: ${{ github.event_name == 'workflow_dispatch' && inputs.openai_reasoning_effort || vars.OPENAI_REASONING_EFFORT || 'medium' }}
+      OPENAI_REASONING_EFFORT: ${{ github.event_name == 'workflow_dispatch' && inputs.openai_reasoning_effort || vars.OPENAI_REASONING_EFFORT || 'high' }}
 
     steps:
       - name: Check out repository
