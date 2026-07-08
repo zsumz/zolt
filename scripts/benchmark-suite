@@ -479,6 +479,7 @@ output_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
 
 lines = ["# Benchmark Suite Summary", ""]
 if lanes:
+    lane_count = len(lanes)
     completed = suite["run"]["completedLaneCount"]
     generated_count = sum(1 for lane in lanes if lane.get("kind") == "generated")
     real_project_count = sum(1 for lane in lanes if lane.get("kind") == "real-project-native-baseline")
@@ -489,12 +490,13 @@ if lanes:
         lane_parts.append(f"{real_project_count} real-project native baseline{'s' if real_project_count != 1 else ''}")
     if lane_parts:
         lines.append(
-            f"This suite contains {completed} completed lane{'s' if completed != 1 else ''}: "
+            f"This suite contains {lane_count} benchmark lane{'s' if lane_count != 1 else ''}: "
             + " and ".join(lane_parts)
             + "."
         )
     else:
-        lines.append(f"This suite contains {completed} completed benchmark lane{'s' if completed != 1 else ''}.")
+        lines.append(f"This suite contains {lane_count} benchmark lane{'s' if lane_count != 1 else ''}.")
+    lines.append(f"Completed lanes: {completed}.")
     if projects:
         lines.append(f"{len(projects)} real-project lanes are configured in the manifest.")
     lines.append("")
