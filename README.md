@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  A Cargo-like workflow for Java: one native binary, project-native builds, and
+  Single native binary, project-native builds, and
   reproducible dependency resolution.
 </p>
 
@@ -22,7 +22,7 @@
   <span> · </span>
   <a href="#features">Features</a>
   <span> · </span>
-  <a href="./llms.txt">LLM summary</a>
+  <a href="./llms.txt">LLMs</a>
 </p>
 
 <br />
@@ -88,6 +88,10 @@ native release archive/index/verify flows
 installer-managed Zolt self updates
 self-hosted builds
 ```
+
+## Why not rust?
+
+No reason. I wanted to self-host to prove it out and support the GraalVM ecosystem.
 
 ## Security
 
