@@ -54,3 +54,14 @@ Start with Spring PetClinic and Apache Commons CLI:
   practical.
 
 Once those are stable, add HikariCP as the first Gradle-library benchmark.
+
+## Large Baselines
+
+For a more enterprise-looking public story, add one large native-tool baseline
+after the adapter flow is proven. Good candidates are Apache Camel or Keycloak:
+they are large, recognizable Java projects, and their native Maven/Gradle runs
+show the scale of the comparison target even before Zolt can build the same
+source set.
+
+Do not present those as Zolt comparisons until the adapter is reviewable and the
+summary names exactly which modules, tests, and packaging work are covered.

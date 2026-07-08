@@ -3,6 +3,10 @@
 Zolt benchmark claims should be backed by repeatable evidence, not a single
 headline number.
 
+The target suite is larger than the current harness: a generated enterprise-like
+Java workload, pinned real-project lanes, and optional OpenAI summaries over the
+structured result. See [plan.md](./plan.md) for the benchmark architecture.
+
 The first public harness is `scripts/benchmark-competitors`. It generates the
 same multi-module Java workspace shape for Zolt, Maven, and Gradle, then records
 wall-clock samples for workflows that matter on larger projects:
