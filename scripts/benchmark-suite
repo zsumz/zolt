@@ -480,9 +480,23 @@ output_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
 lines = ["# Benchmark Suite Summary", ""]
 if lanes:
     completed = suite["run"]["completedLaneCount"]
-    lines.append(f"This suite contains {completed} completed benchmark lane{'s' if completed != 1 else ''}.")
+    generated_count = sum(1 for lane in lanes if lane.get("kind") == "generated")
+    real_project_count = sum(1 for lane in lanes if lane.get("kind") == "real-project-native-baseline")
+    lane_parts = []
+    if generated_count:
+        lane_parts.append(f"{generated_count} generated comparison{'s' if generated_count != 1 else ''}")
+    if real_project_count:
+        lane_parts.append(f"{real_project_count} real-project native baseline{'s' if real_project_count != 1 else ''}")
+    if lane_parts:
+        lines.append(
+            f"This suite contains {completed} completed lane{'s' if completed != 1 else ''}: "
+            + " and ".join(lane_parts)
+            + "."
+        )
+    else:
+        lines.append(f"This suite contains {completed} completed benchmark lane{'s' if completed != 1 else ''}.")
     if projects:
-        lines.append(f"{len(projects)} real-project lanes are defined in the manifest for upcoming runs.")
+        lines.append(f"{len(projects)} real-project lanes are configured in the manifest.")
     lines.append("")
 
     comparison_rows = []
@@ -501,7 +515,7 @@ if lanes:
             workflow_id = workflow.get("id")
             tools = workflow.get("tools") or {}
             if len(tools) <= 1:
-                if tools:
+                if tools and lane.get("kind") == "real-project-native-baseline":
                     tool = next(iter(tools))
                     metrics = tools[tool] or {}
                     native_rows.append([
@@ -559,11 +573,19 @@ else:
     lines.append("")
 
 if projects:
+    project_run_status = {}
+    for lane in lanes:
+        if lane.get("kind") != "real-project-native-baseline":
+            continue
+        project = ((lane.get("workload") or {}).get("project") or {})
+        project_id = project.get("id")
+        if project_id:
+            project_run_status[project_id] = lane.get("status") or "unknown"
     lines.extend([
-        "## Upcoming Real-Project Lanes",
+        "## Configured Real-Project Lanes",
         "",
-        "| Project | Native tool | Status | Pin |",
-        "| --- | --- | --- | --- |",
+        "| Project | Native tool | Manifest status | Run status | Pin |",
+        "| --- | --- | --- | --- | --- |",
     ])
     for project in projects:
         pin = project.get("pin") or {}
@@ -574,6 +596,7 @@ if projects:
                 project.get("name") or project.get("id") or "unknown",
                 project.get("nativeTool") or "unknown",
                 project.get("status") or "unknown",
+                project_run_status.get(project.get("id"), "not run"),
                 pin_value,
             ])
             + " |"
