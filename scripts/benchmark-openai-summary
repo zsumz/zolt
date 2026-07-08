@@ -161,10 +161,14 @@ system_prompt = (
     "results say. Do not use the labels 'evidence grade', 'publishable claims', "
     "'lane', or 'generated workflow' in the prose. Describe the workload as a "
     "generated Java workspace with its module count, app count, repeat count, "
-    "tools, and source of Zolt. Keep first clean build separate from repeated "
-    "workflows. Mention missing competitors only when the supplied workflows "
-    "are actually missing them. Do not write follow-ups, recommendations, next "
-    "steps, roadmap items, or backlog prose. Be concise and concrete."
+    "tools, and source of Zolt when generated-workspace results are present. "
+    "When real-project native baselines are present, name the project, pinned "
+    "commit, native tool, workflows, samples, and median times; do not describe "
+    "single-tool native baselines as Zolt comparisons. Keep first clean build "
+    "separate from repeated workflows. Mention missing competitors only when "
+    "the supplied workflows are actually missing them. Do not write follow-ups, "
+    "recommendations, next steps, roadmap items, or backlog prose. Be concise "
+    "and concrete."
 )
 user_prompt = (
     "Create a concise benchmark brief from this suite-summary.json. Write it "

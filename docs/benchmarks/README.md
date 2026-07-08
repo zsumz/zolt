@@ -33,6 +33,10 @@ Useful variants:
 scripts/benchmark-suite --modules 100 --repeat 7 --include-gradle-daemon
 scripts/benchmark-suite --zolt ~/.zolt/bin/zolt
 scripts/benchmark-suite --generated-summary target/benchmarks/competitors/generated-java-workspace/summary.json
+scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --repeat 5
+scripts/benchmark-suite --real-project netty --repeat 3 --include-gradle-daemon
+scripts/benchmark-suite --real-project netty --real-project-sample-timeout 3600
+scripts/benchmark-suite --skip-generated --real-projects spring-petclinic,netty --real-project-dry-run
 scripts/benchmark-competitors --modules 200 --skip-maven --skip-gradle
 ```
 
@@ -106,6 +110,19 @@ pinned upstream commits plus Zolt adapters that build the same meaningful source
 set. See [real-projects.md](./real-projects.md) for the project policy and
 initial candidate suite.
 `projects.json` is the machine-readable version used by the suite runner.
+
+The first real-project runner records native-tool baselines only:
+
+```sh
+scripts/benchmark-real-project --project spring-petclinic --repeat 5
+scripts/benchmark-real-project --project apache-commons-cli --repeat 5
+scripts/benchmark-real-project --project netty --repeat 3 --sample-timeout 3600
+```
+
+Those runs clone the pinned upstream commit into the benchmark output directory,
+record native Maven or Gradle timings, and write a suite-compatible lane summary.
+They are not Zolt comparisons until an adapter is checked in and included with
+the artifact.
 
 ## Publishing Results
 

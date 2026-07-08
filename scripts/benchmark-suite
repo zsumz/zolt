@@ -16,7 +16,11 @@ GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
 INCLUDE_GRADLE_DAEMON=false
 GENERATED_SUMMARY=""
 SKIP_GENERATED=false
+REAL_PROJECTS=()
+REAL_PROJECT_DRY_RUN=false
+REAL_PROJECT_SAMPLE_TIMEOUT_SECONDS=1800
 ARTIFACT_NAME=""
+SUITE_FAILED=false
 
 usage() {
   cat <<'USAGE'
@@ -37,6 +41,11 @@ Options:
   --include-gradle-daemon     Include Gradle daemon in generated lane.
   --generated-summary FILE    Use an existing generated-lane summary instead of running it.
   --skip-generated            Do not run or summarize the generated lane.
+  --real-project ID           Run a pinned real-project native baseline. Repeatable.
+  --real-projects IDS         Comma-separated real-project ids.
+  --real-project-dry-run      Validate real-project lanes without cloning or timing.
+  --real-project-sample-timeout SECONDS
+                             Per-command timeout for real-project lanes. Default: 1800.
   --artifact-name NAME        Uploaded artifact name recorded in the suite summary.
   -h, --help                  Show this help.
 USAGE
@@ -57,6 +66,20 @@ abs_path() {
     /*) printf '%s\n' "$1" ;;
     *) printf '%s\n' "$ROOT/$1" ;;
   esac
+}
+
+add_real_projects() {
+  local value="$1"
+  local part
+  local -a parts
+  IFS=',' read -r -a parts <<<"$value"
+  for part in "${parts[@]}"; do
+    part="${part#"${part%%[![:space:]]*}"}"
+    part="${part%"${part##*[![:space:]]}"}"
+    if [[ -n "$part" ]]; then
+      REAL_PROJECTS+=("$part")
+    fi
+  done
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -120,6 +143,26 @@ while [[ "$#" -gt 0 ]]; do
     --skip-generated)
       SKIP_GENERATED=true
       shift
+      ;;
+    --real-project)
+      [[ "$#" -ge 2 ]] || fail "--real-project requires a value"
+      add_real_projects "$2"
+      shift 2
+      ;;
+    --real-projects)
+      [[ "$#" -ge 2 ]] || fail "--real-projects requires a value"
+      add_real_projects "$2"
+      shift 2
+      ;;
+    --real-project-dry-run)
+      REAL_PROJECT_DRY_RUN=true
+      shift
+      ;;
+    --real-project-sample-timeout)
+      [[ "$#" -ge 2 ]] || fail "--real-project-sample-timeout requires a value"
+      positive_int "$2" || fail "--real-project-sample-timeout requires a positive integer"
+      REAL_PROJECT_SAMPLE_TIMEOUT_SECONDS="$2"
+      shift 2
       ;;
     --artifact-name)
       [[ "$#" -ge 2 ]] || fail "--artifact-name requires a value"
@@ -207,6 +250,39 @@ if [[ "$SKIP_GENERATED" == false ]]; then
   lane_summaries+=("$generated_dir/suite-summary.json")
 fi
 
+if [[ "${#REAL_PROJECTS[@]}" -gt 0 ]]; then
+  for project_id in "${REAL_PROJECTS[@]}"; do
+    project_dir="$WORK_DIR/real-projects/$project_id"
+    mkdir -p "$project_dir"
+
+    real_project_args=(
+      --project "$project_id"
+      --project-manifest "$PROJECT_MANIFEST"
+      --work-dir "$project_dir"
+      --repeat "$REPEAT_COUNT"
+      --sample-timeout "$REAL_PROJECT_SAMPLE_TIMEOUT_SECONDS"
+    )
+    if [[ -n "$MAVEN_BIN" ]]; then
+      real_project_args+=(--maven "$MAVEN_BIN")
+    fi
+    if [[ -n "$GRADLE_BIN" ]]; then
+      real_project_args+=(--gradle "$GRADLE_BIN")
+    fi
+    if [[ "$REAL_PROJECT_DRY_RUN" == true ]]; then
+      real_project_args+=(--dry-run)
+    fi
+
+    if ! scripts/benchmark-real-project "${real_project_args[@]}"; then
+      SUITE_FAILED=true
+    fi
+    if [[ -f "$project_dir/suite-summary.json" ]]; then
+      lane_summaries+=("$project_dir/suite-summary.json")
+    else
+      fail "real-project lane did not write suite summary: $project_id"
+    fi
+  done
+fi
+
 python3 - "$OUTPUT_FILE" "$SUMMARY_BRIEF" "$PROJECT_MANIFEST" "$ARTIFACT_NAME" "${lane_summaries[@]}" <<'PY'
 import json
 import os
@@ -222,20 +298,45 @@ lane_summary_paths = [pathlib.Path(path) for path in sys.argv[5:]]
 
 workflow_order = [
     "setup-warm-build",
+    "first-clean-build",
+    "dependency-setup",
     "no-op-build",
+    "warm-no-op-build",
     "leaf-change-build",
+    "source-change-build",
     "root-change-build",
+    "sequential-clean-compile-all",
+    "parallel-clean-compile-all",
+    "clean-compile-single-module",
+    "warm-no-op-single-module",
+    "implementation-change-common",
+    "public-api-change-common",
+    "package-or-install",
+    "test",
 ]
 workflow_labels = {
     "setup-warm-build": "First clean build",
     "no-op-build": "Warm no-op",
     "leaf-change-build": "Leaf source change",
     "root-change-build": "Root library change",
+    "first-clean-build": "First clean build",
+    "warm-no-op-build": "Warm no-op",
+    "source-change-build": "Source change",
+    "test": "Test",
+    "dependency-setup": "Dependency setup",
+    "sequential-clean-compile-all": "Sequential clean compile all",
+    "parallel-clean-compile-all": "Parallel clean compile all",
+    "clean-compile-single-module": "Clean compile single module",
+    "warm-no-op-single-module": "Warm no-op single module",
+    "implementation-change-common": "Implementation change in common",
+    "public-api-change-common": "Public API change in common",
+    "package-or-install": "Package or install",
 }
-tool_order = ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"]
+tool_order = ["zolt", "maven", "gradle", "gradle-no-daemon", "gradle-daemon"]
 tool_labels = {
     "zolt": "Zolt",
     "maven": "Maven",
+    "gradle": "Gradle",
     "gradle-no-daemon": "Gradle no-daemon",
     "gradle-daemon": "Gradle daemon",
 }
@@ -256,6 +357,27 @@ def fmt_ms(value):
     if not isinstance(value, (int, float)):
         return "n/a"
     return f"{int(value):,} ms"
+
+
+def fmt_command(command):
+    if not command:
+        return "n/a"
+    return "`" + " ".join(str(part) for part in command).replace("|", "\\|") + "`"
+
+
+def metric_status(metrics, lane):
+    lane_status = lane.get("status")
+    if lane_status == "dry-run":
+        return "dry run"
+    if (metrics.get("timedOutSampleCount") or 0) > 0:
+        return "timed out"
+    sample_count = metrics.get("sampleCount") or 0
+    successful_count = metrics.get("successfulSampleCount") or 0
+    if sample_count and successful_count == sample_count:
+        return "complete"
+    if sample_count:
+        return "failed"
+    return lane_status or "planned"
 
 
 def workflow_sort_key(workflow):
@@ -363,29 +485,75 @@ if lanes:
         lines.append(f"{len(projects)} real-project lanes are defined in the manifest for upcoming runs.")
     lines.append("")
 
-    lines.extend([
-        "## Completed Results",
-        "",
-        "| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
-        "| --- | --- | --- | ---: | ---: | ---: | ---: |",
-    ])
+    comparison_rows = []
+    native_rows = []
+    failed_rows = []
     for lane in lanes:
         lane_name = lane.get("name") or lane.get("id") or "Benchmark lane"
-        for workflow in sorted(lane.get("workflows", []), key=workflow_sort_key):
+        workflows = lane.get("workflows", [])
+        if lane.get("status") == "failed" and not workflows:
+            failure = (lane.get("summary") or {}).get("failure") or {}
+            failed_rows.append([
+                lane_name,
+                failure.get("error") or json.dumps(failure, sort_keys=True),
+            ])
+        for workflow in sorted(workflows, key=workflow_sort_key):
             workflow_id = workflow.get("id")
-            if workflow_id not in workflow_labels:
-                continue
             tools = workflow.get("tools") or {}
             if len(tools) <= 1:
+                if tools:
+                    tool = next(iter(tools))
+                    metrics = tools[tool] or {}
+                    native_rows.append([
+                        lane_name,
+                        workflow_labels.get(workflow_id, workflow.get("label") or workflow_id or "unknown"),
+                        tool_labels.get(tool, tool),
+                        metric_status(metrics, lane),
+                        fmt_ms(metrics.get("medianMillis")),
+                        str(metrics.get("successfulSampleCount") or 0),
+                        fmt_command(metrics.get("command")),
+                    ])
                 continue
             row = [
                 lane_name,
-                workflow_labels[workflow_id],
+                workflow_labels.get(workflow_id, workflow.get("label") or workflow_id or "unknown"),
                 tool_labels.get(workflow.get("winner"), workflow.get("winner") or "n/a"),
             ]
-            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in tool_order)
+            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"])
+            comparison_rows.append(row)
+
+    if comparison_rows:
+        lines.extend([
+            "## Comparison Results",
+            "",
+            "| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+        ])
+        for row in comparison_rows:
             lines.append("| " + " | ".join(row) + " |")
-    lines.append("")
+        lines.append("")
+
+    if native_rows:
+        lines.extend([
+            "## Native Baselines",
+            "",
+            "| Project | Workflow | Tool | Status | Median | Samples | Command |",
+            "| --- | --- | --- | --- | ---: | ---: | --- |",
+        ])
+        for row in native_rows:
+            lines.append("| " + " | ".join(row) + " |")
+        lines.append("")
+
+    if failed_rows:
+        lines.extend([
+            "## Failed Lanes",
+            "",
+            "| Lane | Failure |",
+            "| --- | --- |",
+        ])
+        for row in failed_rows:
+            lines.append("| " + " | ".join(value.replace("|", "\\|") for value in row) + " |")
+        lines.append("")
 else:
     lines.append("No benchmark lanes completed in this run.")
     lines.append("")
@@ -419,3 +587,8 @@ cp "$SUMMARY_BRIEF" "$WORK_DIR/llm-summary.md"
 
 printf 'wrote benchmark suite summary: %s\n' "$OUTPUT_FILE"
 printf 'wrote benchmark suite brief: %s\n' "$SUMMARY_BRIEF"
+
+if [[ "$SUITE_FAILED" == true ]]; then
+  printf 'one or more benchmark lanes failed; see suite summary and lane logs\n' >&2
+  exit 1
+fi

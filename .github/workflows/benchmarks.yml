@@ -43,6 +43,21 @@ on:
         required: true
         default: true
         type: boolean
+      real_projects:
+        description: Comma-separated real-project ids to run. Empty runs generated only.
+        required: false
+        default: ""
+        type: string
+      real_project_dry_run:
+        description: Validate selected real-project lanes without cloning or timing.
+        required: true
+        default: false
+        type: boolean
+      real_project_sample_timeout:
+        description: Per-command timeout for selected real-project lanes, in seconds.
+        required: true
+        default: "1800"
+        type: string
       openai_reasoning_effort:
         description: Reasoning effort for optional OpenAI benchmark summary.
         required: true
@@ -71,6 +86,9 @@ jobs:
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name != 'workflow_dispatch' || inputs.include_gradle_daemon }}
+      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || '' }}
+      BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}
+      BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_sample_timeout || '1800' }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"
       BENCHMARK_AI_SUMMARY: ${{ vars.BENCHMARK_AI_SUMMARY || 'true' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
@@ -163,10 +181,17 @@ jobs:
             --work-dir "$BENCHMARK_DIR"
             --zolt "$ZOLT_BENCH_ZOLT"
             --project-manifest docs/benchmarks/projects.json
+            --real-project-sample-timeout "$BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT"
             --artifact-name "$artifact_name"
           )
           if [[ "$BENCHMARK_INCLUDE_GRADLE_DAEMON" == "true" ]]; then
             args+=(--include-gradle-daemon)
+          fi
+          if [[ -n "$BENCHMARK_REAL_PROJECTS" ]]; then
+            args+=(--real-projects "$BENCHMARK_REAL_PROJECTS")
+          fi
+          if [[ "$BENCHMARK_REAL_PROJECT_DRY_RUN" == "true" ]]; then
+            args+=(--real-project-dry-run)
           fi
           scripts/benchmark-suite "${args[@]}"
 
@@ -240,6 +265,11 @@ jobs:
             printf '| Samples per repeated workflow | `%s` |\n' "$BENCHMARK_REPEAT"
             printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
+            if [[ -n "$BENCHMARK_REAL_PROJECTS" ]]; then
+              printf '| Real projects | `%s` |\n' "$BENCHMARK_REAL_PROJECTS"
+              printf '| Real-project dry run | `%s` |\n' "$BENCHMARK_REAL_PROJECT_DRY_RUN"
+              printf '| Real-project command timeout | `%s seconds` |\n' "$BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT"
+            fi
             printf '\n'
             if [[ -f "$BENCHMARK_DIR/summary-brief.md" ]]; then
               cat "$BENCHMARK_DIR/summary-brief.md"
@@ -269,5 +299,6 @@ jobs:
             target/benchmarks/competitors/summary-ai.md
             target/benchmarks/competitors/summary-ai-request.json
             target/benchmarks/competitors/generated-java-workspace/**
+            target/benchmarks/competitors/real-projects/**
             docs/benchmarks/projects.json
           if-no-files-found: warn

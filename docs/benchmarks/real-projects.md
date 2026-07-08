@@ -28,11 +28,19 @@ lanes.
 
 | Project | Upstream | Native tool | Why it matters | Zolt status |
 | --- | --- | --- | --- | --- |
-| Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Needs pinned adapter |
-| Apache Commons CLI | `https://github.com/apache/commons-cli` | Maven | Small Java library with classic release metadata | Needs pinned adapter |
+| Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Native baseline ready; adapter planned |
+| Apache Commons CLI | `https://github.com/apache/commons-cli` | Maven | Small Java library with classic release metadata | Native baseline ready; adapter planned |
 | HikariCP | `https://github.com/brettwooldridge/HikariCP` | Gradle | Popular Java library with optional dependencies | Needs pinned adapter |
-| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Native baseline first; adapter planned |
+| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Native baseline ready; adapter planned |
 | JUnit 5 | `https://github.com/junit-team/junit-framework` | Gradle | Large multi-module test framework | Later; likely post-beta |
+
+Current pinned native baselines:
+
+| Project | Branch | Commit |
+| --- | --- | --- |
+| Spring PetClinic | `main` | `51045d1648dad955df586150c1a1a6e22ef400c2` |
+| Apache Commons CLI | `master` | `5ee80a0592c3126c7d54afe0e743717bdbc54057` |
+| Netty | `4.1` | `bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6` |
 
 ## Adapter Policy
 
@@ -59,6 +67,17 @@ Start with Spring PetClinic and Apache Commons CLI:
   practical.
 
 Once those are stable, add HikariCP as the first Gradle-library benchmark.
+
+Native baseline runs can start before the adapters exist:
+
+```sh
+scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --repeat 5
+scripts/benchmark-suite --skip-generated --real-project netty --repeat 3
+```
+
+Those commands produce timing evidence for the upstream Maven build only. The
+summary must continue to describe them as native baselines until the matching
+Zolt adapter ships with the result.
 
 ## Large Baselines
 

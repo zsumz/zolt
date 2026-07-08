@@ -1,0 +1,587 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+PROJECT_MANIFEST="docs/benchmarks/projects.json"
+PROJECT_ID=""
+WORK_DIR="target/benchmarks/competitors/real-projects"
+REPEAT_COUNT=3
+MAVEN_BIN="${ZOLT_BENCH_MAVEN:-}"
+GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
+SAMPLE_TIMEOUT_SECONDS=1800
+DRY_RUN=false
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-real-project [options]
+
+Runs a pinned real-project native-tool baseline and writes a suite lane summary.
+
+Options:
+  --project ID             Project id from docs/benchmarks/projects.json.
+  --project-manifest FILE  Project manifest. Default: docs/benchmarks/projects.json.
+  --work-dir DIR           Output directory. Default: target/benchmarks/competitors/real-projects.
+  --repeat COUNT           Timed samples for repeat workflows. Default: 3.
+  --maven PATH             Maven executable. Default: mvn on PATH.
+  --gradle PATH            Gradle executable. Default: gradle on PATH.
+  --sample-timeout SECONDS Per-command timeout. Default: 1800.
+  --dry-run                Validate the lane and write planned outputs without cloning or timing.
+  -h, --help               Show this help.
+
+Real-project lanes are native-tool baselines until a checked-in Zolt adapter
+builds the same source set. The runner records pins, commands, tool versions,
+raw samples, logs, and caveats so those baselines can be compared later without
+rewriting the evidence contract.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+positive_int() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+abs_path() {
+  case "$1" in
+    "") printf '\n' ;;
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT/$1" ;;
+  esac
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --project)
+      [[ "$#" -ge 2 ]] || fail "--project requires a value"
+      PROJECT_ID="$2"
+      shift 2
+      ;;
+    --project-manifest)
+      [[ "$#" -ge 2 ]] || fail "--project-manifest requires a value"
+      PROJECT_MANIFEST="$2"
+      shift 2
+      ;;
+    --work-dir)
+      [[ "$#" -ge 2 ]] || fail "--work-dir requires a value"
+      WORK_DIR="$2"
+      shift 2
+      ;;
+    --repeat)
+      [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
+      positive_int "$2" || fail "--repeat requires a positive integer"
+      REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --maven)
+      [[ "$#" -ge 2 ]] || fail "--maven requires a value"
+      MAVEN_BIN="$2"
+      shift 2
+      ;;
+    --gradle)
+      [[ "$#" -ge 2 ]] || fail "--gradle requires a value"
+      GRADLE_BIN="$2"
+      shift 2
+      ;;
+    --sample-timeout)
+      [[ "$#" -ge 2 ]] || fail "--sample-timeout requires a value"
+      positive_int "$2" || fail "--sample-timeout requires a positive integer"
+      SAMPLE_TIMEOUT_SECONDS="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+[[ -n "$PROJECT_ID" ]] || fail "--project is required"
+
+case "$WORK_DIR" in
+  "" | "." | "/" | "$ROOT")
+    fail "refusing unsafe benchmark work directory: $WORK_DIR"
+    ;;
+esac
+
+PROJECT_MANIFEST="$(abs_path "$PROJECT_MANIFEST")"
+WORK_DIR="$(abs_path "$WORK_DIR")"
+
+mkdir -p "$WORK_DIR"
+
+python3 - "$PROJECT_MANIFEST" "$PROJECT_ID" "$WORK_DIR" "$REPEAT_COUNT" "$MAVEN_BIN" "$GRADLE_BIN" "$SAMPLE_TIMEOUT_SECONDS" "$DRY_RUN" <<'PY'
+import json
+import os
+import pathlib
+import platform
+import shutil
+import statistics
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+
+manifest_path = pathlib.Path(sys.argv[1])
+project_id = sys.argv[2]
+work_dir = pathlib.Path(sys.argv[3])
+repeat_count = int(sys.argv[4])
+explicit_maven = sys.argv[5] or None
+explicit_gradle = sys.argv[6] or None
+sample_timeout_seconds = int(sys.argv[7])
+dry_run = sys.argv[8] == "true"
+
+if not manifest_path.is_file():
+    raise SystemExit(f"project manifest not found: {manifest_path}")
+
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+project = next((item for item in manifest.get("projects", []) if item.get("id") == project_id), None)
+if not project:
+    raise SystemExit(f"project not found in manifest: {project_id}")
+
+pin = project.get("pin") or {}
+pin_value = pin.get("value")
+if not pin_value:
+    raise SystemExit(f"project {project_id} does not have an immutable pin")
+
+native_tool = project.get("nativeTool")
+if native_tool not in {"maven", "gradle"}:
+    raise SystemExit(f"unsupported native tool for {project_id}: {native_tool}")
+
+native_workflows = [row for row in project.get("nativeWorkflows", []) if row.get("enabled", True)]
+if not native_workflows:
+    raise SystemExit(f"project {project_id} has no enabled nativeWorkflows")
+
+work_dir.mkdir(parents=True, exist_ok=True)
+checkout_dir = work_dir / "checkout"
+logs_dir = work_dir / "logs"
+logs_dir.mkdir(parents=True, exist_ok=True)
+samples_path = work_dir / "samples.jsonl"
+summary_path = work_dir / "summary.json"
+suite_path = work_dir / "suite-summary.json"
+report_path = work_dir / "report.md"
+
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def resolve_tool(explicit, fallback):
+    if explicit:
+        if "/" in explicit:
+            return str(pathlib.Path(explicit).resolve())
+        return explicit
+    found = shutil.which(fallback)
+    return found or fallback
+
+
+tool_paths = {
+    "maven": resolve_tool(explicit_maven, "mvn"),
+    "gradle": resolve_tool(explicit_gradle, "gradle"),
+}
+
+
+def command_for(workflow):
+    command = list(workflow.get("command") or [])
+    if not command:
+        raise SystemExit(f"workflow {workflow.get('id')} has no command")
+    if command[0] in {"mvn", "maven"}:
+        command[0] = tool_paths["maven"]
+    elif command[0] == "gradle":
+        command[0] = tool_paths["gradle"]
+    return command
+
+
+def rel(path):
+    try:
+        return str(path.resolve().relative_to(pathlib.Path.cwd()))
+    except ValueError:
+        return str(path.resolve())
+
+
+def run_process(command, cwd, log_name, check=False, timeout_seconds=None):
+    log_path = logs_dir / log_name
+    started_at = now_iso()
+    start = time.perf_counter_ns()
+    timed_out = False
+    with log_path.open("w", encoding="utf-8") as log:
+        log.write("$ " + " ".join(command) + "\n\n")
+        try:
+            process = subprocess.run(
+                command,
+                cwd=str(cwd),
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            exit_code = 124
+            log.write(f"\nCommand timed out after {timeout_seconds} seconds.\n")
+    finished_at = now_iso()
+    duration_ms = round((time.perf_counter_ns() - start) / 1_000_000)
+    if check and exit_code != 0:
+        raise subprocess.CalledProcessError(exit_code, command)
+    return {
+        "command": command,
+        "exitCode": exit_code,
+        "durationMillis": duration_ms,
+        "timedOut": timed_out,
+        "startedAt": started_at,
+        "finishedAt": finished_at,
+        "log": rel(log_path),
+    }
+
+
+def capture_tool(command, cwd):
+    try:
+        process = subprocess.run(
+            command,
+            cwd=str(cwd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        return {
+            "command": command,
+            "exitCode": None,
+            "error": str(exc),
+            "stdout": [],
+        }
+    return {
+        "command": command,
+        "exitCode": process.returncode,
+        "stdout": process.stdout.splitlines()[:20],
+    }
+
+
+def git(command, log_name, check=True):
+    return run_process(["git", *command], checkout_dir, log_name, check=check, timeout_seconds=sample_timeout_seconds)
+
+
+def prepare_checkout():
+    if checkout_dir.exists() and not (checkout_dir / ".git").is_dir():
+        raise SystemExit(f"checkout path exists but is not a git repository: {checkout_dir}")
+    if not checkout_dir.exists():
+        checkout_dir.mkdir(parents=True)
+        git(["init"], "checkout-001-git-init.log")
+        git(["remote", "add", "origin", project["upstreamUrl"]], "checkout-002-git-remote-add.log")
+    else:
+        git(["remote", "set-url", "origin", project["upstreamUrl"]], "checkout-002-git-remote-set-url.log")
+    git(["fetch", "--depth", "1", "origin", pin_value], "checkout-003-git-fetch.log")
+    git(["checkout", "--detach", "FETCH_HEAD"], "checkout-004-git-checkout.log")
+    git(["reset", "--hard", pin_value], "checkout-005-git-reset.log")
+    git(["clean", "-ffdx"], "checkout-006-git-clean.log")
+
+
+def reset_checkout(sample_label):
+    git(["reset", "--hard", pin_value], f"{sample_label}-git-reset.log")
+    git(["clean", "-ffdx"], f"{sample_label}-git-clean.log")
+
+
+def apply_source_change(workflow_id, sample_index):
+    source_change = project.get("sourceChange") or {}
+    source_path = source_change.get("path")
+    if not source_path:
+        raise SystemExit(f"workflow {workflow_id} requires sourceChange.path")
+    target = checkout_dir / source_path
+    if not target.is_file():
+        raise SystemExit(f"source-change file not found: {source_path}")
+    marker = source_change.get("marker") or "Zolt benchmark source change"
+    text = target.read_text(encoding=source_change.get("encoding") or "utf-8")
+    suffix = f"\n// {marker}: {workflow_id} sample {sample_index}\n"
+    target.write_text(text.rstrip() + suffix, encoding=source_change.get("encoding") or "utf-8")
+
+
+def workflow_sample_count(workflow):
+    value = workflow.get("samples", "repeat")
+    if value == "repeat":
+        return repeat_count
+    return int(value)
+
+
+def median(values):
+    if not values:
+        return None
+    return round(statistics.median(values))
+
+
+def metric_for(workflow, command, workflow_samples):
+    successful = [sample for sample in workflow_samples if sample["exitCode"] == 0]
+    durations = [sample["durationMillis"] for sample in successful]
+    return {
+        "command": command,
+        "samples": durations,
+        "sampleCount": len(workflow_samples),
+        "successfulSampleCount": len(successful),
+        "timedOutSampleCount": sum(1 for sample in workflow_samples if sample.get("timedOut")),
+        "medianMillis": median(durations),
+        "minMillis": min(durations) if durations else None,
+        "maxMillis": max(durations) if durations else None,
+        "logs": [sample["log"] for sample in workflow_samples],
+    }
+
+
+def repository_record():
+    run_url = None
+    if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
+        run_url = (
+            f"{os.environ['GITHUB_SERVER_URL']}/"
+            f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
+            f"{os.environ['GITHUB_RUN_ID']}"
+        )
+    return {
+        "name": os.environ.get("GITHUB_REPOSITORY"),
+        "ref": os.environ.get("GITHUB_REF_NAME"),
+        "commit": os.environ.get("GITHUB_SHA"),
+        "runId": os.environ.get("GITHUB_RUN_ID"),
+        "runUrl": run_url,
+    }
+
+
+samples = []
+workflow_records = []
+status = "dry-run" if dry_run else "complete"
+failure = None
+
+environment = {
+    "os": platform.platform(),
+    "machine": platform.machine(),
+    "processor": platform.processor(),
+    "python": platform.python_version(),
+    "repeatCount": repeat_count,
+    "sampleTimeoutSeconds": sample_timeout_seconds,
+    "tools": {
+        "git": capture_tool(["git", "--version"], work_dir),
+        "maven": capture_tool([tool_paths["maven"], "--version"], work_dir),
+        "gradle": capture_tool([tool_paths["gradle"], "--version"], work_dir),
+    },
+}
+
+planned_workflows = []
+for workflow in native_workflows:
+    planned_workflows.append({
+        "id": workflow.get("id"),
+        "label": workflow.get("label") or workflow.get("id"),
+        "kind": workflow.get("kind") or "repeated",
+        "samples": workflow_sample_count(workflow),
+        "command": command_for(workflow),
+        "prepare": workflow.get("prepare") or "none",
+    })
+
+if dry_run:
+    for workflow in planned_workflows:
+        workflow_records.append({
+            "id": workflow["id"],
+            "label": workflow["label"],
+            "kind": workflow["kind"],
+            "winner": None,
+            "tools": {
+                native_tool: {
+                    "command": workflow["command"],
+                    "sampleCount": workflow["samples"],
+                    "successfulSampleCount": 0,
+                    "medianMillis": None,
+                    "samples": [],
+                    "logs": [],
+                }
+            },
+        })
+else:
+    try:
+        prepare_checkout()
+        sample_stream = samples_path.open("w", encoding="utf-8")
+        with sample_stream:
+            for workflow in native_workflows:
+                workflow_id = workflow.get("id")
+                workflow_command = command_for(workflow)
+                workflow_samples = []
+                for sample_index in range(1, workflow_sample_count(workflow) + 1):
+                    sample_label = f"{workflow_id}-{sample_index:03d}"
+                    if workflow.get("prepare") == "clean":
+                        reset_checkout(sample_label)
+                    if workflow.get("sourceChange"):
+                        apply_source_change(workflow_id, sample_index)
+                    result = run_process(
+                        workflow_command,
+                        checkout_dir,
+                        f"{sample_label}-{native_tool}.log",
+                        check=False,
+                        timeout_seconds=sample_timeout_seconds,
+                    )
+                    sample = {
+                        "project": project_id,
+                        "workflow": workflow_id,
+                        "workflowLabel": workflow.get("label") or workflow_id,
+                        "tool": native_tool,
+                        "sample": sample_index,
+                        **result,
+                    }
+                    samples.append(sample)
+                    workflow_samples.append(sample)
+                    sample_stream.write(json.dumps(sample) + "\n")
+                    sample_stream.flush()
+                    if sample["exitCode"] != 0:
+                        status = "failed"
+                        failure = {
+                            "workflow": workflow_id,
+                            "sample": sample_index,
+                            "exitCode": sample["exitCode"],
+                            "log": sample["log"],
+                        }
+                        break
+                workflow_records.append({
+                    "id": workflow_id,
+                    "label": workflow.get("label") or workflow_id,
+                    "kind": workflow.get("kind") or "repeated",
+                    "winner": native_tool if workflow_samples and all(sample["exitCode"] == 0 for sample in workflow_samples) else None,
+                    "tools": {
+                        native_tool: metric_for(workflow, workflow_command, workflow_samples),
+                    },
+                })
+                if failure:
+                    break
+    except Exception as exc:
+        status = "failed"
+        failure = {"error": str(exc)}
+
+caveats = [
+    "This is a native-tool baseline, not a Zolt comparison.",
+    "Zolt comparison results require a checked-in adapter that builds the same meaningful source set.",
+    "First clean builds are single setup samples unless the workflow states otherwise.",
+]
+caveats.extend(project.get("coverageNotes") or [])
+if dry_run:
+    caveats.insert(0, "Dry run only; no repository checkout or timing samples were collected.")
+if failure:
+    caveats.insert(0, "At least one native baseline command failed; inspect the referenced command log.")
+
+lane = {
+    "id": f"real-{project_id}-{native_tool}-baseline",
+    "name": f"{project.get('name') or project_id} {native_tool.title()} native baseline",
+    "kind": "real-project-native-baseline",
+    "status": status,
+    "workload": {
+        "project": {
+            "id": project_id,
+            "name": project.get("name"),
+            "upstreamUrl": project.get("upstreamUrl"),
+            "nativeTool": native_tool,
+            "status": project.get("status"),
+            "pin": pin,
+            "sourceBranch": project.get("sourceBranch"),
+        }
+    },
+    "tools": {
+        native_tool: {
+            "label": "Maven" if native_tool == "maven" else "Gradle",
+            "version": environment["tools"].get(native_tool),
+        }
+    },
+    "summary": {
+        "classification": "Real-project native baseline",
+        "completedWorkflowCount": sum(1 for row in workflow_records if row.get("winner") == native_tool),
+        "plannedWorkflowCount": len(native_workflows),
+        "repeatCount": repeat_count,
+        "failure": failure,
+    },
+    "environment": environment,
+    "workflows": workflow_records,
+    "caveats": caveats,
+    "artifacts": {
+        "summary": rel(summary_path),
+        "suiteSummary": rel(suite_path),
+        "samples": rel(samples_path),
+        "report": rel(report_path),
+        "logs": rel(logs_dir),
+        "checkout": rel(checkout_dir) if checkout_dir.exists() else None,
+    },
+}
+
+summary = {
+    "schemaVersion": 1,
+    "createdAt": now_iso(),
+    "project": lane["workload"]["project"],
+    "status": status,
+    "environment": environment,
+    "workflows": workflow_records,
+    "samples": samples,
+    "caveats": caveats,
+    "failure": failure,
+}
+
+suite = {
+    "schemaVersion": 1,
+    "createdAt": now_iso(),
+    "suite": {
+        "name": "zolt-real-project-benchmark",
+        "mode": "single-lane",
+    },
+    "repository": repository_record(),
+    "run": {
+        "classification": lane["summary"]["classification"],
+        "laneCount": 1,
+        "completedLaneCount": 1 if status == "complete" else 0,
+    },
+    "lanes": [lane],
+}
+
+summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+suite_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
+
+lines = [
+    f"# {project.get('name') or project_id} Native Baseline",
+    "",
+    f"- Project: `{project_id}`",
+    f"- Native tool: `{native_tool}`",
+    f"- Pin: `{pin_value}`",
+    f"- Status: `{status}`",
+    "",
+    "| Workflow | Median | Samples | Command |",
+    "| --- | ---: | ---: | --- |",
+]
+for workflow in workflow_records:
+    metrics = (workflow.get("tools") or {}).get(native_tool) or {}
+    median_ms = metrics.get("medianMillis")
+    median_text = f"{median_ms:,} ms" if isinstance(median_ms, (int, float)) else "n/a"
+    command_text = "`" + " ".join(metrics.get("command") or []) + "`"
+    command_text = command_text.replace("|", "\\|")
+    lines.append(
+        "| "
+        + " | ".join([
+            workflow.get("label") or workflow.get("id") or "unknown",
+            median_text,
+            str(metrics.get("successfulSampleCount") or 0),
+            command_text,
+        ])
+        + " |"
+    )
+if failure:
+    lines.extend(["", f"Failure: `{json.dumps(failure, sort_keys=True)}`"])
+lines.extend(["", "## Caveats", ""])
+lines.extend(f"- {item}" for item in caveats)
+lines.append("")
+report_path.write_text("\n".join(lines), encoding="utf-8")
+
+print(f"wrote real-project summary: {summary_path}")
+print(f"wrote real-project suite lane: {suite_path}")
+print(f"wrote real-project report: {report_path}")
+
+if failure:
+    raise SystemExit(1)
+PY

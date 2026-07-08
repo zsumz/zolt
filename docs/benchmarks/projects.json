@@ -5,12 +5,16 @@
       "id": "spring-petclinic",
       "name": "Spring PetClinic",
       "upstreamUrl": "https://github.com/spring-projects/spring-petclinic",
+      "sourceBranch": "main",
       "nativeTool": "maven",
-      "status": "adapter-planned",
+      "status": "native-baseline-ready",
+      "adapterStatus": "planned",
       "priority": 1,
       "pin": {
         "type": "commit",
-        "value": null
+        "value": "51045d1648dad955df586150c1a1a6e22ef400c2",
+        "sourceBranch": "main",
+        "pinnedAt": "2026-07-08"
       },
       "workflows": [
         "first-clean-build",
@@ -18,22 +22,72 @@
         "source-change-build",
         "test"
       ],
+      "nativeWorkflows": [
+        {
+          "id": "first-clean-build",
+          "label": "First clean build",
+          "kind": "setup",
+          "samples": 1,
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        },
+        {
+          "id": "warm-no-op-build",
+          "label": "Warm no-op build",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "none",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        },
+        {
+          "id": "source-change-build",
+          "label": "Source change build",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "sourceChange": true,
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        }
+      ],
+      "sourceChange": {
+        "path": "src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java",
+        "marker": "Zolt benchmark source change"
+      },
       "coverageNotes": [
         "Real Spring Boot application lane.",
-        "Needs a pinned upstream ref before results can be published.",
-        "Needs a Zolt adapter before native Maven results become a Zolt comparison."
+        "Pinned upstream commit on the main branch.",
+        "Native Maven baseline only until a checked-in Zolt adapter builds the same source set."
       ]
     },
     {
       "id": "apache-commons-cli",
       "name": "Apache Commons CLI",
       "upstreamUrl": "https://github.com/apache/commons-cli",
+      "sourceBranch": "master",
       "nativeTool": "maven",
-      "status": "adapter-planned",
+      "status": "native-baseline-ready",
+      "adapterStatus": "planned",
       "priority": 2,
       "pin": {
         "type": "commit",
-        "value": null
+        "value": "5ee80a0592c3126c7d54afe0e743717bdbc54057",
+        "sourceBranch": "master",
+        "pinnedAt": "2026-07-08"
       },
       "workflows": [
         "first-clean-build",
@@ -41,18 +95,66 @@
         "source-change-build",
         "test"
       ],
+      "nativeWorkflows": [
+        {
+          "id": "first-clean-build",
+          "label": "First clean build",
+          "kind": "setup",
+          "samples": 1,
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        },
+        {
+          "id": "warm-no-op-build",
+          "label": "Warm no-op build",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "none",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        },
+        {
+          "id": "source-change-build",
+          "label": "Source change build",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "sourceChange": true,
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "compile"
+          ]
+        }
+      ],
+      "sourceChange": {
+        "path": "src/main/java/org/apache/commons/cli/CommandLine.java",
+        "marker": "Zolt benchmark source change"
+      },
       "coverageNotes": [
         "Compact Maven library lane.",
-        "Good first adapter target after the suite runner is stable.",
-        "Needs a pinned upstream ref before results can be published."
+        "Pinned upstream commit on the master branch.",
+        "Native Maven baseline only until a checked-in Zolt adapter builds the same source set."
       ]
     },
     {
       "id": "hikaricp",
       "name": "HikariCP",
       "upstreamUrl": "https://github.com/brettwooldridge/HikariCP",
+      "sourceBranch": "dev",
       "nativeTool": "gradle",
       "status": "later",
+      "adapterStatus": "planned",
       "priority": 3,
       "pin": {
         "type": "commit",
@@ -73,12 +175,16 @@
       "id": "netty",
       "name": "Netty",
       "upstreamUrl": "https://github.com/netty/netty",
+      "sourceBranch": "4.1",
       "nativeTool": "maven",
-      "status": "native-baseline-planned",
+      "status": "native-baseline-ready",
+      "adapterStatus": "planned",
       "priority": 4,
       "pin": {
         "type": "commit",
-        "value": null
+        "value": "bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6",
+        "sourceBranch": "4.1",
+        "pinnedAt": "2026-07-08"
       },
       "workflows": [
         "dependency-setup",
@@ -90,9 +196,124 @@
         "public-api-change-common",
         "package-or-install"
       ],
+      "nativeWorkflows": [
+        {
+          "id": "dependency-setup",
+          "label": "Dependency setup",
+          "kind": "setup",
+          "samples": 1,
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "dependency:go-offline"
+          ]
+        },
+        {
+          "id": "sequential-clean-compile-all",
+          "label": "Sequential clean compile all",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "compile"
+          ]
+        },
+        {
+          "id": "parallel-clean-compile-all",
+          "label": "Parallel clean compile all",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-T",
+            "1C",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "compile"
+          ]
+        },
+        {
+          "id": "clean-compile-single-module",
+          "label": "Clean compile common module",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "command": [
+            "mvn",
+            "-q",
+            "-pl",
+            "common",
+            "-am",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "compile"
+          ]
+        },
+        {
+          "id": "warm-no-op-single-module",
+          "label": "Warm no-op common module",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "none",
+          "command": [
+            "mvn",
+            "-q",
+            "-pl",
+            "common",
+            "-am",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "compile"
+          ]
+        },
+        {
+          "id": "implementation-change-common",
+          "label": "Implementation change in common",
+          "kind": "repeated",
+          "samples": "repeat",
+          "prepare": "clean",
+          "sourceChange": true,
+          "command": [
+            "mvn",
+            "-q",
+            "-pl",
+            "common",
+            "-am",
+            "-DskipTests",
+            "-Dcheckstyle.skip",
+            "-DskipAutobahnTestsuite",
+            "-DskipHttp2Testsuite",
+            "compile"
+          ]
+        }
+      ],
+      "sourceChange": {
+        "path": "common/src/main/java/io/netty/util/internal/ObjectUtil.java",
+        "marker": "Zolt benchmark source change"
+      },
       "coverageNotes": [
         "Large Maven reactor lane.",
-        "Start as a native Maven baseline.",
+        "Starts as a native Maven baseline.",
+        "The full Netty lane can be expensive; run it manually before publishing.",
         "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."
       ]
     },
@@ -100,8 +321,10 @@
       "id": "junit-framework",
       "name": "JUnit Framework",
       "upstreamUrl": "https://github.com/junit-team/junit-framework",
+      "sourceBranch": "main",
       "nativeTool": "gradle",
       "status": "later",
+      "adapterStatus": "planned",
       "priority": 5,
       "pin": {
         "type": "commit",

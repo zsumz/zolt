@@ -44,6 +44,12 @@ Use that as the standard for Zolt:
 Netty starts as `native-baseline`. It becomes `comparison-ready` only after the
 Zolt adapter is checked in and proves the covered source set.
 
+Current native baseline pin:
+
+- branch: `4.1`;
+- commit: `bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6`;
+- pinned date: `2026-07-08`.
+
 Required pinned metadata:
 
 - Netty upstream URL;
@@ -91,9 +97,18 @@ be reported as separate claims with separate samples.
 
 ## Maven Baseline
 
-The native Maven baseline should use Netty's own wrapper when present. The first
-probe run should determine the exact Maven command for the pinned ref and record
-why it was chosen.
+The native Maven baseline uses the runner's configured Maven executable for now.
+The first command set is intentionally conservative:
+
+```sh
+mvn -q -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
+mvn -q -T 1C -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
+mvn -q -pl common -am -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
+```
+
+Treat the first Netty run as command validation as well as timing evidence.
+After that run, keep the exact command lines and any required skip flags in the
+artifact.
 
 For Netty-like Maven reactors, `compile` may not be equivalent to the real
 workflow if modules depend on packaged artifacts from sibling modules. If the
