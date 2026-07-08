@@ -41,6 +41,11 @@ While this work is on the `benchmarks` branch, pushes to that branch run a tiny
 release-native smoke automatically so the job summary can be reviewed before the
 manual workflow is merged.
 
+The workflow uses `gradle/actions/setup-gradle` only to install a known Gradle
+version. Its cache and job summary are disabled because the benchmark manages
+isolated Gradle user homes under the benchmark directory and publishes its own
+summary, raw samples, and command logs.
+
 ## Publishing Results
 
 When publishing benchmark evidence:

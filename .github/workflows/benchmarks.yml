@@ -83,10 +83,12 @@ jobs:
           java-version: "21"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Gradle
+      - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: current
+          cache-disabled: true
+          add-job-summary: never
 
       - name: Prefer configured JDK tools
         run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
@@ -152,24 +154,45 @@ jobs:
       - name: Write job summary
         if: always()
         run: |
+          artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
+          run_class="Exploratory benchmark"
+          run_note="This run can guide tuning, but use a larger manual run before quoting public numbers."
+          if [[ "$BENCHMARK_MODULES" =~ ^[0-9]+$ && "$BENCHMARK_REPEAT" =~ ^[0-9]+$ ]]; then
+            if (( BENCHMARK_MODULES < 20 || BENCHMARK_REPEAT < 3 )); then
+              run_class="Smoke validation"
+              run_note="This branch run proves the harness, release install, and artifact upload path. Do not quote it as public benchmark evidence."
+            elif (( BENCHMARK_MODULES >= 40 && BENCHMARK_REPEAT >= 5 )); then
+              run_class="Publication candidate"
+              run_note="This run has enough scale and samples for review, assuming all competitors completed and the raw artifact is kept with the claim."
+            fi
+          fi
           {
-            printf '## Zolt Benchmark\n\n'
-            printf -- '- Ref: `%s`\n' "${GITHUB_REF_NAME}"
-            printf -- '- Commit: `%s`\n' "${GITHUB_SHA}"
-            printf -- '- Zolt source: `%s`\n' "$BENCHMARK_ZOLT_SOURCE"
+            printf '# Zolt Native Benchmark\n\n'
+            printf '> Native Zolt versus Maven and Gradle on the same generated multi-module Java workspace. Lower wall-clock time is better.\n\n'
+            printf '## Run at a Glance\n\n'
+            printf '| Field | Value |\n'
+            printf '| --- | --- |\n'
+            printf '| Classification | **%s** |\n' "$run_class"
+            printf '| Ref | `%s` |\n' "${GITHUB_REF_NAME}"
+            printf '| Commit | `%s` |\n' "${GITHUB_SHA}"
+            printf '| Zolt source | `%s` |\n' "$BENCHMARK_ZOLT_SOURCE"
             if [[ "$BENCHMARK_ZOLT_SOURCE" == "release" ]]; then
-              printf -- '- Release channel: `%s`\n' "$BENCHMARK_RELEASE_CHANNEL"
+              printf '| Release channel | `%s` |\n' "$BENCHMARK_RELEASE_CHANNEL"
               if [[ -n "$BENCHMARK_RELEASE_VERSION" ]]; then
-                printf -- '- Release version: `%s`\n' "$BENCHMARK_RELEASE_VERSION"
+                printf '| Release version | `%s` |\n' "$BENCHMARK_RELEASE_VERSION"
               else
-                printf -- '- Release version: `channel latest`\n'
+                printf '| Release version | `channel latest` |\n'
               fi
             fi
-            printf -- '- Modules: `%s`\n' "$BENCHMARK_MODULES"
-            printf -- '- Repeats: `%s`\n' "$BENCHMARK_REPEAT"
-            printf -- '- Gradle daemon included: `%s`\n\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
+            printf '| Modules before app | `%s` |\n' "$BENCHMARK_MODULES"
+            printf '| Samples per timed workflow | `%s` |\n' "$BENCHMARK_REPEAT"
+            printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
+            printf '| Uploaded artifact | `%s` |\n\n' "$artifact_name"
+            printf '## How to Read This Run\n\n'
+            printf '%s\n\n' "$run_note"
+            printf 'The benchmark runs equivalent generated Zolt, Maven, and Gradle projects. It records raw samples, tool versions, command logs, and a JSON summary in the uploaded artifact.\n\n'
             if [[ -f "$BENCHMARK_DIR/report.md" ]]; then
-              cat "$BENCHMARK_DIR/report.md"
+              sed '1,3d' "$BENCHMARK_DIR/report.md"
             else
               printf 'Benchmark report was not generated. Check the job logs and uploaded artifacts.\n'
             fi
