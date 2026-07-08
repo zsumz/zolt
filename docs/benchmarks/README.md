@@ -34,7 +34,9 @@ harness, writes the generated Markdown report into the job summary, and uploads
 the raw samples, JSON summary, and command logs as workflow artifacts.
 
 Use the native Zolt runtime for publishable results. The JVM runtime input is
-available for faster workflow smoke checks.
+available for faster workflow smoke checks. While this work is on the
+`benchmarks` branch, pushes to that branch run a tiny JVM smoke automatically so
+the job summary can be reviewed before the manual workflow is merged.
 
 ## Publishing Results
 

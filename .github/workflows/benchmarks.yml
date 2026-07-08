@@ -1,6 +1,9 @@
 name: benchmarks
 
 on:
+  push:
+    branches:
+      - benchmarks
   workflow_dispatch:
     inputs:
       modules:
@@ -38,6 +41,10 @@ jobs:
 
     env:
       BENCHMARK_DIR: target/benchmarks/competitors
+      BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '3' }}
+      BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
+      BENCHMARK_ZOLT_RUNTIME: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_runtime || 'jvm' }}
+      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon || false }}
 
     steps:
       - name: Check out repository
@@ -68,21 +75,21 @@ jobs:
             zolt-cache-${{ runner.os }}-
 
       - name: Build native Zolt
-        if: inputs.zolt_runtime == 'native'
+        if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
         run: scripts/zap-distribution --target linux-x64
 
       - name: Select native Zolt
-        if: inputs.zolt_runtime == 'native'
+        if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
         run: |
           printf 'ZOLT_BENCH_ZOLT=%s/apps/zolt/target/native/zolt\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
           apps/zolt/target/native/zolt --version
 
       - name: Build JVM Zolt
-        if: inputs.zolt_runtime == 'jvm'
+        if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
         run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
 
       - name: Select JVM Zolt
-        if: inputs.zolt_runtime == 'jvm'
+        if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
         run: |
           printf 'ZOLT_BENCH_ZOLT=%s/scripts/run-zolt-built\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
           scripts/run-zolt-built --version
@@ -90,12 +97,12 @@ jobs:
       - name: Run benchmark
         run: |
           args=(
-            --modules "${{ inputs.modules }}"
-            --repeat "${{ inputs.repeat }}"
+            --modules "$BENCHMARK_MODULES"
+            --repeat "$BENCHMARK_REPEAT"
             --work-dir "$BENCHMARK_DIR"
             --zolt "$ZOLT_BENCH_ZOLT"
           )
-          if [[ "${{ inputs.include_gradle_daemon }}" == "true" ]]; then
+          if [[ "$BENCHMARK_INCLUDE_GRADLE_DAEMON" == "true" ]]; then
             args+=(--include-gradle-daemon)
           fi
           scripts/benchmark-competitors "${args[@]}"
@@ -107,10 +114,10 @@ jobs:
             printf '## Zolt Benchmark\n\n'
             printf -- '- Ref: `%s`\n' "${GITHUB_REF_NAME}"
             printf -- '- Commit: `%s`\n' "${GITHUB_SHA}"
-            printf -- '- Zolt runtime: `%s`\n' "${{ inputs.zolt_runtime }}"
-            printf -- '- Modules: `%s`\n' "${{ inputs.modules }}"
-            printf -- '- Repeats: `%s`\n' "${{ inputs.repeat }}"
-            printf -- '- Gradle daemon included: `%s`\n\n' "${{ inputs.include_gradle_daemon }}"
+            printf -- '- Zolt runtime: `%s`\n' "$BENCHMARK_ZOLT_RUNTIME"
+            printf -- '- Modules: `%s`\n' "$BENCHMARK_MODULES"
+            printf -- '- Repeats: `%s`\n' "$BENCHMARK_REPEAT"
+            printf -- '- Gradle daemon included: `%s`\n\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
             if [[ -f "$BENCHMARK_DIR/report.md" ]]; then
               cat "$BENCHMARK_DIR/report.md"
             else
@@ -122,7 +129,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zolt-benchmark-${{ inputs.zolt_runtime }}-${{ inputs.modules }}-modules-${{ inputs.repeat }}-repeats
+          name: zolt-benchmark-${{ env.BENCHMARK_ZOLT_RUNTIME }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
           path: |
             target/benchmarks/competitors/report.md
             target/benchmarks/competitors/summary.json
