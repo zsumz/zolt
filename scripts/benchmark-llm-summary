@@ -9,7 +9,7 @@ usage() {
 Usage: scripts/benchmark-llm-summary [options]
 
 Creates compact benchmark summary files from scripts/benchmark-competitors output:
-  - llm-summary.md: short human/LLM-readable run summary
+  - summary-brief.md: deterministic short run summary
   - llm-context.json: structured facts for model prompts
   - llm-prompt.md: prompt template for model-generated summaries
 
@@ -246,10 +246,10 @@ summary_lines.extend([
     "Raw data: `summary.json`, `samples.jsonl`, `logs/`.",
     "",
 ])
-(output_dir / "llm-summary.md").write_text(
-    "\n".join(summary_lines),
-    encoding="utf-8",
-)
+summary_text = "\n".join(summary_lines)
+(output_dir / "summary-brief.md").write_text(summary_text, encoding="utf-8")
+# Compatibility alias for artifacts generated before summary-brief.md existed.
+(output_dir / "llm-summary.md").write_text(summary_text, encoding="utf-8")
 
 prompt_lines = [
     "# Benchmark Summary Prompt",
@@ -278,4 +278,4 @@ PY
 
 printf 'wrote LLM context: %s/llm-context.json\n' "$OUTPUT_DIR"
 printf 'wrote LLM prompt: %s/llm-prompt.md\n' "$OUTPUT_DIR"
-printf 'wrote benchmark summary: %s/llm-summary.md\n' "$OUTPUT_DIR"
+printf 'wrote benchmark summary: %s/summary-brief.md\n' "$OUTPUT_DIR"

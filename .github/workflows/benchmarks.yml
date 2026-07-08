@@ -197,10 +197,10 @@ jobs:
             printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
             printf '| Uploaded artifact | `%s` |\n\n' "$artifact_name"
-            if [[ -f "$BENCHMARK_DIR/llm-summary.md" ]]; then
-              cat "$BENCHMARK_DIR/llm-summary.md"
+            if [[ -f "$BENCHMARK_DIR/summary-brief.md" ]]; then
+              cat "$BENCHMARK_DIR/summary-brief.md"
               printf '\n'
-              printf 'Full statistics: `report.md`. LLM prompt/context: `llm-prompt.md`, `llm-context.json`.\n'
+              printf 'Full statistics: `report.md`. Optional LLM prompt/context: `llm-prompt.md`, `llm-context.json`.\n'
             elif [[ -f "$BENCHMARK_DIR/report.md" ]]; then
               sed '1,2d' "$BENCHMARK_DIR/report.md"
             else
@@ -217,6 +217,7 @@ jobs:
             target/benchmarks/competitors/report.md
             target/benchmarks/competitors/summary.json
             target/benchmarks/competitors/samples.jsonl
+            target/benchmarks/competitors/summary-brief.md
             target/benchmarks/competitors/llm-summary.md
             target/benchmarks/competitors/llm-context.json
             target/benchmarks/competitors/llm-prompt.md
