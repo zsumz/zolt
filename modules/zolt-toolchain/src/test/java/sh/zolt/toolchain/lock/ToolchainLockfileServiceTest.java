@@ -63,6 +63,58 @@ final class ToolchainLockfileServiceTest {
         assertEquals("macos-aarch64", lockfiles.readJava(lockfile).getFirst().platform().id());
     }
 
+    @Test
+    void writesDeterministicJavaToolchainPlatformMatrix() throws IOException {
+        Path lockfile = tempDir.resolve("zolt.lock");
+        Files.writeString(lockfile, """
+                version = 1
+
+                [[package]]
+                id = "com.example:demo"
+                version = "1.0.0"
+                source = "maven"
+                scope = "compile"
+                direct = true
+                dependencies = []
+
+                [[toolchain.java]]
+                id = "stale"
+                request.version = "17"
+                request.distribution = "temurin"
+                request.features = []
+                request.policy = "prefer-managed"
+                platform.os = "linux"
+                platform.arch = "x64"
+                resolved.version = "17"
+                resolved.distribution = "temurin"
+                artifact.catalog = "stale"
+                layout.javaHome = "."
+                layout.executables.java = "bin/java"
+                layout.executables.javac = "bin/javac"
+                layout.executables.jar = "bin/jar"
+                """);
+
+        lockfiles.writeJava(lockfile, List.of(
+                locked("macos-aarch64"),
+                locked("linux-aarch64"),
+                locked("macos-x64"),
+                locked("linux-x64")));
+
+        String content = Files.readString(lockfile);
+        assertTrue(content.contains("[[package]]"));
+        assertEquals(4, content.split("\\[\\[toolchain\\.java]]", -1).length - 1);
+        assertEquals(4, lockfiles.readJava(lockfile).size());
+        assertBefore(content, "platform.arch = \"x64\"", "platform.arch = \"aarch64\"");
+        assertBefore(content, "platform.os = \"linux\"", "platform.os = \"macos\"");
+        assertTrue(!content.contains("id = \"stale\""));
+    }
+
+    private static void assertBefore(String content, String first, String second) {
+        assertTrue(content.indexOf(first) >= 0, first);
+        assertTrue(content.indexOf(second) >= 0, second);
+        assertTrue(content.indexOf(first) < content.indexOf(second), first + " should appear before " + second);
+    }
+
     private static LockedJavaToolchain locked(String target) {
         JavaToolchainRequest request = new JavaToolchainRequest(
                 "21",

@@ -9,6 +9,7 @@ import sh.zolt.project.toolchain.JavaToolchainRequest;
 import sh.zolt.project.toolchain.ToolchainPolicy;
 import sh.zolt.toolchain.lock.LockedJavaToolchain;
 import sh.zolt.toolchain.platform.HostPlatform;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,34 @@ final class BundledJavaToolchainCatalogTest {
         assertEquals("Contents/Home", locked.layout().javaHome());
         assertEquals("bin/java", locked.layout().java());
         assertEquals("lib/svm/bin/native-image", locked.layout().nativeImage());
+    }
+
+    @Test
+    void locksStableUnixPlatformMatrix() {
+        List<LockedJavaToolchain> locked = catalog.locks(
+                new JavaToolchainRequest(
+                        "21",
+                        JavaDistribution.GRAALVM_COMMUNITY,
+                        Set.of(JavaFeature.NATIVE_IMAGE),
+                        ToolchainPolicy.PREFER_MANAGED),
+                HostPlatform.parse("macos-aarch64"));
+
+        assertEquals(List.of("linux-x64", "linux-aarch64", "macos-x64", "macos-aarch64"), locked.stream()
+                .map(java -> java.platform().id())
+                .toList());
+    }
+
+    @Test
+    void rejectsUnsupportedWindowsToolchainTargetsForNow() {
+        Optional<LockedJavaToolchain> locked = catalog.lock(
+                new JavaToolchainRequest(
+                        "21",
+                        JavaDistribution.GRAALVM_COMMUNITY,
+                        Set.of(JavaFeature.NATIVE_IMAGE),
+                        ToolchainPolicy.PREFER_MANAGED),
+                HostPlatform.parse("windows-x64"));
+
+        assertTrue(locked.isEmpty());
     }
 
     @Test

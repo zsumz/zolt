@@ -9,14 +9,23 @@ import sh.zolt.toolchain.platform.Architecture;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.platform.OperatingSystem;
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 
 public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
     private static final String GRAALVM_JDK_21 = "21.0.2";
+    private static final List<HostPlatform> SUPPORTED_PLATFORMS = List.of(
+            new HostPlatform(OperatingSystem.LINUX, Architecture.X64),
+            new HostPlatform(OperatingSystem.LINUX, Architecture.AARCH64),
+            new HostPlatform(OperatingSystem.MACOS, Architecture.X64),
+            new HostPlatform(OperatingSystem.MACOS, Architecture.AARCH64));
 
     @Override
     public Optional<LockedJavaToolchain> lock(JavaToolchainRequest request, HostPlatform platform) {
         if (!"21".equals(request.version()) || request.distribution().isEmpty()) {
+            return Optional.empty();
+        }
+        if (!SUPPORTED_PLATFORMS.contains(platform)) {
             return Optional.empty();
         }
         JavaDistribution distribution = request.distribution().orElseThrow();
@@ -35,6 +44,14 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
                 distribution,
                 "builtin:" + id,
                 layout(distribution, request, platform)));
+    }
+
+    @Override
+    public List<LockedJavaToolchain> locks(JavaToolchainRequest request, HostPlatform platform) {
+        return SUPPORTED_PLATFORMS.stream()
+                .map(target -> lock(request, target))
+                .flatMap(Optional::stream)
+                .toList();
     }
 
     @Override

@@ -12,6 +12,7 @@ import sh.zolt.toolchain.lock.ToolchainLockfileService;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.store.ToolchainStore;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 
 public final class ToolchainSyncService {
@@ -64,15 +65,22 @@ public final class ToolchainSyncService {
             Path lockfile,
             HostPlatform platform,
             ToolchainStore store) {
+        HostPlatform effectivePlatform = platform == null ? HostPlatform.current() : platform;
         if (request.distribution().isEmpty()) {
             throw new ActionableException(
                     "Toolchain sync needs a Java distribution.",
                     "Set distribution to graalvm-community or temurin, then rerun `zolt toolchain sync`.");
         }
-        LockedJavaToolchain locked = catalog.lock(request, platform).orElseThrow(() -> new ActionableException(
-                "No bundled Java toolchain catalog entry matches this request.",
-                "Use Java 21 with distribution graalvm-community for native-image, or temurin for JVM-only sync."));
-        lockfiles.writeJava(lockfile, locked);
+        List<LockedJavaToolchain> lockedToolchains = catalog.locks(request, effectivePlatform);
+        LockedJavaToolchain locked = lockedToolchains.stream()
+                .filter(candidate -> candidate.platform().equals(effectivePlatform))
+                .findFirst()
+                .orElseThrow(() -> new ActionableException(
+                        "No bundled Java toolchain catalog entry matches this request for "
+                                + effectivePlatform.id()
+                                + ".",
+                        "Use Java 21 with distribution graalvm-community for native-image, or temurin for JVM-only sync on linux-x64, linux-aarch64, macos-x64, or macos-aarch64."));
+        lockfiles.writeJava(lockfile, lockedToolchains);
         ToolchainStore effectiveStore = store == null ? ToolchainStore.defaults() : store;
         JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow(() -> new ActionableException(
                 "No downloadable Java toolchain artifact matches this request.",

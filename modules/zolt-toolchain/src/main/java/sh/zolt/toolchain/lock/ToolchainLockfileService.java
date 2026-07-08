@@ -6,9 +6,12 @@ import sh.zolt.project.toolchain.JavaFeature;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
 import sh.zolt.project.toolchain.ToolchainPolicy;
 import sh.zolt.toolchain.platform.HostPlatform;
+import sh.zolt.toolchain.platform.Architecture;
+import sh.zolt.toolchain.platform.OperatingSystem;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -69,9 +72,17 @@ public final class ToolchainLockfileService {
     }
 
     public void writeJava(Path lockfile, LockedJavaToolchain locked) {
+        writeJava(lockfile, List.of(locked));
+    }
+
+    public void writeJava(Path lockfile, List<LockedJavaToolchain> locked) {
         try {
             String base = Files.isRegularFile(lockfile) ? Files.readString(lockfile) : "version = 1\n\n";
-            Files.writeString(lockfile, appendJavaLock(removeJavaLocks(base), locked));
+            String content = removeJavaLocks(base);
+            for (LockedJavaToolchain java : ordered(locked)) {
+                content = appendJavaLock(content, java);
+            }
+            Files.writeString(lockfile, content);
         } catch (IOException exception) {
             throw new ActionableException(
                     "Could not write Java toolchain metadata to " + lockfile + ".",
@@ -164,6 +175,37 @@ public final class ToolchainLockfileService {
             }
         }
         return output.toString().stripTrailing() + "\n\n";
+    }
+
+    private static List<LockedJavaToolchain> ordered(List<LockedJavaToolchain> locked) {
+        return locked.stream()
+                .sorted(Comparator
+                        .comparing((LockedJavaToolchain java) -> java.request().version())
+                        .thenComparing(java -> java.request().distribution().orElseThrow().id())
+                        .thenComparing(java -> java.request().features().stream()
+                                .map(JavaFeature::id)
+                                .sorted()
+                                .toList()
+                                .toString())
+                        .thenComparing(java -> java.request().policy().id())
+                        .thenComparingInt(java -> osOrder(java.platform().os()))
+                        .thenComparingInt(java -> archOrder(java.platform().arch())))
+                .toList();
+    }
+
+    private static int osOrder(OperatingSystem os) {
+        return switch (os) {
+            case LINUX -> 0;
+            case MACOS -> 1;
+            case WINDOWS -> 2;
+        };
+    }
+
+    private static int archOrder(Architecture arch) {
+        return switch (arch) {
+            case X64 -> 0;
+            case AARCH64 -> 1;
+        };
     }
 
     private static String appendJavaLock(String content, LockedJavaToolchain locked) {

@@ -61,7 +61,10 @@ final class ToolchainCommandTest {
         assertTrue(result.stdout().contains("Managed Java toolchain is already installed"));
         String lock = Files.readString(project.resolve("zolt.lock"));
         assertTrue(lock.contains("[[toolchain.java]]"));
+        assertEquals(4, countJavaLocks(lock));
         assertTrue(lock.contains("request.distribution = \"graalvm-community\""));
+        assertTrue(lock.contains("platform.os = \"linux\""));
+        assertTrue(lock.contains("platform.os = \"macos\""));
     }
 
     @Test
@@ -180,6 +183,7 @@ final class ToolchainCommandTest {
         assertTrue(result.stdout().contains("Synced Java toolchain"));
         String lock = Files.readString(workspace.resolve("zolt.lock"));
         assertTrue(lock.contains("[[toolchain.java]]"));
+        assertEquals(4, countJavaLocks(lock));
         assertTrue(lock.contains("request.features = [\"native-image\"]"));
     }
 
@@ -262,7 +266,9 @@ final class ToolchainCommandTest {
         assertEquals(0, sync.exitCode(), sync.stderr());
         assertTrue(sync.stdout().contains("Synced Java toolchain"));
         Path globalLockfile = configPath.getParent().resolve("global-toolchains.lock");
-        assertTrue(Files.readString(globalLockfile).contains("request.distribution = \"graalvm-community\""));
+        String globalLock = Files.readString(globalLockfile);
+        assertEquals(4, countJavaLocks(globalLock));
+        assertTrue(globalLock.contains("request.distribution = \"graalvm-community\""));
         assertEquals(0, status.exitCode(), status.stderr());
         assertTrue(status.stdout().contains("source: global default"));
         assertTrue(status.stdout().contains("javaHome: " + store.javaHome(locked)));
@@ -311,6 +317,10 @@ final class ToolchainCommandTest {
                         "bin/javac",
                         "bin/jar",
                         "lib/svm/bin/native-image"));
+    }
+
+    private static int countJavaLocks(String content) {
+        return content.split("\\[\\[toolchain\\.java]]", -1).length - 1;
     }
 
     private static void install(ToolchainStore store, LockedJavaToolchain locked) throws IOException {
