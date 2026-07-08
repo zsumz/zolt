@@ -57,8 +57,10 @@ jobs:
         with:
           distribution: graalvm
           java-version: "21"
-          components: native-image
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prefer configured JDK tools
+        run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -73,6 +75,13 @@ jobs:
           restore-keys: |
             zolt-cache-${{ runner.os }}-${{ runner.arch }}-
             zolt-cache-${{ runner.os }}-
+
+      - name: Show benchmark tool versions
+        run: |
+          java --version
+          javac -version
+          mvn --version
+          gradle --version
 
       - name: Build native Zolt
         if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
