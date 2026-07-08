@@ -102,6 +102,8 @@ default to 100 modules, 7 repeats, and Gradle daemon coverage.
 The workflow installs a pinned Gradle distribution directly instead of using
 `gradle/actions/setup-gradle`. That keeps the GitHub summary dedicated to the
 benchmark report and avoids unrelated Gradle action cache/build-scan summaries.
+Uploaded real-project artifacts keep summaries, samples, and command logs, but
+exclude the checked-out upstream source trees.
 
 ## Real Projects
 

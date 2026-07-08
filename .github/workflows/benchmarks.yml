@@ -300,5 +300,6 @@ jobs:
             target/benchmarks/competitors/summary-ai-request.json
             target/benchmarks/competitors/generated-java-workspace/**
             target/benchmarks/competitors/real-projects/**
+            !target/benchmarks/competitors/real-projects/*/checkout/**
             docs/benchmarks/projects.json
           if-no-files-found: warn
