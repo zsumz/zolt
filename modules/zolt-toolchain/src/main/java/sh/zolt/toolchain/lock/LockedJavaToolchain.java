@@ -14,6 +14,8 @@ public record LockedJavaToolchain(
         String resolvedVersion,
         JavaDistribution resolvedDistribution,
         String catalog,
+        String artifactUri,
+        String artifactSha256,
         JavaToolchainLayout layout) {
     public LockedJavaToolchain {
         id = clean(id, "Java toolchain lock id is required.");
@@ -28,7 +30,20 @@ public record LockedJavaToolchain(
             throw new IllegalArgumentException("Java toolchain resolved distribution is required.");
         }
         catalog = clean(catalog, "Java toolchain catalog reference is required.");
+        artifactUri = cleanOptional(artifactUri);
+        artifactSha256 = cleanOptional(artifactSha256);
         layout = layout == null ? JavaToolchainLayout.standard(request.requiresNativeImage()) : layout;
+    }
+
+    public LockedJavaToolchain(
+            String id,
+            JavaToolchainRequest request,
+            HostPlatform platform,
+            String resolvedVersion,
+            JavaDistribution resolvedDistribution,
+            String catalog,
+            JavaToolchainLayout layout) {
+        this(id, request, platform, resolvedVersion, resolvedDistribution, catalog, "", "", layout);
     }
 
     public String featureList() {
@@ -50,5 +65,9 @@ public record LockedJavaToolchain(
             throw new IllegalArgumentException(message);
         }
         return value.strip();
+    }
+
+    private static String cleanOptional(String value) {
+        return value == null ? "" : value.strip();
     }
 }

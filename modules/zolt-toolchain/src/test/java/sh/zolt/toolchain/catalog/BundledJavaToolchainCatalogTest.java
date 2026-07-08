@@ -7,6 +7,7 @@ import sh.zolt.project.toolchain.JavaDistribution;
 import sh.zolt.project.toolchain.JavaFeature;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
 import sh.zolt.project.toolchain.ToolchainPolicy;
+import sh.zolt.toolchain.lock.JavaToolchainLayout;
 import sh.zolt.toolchain.lock.LockedJavaToolchain;
 import sh.zolt.toolchain.platform.HostPlatform;
 import java.util.List;
@@ -29,11 +30,15 @@ final class BundledJavaToolchainCatalogTest {
 
         LockedJavaToolchain java = locked.orElseThrow();
         assertEquals("java-graalvm-community-21-native-image", java.id());
+        assertEquals("21.0.2", java.resolvedVersion());
         assertEquals("builtin:java-graalvm-community-21-native-image", java.catalog());
+        assertTrue(java.artifactUri().endsWith("graalvm-community-jdk-21.0.2_linux-x64_bin.tar.gz"));
+        assertEquals("b048069aaa3a99b84f5b957b162cc181a32a4330cbc35402766363c5be76ae48", java.artifactSha256());
         assertEquals("lib/svm/bin/native-image", java.layout().nativeImage());
         JavaToolchainArtifact artifact = catalog.artifact(java).orElseThrow();
         assertEquals(JavaToolchainArchiveFormat.TAR_GZ, artifact.format());
-        assertTrue(artifact.uri().toString().contains("graalvm-community-jdk-21.0.2_linux-x64_bin.tar.gz"));
+        assertEquals(java.artifactUri(), artifact.uri().toString());
+        assertEquals(java.artifactSha256(), artifact.sha256().orElseThrow());
     }
 
     @Test
@@ -94,7 +99,7 @@ final class BundledJavaToolchainCatalogTest {
     }
 
     @Test
-    void resolvesTemurinArtifactThroughAdoptiumApi() {
+    void resolvesTemurinArtifactToPinnedReleaseAsset() {
         LockedJavaToolchain locked = catalog.lock(
                         new JavaToolchainRequest(
                                 "21",
@@ -106,7 +111,39 @@ final class BundledJavaToolchainCatalogTest {
 
         JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow();
 
+        assertEquals("21.0.11+10", locked.resolvedVersion());
         assertEquals(JavaToolchainArchiveFormat.TAR_GZ, artifact.format());
-        assertTrue(artifact.uri().toString().contains("/v3/binary/latest/21/ga/mac/aarch64/jdk/hotspot/normal/eclipse"));
+        assertEquals(
+                "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.11_10.tar.gz",
+                artifact.uri().toString());
+        assertEquals(
+                "6ebcf221c9b41507b14c098e93c6ead6440b8d9bd154f8ec666c4c73abbdb201",
+                artifact.sha256().orElseThrow());
+    }
+
+    @Test
+    void resolvesLegacyLocksWithoutArtifactFieldsThroughPinnedCatalog() {
+        JavaToolchainRequest request = new JavaToolchainRequest(
+                "21",
+                JavaDistribution.TEMURIN,
+                Set.of(),
+                ToolchainPolicy.PREFER_MANAGED);
+        LockedJavaToolchain legacy = new LockedJavaToolchain(
+                "java-temurin-21",
+                request,
+                HostPlatform.parse("linux-x64"),
+                "21",
+                JavaDistribution.TEMURIN,
+                "builtin:java-temurin-21",
+                JavaToolchainLayout.standard(false));
+
+        JavaToolchainArtifact artifact = catalog.artifact(legacy).orElseThrow();
+
+        assertEquals(
+                "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_linux_hotspot_21.0.11_10.tar.gz",
+                artifact.uri().toString());
+        assertEquals(
+                "4b2220e232a97997b436ca6ab15cbf70171ecff52958a46159dfa5a8c44ca4de",
+                artifact.sha256().orElseThrow());
     }
 }

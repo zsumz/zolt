@@ -308,9 +308,11 @@ final class ToolchainCommandTest {
                 "java-graalvm-community-21-native-image",
                 request,
                 HostPlatform.parse("linux-x64"),
-                "21",
+                "21.0.2",
                 JavaDistribution.GRAALVM_COMMUNITY,
                 "builtin:java-graalvm-community-21-native-image",
+                "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-21.0.2/graalvm-community-jdk-21.0.2_linux-x64_bin.tar.gz",
+                "b048069aaa3a99b84f5b957b162cc181a32a4330cbc35402766363c5be76ae48",
                 new JavaToolchainLayout(
                         ".",
                         "bin/java",

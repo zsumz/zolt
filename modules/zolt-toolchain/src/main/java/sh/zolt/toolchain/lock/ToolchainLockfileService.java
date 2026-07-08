@@ -113,6 +113,8 @@ public final class ToolchainLockfileService {
                 requiredString(resolved, "version"),
                 JavaDistribution.fromId(requiredString(resolved, "distribution")).orElseThrow(),
                 requiredString(artifact, "catalog"),
+                optionalString(artifact, "uri").orElse(""),
+                optionalString(artifact, "sha256").orElse(""),
                 new JavaToolchainLayout(
                         requiredString(layout, "javaHome"),
                         requiredString(executables, "java"),
@@ -223,6 +225,12 @@ public final class ToolchainLockfileService {
         assignment(output, "resolved.version", locked.resolvedVersion());
         assignment(output, "resolved.distribution", locked.resolvedDistribution().id());
         assignment(output, "artifact.catalog", locked.catalog());
+        if (!locked.artifactUri().isBlank()) {
+            assignment(output, "artifact.uri", locked.artifactUri());
+        }
+        if (!locked.artifactSha256().isBlank()) {
+            assignment(output, "artifact.sha256", locked.artifactSha256());
+        }
         assignment(output, "layout.javaHome", locked.layout().javaHome());
         assignment(output, "layout.executables.java", locked.layout().java());
         assignment(output, "layout.executables.javac", locked.layout().javac());

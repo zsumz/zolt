@@ -265,7 +265,8 @@ zolt toolchain status --json
 `zolt.lock` records the supported target matrix, so a macOS developer and Linux
 CI do not rewrite the lock back and forth. The install itself stays local to the
 machine under `~/.zolt/toolchains`; only the current host's archive is downloaded
-when it is missing.
+when it is missing. Managed downloads are pinned to exact artifact URLs and
+verified with SHA-256 checksums from the lock.
 
 Build, run, test, package, and native commands use the resolved toolchain
 automatically. `zolt exec -- ...` runs an arbitrary command with `JAVA_HOME` and

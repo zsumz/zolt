@@ -130,6 +130,25 @@ final class ToolchainSyncServiceTest {
     }
 
     @Test
+    void syncRejectsDownloadedToolchainWhenChecksumDoesNotMatch() throws IOException {
+        Path project = writeProject("checksum-mismatch");
+        Path archive = fakeJdkArchive(tempDir.resolve("bad-checksum.zip"), false);
+        LockedJavaToolchain locked = locked(JavaDistribution.TEMURIN, Set.of());
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+
+        ActionableException exception = assertThrows(ActionableException.class, () -> service(
+                locked,
+                artifact(archive, false, "definitely-wrong")).sync(
+                        project,
+                        null,
+                        HostPlatform.parse("linux-x64"),
+                        store));
+
+        assertTrue(exception.getMessage().contains("checksum did not match"));
+        assertFalse(store.installed(locked));
+    }
+
+    @Test
     void syncFailsClearlyWhenCatalogHasNoDownloadableArtifact() throws IOException {
         Path project = writeProject("missing-artifact");
         LockedJavaToolchain locked = locked(JavaDistribution.TEMURIN, Set.of());
@@ -177,10 +196,14 @@ final class ToolchainSyncServiceTest {
     }
 
     private static JavaToolchainArtifact artifact(Path archive, boolean nativeImage) {
+        return artifact(archive, nativeImage, "");
+    }
+
+    private static JavaToolchainArtifact artifact(Path archive, boolean nativeImage, String sha256) {
         return new JavaToolchainArtifact(
                 archive.toUri(),
                 JavaToolchainArchiveFormat.ZIP,
-                Optional.empty(),
+                sha256.isBlank() ? Optional.empty() : Optional.of(sha256),
                 true);
     }
 

@@ -44,10 +44,14 @@ final class ToolchainLockfileServiceTest {
         assertTrue(content.contains("[[package]]"));
         assertTrue(content.contains("[[toolchain.java]]"));
         assertTrue(content.contains("request.distribution = \"graalvm-community\""));
+        assertTrue(content.contains("artifact.uri = \"https://example.com/graalvm.tar.gz\""));
+        assertTrue(content.contains("artifact.sha256 = \"abc123\""));
         assertTrue(content.contains("layout.executables.nativeImage = \"bin/native-image\""));
         List<LockedJavaToolchain> read = lockfiles.readJava(lockfile);
         assertEquals(1, read.size());
         assertEquals("java-graalvm-community-21-native-image", read.getFirst().id());
+        assertEquals("https://example.com/graalvm.tar.gz", read.getFirst().artifactUri());
+        assertEquals("abc123", read.getFirst().artifactSha256());
     }
 
     @Test
@@ -128,6 +132,8 @@ final class ToolchainLockfileServiceTest {
                 "21",
                 JavaDistribution.GRAALVM_COMMUNITY,
                 "builtin:java-graalvm-community-21-native-image",
+                "https://example.com/graalvm.tar.gz",
+                "abc123",
                 JavaToolchainLayout.standard(true));
     }
 }
