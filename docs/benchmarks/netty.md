@@ -41,10 +41,10 @@ Use that as the standard for Zolt:
 
 ## Status
 
-Netty starts as `native-baseline`. It becomes `comparison-ready` only after the
-Zolt adapter is checked in and proves the covered source set.
+Netty starts as `upstream-baseline`. It becomes `comparison-ready` only after
+the Zolt adapter is checked in and proves the covered source set.
 
-Current native baseline pin:
+Current upstream Maven baseline pin:
 
 - branch: `4.1`;
 - commit: `bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6`;
@@ -90,8 +90,8 @@ Mirror the shape of the Mill comparison, then add Zolt-specific evidence:
 - no-op compile single module;
 - implementation-only edit in `common`;
 - public API edit in `common`;
-- package or install workflow when the native Maven build needs packaged reactor
-  artifacts;
+- package or install workflow when the upstream Maven build needs packaged
+  reactor artifacts;
 - optional test compile and focused test run after compile parity is stable.
 
 Do not mix these lanes. A clean-all win, single-module win, and no-op win should
@@ -99,8 +99,8 @@ be reported as separate claims with separate samples.
 
 ## Maven Baseline
 
-The native Maven baseline uses the runner's configured Maven executable for now.
-The first command set is intentionally conservative:
+The upstream Maven baseline uses the runner's configured Maven executable for
+now. The first command set is intentionally conservative:
 
 ```sh
 mvn -q -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile

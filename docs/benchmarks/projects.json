@@ -7,7 +7,7 @@
       "upstreamUrl": "https://github.com/spring-projects/spring-petclinic",
       "sourceBranch": "main",
       "nativeTool": "maven",
-      "status": "native-baseline-ready",
+      "status": "upstream-baseline-ready",
       "adapterStatus": "planned",
       "priority": 1,
       "pin": {
@@ -71,7 +71,7 @@
       "coverageNotes": [
         "Real Spring Boot application lane.",
         "Pinned upstream commit on the main branch.",
-        "Native Maven baseline only until a checked-in Zolt adapter builds the same source set."
+        "Upstream Maven baseline only until a checked-in Zolt adapter builds the same source set."
       ]
     },
     {
@@ -80,7 +80,7 @@
       "upstreamUrl": "https://github.com/apache/commons-cli",
       "sourceBranch": "master",
       "nativeTool": "maven",
-      "status": "native-baseline-ready",
+      "status": "upstream-baseline-ready",
       "adapterStatus": "planned",
       "priority": 2,
       "pin": {
@@ -144,7 +144,7 @@
       "coverageNotes": [
         "Compact Maven library lane.",
         "Pinned upstream commit on the master branch.",
-        "Native Maven baseline only until a checked-in Zolt adapter builds the same source set."
+        "Upstream Maven baseline only until a checked-in Zolt adapter builds the same source set."
       ]
     },
     {
@@ -177,7 +177,7 @@
       "upstreamUrl": "https://github.com/netty/netty",
       "sourceBranch": "4.1",
       "nativeTool": "maven",
-      "status": "native-baseline-ready",
+      "status": "upstream-baseline-ready",
       "adapterStatus": "groundwork",
       "adapterPath": "benchmarks/adapters/netty/coverage.json",
       "priority": 4,
@@ -313,7 +313,7 @@
       },
       "coverageNotes": [
         "Large Maven reactor lane.",
-        "Starts as a native Maven baseline.",
+        "Starts as an upstream Maven baseline.",
         "Adapter groundwork lives under benchmarks/adapters/netty/.",
         "The full Netty lane can be expensive; run it manually before publishing.",
         "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."

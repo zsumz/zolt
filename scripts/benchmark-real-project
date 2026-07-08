@@ -17,7 +17,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/benchmark-real-project [options]
 
-Runs a pinned real-project native-tool baseline and writes a suite lane summary.
+Runs a pinned real-project upstream-tool baseline and writes a suite lane summary.
 
 Options:
   --project ID             Project id from docs/benchmarks/projects.json.
@@ -30,7 +30,7 @@ Options:
   --dry-run                Validate the lane and write planned outputs without cloning or timing.
   -h, --help               Show this help.
 
-Real-project lanes are native-tool baselines until a checked-in Zolt adapter
+Real-project lanes are upstream-tool baselines until a checked-in Zolt adapter
 builds the same source set. The runner records pins, commands, tool versions,
 raw samples, logs, and caveats so those baselines can be compared later without
 rewriting the evidence contract.
@@ -156,7 +156,7 @@ if not pin_value:
 
 native_tool = project.get("nativeTool")
 if native_tool not in {"maven", "gradle"}:
-    raise SystemExit(f"unsupported native tool for {project_id}: {native_tool}")
+    raise SystemExit(f"unsupported upstream tool for {project_id}: {native_tool}")
 
 native_workflows = [row for row in project.get("nativeWorkflows", []) if row.get("enabled", True)]
 if not native_workflows:
@@ -461,7 +461,7 @@ else:
         failure = {"error": str(exc)}
 
 caveats = [
-    "This is a native-tool baseline, not a Zolt comparison.",
+    "This is an upstream-tool baseline, not a Zolt comparison.",
     "Zolt comparison results require a checked-in adapter that builds the same meaningful source set.",
     "First clean builds are single setup samples unless the workflow states otherwise.",
 ]
@@ -469,11 +469,11 @@ caveats.extend(project.get("coverageNotes") or [])
 if dry_run:
     caveats.insert(0, "Dry run only; no repository checkout or timing samples were collected.")
 if failure:
-    caveats.insert(0, "At least one native baseline command failed; inspect the referenced command log.")
+    caveats.insert(0, "At least one upstream-tool baseline command failed; inspect the referenced command log.")
 
 lane = {
     "id": f"real-{project_id}-{native_tool}-baseline",
-    "name": f"{project.get('name') or project_id} {native_tool.title()} native baseline",
+    "name": f"{project.get('name') or project_id} upstream {native_tool.title()} baseline",
     "kind": "real-project-native-baseline",
     "status": status,
     "workload": {
@@ -494,7 +494,7 @@ lane = {
         }
     },
     "summary": {
-        "classification": "Real-project native baseline",
+        "classification": "Real-project upstream-tool baseline",
         "completedWorkflowCount": sum(1 for row in workflow_records if row.get("winner") == native_tool),
         "plannedWorkflowCount": len(native_workflows),
         "repeatCount": repeat_count,
@@ -545,10 +545,10 @@ summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 suite_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
 
 lines = [
-    f"# {project.get('name') or project_id} Native Baseline",
+    f"# {project.get('name') or project_id} Upstream {native_tool.title()} Baseline",
     "",
     f"- Project: `{project_id}`",
-    f"- Native tool: `{native_tool}`",
+    f"- Upstream tool: `{native_tool}`",
     f"- Pin: `{pin_value}`",
     f"- Status: `{status}`",
     "",

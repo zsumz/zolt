@@ -43,6 +43,11 @@ on:
         required: true
         default: true
         type: boolean
+      skip_generated:
+        description: Skip the generated Java workspace lane.
+        required: true
+        default: false
+        type: boolean
       real_projects:
         description: Comma-separated real-project ids to run. Empty runs generated only.
         required: false
@@ -86,6 +91,7 @@ jobs:
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name != 'workflow_dispatch' || inputs.include_gradle_daemon }}
+      BENCHMARK_SKIP_GENERATED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_generated || false }}
       BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || 'apache-commons-cli,spring-petclinic' }}
       BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}
       BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_sample_timeout || '1800' }}
@@ -187,6 +193,9 @@ jobs:
           if [[ "$BENCHMARK_INCLUDE_GRADLE_DAEMON" == "true" ]]; then
             args+=(--include-gradle-daemon)
           fi
+          if [[ "$BENCHMARK_SKIP_GENERATED" == "true" ]]; then
+            args+=(--skip-generated)
+          fi
           if [[ -n "$BENCHMARK_REAL_PROJECTS" ]]; then
             args+=(--real-projects "$BENCHMARK_REAL_PROJECTS")
           fi
@@ -265,6 +274,7 @@ jobs:
             printf '| Samples per repeated workflow | `%s` |\n' "$BENCHMARK_REPEAT"
             printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
+            printf '| Generated lane skipped | `%s` |\n' "$BENCHMARK_SKIP_GENERATED"
             if [[ -n "$BENCHMARK_REAL_PROJECTS" ]]; then
               printf '| Real projects | `%s` |\n' "$BENCHMARK_REAL_PROJECTS"
               printf '| Real-project dry run | `%s` |\n' "$BENCHMARK_REAL_PROJECT_DRY_RUN"

@@ -36,6 +36,7 @@ scripts/benchmark-suite --generated-summary target/benchmarks/competitors/genera
 scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --repeat 5
 scripts/benchmark-suite --real-project netty --repeat 3 --include-gradle-daemon
 scripts/benchmark-suite --real-project netty --real-project-sample-timeout 3600
+scripts/benchmark-suite --skip-generated --real-project netty --repeat 1 --real-project-sample-timeout 3600
 scripts/benchmark-suite --skip-generated --real-projects spring-petclinic,netty --real-project-dry-run
 scripts/benchmark-competitors --modules 200 --skip-maven --skip-gradle
 ```
@@ -94,10 +95,13 @@ Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
 `zolt_source=build` only when measuring the checked-out branch's native binary.
 While this work is on the `benchmarks` branch, pushes to that branch run a
-40-module, 5-repeat, release-native generated benchmark plus the Spring
-PetClinic and Apache Commons CLI native baselines automatically so the combined
-job summary can be reviewed before the manual workflow is merged. Manual runs
-default to 100 modules, 7 repeats, and Gradle daemon coverage.
+40-module, 5-repeat, released native-Zolt generated benchmark plus the Spring
+PetClinic and Apache Commons CLI upstream Maven baselines automatically so the
+combined job summary can be reviewed before the manual workflow is merged.
+Manual runs default to 100 modules, 7 repeats, and Gradle daemon coverage.
+For a Netty-only validation run, dispatch the workflow with
+`skip_generated=true`, `real_projects=netty`, `repeat=1`, and
+`real_project_sample_timeout=3600`.
 
 The workflow installs a pinned Gradle distribution directly instead of using
 `gradle/actions/setup-gradle`. That keeps the GitHub summary dedicated to the
@@ -116,7 +120,7 @@ set. See [real-projects.md](./real-projects.md) for the project policy and
 initial candidate suite.
 `projects.json` is the machine-readable version used by the suite runner.
 
-The first real-project runner records native-tool baselines only:
+The first real-project runner records upstream-tool baselines only:
 
 ```sh
 scripts/benchmark-real-project --project spring-petclinic --repeat 5
@@ -125,7 +129,7 @@ scripts/benchmark-real-project --project netty --repeat 3 --sample-timeout 3600
 ```
 
 Those runs clone the pinned upstream commit into the benchmark output directory,
-record native Maven or Gradle timings, and write a suite-compatible lane summary.
+record upstream Maven or Gradle timings, and write a suite-compatible lane summary.
 They are not Zolt comparisons until an adapter is checked in and included with
 the artifact.
 

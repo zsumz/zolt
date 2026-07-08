@@ -79,7 +79,7 @@ The suite runner sits on top of the generated-workspace
 - `scripts/benchmark-enterprise-fixture` generates Zolt, Maven, and Gradle
   versions of the enterprise workload;
 - `scripts/benchmark-real-project` checks out pinned upstream refs, applies
-  adapters, and records native-tool and Zolt commands;
+  adapters, and records upstream-tool and Zolt commands;
 - `scripts/benchmark-openai-summary` turns the structured benchmark result into
   optional model-generated prose when `OPENAI_API_KEY` is configured.
 
@@ -149,8 +149,8 @@ follow-ups, recommendations, roadmap items, or backlog prose.
 Real projects should be split into two groups:
 
 - `comparison-ready`: Zolt adapter covers the same meaningful source set;
-- `native-baseline`: native Maven or Gradle timings only while the Zolt adapter
-  is not ready.
+- `upstream-baseline`: upstream Maven or Gradle timings only while the Zolt
+  adapter is not ready.
 
 Start with small and medium projects to prove the adapter flow, then add one
 large enterprise-grade baseline:
@@ -173,7 +173,7 @@ fixture. The generated enterprise workload is the controllable centerpiece.
 3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`. Done
    for the current suite summary.
 4. Add real-project checkout/adapters for Spring PetClinic and Commons CLI.
-5. Add Netty as the large native-baseline project, then work toward a Zolt
+5. Add Netty as the large upstream-baseline project, then work toward a Zolt
    adapter.
 6. Publish a dated benchmark result under `docs/benchmarks/results/`.
 

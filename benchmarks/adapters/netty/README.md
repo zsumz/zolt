@@ -1,19 +1,19 @@
 # Netty Adapter Groundwork
 
-Status: native baseline only.
+Status: upstream Maven baseline only.
 
 This directory is the reviewable home for the future Zolt overlay used by the
-Netty benchmark lane. The current benchmark suite times Netty with its native
+Netty benchmark lane. The current benchmark suite times Netty with its upstream
 Maven build only; it must not be described as a Zolt comparison until this
 directory contains a working adapter and coverage record for the same meaningful
 source set.
 
-Current native baseline:
+Current upstream Maven baseline:
 
 - upstream: `https://github.com/netty/netty`
 - branch: `4.1`
 - commit: `bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6`
-- native tool: Maven
+- upstream tool: Maven
 - manifest: `docs/benchmarks/projects.json`
 
 The first comparison adapter should be an overlay, not a fork:
@@ -35,5 +35,5 @@ Initial target:
   until those workflows are represented in the adapter.
 
 Publication rule: every Netty result must ship this adapter directory, the
-native Maven logs, raw samples, deterministic summary, and module coverage
+upstream Maven logs, raw samples, deterministic summary, and module coverage
 notes.
