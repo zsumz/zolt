@@ -77,7 +77,10 @@ resolve_tool() {
   local bundled="$3"
 
   if [[ -n "$explicit" ]]; then
-    printf '%s\n' "$explicit"
+    case "$explicit" in
+      */*) abs_path "$explicit" ;;
+      *) printf '%s\n' "$explicit" ;;
+    esac
     return
   fi
   if command -v "$fallback" >/dev/null 2>&1; then

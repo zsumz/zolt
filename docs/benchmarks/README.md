@@ -29,14 +29,17 @@ scripts/benchmark-competitors --skip-maven --skip-gradle --modules 200
 
 ## GitHub Actions
 
-Use the manual `benchmarks` workflow for public runs. It builds Zolt, runs this
-harness, writes the generated Markdown report into the job summary, and uploads
-the raw samples, JSON summary, and command logs as workflow artifacts.
+Use the manual `benchmarks` workflow for public runs. It installs or builds a
+native Zolt binary, runs this harness, writes the generated Markdown report into
+the job summary, and uploads the raw samples, JSON summary, and command logs as
+workflow artifacts.
 
-Use the native Zolt runtime for publishable results. The JVM runtime input is
-available for faster workflow smoke checks. While this work is on the
-`benchmarks` branch, pushes to that branch run a tiny JVM smoke automatically so
-the job summary can be reviewed before the manual workflow is merged.
+Use `zolt_source=release` for publishable comparisons. It installs the selected
+release channel and avoids mixing Zolt build time into the benchmark setup. Use
+`zolt_source=build` only when measuring the checked-out branch's native binary.
+While this work is on the `benchmarks` branch, pushes to that branch run a tiny
+release-native smoke automatically so the job summary can be reviewed before the
+manual workflow is merged.
 
 ## Publishing Results
 

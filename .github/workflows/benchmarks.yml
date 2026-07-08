@@ -16,14 +16,28 @@ on:
         required: true
         default: "5"
         type: string
-      zolt_runtime:
-        description: Zolt executable used for benchmark samples.
+      zolt_source:
+        description: Native Zolt binary source.
         required: true
-        default: native
+        default: release
         type: choice
         options:
-          - native
-          - jvm
+          - release
+          - build
+      release_channel:
+        description: Release channel used when zolt_source is release.
+        required: true
+        default: zap
+        type: choice
+        options:
+          - zap
+          - stable
+          - nightly
+      release_version:
+        description: Optional exact release version. Empty uses the channel latest.
+        required: false
+        default: ""
+        type: string
       include_gradle_daemon:
         description: Also measure Gradle with its daemon enabled.
         required: true
@@ -43,7 +57,9 @@ jobs:
       BENCHMARK_DIR: target/benchmarks/competitors
       BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '3' }}
       BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
-      BENCHMARK_ZOLT_RUNTIME: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_runtime || 'jvm' }}
+      BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'release' }}
+      BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
+      BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon || false }}
 
     steps:
@@ -52,7 +68,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Java
+        if: env.BENCHMARK_ZOLT_SOURCE == 'release'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Set up GraalVM
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
         uses: graalvm/setup-graalvm@v1
         with:
           distribution: graalvm
@@ -68,6 +92,7 @@ jobs:
         run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
 
       - name: Cache Zolt artifacts
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
         uses: actions/cache@v4
         with:
           path: .zolt/cache
@@ -84,29 +109,31 @@ jobs:
           mvn --version
           gradle --version
 
+      - name: Install released native Zolt
+        if: env.BENCHMARK_ZOLT_SOURCE == 'release'
+        run: |
+          export PATH="$JAVA_HOME/bin:$PATH"
+          export ZOLT_INSTALL_ROOT="$GITHUB_WORKSPACE/target/benchmarks/zolt-install"
+          export ZOLT_INSTALL_CHANNEL="$BENCHMARK_RELEASE_CHANNEL"
+          export ZOLT_INSTALL_TARGET=linux-x64
+          if [[ -n "$BENCHMARK_RELEASE_VERSION" ]]; then
+            export ZOLT_INSTALL_VERSION="$BENCHMARK_RELEASE_VERSION"
+          fi
+          scripts/install-zolt
+          printf 'ZOLT_BENCH_ZOLT=%s/bin/zolt\n' "$ZOLT_INSTALL_ROOT" >> "$GITHUB_ENV"
+          "$ZOLT_INSTALL_ROOT/bin/zolt" --version
+
       - name: Build native Zolt
-        if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
         run: |
           export PATH="$JAVA_HOME/bin:$PATH"
           scripts/zap-distribution --target linux-x64
 
-      - name: Select native Zolt
-        if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
+      - name: Select built native Zolt
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
         run: |
           printf 'ZOLT_BENCH_ZOLT=%s/apps/zolt/target/native/zolt\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
           apps/zolt/target/native/zolt --version
-
-      - name: Build JVM Zolt
-        if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
-        run: |
-          export PATH="$JAVA_HOME/bin:$PATH"
-          scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
-
-      - name: Select JVM Zolt
-        if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
-        run: |
-          printf 'ZOLT_BENCH_ZOLT=%s/scripts/run-zolt-built\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
-          scripts/run-zolt-built --version
 
       - name: Run benchmark
         run: |
@@ -129,7 +156,15 @@ jobs:
             printf '## Zolt Benchmark\n\n'
             printf -- '- Ref: `%s`\n' "${GITHUB_REF_NAME}"
             printf -- '- Commit: `%s`\n' "${GITHUB_SHA}"
-            printf -- '- Zolt runtime: `%s`\n' "$BENCHMARK_ZOLT_RUNTIME"
+            printf -- '- Zolt source: `%s`\n' "$BENCHMARK_ZOLT_SOURCE"
+            if [[ "$BENCHMARK_ZOLT_SOURCE" == "release" ]]; then
+              printf -- '- Release channel: `%s`\n' "$BENCHMARK_RELEASE_CHANNEL"
+              if [[ -n "$BENCHMARK_RELEASE_VERSION" ]]; then
+                printf -- '- Release version: `%s`\n' "$BENCHMARK_RELEASE_VERSION"
+              else
+                printf -- '- Release version: `channel latest`\n'
+              fi
+            fi
             printf -- '- Modules: `%s`\n' "$BENCHMARK_MODULES"
             printf -- '- Repeats: `%s`\n' "$BENCHMARK_REPEAT"
             printf -- '- Gradle daemon included: `%s`\n\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
@@ -144,7 +179,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: zolt-benchmark-${{ env.BENCHMARK_ZOLT_RUNTIME }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
+          name: zolt-benchmark-native-${{ env.BENCHMARK_ZOLT_SOURCE }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
           path: |
             target/benchmarks/competitors/report.md
             target/benchmarks/competitors/summary.json
