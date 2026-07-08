@@ -28,9 +28,10 @@ The first comparison adapter should be an overlay, not a fork:
 
 Initial target:
 
-- compile coverage for the core Java modules needed by `common`;
-- clean all, single-module clean compile, warm no-op, and implementation-change
-  workflows;
+- match the upstream core Java reactor package lane in
+  `docs/benchmarks/projects.json`;
+- clean package for the core Java reactor;
+- clean compile, warm no-op, and implementation-change workflows for `common`;
 - no claims about tests, native/JNI packaging, or full Netty release packaging
   until those workflows are represented in the adapter.
 

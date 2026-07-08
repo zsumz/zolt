@@ -34,9 +34,8 @@ scripts/benchmark-suite --modules 100 --repeat 7 --include-gradle-daemon
 scripts/benchmark-suite --zolt ~/.zolt/bin/zolt
 scripts/benchmark-suite --generated-summary target/benchmarks/competitors/generated-java-workspace/summary.json
 scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --repeat 5
-scripts/benchmark-suite --real-project netty --repeat 3 --include-gradle-daemon
-scripts/benchmark-suite --real-project netty --real-project-sample-timeout 3600
 scripts/benchmark-suite --skip-generated --real-project netty --repeat 1 --real-project-sample-timeout 3600
+scripts/benchmark-suite --skip-generated --real-project netty --repeat 3 --real-project-sample-timeout 3600
 scripts/benchmark-suite --skip-generated --real-projects spring-petclinic,netty --real-project-dry-run
 scripts/benchmark-competitors --modules 200 --skip-maven --skip-gradle
 ```
@@ -102,6 +101,9 @@ Manual runs default to 100 modules, 7 repeats, and Gradle daemon coverage.
 For a Netty-only validation run, dispatch the workflow with
 `skip_generated=true`, `real_projects=netty`, `repeat=1`, and
 `real_project_sample_timeout=3600`.
+That lane currently measures Netty's core Java Maven reactor plus focused
+`common` module workflows; native platform modules and testsuites are separate
+future lanes.
 
 The workflow installs a pinned Gradle distribution directly instead of using
 `gradle/actions/setup-gradle`. That keeps the GitHub summary dedicated to the

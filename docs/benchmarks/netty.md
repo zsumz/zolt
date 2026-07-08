@@ -44,11 +44,15 @@ Use that as the standard for Zolt:
 Netty starts as `upstream-baseline`. It becomes `comparison-ready` only after
 the Zolt adapter is checked in and proves the covered source set.
 
-Current upstream Maven baseline pin:
+Current upstream Maven baseline:
 
 - branch: `4.1`;
 - commit: `bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6`;
-- pinned date: `2026-07-08`.
+- pinned date: `2026-07-08`;
+- validated lane: Netty core Java Maven reactor, excluding platform-native
+  modules and testsuites;
+- first local validation artifact:
+  `target/benchmarks/netty-core-upstream-baseline-r1`.
 
 Required pinned metadata:
 
@@ -83,15 +87,12 @@ if it covers Java compile for the core modules only, the summary must say that.
 
 Mirror the shape of the Mill comparison, then add Zolt-specific evidence:
 
-- dependency setup;
-- sequential clean compile all;
-- parallel clean compile all;
-- clean compile single module, starting with `common`;
-- no-op compile single module;
+- clean package Netty core Java reactor;
+- parallel clean package Netty core Java reactor;
+- clean compile `common`;
+- no-op compile `common`;
 - implementation-only edit in `common`;
-- public API edit in `common`;
-- package or install workflow when the upstream Maven build needs packaged
-  reactor artifacts;
+- public API edit in `common`, once the adapter exists;
 - optional test compile and focused test run after compile parity is stable.
 
 Do not mix these lanes. A clean-all win, single-module win, and no-op win should
@@ -100,22 +101,19 @@ be reported as separate claims with separate samples.
 ## Maven Baseline
 
 The upstream Maven baseline uses the runner's configured Maven executable for
-now. The first command set is intentionally conservative:
+now. The large Netty workflow uses `package`, not `compile`, because Netty
+modules depend on packaged artifacts from sibling modules.
 
 ```sh
-mvn -q -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
-mvn -q -T 1C -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
+mvn -q -pl common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp -am -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite package
+mvn -q -T 1C -pl common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp -am -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite package
 mvn -q -pl common -am -DskipTests -Dcheckstyle.skip -DskipAutobahnTestsuite -DskipHttp2Testsuite compile
 ```
 
-Treat the first Netty run as command validation as well as timing evidence.
-After that run, keep the exact command lines and any required skip flags in the
-artifact.
-
-For Netty-like Maven reactors, `compile` may not be equivalent to the real
-workflow if modules depend on packaged artifacts from sibling modules. If the
-baseline must use `install`, say so in the result and keep Zolt's measured task
-semantically comparable.
+The full all-module package lane is intentionally separate from this baseline:
+the pinned Netty 4.1 snapshot can require platform-native `native-src` artifacts
+that are not available from public Maven repositories. Do not fold that failure
+into the core Java reactor result.
 
 ## Publication Rules
 

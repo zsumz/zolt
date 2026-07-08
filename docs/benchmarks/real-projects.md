@@ -31,7 +31,7 @@ lanes.
 | Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Upstream Maven baseline ready; adapter planned |
 | Apache Commons CLI | `https://github.com/apache/commons-cli` | Maven | Small Java library with classic release metadata | Upstream Maven baseline ready; adapter planned |
 | HikariCP | `https://github.com/brettwooldridge/HikariCP` | Gradle | Popular Java library with optional dependencies | Needs pinned adapter |
-| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Upstream Maven baseline ready; adapter groundwork |
+| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Core Java upstream Maven baseline ready; adapter groundwork |
 | JUnit 5 | `https://github.com/junit-team/junit-framework` | Gradle | Large multi-module test framework | Later; likely post-beta |
 
 Current pinned upstream baselines:
@@ -82,11 +82,11 @@ Zolt adapter ships with the result.
 
 ## Large Baselines
 
-For a more enterprise-looking public story, add Netty as the first large
-upstream-tool baseline after the adapter flow is proven. Netty is large,
-recognizable, Maven-based, and already used by Mill as a build-tool benchmark
-target. Its upstream Maven run shows the scale of the comparison target even
-before Zolt can build the same source set.
+Netty is the first large upstream-tool baseline. It is large, recognizable,
+Maven-based, and already used by Mill as a build-tool benchmark target. The
+current lane measures Netty's core Java reactor and intentionally excludes
+native platform modules and testsuites. That upstream Maven run shows the scale
+of the comparison target before Zolt can build the same source set.
 
 Do not present those as Zolt comparisons until the adapter is reviewable and the
 summary names exactly which modules, tests, and packaging work are covered.

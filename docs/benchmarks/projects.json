@@ -188,51 +188,35 @@
         "pinnedAt": "2026-07-08"
       },
       "workflows": [
-        "dependency-setup",
-        "sequential-clean-compile-all",
-        "parallel-clean-compile-all",
-        "clean-compile-single-module",
-        "warm-no-op-single-module",
-        "implementation-change-common",
-        "public-api-change-common",
-        "package-or-install"
+        "core-clean-package",
+        "core-parallel-clean-package",
+        "clean-compile-common",
+        "warm-no-op-common",
+        "implementation-change-common"
       ],
       "nativeWorkflows": [
         {
-          "id": "dependency-setup",
-          "label": "Dependency setup",
-          "kind": "setup",
-          "samples": 1,
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "dependency:go-offline"
-          ]
-        },
-        {
-          "id": "sequential-clean-compile-all",
-          "label": "Sequential clean compile all",
+          "id": "core-clean-package",
+          "label": "Clean package Netty core Java reactor",
           "kind": "repeated",
           "samples": "repeat",
           "prepare": "clean",
           "command": [
             "mvn",
             "-q",
+            "-pl",
+            "common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp",
+            "-am",
             "-DskipTests",
             "-Dcheckstyle.skip",
             "-DskipAutobahnTestsuite",
             "-DskipHttp2Testsuite",
-            "compile"
+            "package"
           ]
         },
         {
-          "id": "parallel-clean-compile-all",
-          "label": "Parallel clean compile all",
+          "id": "core-parallel-clean-package",
+          "label": "Parallel clean package Netty core Java reactor",
           "kind": "repeated",
           "samples": "repeat",
           "prepare": "clean",
@@ -241,15 +225,18 @@
             "-q",
             "-T",
             "1C",
+            "-pl",
+            "common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp",
+            "-am",
             "-DskipTests",
             "-Dcheckstyle.skip",
             "-DskipAutobahnTestsuite",
             "-DskipHttp2Testsuite",
-            "compile"
+            "package"
           ]
         },
         {
-          "id": "clean-compile-single-module",
+          "id": "clean-compile-common",
           "label": "Clean compile common module",
           "kind": "repeated",
           "samples": "repeat",
@@ -268,7 +255,7 @@
           ]
         },
         {
-          "id": "warm-no-op-single-module",
+          "id": "warm-no-op-common",
           "label": "Warm no-op common module",
           "kind": "repeated",
           "samples": "repeat",
@@ -312,10 +299,10 @@
         "marker": "Zolt benchmark source change"
       },
       "coverageNotes": [
-        "Large Maven reactor lane.",
+        "Large Netty core Java Maven reactor lane.",
+        "Native platform modules and testsuites are intentionally excluded from this baseline.",
         "Starts as an upstream Maven baseline.",
-        "Adapter groundwork lives under benchmarks/adapters/netty/.",
-        "The full Netty lane can be expensive; run it manually before publishing.",
+        "Full native packaging is a separate future lane because the pinned 4.1 snapshot can require native-src artifacts that are not available from public repositories.",
         "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."
       ]
     },
