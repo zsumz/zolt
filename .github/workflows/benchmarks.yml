@@ -200,7 +200,6 @@ jobs:
             if [[ -f "$BENCHMARK_DIR/summary-brief.md" ]]; then
               cat "$BENCHMARK_DIR/summary-brief.md"
               printf '\n'
-              printf 'Full statistics: `report.md`. Optional LLM prompt/context: `llm-prompt.md`, `llm-context.json`.\n'
             elif [[ -f "$BENCHMARK_DIR/report.md" ]]; then
               sed '1,2d' "$BENCHMARK_DIR/report.md"
             else

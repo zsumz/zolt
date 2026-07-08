@@ -241,11 +241,7 @@ for lane in lanes:
         f"- {lane['label']}: Zolt {fmt_ms(lane['zoltMedianMillis'])}; {competitor_text}."
     )
 
-summary_lines.extend([
-    "",
-    "Raw data: `summary.json`, `samples.jsonl`, `logs/`.",
-    "",
-])
+summary_lines.append("")
 summary_text = "\n".join(summary_lines)
 (output_dir / "summary-brief.md").write_text(summary_text, encoding="utf-8")
 # Compatibility alias for artifacts generated before summary-brief.md existed.
