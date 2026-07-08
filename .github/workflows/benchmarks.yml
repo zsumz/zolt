@@ -61,6 +61,7 @@ jobs:
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon || false }}
+      BENCHMARK_GRADLE_VERSION: "9.6.1"
 
     steps:
       - name: Check out repository
@@ -84,11 +85,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: current
-          cache-disabled: true
-          add-job-summary: never
+        run: |
+          gradle_root="$RUNNER_TEMP/gradle"
+          gradle_zip="$RUNNER_TEMP/gradle-${BENCHMARK_GRADLE_VERSION}-bin.zip"
+          mkdir -p "$gradle_root"
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${BENCHMARK_GRADLE_VERSION}-bin.zip" -o "$gradle_zip"
+          unzip -q "$gradle_zip" -d "$gradle_root"
+          printf '%s/gradle-%s/bin\n' "$gradle_root" "$BENCHMARK_GRADLE_VERSION" >> "$GITHUB_PATH"
 
       - name: Prefer configured JDK tools
         run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
