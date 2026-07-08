@@ -46,16 +46,12 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
-@Command(
-        name = "test",
-        description = "Compile and run tests, starting with JUnit support.",
-        subcommands = {
-                TestPlanCommand.class
-        })
+@Command(name = "test", description = "Compile and run tests, starting with JUnit support.", subcommands = {TestPlanCommand.class})
 public final class TestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final TestRunService testRunService;
     private final WorkspaceTestService workspaceTestService;
+    private final CommandServiceBundles.TestRunServiceFactory testRunServiceFactory;
     private final CommandLockfiles lockfiles;
 
     @Option(names = "--workspace", description = "Test workspace members in dependency order.")
@@ -107,16 +103,16 @@ public final class TestCommand implements Runnable {
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
     @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
+
+    @Mixin
     private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
 
     @Spec
     private CommandSpec spec;
 
     public TestCommand() {
-        this(
-                new ZoltTomlParser(),
-                CommandFrameworkServices.testCommandServices(),
-                new CommandLockfiles());
+        this(new ZoltTomlParser(), CommandFrameworkServices.testCommandServices(), new CommandLockfiles());
     }
 
     TestCommand(
@@ -127,6 +123,7 @@ public final class TestCommand implements Runnable {
                 tomlParser,
                 testServices.testRunService(),
                 testServices.workspaceTestService(),
+                testServices.testRunServiceFactory(),
                 lockfiles);
     }
 
@@ -134,10 +131,12 @@ public final class TestCommand implements Runnable {
             ZoltTomlParser tomlParser,
             TestRunService testRunService,
             WorkspaceTestService workspaceTestService,
+            CommandServiceBundles.TestRunServiceFactory testRunServiceFactory,
             CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.testRunService = testRunService;
         this.workspaceTestService = workspaceTestService;
+        this.testRunServiceFactory = testRunServiceFactory;
         this.lockfiles = lockfiles;
     }
 
@@ -146,11 +145,7 @@ public final class TestCommand implements Runnable {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         Path projectRoot = projectDirectory.path();
         try {
-            TestSelection testSelection = TestSelection.fromCli(
-                    testSelectors,
-                    testPatterns,
-                    includedTags,
-                    excludedTags);
+            TestSelection testSelection = TestSelection.fromCli(testSelectors, testPatterns, includedTags, excludedTags);
             TestShardSpec shard = TestShardSpec.parse(shardValue);
             TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
             List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
@@ -191,6 +186,7 @@ public final class TestCommand implements Runnable {
                 | TestShardException
                 | TestPlanException
                 | SourceDiscoveryException
+                | sh.zolt.error.ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException
@@ -212,6 +208,9 @@ public final class TestCommand implements Runnable {
             List<String> requestedTestEvents,
             String suiteName,
             TestShardSpec shard) {
+        WorkspaceTestService projectWorkspaceTestService = workspaceTestService.withMemberServices(
+                toolchainOptions.workspaceJdkCheckers("test"),
+                toolchainOptions.workspaceTestRunServices(testRunServiceFactory, "test"));
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         progress.start("Testing workspace");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -220,18 +219,18 @@ public final class TestCommand implements Runnable {
                 () -> {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace tests",
-                            () -> workspaceTestService.planTests(
+                            () -> projectWorkspaceTestService.planTests(
                                     projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
                     WorkspaceBuildResult buildResult = timings.measure(
                             "build workspace test inputs",
-                            () -> workspaceTestService.buildTestInputs(plan, cacheRoot),
+                            () -> projectWorkspaceTestService.buildTestInputs(plan, cacheRoot),
                             build -> CommandBuildAttributes.workspaceBuild(build, plan.selection()));
                     return timings.measure(
                             "run workspace test members",
-                            () -> workspaceTestService.runTests(
+                            () -> projectWorkspaceTestService.runTests(
                                     plan,
                                     buildResult,
                                     cacheRoot,
@@ -283,6 +282,8 @@ public final class TestCommand implements Runnable {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+        TestRunService projectTestRunService =
+                testRunServiceFactory.create(toolchainOptions.jdkChecker(projectRoot, config, "test"));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         progress.start("Testing project");
         CommandHumanOutput output = CommandHumanOutput.of(spec);
@@ -295,7 +296,7 @@ public final class TestCommand implements Runnable {
                             () -> {
                                 BuildResultWithClasspaths buildResult = timings.measure(
                                         "build test inputs",
-                                        () -> testRunService.buildTestInputs(
+                                        () -> projectTestRunService.buildTestInputs(
                                                 projectRoot,
                                                 config,
                                                 cacheRoot),
@@ -303,7 +304,7 @@ public final class TestCommand implements Runnable {
                                                 resultWithClasspaths.buildResult()));
                                 TestCompileResult testCompileResult = timings.measure(
                                         "compile test sources",
-                                        () -> testRunService.compileTests(
+                                        () -> projectTestRunService.compileTests(
                                                 projectRoot,
                                                 config,
                                                 buildResult.classpaths(),
@@ -317,7 +318,7 @@ public final class TestCommand implements Runnable {
                                     resultWithClasspaths.testCompileResult()));
                     return timings.measure(
                             "execute tests",
-                            () -> testRunService.runCompiledTests(
+                            () -> projectTestRunService.runCompiledTests(
                                     projectRoot,
                                     config,
                                     compileResult.classpaths(),

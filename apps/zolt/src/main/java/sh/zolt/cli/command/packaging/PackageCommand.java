@@ -22,6 +22,7 @@ import sh.zolt.cli.command.*;
 import sh.zolt.cli.command.CommandServiceBundles.CommandPackageServices;
 import sh.zolt.cli.command.build.CommandBuildAttributes;
 import sh.zolt.cli.console.ProgressWriter;
+import sh.zolt.error.ActionableException;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.perf.TimingRecorder;
 import sh.zolt.project.PackageMode;
@@ -80,6 +81,9 @@ public final class PackageCommand implements Runnable {
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
+
+    @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
 
     @Mixin
     private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
@@ -175,6 +179,7 @@ public final class PackageCommand implements Runnable {
                 | PackageException
                 | ResourceCopyException
                 | SourceDiscoveryException
+                | ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException
@@ -198,23 +203,25 @@ public final class PackageCommand implements Runnable {
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         ProgressWriter progress = CommandProgress.human(spec);
         progress.start("Packaging workspace");
+        WorkspacePackageService projectWorkspacePackageService =
+                workspacePackageService.withJdkCheckers(toolchainOptions.workspaceJdkCheckers("package"));
         WorkspacePackageResult result = timings.measure(
                 "package workspace",
                 () -> {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace packages",
-                            () -> workspacePackageService.planPackages(
+                            () -> projectWorkspacePackageService.planPackages(
                                     projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
                     WorkspaceBuildResult buildResult = timings.measure(
                             "build workspace package inputs",
-                            () -> workspacePackageService.buildPackageInputs(plan, cacheRoot),
+                            () -> projectWorkspacePackageService.buildPackageInputs(plan, cacheRoot),
                             CommandBuildAttributes::workspaceBuild);
                     return timings.measure(
                             "assemble workspace packages",
-                            () -> workspacePackageService.packageBuiltJars(
+                            () -> projectWorkspacePackageService.packageBuiltJars(
                                     plan,
                                     buildResult,
                                     packageModeOverride),
@@ -269,7 +276,11 @@ public final class PackageCommand implements Runnable {
                 () -> {
                     BuildResultWithClasspaths buildResult = timings.measure(
                             "build package inputs",
-                            () -> buildService.buildWithClasspaths(
+                            () -> buildService.withJdkChecker(toolchainOptions.jdkChecker(
+                                            projectRoot,
+                                            config,
+                                            "package"))
+                                    .buildWithClasspaths(
                                     projectRoot,
                                     config,
                                     cacheRoot,

@@ -29,6 +29,7 @@ central = "https://repo.maven.apache.org/maven2"
 "sh.zolt:zolt-test-runtime" = { workspace = "modules/zolt-test-runtime" }
 "sh.zolt:zolt-selfhost" = { workspace = "modules/zolt-selfhost" }
 "sh.zolt:zolt-toml" = { workspace = "modules/zolt-toml" }
+"sh.zolt:zolt-toolchain" = { workspace = "modules/zolt-toolchain" }
 "sh.zolt:zolt-tree" = { workspace = "modules/zolt-tree" }
 "sh.zolt:zolt-workspace" = { workspace = "modules/zolt-workspace" }
 "info.picocli:picocli" = "4.7.6"

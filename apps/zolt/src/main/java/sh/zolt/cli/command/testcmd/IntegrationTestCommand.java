@@ -48,6 +48,7 @@ public final class IntegrationTestCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final TestRunService testRunService;
     private final WorkspaceTestService workspaceTestService;
+    private final CommandServiceBundles.TestRunServiceFactory testRunServiceFactory;
     private final CommandLockfiles lockfiles;
 
     @Option(names = "--workspace", description = "Run integration tests for workspace members in dependency order.")
@@ -90,6 +91,9 @@ public final class IntegrationTestCommand implements Runnable {
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
     @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
+
+    @Mixin
     private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
 
     @Spec
@@ -110,6 +114,7 @@ public final class IntegrationTestCommand implements Runnable {
                 tomlParser,
                 testServices.testRunService(),
                 testServices.workspaceTestService(),
+                testServices.testRunServiceFactory(),
                 lockfiles);
     }
 
@@ -117,10 +122,12 @@ public final class IntegrationTestCommand implements Runnable {
             ZoltTomlParser tomlParser,
             TestRunService testRunService,
             WorkspaceTestService workspaceTestService,
+            CommandServiceBundles.TestRunServiceFactory testRunServiceFactory,
             CommandLockfiles lockfiles) {
         this.tomlParser = tomlParser;
         this.testRunService = testRunService;
         this.workspaceTestService = workspaceTestService;
+        this.testRunServiceFactory = testRunServiceFactory;
         this.lockfiles = lockfiles;
     }
 
@@ -155,6 +162,7 @@ public final class IntegrationTestCommand implements Runnable {
                 | TestRunException
                 | TestSelectionException
                 | SourceDiscoveryException
+                | sh.zolt.error.ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException
@@ -172,24 +180,27 @@ public final class IntegrationTestCommand implements Runnable {
             TestJvmArguments testJvmArguments,
             TestReportSettings reportSettings,
             List<String> requestedTestEvents) {
+        WorkspaceTestService projectWorkspaceTestService = workspaceTestService.withMemberServices(
+                toolchainOptions.workspaceJdkCheckers("integration-test"),
+                toolchainOptions.workspaceIntegrationTestRunServices(testRunServiceFactory));
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
         WorkspaceTestResult result = timings.measure(
                 "integration-test workspace",
                 () -> {
                     WorkspaceBuildPlan plan = timings.measure(
                             "plan workspace integration tests",
-                            () -> workspaceTestService.planTests(
+                            () -> projectWorkspaceTestService.planTests(
                                     projectRoot,
                                     cacheRoot,
                                     CommandWorkspaceSelections.from(all, members, memberGroups)),
                             CommandBuildAttributes::workspaceBuildPlan);
                     WorkspaceBuildResult buildResult = timings.measure(
                             "build workspace integration-test inputs",
-                            () -> workspaceTestService.buildTestInputs(plan, cacheRoot),
+                            () -> projectWorkspaceTestService.buildTestInputs(plan, cacheRoot),
                             build -> CommandBuildAttributes.workspaceBuild(build, plan.selection()));
                     return timings.measure(
                             "run workspace integration-test members",
-                            () -> workspaceTestService.runIntegrationTests(
+                            () -> projectWorkspaceTestService.runIntegrationTests(
                                     plan,
                                     buildResult,
                                     cacheRoot,
@@ -226,6 +237,11 @@ public final class IntegrationTestCommand implements Runnable {
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         ProjectConfig integrationConfig = config.withBuildSettings(config.build().asIntegrationTestBuild());
+        TestRunService projectTestRunService =
+                testRunServiceFactory.create(toolchainOptions.jdkChecker(
+                        projectRoot,
+                        integrationConfig,
+                        "integration-test"));
         TestReportSettings reportSettings = TestReportSettings.reportsDirectory(integrationReportsDir(config));
         TestRunResult result = timings.measure(
                 "run integration tests",
@@ -235,7 +251,7 @@ public final class IntegrationTestCommand implements Runnable {
                             () -> {
                                 BuildResultWithClasspaths buildResult = timings.measure(
                                         "build integration-test inputs",
-                                        () -> testRunService.buildTestInputs(
+                                        () -> projectTestRunService.buildTestInputs(
                                                 projectRoot,
                                                 integrationConfig,
                                                 cacheRoot),
@@ -243,7 +259,7 @@ public final class IntegrationTestCommand implements Runnable {
                                                 resultWithClasspaths.buildResult()));
                                 TestCompileResult testCompileResult = timings.measure(
                                         "compile integration-test sources",
-                                        () -> testRunService.compileTests(
+                                        () -> projectTestRunService.compileTests(
                                                 projectRoot,
                                                 integrationConfig,
                                                 buildResult.classpaths(),
@@ -257,7 +273,7 @@ public final class IntegrationTestCommand implements Runnable {
                                     resultWithClasspaths.testCompileResult()));
                     return timings.measure(
                             "execute integration tests",
-                            () -> testRunService.runCompiledTests(
+                            () -> projectTestRunService.runCompiledTests(
                                     projectRoot,
                                     integrationConfig,
                                     compileResult.classpaths(),

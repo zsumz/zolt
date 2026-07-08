@@ -68,7 +68,9 @@ final class WorkspaceNativeBuildServiceTest {
                 tempDir,
                 tempDir.resolve("cache"),
                 WorkspaceSelectionRequest.defaults(),
-                nativeImage);
+                (workspace, member, config) -> nativeImage,
+                () -> {
+                });
 
         assertTrue(result.resolvedLockfile());
         assertEquals(List.of("modules/core", "apps/api"), result.builtMembers().stream()
@@ -81,6 +83,7 @@ final class WorkspaceNativeBuildServiceTest {
         assertTrue(Files.exists(binary));
         assertFalse(Files.exists(tempDir.resolve("modules/core/target/native/core")));
         String log = Files.readString(tempDir.resolve("apps/api/target/native/native-image.log"));
+        assertTrue(log.contains("executable=" + nativeImage));
         assertTrue(log.contains(tempDir.resolve("apps/api/target/api-0.1.0.jar").toString()));
         assertTrue(log.contains(tempDir.resolve("modules/core/target/classes").toString()));
     }
@@ -158,6 +161,7 @@ final class WorkspaceNativeBuildServiceTest {
 
                 mkdir -p "$(dirname "$output")"
                 printf 'native\\n' > "$output"
+                printf 'executable=%s\\n' "$0"
                 printf 'classpath=%s\\n' "$classpath"
                 printf 'output=%s\\n' "$output"
                 """);

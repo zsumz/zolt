@@ -40,6 +40,7 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "task",
                     "build",
                     "run",
+                    "exec",
                     "test",
                     "integration-test",
                     "coverage",
@@ -51,6 +52,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "plan",
                     "classpath",
                     "ide",
+                    "toolchain",
+                    "shims",
                     "explain",
                     "quarkus")),
             new CommandGroup("Native and Release", List.of(

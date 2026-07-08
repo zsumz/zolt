@@ -13,6 +13,7 @@ import sh.zolt.project.ProjectConfig;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -51,6 +52,15 @@ public final class RunService {
         this.jdkDetector = jdkDetector;
         this.javaRunner = javaRunner;
         this.frameworkRunAugmenter = frameworkRunAugmenter;
+    }
+
+    public RunService withJdkChecker(JdkChecker jdkChecker) {
+        Objects.requireNonNull(jdkChecker, "jdkChecker");
+        return new RunService(
+                new BuildService(jdkChecker),
+                jdkChecker,
+                javaRunner,
+                frameworkRunAugmenter);
     }
 
     public RunResult run(

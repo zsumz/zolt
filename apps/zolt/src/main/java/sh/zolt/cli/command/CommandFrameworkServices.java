@@ -8,6 +8,7 @@ import sh.zolt.build.run.RunPackageService;
 import sh.zolt.build.run.RunService;
 import sh.zolt.build.nativeimage.NativeBuildService;
 import sh.zolt.build.testruntime.TestRunService;
+import sh.zolt.doctor.JdkChecker;
 import sh.zolt.cli.command.CommandServiceBundles.*;
 import sh.zolt.cli.command.CommandServiceClusters.*;
 import sh.zolt.framework.FrameworkBuildAugmenter;
@@ -264,7 +265,8 @@ public final class CommandFrameworkServices {
         CommandTestFrameworkServices testFrameworkServices = testFrameworkServices();
         return new CommandTestServices(
                 testRunService(testFrameworkServices),
-                workspaceTestService(testFrameworkServices));
+                workspaceTestService(testFrameworkServices),
+                jdkChecker -> testRunService(testFrameworkServices, jdkChecker));
     }
 
     static TestRunService testRunService(FrameworkTestRunner frameworkTestRunner) {
@@ -272,7 +274,14 @@ public final class CommandFrameworkServices {
     }
 
     private static TestRunService testRunService(CommandTestFrameworkServices testFrameworkServices) {
+        return testRunService(testFrameworkServices, new sh.zolt.doctor.JdkDetector());
+    }
+
+    private static TestRunService testRunService(
+            CommandTestFrameworkServices testFrameworkServices,
+            JdkChecker jdkChecker) {
         return new TestRunService(
+                jdkChecker,
                 testFrameworkServices.frameworkTestRunner(),
                 testFrameworkServices.resolveService());
     }

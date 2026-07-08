@@ -8,6 +8,7 @@ java = "21"
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
+"sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "org.tomlj:tomlj" = "1.1.1"
 
 [test.dependencies]

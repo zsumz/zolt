@@ -19,8 +19,10 @@ import sh.zolt.cli.command.CommandLockfiles;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.command.CommandServiceBundles.CommandBuildServices;
 import sh.zolt.cli.command.CommandTimings;
+import sh.zolt.cli.command.CommandToolchainOptions;
 import sh.zolt.cli.command.CommandWorkspaceSelections;
 import sh.zolt.cli.console.ProgressWriter;
+import sh.zolt.error.ActionableException;
 import sh.zolt.framework.FrameworkBuildAugmentationResult;
 import sh.zolt.framework.FrameworkBuildAugmenter;
 import sh.zolt.framework.FrameworkBuildException;
@@ -73,6 +75,9 @@ public final class BuildCommand implements Runnable {
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
     @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
+
+    @Mixin
     private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
 
     @Spec
@@ -112,6 +117,8 @@ public final class BuildCommand implements Runnable {
         Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
+                WorkspaceBuildService projectWorkspaceBuildService =
+                        workspaceBuildService.withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build"));
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt build --workspace");
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
@@ -119,7 +126,7 @@ public final class BuildCommand implements Runnable {
                         () -> {
                             WorkspaceBuildPlan plan = timings.measure(
                                     "plan workspace build",
-                                    () -> workspaceBuildService.planBuild(
+                                    () -> projectWorkspaceBuildService.planBuild(
                                             projectRoot,
                                             cacheRoot,
                                             offline,
@@ -127,7 +134,7 @@ public final class BuildCommand implements Runnable {
                                     CommandBuildAttributes::workspaceBuildPlan);
                             return timings.measure(
                                     "compile workspace members",
-                                    () -> workspaceBuildService.build(plan, cacheRoot),
+                                    () -> projectWorkspaceBuildService.build(plan, cacheRoot),
                                     CommandBuildAttributes::workspaceBuild);
                         },
                         CommandBuildAttributes::workspaceBuild);
@@ -156,7 +163,11 @@ public final class BuildCommand implements Runnable {
             output.work("Building " + config.project().name());
             BuildResult result = timings.measure(
                     "compile main",
-                    () -> buildService.build(projectRoot, config, cacheRoot, offline),
+                    () -> buildService.withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "build")).build(
+                            projectRoot,
+                            config,
+                            cacheRoot,
+                            offline),
                     CommandBuildAttributes::build);
             if (result.resolvedLockfile()) {
                 output.detail("Resolved dependencies because zolt.lock was missing");
@@ -196,6 +207,7 @@ public final class BuildCommand implements Runnable {
                 | FrameworkBuildException
                 | ResourceCopyException
                 | SourceDiscoveryException
+                | ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException

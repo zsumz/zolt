@@ -8,6 +8,7 @@ import sh.zolt.build.packaging.PackageService;
 import sh.zolt.build.run.RunPackageService;
 import sh.zolt.build.run.RunService;
 import sh.zolt.build.testruntime.TestRunService;
+import sh.zolt.doctor.JdkChecker;
 import sh.zolt.framework.FrameworkBuildAugmenter;
 import sh.zolt.maven.CoordinateParser;
 import sh.zolt.resolve.ResolveService;
@@ -140,12 +141,19 @@ public final class CommandServiceBundles {
         }
     }
 
+    @FunctionalInterface
+    public interface TestRunServiceFactory {
+        TestRunService create(JdkChecker jdkChecker);
+    }
+
     public record CommandTestServices(
             TestRunService testRunService,
-            WorkspaceTestService workspaceTestService) {
+            WorkspaceTestService workspaceTestService,
+            TestRunServiceFactory testRunServiceFactory) {
         public CommandTestServices {
             Objects.requireNonNull(testRunService, "testRunService");
             Objects.requireNonNull(workspaceTestService, "workspaceTestService");
+            Objects.requireNonNull(testRunServiceFactory, "testRunServiceFactory");
         }
     }
 }

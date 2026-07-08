@@ -222,6 +222,42 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "sh.zolt.cli.command.CommandToolchainOptions",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.GlobalToolchainCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.GlobalToolchainCommand$UseCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.GlobalToolchainCommand$UseJavaCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.GlobalToolchainCommand$StatusCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.GlobalToolchainCommand$UnsetCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "sh.zolt.cli.command.resolve.ResolveCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
@@ -463,6 +499,54 @@
   },
   {
     "name": "sh.zolt.cli.command.nativeimage.NativeSmokeCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainCommand$StatusCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainCommand$SyncCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ExecCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ShimsCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ShimsCommand$InstallCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ShimsCommand$StatusCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ShimsCommand$UninstallCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true
