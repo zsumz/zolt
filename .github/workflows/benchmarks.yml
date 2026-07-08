@@ -59,13 +59,13 @@ jobs:
           java-version: "21"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prefer configured JDK tools
-        run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: current
+
+      - name: Prefer configured JDK tools
+        run: printf '%s/bin\n' "$JAVA_HOME" >> "$GITHUB_PATH"
 
       - name: Cache Zolt artifacts
         uses: actions/cache@v4
@@ -78,6 +78,7 @@ jobs:
 
       - name: Show benchmark tool versions
         run: |
+          export PATH="$JAVA_HOME/bin:$PATH"
           java --version
           javac -version
           mvn --version
@@ -85,7 +86,9 @@ jobs:
 
       - name: Build native Zolt
         if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
-        run: scripts/zap-distribution --target linux-x64
+        run: |
+          export PATH="$JAVA_HOME/bin:$PATH"
+          scripts/zap-distribution --target linux-x64
 
       - name: Select native Zolt
         if: env.BENCHMARK_ZOLT_RUNTIME == 'native'
@@ -95,7 +98,9 @@ jobs:
 
       - name: Build JVM Zolt
         if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
-        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+        run: |
+          export PATH="$JAVA_HOME/bin:$PATH"
+          scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
 
       - name: Select JVM Zolt
         if: env.BENCHMARK_ZOLT_RUNTIME == 'jvm'
@@ -105,6 +110,7 @@ jobs:
 
       - name: Run benchmark
         run: |
+          export PATH="$JAVA_HOME/bin:$PATH"
           args=(
             --modules "$BENCHMARK_MODULES"
             --repeat "$BENCHMARK_REPEAT"
