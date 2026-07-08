@@ -27,12 +27,26 @@ scripts/benchmark-competitors --zolt ~/.zolt/bin/zolt
 scripts/benchmark-competitors --skip-maven --skip-gradle --modules 200
 ```
 
+After a benchmark run, generate compact human/LLM summary files:
+
+```sh
+scripts/benchmark-llm-summary \
+  --summary target/benchmarks/competitors/summary.json \
+  --output-dir target/benchmarks/competitors
+```
+
+That writes:
+
+- `llm-summary.md` for a short lane-by-lane summary;
+- `llm-context.json` for structured downstream processing;
+- `llm-prompt.md` for model-generated summaries.
+
 ## GitHub Actions
 
 Use the manual `benchmarks` workflow for public runs. It installs or builds a
-native Zolt binary, runs this harness, writes the generated Markdown report into
-the job summary, and uploads the raw samples, JSON summary, and command logs as
-workflow artifacts.
+native Zolt binary, runs this harness, writes the compact summary into the job
+summary, and uploads the report, raw samples, JSON summary, LLM context, prompt,
+and command logs as workflow artifacts.
 
 Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
@@ -50,6 +64,8 @@ benchmark report and avoids unrelated Gradle action cache/build-scan summaries.
 When publishing benchmark evidence:
 
 - include the generated `report.md`, `summary.json`, and `samples.jsonl`;
+- include `llm-summary.md` and `llm-context.json` when asking an LLM to summarize
+  the run;
 - include tool versions, JDK version, OS, CPU architecture, module count, and
   repeat count;
 - separate no-op, leaf-change, and root-change workflows;

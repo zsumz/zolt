@@ -154,6 +154,15 @@ jobs:
           fi
           scripts/benchmark-competitors "${args[@]}"
 
+      - name: Prepare benchmark summary files
+        if: always()
+        run: |
+          if [[ -f "$BENCHMARK_DIR/summary.json" ]]; then
+            scripts/benchmark-llm-summary --summary "$BENCHMARK_DIR/summary.json" --output-dir "$BENCHMARK_DIR"
+          else
+            printf 'Benchmark summary was not generated; skipping summary files.\n'
+          fi
+
       - name: Write job summary
         if: always()
         run: |
@@ -187,7 +196,11 @@ jobs:
             printf '| Samples per timed workflow | `%s` |\n' "$BENCHMARK_REPEAT"
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
             printf '| Uploaded artifact | `%s` |\n\n' "$artifact_name"
-            if [[ -f "$BENCHMARK_DIR/report.md" ]]; then
+            if [[ -f "$BENCHMARK_DIR/llm-summary.md" ]]; then
+              cat "$BENCHMARK_DIR/llm-summary.md"
+              printf '\n'
+              printf 'Full statistics: `report.md`. LLM prompt/context: `llm-prompt.md`, `llm-context.json`.\n'
+            elif [[ -f "$BENCHMARK_DIR/report.md" ]]; then
               sed '1,2d' "$BENCHMARK_DIR/report.md"
             else
               printf 'Benchmark report was not generated. Check the job logs and uploaded artifacts.\n'
@@ -203,5 +216,8 @@ jobs:
             target/benchmarks/competitors/report.md
             target/benchmarks/competitors/summary.json
             target/benchmarks/competitors/samples.jsonl
+            target/benchmarks/competitors/llm-summary.md
+            target/benchmarks/competitors/llm-context.json
+            target/benchmarks/competitors/llm-prompt.md
             target/benchmarks/competitors/logs/**
           if-no-files-found: warn

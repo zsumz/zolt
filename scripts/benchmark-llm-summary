@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SUMMARY_FILE="target/benchmarks/competitors/summary.json"
+OUTPUT_DIR=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-llm-summary [options]
+
+Creates compact benchmark summary files from scripts/benchmark-competitors output:
+  - llm-summary.md: short human/LLM-readable run summary
+  - llm-context.json: structured facts for model prompts
+  - llm-prompt.md: prompt template for model-generated summaries
+
+Options:
+  --summary FILE      Benchmark summary JSON. Default: target/benchmarks/competitors/summary.json.
+  --output-dir DIR    Output directory. Default: directory containing SUMMARY_FILE.
+  -h, --help          Show this help.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --summary)
+      [[ "$#" -ge 2 ]] || fail "--summary requires a value"
+      SUMMARY_FILE="$2"
+      shift 2
+      ;;
+    --output-dir)
+      [[ "$#" -ge 2 ]] || fail "--output-dir requires a value"
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+[[ -f "$SUMMARY_FILE" ]] || fail "summary file not found: $SUMMARY_FILE"
+if [[ -z "$OUTPUT_DIR" ]]; then
+  OUTPUT_DIR="$(dirname "$SUMMARY_FILE")"
+fi
+mkdir -p "$OUTPUT_DIR"
+
+python3 - "$SUMMARY_FILE" "$OUTPUT_DIR" <<'PY'
+import json
+import pathlib
+import sys
+
+summary_path = pathlib.Path(sys.argv[1])
+output_dir = pathlib.Path(sys.argv[2])
+summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+workflow_labels = {
+    "setup-warm-build": "First warm build",
+    "no-op-build": "Warm no-op build",
+    "leaf-change-build": "Leaf source change",
+    "root-change-build": "Root library change",
+    "setup": "Zolt dependency setup",
+}
+workflow_order = [
+    "setup-warm-build",
+    "no-op-build",
+    "leaf-change-build",
+    "root-change-build",
+]
+tool_labels = {
+    "zolt": "Zolt",
+    "maven": "Maven",
+    "gradle-no-daemon": "Gradle (no daemon)",
+    "gradle-daemon": "Gradle (daemon)",
+}
+tool_order = ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"]
+
+environment = summary.get("environment") or {}
+workflows = {
+    row.get("workflow"): row.get("tools", {})
+    for row in summary.get("workflows", [])
+}
+
+def first_version_line(tool):
+    info = (environment.get("tools") or {}).get(tool)
+    if not info:
+        return "not found"
+    if info.get("error"):
+        return info["error"]
+    if info.get("exitCode") not in (0, None):
+        return f"exit {info.get('exitCode')}"
+    for line in info.get("stdout", []):
+        stripped = line.strip()
+        if stripped and set(stripped) == {"-"}:
+            continue
+        if stripped:
+            return stripped
+    return "version output empty"
+
+def median(tools, tool):
+    value = tools.get(tool, {}).get("medianMillis")
+    return value if isinstance(value, (int, float)) else None
+
+def fmt_ms(value):
+    if value is None:
+        return "n/a"
+    return f"{int(value):,} ms"
+
+def fmt_ratio(value):
+    if value is None:
+        return "n/a"
+    return f"{value:.1f}x"
+
+def run_type():
+    module_count = int(environment.get("moduleCount") or 0)
+    repeat_count = int(environment.get("repeatCount") or 0)
+    comparable = [
+        workflow
+        for workflow in workflow_order
+        if "zolt" in workflows.get(workflow, {})
+        and ("maven" in workflows.get(workflow, {}) or "gradle-no-daemon" in workflows.get(workflow, {}))
+    ]
+    has_core_competitors = all(
+        "maven" in workflows.get(workflow, {})
+        and "gradle-no-daemon" in workflows.get(workflow, {})
+        for workflow in comparable
+    )
+    if module_count < 20 or repeat_count < 3:
+        return "Smoke validation"
+    if module_count >= 40 and repeat_count >= 5 and has_core_competitors:
+        return "Publication candidate"
+    return "Exploratory benchmark"
+
+lanes = []
+zolt_fastest_count = 0
+for workflow in workflow_order:
+    tools = workflows.get(workflow, {})
+    zolt_median = median(tools, "zolt")
+    if zolt_median is None:
+        continue
+    available_tools = [
+        tool
+        for tool in tool_order
+        if median(tools, tool) is not None
+    ]
+    if not available_tools:
+        continue
+    fastest_tool = min(available_tools, key=lambda tool: median(tools, tool))
+    if fastest_tool == "zolt":
+        zolt_fastest_count += 1
+    competitors = []
+    for tool in available_tools:
+        if tool == "zolt":
+            continue
+        tool_median = median(tools, tool)
+        ratio = None
+        if zolt_median:
+            ratio = tool_median / zolt_median
+        competitors.append({
+            "tool": tool,
+            "label": tool_labels.get(tool, tool),
+            "medianMillis": tool_median,
+            "ratioVsZolt": ratio,
+        })
+    lanes.append({
+        "workflow": workflow,
+        "label": workflow_labels.get(workflow, workflow),
+        "samples": tools.get("zolt", {}).get("samples"),
+        "zoltMedianMillis": zolt_median,
+        "fastestTool": fastest_tool,
+        "zoltFastest": fastest_tool == "zolt",
+        "competitors": competitors,
+    })
+
+context = {
+    "run": {
+        "type": run_type(),
+        "moduleCount": environment.get("moduleCount"),
+        "appModules": 1,
+        "repeatCount": environment.get("repeatCount"),
+        "machine": {
+            "system": (environment.get("platform") or {}).get("system"),
+            "release": (environment.get("platform") or {}).get("release"),
+            "machine": (environment.get("platform") or {}).get("machine"),
+        },
+        "javaHome": environment.get("javaHome"),
+        "tools": {
+            "zolt": first_version_line("zolt"),
+            "maven": first_version_line("maven"),
+            "gradle": first_version_line("gradle"),
+        },
+        "zoltFastestWorkflows": zolt_fastest_count,
+        "comparableWorkflows": len(lanes),
+    },
+    "lanes": lanes,
+}
+sample_word = "sample" if context["run"]["repeatCount"] == 1 else "samples"
+
+(output_dir / "llm-context.json").write_text(
+    json.dumps(context, indent=2) + "\n",
+    encoding="utf-8",
+)
+
+summary_lines = [
+    "# Benchmark Summary",
+    "",
+    f"- Run: {context['run']['type']}; {context['run']['moduleCount']} library modules + app; {context['run']['repeatCount']} {sample_word} per timed workflow.",
+    f"- Tools: Zolt `{context['run']['tools']['zolt']}`; Maven `{context['run']['tools']['maven']}`; Gradle `{context['run']['tools']['gradle']}`.",
+    f"- Result: Zolt was fastest in {zolt_fastest_count} / {len(lanes)} comparable workflows.",
+    "",
+    "## Lanes",
+    "",
+]
+for lane in lanes:
+    competitor_bits = []
+    for competitor in lane["competitors"]:
+        competitor_bits.append(
+            f"{competitor['label']} {fmt_ms(competitor['medianMillis'])} ({fmt_ratio(competitor['ratioVsZolt'])} vs Zolt)"
+        )
+    competitor_text = "; ".join(competitor_bits) if competitor_bits else "no competitors"
+    summary_lines.append(
+        f"- {lane['label']}: Zolt {fmt_ms(lane['zoltMedianMillis'])}; {competitor_text}."
+    )
+
+summary_lines.extend([
+    "",
+    "Raw data: `summary.json`, `samples.jsonl`, `logs/`.",
+    "",
+])
+(output_dir / "llm-summary.md").write_text(
+    "\n".join(summary_lines),
+    encoding="utf-8",
+)
+
+prompt_lines = [
+    "# Benchmark Summary Prompt",
+    "",
+    "Summarize this Zolt benchmark for a technical README or release note.",
+    "",
+    "Rules:",
+    "- Use only the data in the JSON block.",
+    "- Keep it factual and concise.",
+    "- Mention the run type, module count, repeat count, and tool versions.",
+    "- Include one bullet per lane.",
+    "- Do not claim publication-grade evidence unless run.type is `Publication candidate`.",
+    "- Use wall-clock milliseconds and ratios exactly as provided or directly derived.",
+    "",
+    "```json",
+    json.dumps(context, indent=2),
+    "```",
+    "",
+]
+(output_dir / "llm-prompt.md").write_text(
+    "\n".join(prompt_lines),
+    encoding="utf-8",
+)
+PY
+
+printf 'wrote LLM context: %s/llm-context.json\n' "$OUTPUT_DIR"
+printf 'wrote LLM prompt: %s/llm-prompt.md\n' "$OUTPUT_DIR"
+printf 'wrote benchmark summary: %s/llm-summary.md\n' "$OUTPUT_DIR"
