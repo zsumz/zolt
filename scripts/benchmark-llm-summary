@@ -119,10 +119,29 @@ def fmt_ms(value):
         return "n/a"
     return f"{int(value):,} ms"
 
-def fmt_ratio(value):
-    if value is None:
-        return "n/a"
-    return f"{value:.1f}x"
+def result_table_rows():
+    rows = []
+    for workflow in workflow_order:
+        tools = workflows.get(workflow, {})
+        if "zolt" not in tools or len(tools) <= 1:
+            continue
+        available_tools = [
+            tool
+            for tool in tool_order
+            if median(tools, tool) is not None
+        ]
+        if not available_tools:
+            continue
+        fastest_tool = min(available_tools, key=lambda tool: median(tools, tool))
+        rows.append([
+            workflow_labels.get(workflow, workflow),
+            tool_labels.get(fastest_tool, fastest_tool),
+            fmt_ms(median(tools, "zolt")),
+            fmt_ms(median(tools, "maven")),
+            fmt_ms(median(tools, "gradle-no-daemon")),
+            fmt_ms(median(tools, "gradle-daemon")),
+        ])
+    return rows
 
 def run_type():
     module_count = int(environment.get("moduleCount") or 0)
@@ -215,6 +234,9 @@ context = {
     "lanes": lanes,
 }
 sample_word = "sample" if context["run"]["repeatCount"] == 1 else "samples"
+module_count = context["run"]["moduleCount"]
+repeat_count = context["run"]["repeatCount"]
+result_rows = result_table_rows()
 
 (output_dir / "llm-context.json").write_text(
     json.dumps(context, indent=2) + "\n",
@@ -224,23 +246,21 @@ sample_word = "sample" if context["run"]["repeatCount"] == 1 else "samples"
 summary_lines = [
     "# Benchmark Summary",
     "",
-    f"- Run: {context['run']['type']}; {context['run']['moduleCount']} library modules + app; {context['run']['repeatCount']} {sample_word} per repeated workflow.",
-    f"- Tools: Zolt `{context['run']['tools']['zolt']}`; Maven `{context['run']['tools']['maven']}`; Gradle `{context['run']['tools']['gradle']}`.",
-    f"- Result: Zolt was fastest in {zolt_fastest_repeated_count} / {context['run']['repeatedWorkflows']} repeated workflows; the first clean build is reported separately.",
+    f"This ran a generated Java workspace with {module_count} library modules plus one app. Repeated workflows use {repeat_count} {sample_word} per tool; first clean build is reported separately as one setup sample.",
     "",
-    "## Lanes",
+    f"Tools: Zolt `{context['run']['tools']['zolt']}`; Maven `{context['run']['tools']['maven']}`; Gradle `{context['run']['tools']['gradle']}`.",
+    "",
+    f"Zolt was fastest in {zolt_fastest_repeated_count} of {context['run']['repeatedWorkflows']} repeated workflows.",
     "",
 ]
-for lane in lanes:
-    competitor_bits = []
-    for competitor in lane["competitors"]:
-        competitor_bits.append(
-            f"{competitor['label']} {fmt_ms(competitor['medianMillis'])} ({fmt_ratio(competitor['ratioVsZolt'])} vs Zolt)"
-        )
-    competitor_text = "; ".join(competitor_bits) if competitor_bits else "no competitors"
-    summary_lines.append(
-        f"- {lane['label']}: Zolt {fmt_ms(lane['zoltMedianMillis'])}; {competitor_text}."
-    )
+if result_rows:
+    summary_lines.extend([
+        "## Results",
+        "",
+        "| Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ])
+    summary_lines.extend("| " + " | ".join(row) + " |" for row in result_rows)
 
 summary_lines.append("")
 summary_text = "\n".join(summary_lines)

@@ -128,26 +128,18 @@ The first useful summary schema:
 ```json
 {
   "headline": "string",
-  "evidenceGrade": "string",
-  "overall": "string",
-  "laneSummaries": [
-    {
-      "lane": "string",
-      "winner": "string",
-      "scope": "string",
-      "plainEnglish": "string",
-      "evidence": "string",
-      "methodologyNotes": ["string"]
-    }
-  ],
-  "publishableClaims": ["string"],
+  "whatRan": "string",
+  "bottomLine": "string",
+  "resultBullets": ["string"],
+  "methodologyNotes": ["string"],
   "limitations": ["string"]
 }
 ```
 
 The prompt should be strict: summarize only the supplied JSON, keep first clean
 build separate, mention missing competitors only when data is actually missing,
-and never include follow-ups, recommendations, roadmap items, or backlog prose.
+avoid labels like evidence grade or publishable claims, and never include
+follow-ups, recommendations, roadmap items, or backlog prose.
 
 ## Real Projects
 

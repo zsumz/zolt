@@ -177,7 +177,7 @@ jobs:
               --summary "$BENCHMARK_DIR/summary.json" \
               --output "$BENCHMARK_DIR/suite-summary.json" \
               --lane-id generated-workspace \
-              --lane-name "Generated workspace" \
+              --lane-name "Generated Java workspace" \
               --lane-kind generated \
               --artifact-name "$artifact_name"
           else

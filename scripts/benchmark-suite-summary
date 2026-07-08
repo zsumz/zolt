@@ -4,7 +4,7 @@ set -euo pipefail
 SUMMARY_FILE="target/benchmarks/competitors/summary.json"
 OUTPUT_FILE=""
 LANE_ID="generated-workspace"
-LANE_NAME="Generated workspace"
+LANE_NAME="Generated Java workspace"
 LANE_KIND="generated"
 ARTIFACT_NAME=""
 
@@ -18,7 +18,7 @@ Options:
   --summary FILE       Lane summary JSON. Default: target/benchmarks/competitors/summary.json.
   --output FILE        Suite summary JSON. Default: directory containing SUMMARY_FILE/suite-summary.json.
   --lane-id ID         Lane id. Default: generated-workspace.
-  --lane-name NAME     Lane display name. Default: Generated workspace.
+  --lane-name NAME     Lane display name. Default: Generated Java workspace.
   --lane-kind KIND     Lane kind. Default: generated.
   --artifact-name NAME Uploaded artifact name recorded in the suite summary.
   -h, --help           Show this help.
