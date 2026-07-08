@@ -62,6 +62,9 @@ jobs:
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon || false }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"
+      BENCHMARK_AI_SUMMARY: ${{ vars.BENCHMARK_AI_SUMMARY || 'true' }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
+      OPENAI_REASONING_EFFORT: ${{ vars.OPENAI_REASONING_EFFORT || 'medium' }}
 
     steps:
       - name: Check out repository
@@ -159,14 +162,45 @@ jobs:
         run: |
           if [[ -f "$BENCHMARK_DIR/summary.json" ]]; then
             scripts/benchmark-llm-summary --summary "$BENCHMARK_DIR/summary.json" --output-dir "$BENCHMARK_DIR"
+            artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
+            scripts/benchmark-suite-summary \
+              --summary "$BENCHMARK_DIR/summary.json" \
+              --output "$BENCHMARK_DIR/suite-summary.json" \
+              --lane-id generated-workspace \
+              --lane-name "Generated workspace" \
+              --lane-kind generated \
+              --artifact-name "$artifact_name"
           else
             printf 'Benchmark summary was not generated; skipping summary files.\n'
           fi
 
+      - name: Prepare model benchmark summary
+        if: always()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [[ "$BENCHMARK_AI_SUMMARY" == "false" ]]; then
+            printf 'Model summary disabled by BENCHMARK_AI_SUMMARY=false.\n'
+            exit 0
+          fi
+          if [[ ! -f "$BENCHMARK_DIR/suite-summary.json" ]]; then
+            printf 'Suite summary was not generated; skipping model summary.\n'
+            exit 0
+          fi
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            printf 'OPENAI_API_KEY is not configured; skipping model summary.\n'
+            exit 0
+          fi
+          scripts/benchmark-openai-summary \
+            --input "$BENCHMARK_DIR/suite-summary.json" \
+            --output-json "$BENCHMARK_DIR/summary-ai.json" \
+            --output-markdown "$BENCHMARK_DIR/summary-ai.md" \
+            --model "$OPENAI_MODEL" \
+            --reasoning-effort "$OPENAI_REASONING_EFFORT"
+
       - name: Write job summary
         if: always()
         run: |
-          artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
           run_class="Exploratory benchmark"
           if [[ "$BENCHMARK_MODULES" =~ ^[0-9]+$ && "$BENCHMARK_REPEAT" =~ ^[0-9]+$ ]]; then
             if (( BENCHMARK_MODULES < 20 || BENCHMARK_REPEAT < 3 )); then
@@ -196,10 +230,15 @@ jobs:
             printf '| Samples per repeated workflow | `%s` |\n' "$BENCHMARK_REPEAT"
             printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
-            printf '| Uploaded artifact | `%s` |\n\n' "$artifact_name"
+            printf '\n'
             if [[ -f "$BENCHMARK_DIR/summary-brief.md" ]]; then
               cat "$BENCHMARK_DIR/summary-brief.md"
               printf '\n'
+              if [[ -f "$BENCHMARK_DIR/summary-ai.md" ]]; then
+                printf '\n'
+                cat "$BENCHMARK_DIR/summary-ai.md"
+                printf '\n'
+              fi
             elif [[ -f "$BENCHMARK_DIR/report.md" ]]; then
               sed '1,2d' "$BENCHMARK_DIR/report.md"
             else
@@ -217,8 +256,12 @@ jobs:
             target/benchmarks/competitors/summary.json
             target/benchmarks/competitors/samples.jsonl
             target/benchmarks/competitors/summary-brief.md
+            target/benchmarks/competitors/suite-summary.json
             target/benchmarks/competitors/llm-summary.md
             target/benchmarks/competitors/llm-context.json
             target/benchmarks/competitors/llm-prompt.md
+            target/benchmarks/competitors/summary-ai.json
+            target/benchmarks/competitors/summary-ai.md
+            target/benchmarks/competitors/summary-ai-request.json
             target/benchmarks/competitors/logs/**
           if-no-files-found: warn

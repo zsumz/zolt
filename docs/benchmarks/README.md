@@ -32,31 +32,53 @@ scripts/benchmark-competitors --zolt ~/.zolt/bin/zolt
 scripts/benchmark-competitors --skip-maven --skip-gradle --modules 200
 ```
 
-After a benchmark run, generate compact summary and optional LLM input files:
+After a benchmark run, generate compact and suite-level summaries:
 
 ```sh
 scripts/benchmark-llm-summary \
   --summary target/benchmarks/competitors/summary.json \
   --output-dir target/benchmarks/competitors
+
+scripts/benchmark-suite-summary \
+  --summary target/benchmarks/competitors/summary.json \
+  --output target/benchmarks/competitors/suite-summary.json
 ```
 
 That writes:
 
 - `summary-brief.md` for a deterministic lane-by-lane summary;
+- `suite-summary.json` as the stable contract for CI, artifacts, and model
+  summarization;
 - `llm-context.json` for structured downstream processing;
 - `llm-prompt.md` for model-generated summaries.
 
-No LLM call happens by default and no API key is required. CI publishes the
-deterministic summary. If a maintainer wants generated prose, use
-`llm-context.json` and `llm-prompt.md` with an explicitly configured model
-provider outside the required benchmark job.
+To generate a model summary locally:
+
+```sh
+OPENAI_API_KEY=... scripts/benchmark-openai-summary \
+  --input target/benchmarks/competitors/suite-summary.json
+```
+
+Use `--dry-run` to write the request payload without calling the API.
+
+No OpenAI call happens unless `OPENAI_API_KEY` is configured. CI still publishes
+the deterministic summary when the key is absent.
 
 ## GitHub Actions
 
 Use the manual `benchmarks` workflow for public runs. It installs or builds a
 native Zolt binary, runs this harness, writes the deterministic compact summary
-into the job summary, and uploads the report, raw samples, JSON summary,
-optional LLM context, prompt, and command logs as workflow artifacts.
+into the job summary, optionally appends a model-generated summary, and uploads
+the report, raw samples, JSON summaries, prompt context, and command logs as
+workflow artifacts.
+
+To enable model-generated summaries in GitHub Actions, add a repository Actions
+secret named `OPENAI_API_KEY`. Optional repository variables:
+
+- `OPENAI_MODEL`, default `gpt-5.5`;
+- `OPENAI_REASONING_EFFORT`, default `medium`;
+- `BENCHMARK_AI_SUMMARY=false` to disable the model step without removing the
+  secret.
 
 Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
@@ -81,9 +103,10 @@ initial candidate suite.
 
 When publishing benchmark evidence:
 
-- include the generated `report.md`, `summary.json`, and `samples.jsonl`;
-- include `summary-brief.md`, `llm-context.json`, and `llm-prompt.md` when
-  asking an LLM to summarize the run;
+- include the generated `report.md`, `summary.json`, `suite-summary.json`, and
+  `samples.jsonl`;
+- include `summary-brief.md` and, when generated, `summary-ai.json` plus
+  `summary-ai.md`;
 - include tool versions, JDK version, OS, CPU architecture, module count, and
   repeat count;
 - keep the first clean build separate from repeated no-op, leaf-change, and

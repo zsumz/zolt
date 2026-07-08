@@ -1,0 +1,299 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INPUT_FILE="target/benchmarks/competitors/suite-summary.json"
+OUTPUT_JSON=""
+OUTPUT_MARKDOWN=""
+MODEL="${OPENAI_MODEL:-gpt-5.5}"
+REASONING_EFFORT="${OPENAI_REASONING_EFFORT:-medium}"
+DRY_RUN=false
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-openai-summary [options]
+
+Creates an optional model-generated benchmark summary from suite-summary.json.
+Requires OPENAI_API_KEY unless --dry-run is used.
+
+Options:
+  --input FILE              Suite summary JSON. Default: target/benchmarks/competitors/suite-summary.json.
+  --output-json FILE        Structured model summary JSON. Default: INPUT directory/summary-ai.json.
+  --output-markdown FILE    Markdown model summary. Default: INPUT directory/summary-ai.md.
+  --model MODEL             OpenAI model. Default: OPENAI_MODEL or gpt-5.5.
+  --reasoning-effort VALUE  Reasoning effort. Default: OPENAI_REASONING_EFFORT or medium.
+  --dry-run                 Write request JSON without calling the API.
+  -h, --help                Show this help.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --input)
+      [[ "$#" -ge 2 ]] || fail "--input requires a value"
+      INPUT_FILE="$2"
+      shift 2
+      ;;
+    --output-json)
+      [[ "$#" -ge 2 ]] || fail "--output-json requires a value"
+      OUTPUT_JSON="$2"
+      shift 2
+      ;;
+    --output-markdown)
+      [[ "$#" -ge 2 ]] || fail "--output-markdown requires a value"
+      OUTPUT_MARKDOWN="$2"
+      shift 2
+      ;;
+    --model)
+      [[ "$#" -ge 2 ]] || fail "--model requires a value"
+      MODEL="$2"
+      shift 2
+      ;;
+    --reasoning-effort)
+      [[ "$#" -ge 2 ]] || fail "--reasoning-effort requires a value"
+      REASONING_EFFORT="$2"
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+[[ -f "$INPUT_FILE" ]] || fail "input file not found: $INPUT_FILE"
+if [[ -z "$OUTPUT_JSON" ]]; then
+  OUTPUT_JSON="$(dirname "$INPUT_FILE")/summary-ai.json"
+fi
+if [[ -z "$OUTPUT_MARKDOWN" ]]; then
+  OUTPUT_MARKDOWN="$(dirname "$INPUT_FILE")/summary-ai.md"
+fi
+mkdir -p "$(dirname "$OUTPUT_JSON")" "$(dirname "$OUTPUT_MARKDOWN")"
+
+if [[ "$DRY_RUN" == false && -z "${OPENAI_API_KEY:-}" ]]; then
+  fail "OPENAI_API_KEY is required unless --dry-run is used"
+fi
+
+python3 - "$INPUT_FILE" "$OUTPUT_JSON" "$OUTPUT_MARKDOWN" "$MODEL" "$REASONING_EFFORT" "$DRY_RUN" <<'PY'
+import json
+import os
+import pathlib
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+
+input_path = pathlib.Path(sys.argv[1])
+output_json_path = pathlib.Path(sys.argv[2])
+output_markdown_path = pathlib.Path(sys.argv[3])
+model = sys.argv[4]
+reasoning_effort = sys.argv[5]
+dry_run = sys.argv[6] == "true"
+suite = json.loads(input_path.read_text(encoding="utf-8"))
+prompt_version = "zolt-benchmark-summary-v1"
+
+model_input = {
+    "schemaVersion": suite.get("schemaVersion"),
+    "suite": suite.get("suite"),
+    "repository": suite.get("repository"),
+    "run": suite.get("run"),
+    "lanes": [
+        {
+            "id": lane.get("id"),
+            "name": lane.get("name"),
+            "kind": lane.get("kind"),
+            "status": lane.get("status"),
+            "workload": lane.get("workload"),
+            "tools": lane.get("tools"),
+            "summary": lane.get("summary"),
+            "workflows": lane.get("workflows"),
+            "caveats": lane.get("caveats"),
+        }
+        for lane in suite.get("lanes", [])
+    ],
+}
+
+schema = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "headline": {"type": "string"},
+        "overall": {"type": "string"},
+        "laneSummaries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "lane": {"type": "string"},
+                    "winner": {"type": "string"},
+                    "plainEnglish": {"type": "string"},
+                    "evidence": {"type": "string"},
+                    "caveats": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["lane", "winner", "plainEnglish", "evidence", "caveats"],
+            },
+        },
+        "publishableClaims": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "caveats": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "followUps": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": [
+        "headline",
+        "overall",
+        "laneSummaries",
+        "publishableClaims",
+        "caveats",
+        "followUps",
+    ],
+}
+
+system_prompt = (
+    "You summarize benchmark results for Zolt, a native Java build tool. "
+    "Use only the supplied suite JSON. Keep first clean build separate from "
+    "repeated workflows. Do not inflate smoke validation into publication "
+    "evidence. Mention missing competitors and caveats plainly. Be concise."
+)
+user_prompt = (
+    "Create a concise benchmark summary from this suite-summary.json. "
+    "Return only the structured JSON required by the schema.\n\n"
+    + json.dumps(model_input, indent=2)
+)
+request_payload = {
+    "model": model,
+    "input": [
+        {
+            "role": "system",
+            "content": [{"type": "input_text", "text": system_prompt}],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "input_text", "text": user_prompt}],
+        },
+    ],
+    "reasoning": {"effort": reasoning_effort},
+    "text": {
+        "verbosity": "low",
+        "format": {
+            "type": "json_schema",
+            "name": "zolt_benchmark_summary",
+            "strict": True,
+            "schema": schema,
+        },
+    },
+}
+
+request_path = output_json_path.with_name("summary-ai-request.json")
+request_path.write_text(json.dumps({
+    "promptVersion": prompt_version,
+    "model": model,
+    "reasoningEffort": reasoning_effort,
+    "request": request_payload,
+}, indent=2) + "\n", encoding="utf-8")
+
+if dry_run:
+    print(f"wrote OpenAI summary request: {request_path}")
+    raise SystemExit(0)
+
+api_key = os.environ["OPENAI_API_KEY"]
+request = urllib.request.Request(
+    "https://api.openai.com/v1/responses",
+    data=json.dumps(request_payload).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+try:
+    with urllib.request.urlopen(request, timeout=120) as response:
+        response_body = response.read().decode("utf-8")
+except urllib.error.HTTPError as exc:
+    body = exc.read().decode("utf-8", errors="replace")
+    raise SystemExit(f"OpenAI request failed: HTTP {exc.code}: {body}") from exc
+
+raw_response = json.loads(response_body)
+output_text = raw_response.get("output_text")
+if not output_text:
+    chunks = []
+    for item in raw_response.get("output", []):
+        for content in item.get("content", []):
+            if content.get("type") in {"output_text", "text"} and content.get("text"):
+                chunks.append(content["text"])
+    output_text = "\n".join(chunks)
+if not output_text:
+    raise SystemExit("OpenAI response did not contain output text")
+
+try:
+    model_summary = json.loads(output_text)
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"OpenAI response was not valid JSON: {exc}") from exc
+
+document = {
+    "schemaVersion": 1,
+    "createdAt": datetime.now(timezone.utc).isoformat(),
+    "promptVersion": prompt_version,
+    "model": model,
+    "reasoningEffort": reasoning_effort,
+    "responseId": raw_response.get("id"),
+    "summary": model_summary,
+}
+output_json_path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+lines = [
+    "## Model Summary",
+    "",
+    f"**{model_summary['headline']}**",
+    "",
+    model_summary["overall"],
+    "",
+]
+if model_summary["laneSummaries"]:
+    lines.extend(["### Lanes", ""])
+    for lane in model_summary["laneSummaries"]:
+        caveat_text = ""
+        if lane["caveats"]:
+            caveat_text = " Caveats: " + "; ".join(lane["caveats"])
+        lines.append(
+            f"- **{lane['lane']}**: {lane['plainEnglish']} Evidence: {lane['evidence']}.{caveat_text}"
+        )
+    lines.append("")
+if model_summary["publishableClaims"]:
+    lines.extend(["### Publishable Claims", ""])
+    lines.extend(f"- {claim}" for claim in model_summary["publishableClaims"])
+    lines.append("")
+if model_summary["caveats"]:
+    lines.extend(["### Caveats", ""])
+    lines.extend(f"- {caveat}" for caveat in model_summary["caveats"])
+    lines.append("")
+if model_summary["followUps"]:
+    lines.extend(["### Follow-ups", ""])
+    lines.extend(f"- {follow_up}" for follow_up in model_summary["followUps"])
+    lines.append("")
+output_markdown_path.write_text("\n".join(lines), encoding="utf-8")
+print(f"wrote OpenAI summary JSON: {output_json_path}")
+print(f"wrote OpenAI summary Markdown: {output_markdown_path}")
+PY
