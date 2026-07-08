@@ -5,6 +5,7 @@ import sh.zolt.lockfile.LockfileFreshnessSummary;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
+import sh.zolt.lockfile.toml.LockfileSidecars;
 import sh.zolt.lockfile.toml.ZoltLockfileWriter;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.ResolveOptions;
@@ -55,7 +56,9 @@ public final class ResolveLockfilePersistence {
             return metrics.withLockfileVerificationNanos(elapsedSince(started));
         }
         long started = System.nanoTime();
-        lockfileWriter.write(lockfilePath, lockfile);
+        writeLockfile(lockfilePath, LockfileSidecars.withJavaToolchainBlocksFromExisting(
+                lockfileWriter.write(lockfile),
+                existingLockfileContent(lockfilePath)));
         return metrics.withLockfileWriteNanos(elapsedSince(started));
     }
 
@@ -117,7 +120,8 @@ public final class ResolveLockfilePersistence {
         }
 
         String expected = lockfileWriter.write(candidate);
-        if (!existing.equals(expected)) {
+        if (!LockfileSidecars.canonicalDependencyLockfile(existing)
+                .equals(LockfileSidecars.canonicalDependencyLockfile(expected))) {
             String changedInputs = changedInputs(existing, candidate);
             throw ResolveException.actionable(
                     "zolt.lock is out of date." + changedInputs,
@@ -129,6 +133,28 @@ public final class ResolveLockfilePersistence {
         try {
             return LockfileFreshnessSummary.changedInputs(lockfileReader.read(existing), candidate);
         } catch (LockfileReadException exception) {
+            return "";
+        }
+    }
+
+    private static void writeLockfile(Path lockfilePath, String content) {
+        try {
+            Files.writeString(lockfilePath, content);
+        } catch (IOException exception) {
+            throw ResolveException.actionable(
+                    "Could not write zolt.lock at " + lockfilePath + ".",
+                    "Check that the directory exists and is writable.",
+                    exception);
+        }
+    }
+
+    private static String existingLockfileContent(Path lockfilePath) {
+        if (!Files.isRegularFile(lockfilePath)) {
+            return "";
+        }
+        try {
+            return Files.readString(lockfilePath);
+        } catch (IOException exception) {
             return "";
         }
     }

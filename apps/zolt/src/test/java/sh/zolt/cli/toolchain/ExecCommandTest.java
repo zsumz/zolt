@@ -105,6 +105,51 @@ final class ExecCommandTest {
     }
 
     @Test
+    void execCanUseWorkspaceRootToolchainTable() throws IOException {
+        Path workspace = writeWorkspace("workspace-exec", ToolchainPolicy.PREFER_MANAGED);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = locked(ToolchainPolicy.PREFER_MANAGED);
+        new ToolchainLockfileService().writeJava(workspace.resolve("zolt.lock"), locked);
+        installManagedToolchain(store, locked, 0);
+
+        var result = execute(
+                "exec",
+                "--directory", workspace.toString(),
+                "--toolchain-target", "linux-x64",
+                "--toolchain-install-root", tempDir.resolve("toolchains").toString(),
+                "--",
+                "java",
+                "hello");
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("javaHome=" + store.javaHome(locked)));
+        assertTrue(result.stdout().contains("cwd=" + workspace.toRealPath()));
+        assertTrue(result.stdout().contains("args=hello"));
+    }
+
+    @Test
+    void execResolvesNativeImageFromLockedToolchainMetadata() throws IOException {
+        Path project = writeNativeProject("managed-native-exec", ToolchainPolicy.PREFER_MANAGED);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = nativeImageLocked(ToolchainPolicy.PREFER_MANAGED);
+        new ToolchainLockfileService().writeJava(project.resolve("zolt.lock"), locked);
+        installManagedNativeImageToolchain(store, locked);
+
+        var result = execute(
+                "exec",
+                "--directory", project.toString(),
+                "--toolchain-target", "linux-x64",
+                "--toolchain-install-root", tempDir.resolve("toolchains").toString(),
+                "--",
+                "native-image",
+                "--version");
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("managedNativeImage=" + store.nativeImage(locked).orElseThrow()));
+        assertTrue(result.stdout().contains("args=--version"));
+    }
+
+    @Test
     void execFailsClearlyWhenStrictManagedToolchainIsMissing() throws IOException {
         Path project = writeProject("strict-missing", ToolchainPolicy.REQUIRE_MANAGED);
 
@@ -143,6 +188,44 @@ final class ExecCommandTest {
         return project;
     }
 
+    private Path writeWorkspace(String name, ToolchainPolicy policy) throws IOException {
+        Path workspace = tempDir.resolve(name);
+        Files.createDirectories(workspace);
+        Files.writeString(workspace.resolve("zolt.toml"), """
+                [workspace]
+                name = "%s"
+                members = ["apps/demo"]
+
+                [toolchain.java]
+                version = "21"
+                distribution = "temurin"
+                features = []
+                policy = "%s"
+                """.formatted(name, policy.id()));
+        Files.writeString(workspace.resolve("zolt.lock"), "version = 1\n\n");
+        return workspace;
+    }
+
+    private Path writeNativeProject(String name, ToolchainPolicy policy) throws IOException {
+        Path project = tempDir.resolve(name);
+        Files.createDirectories(project);
+        Files.writeString(project.resolve("zolt.toml"), """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                policy = "%s"
+                """.formatted(name, policy.id()));
+        Files.writeString(project.resolve("zolt.lock"), "version = 1\n\n");
+        return project;
+    }
+
     private static LockedJavaToolchain locked(ToolchainPolicy policy) {
         JavaToolchainRequest request = new JavaToolchainRequest(
                 "21",
@@ -159,6 +242,27 @@ final class ExecCommandTest {
                 JavaToolchainLayout.standard(false));
     }
 
+    private static LockedJavaToolchain nativeImageLocked(ToolchainPolicy policy) {
+        JavaToolchainRequest request = new JavaToolchainRequest(
+                "21",
+                JavaDistribution.GRAALVM_COMMUNITY,
+                Set.of(JavaFeature.NATIVE_IMAGE),
+                policy);
+        return new LockedJavaToolchain(
+                "java-graalvm-community-21-native-image",
+                request,
+                HostPlatform.parse("linux-x64"),
+                "21",
+                JavaDistribution.GRAALVM_COMMUNITY,
+                "builtin:java-graalvm-community-21-native-image",
+                new JavaToolchainLayout(
+                        ".",
+                        "bin/java",
+                        "bin/javac",
+                        "bin/jar",
+                        "lib/svm/bin/native-image"));
+    }
+
     private static void installManagedToolchain(
             ToolchainStore store,
             LockedJavaToolchain locked,
@@ -166,6 +270,15 @@ final class ExecCommandTest {
         javaTool(store.java(locked), exitCode);
         tool(store.javac(locked));
         tool(store.jar(locked));
+    }
+
+    private static void installManagedNativeImageToolchain(
+            ToolchainStore store,
+            LockedJavaToolchain locked) throws IOException {
+        tool(store.java(locked));
+        tool(store.javac(locked));
+        tool(store.jar(locked));
+        nativeImageTool(store.nativeImage(locked).orElseThrow());
     }
 
     private static void javaTool(Path path, int exitCode) throws IOException {
@@ -187,6 +300,18 @@ final class ExecCommandTest {
     private static void tool(Path path) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, "");
+        path.toFile().setExecutable(true);
+    }
+
+    private static void nativeImageTool(Path path) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, """
+                #!/usr/bin/env bash
+                set -euo pipefail
+
+                printf 'managedNativeImage=%s\\n' "$0"
+                printf 'args=%s\\n' "$*"
+                """);
         path.toFile().setExecutable(true);
     }
 }

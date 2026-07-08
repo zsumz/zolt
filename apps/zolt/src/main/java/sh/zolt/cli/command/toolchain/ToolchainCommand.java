@@ -13,6 +13,7 @@ import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.toolchain.JavaToolchainStatus;
 import sh.zolt.toolchain.JavaToolchainStatusService;
+import sh.zolt.toolchain.ToolchainConfigReader;
 import sh.zolt.toolchain.ToolchainSyncResult;
 import sh.zolt.toolchain.ToolchainSyncService;
 import sh.zolt.toolchain.platform.HostPlatform;
@@ -45,6 +46,7 @@ public final class ToolchainCommand implements Runnable {
     @Command(name = "status", description = "Show the Java toolchain Zolt would use.")
     public static final class StatusCommand implements Callable<Integer> {
         private final ZoltTomlParser tomlParser;
+        private final ToolchainConfigReader toolchainConfigReader;
         private final UserGlobalConfigParser globalConfigParser;
         private final JavaToolchainStatusService statusService;
 
@@ -70,14 +72,20 @@ public final class ToolchainCommand implements Runnable {
         private CommandSpec spec;
 
         public StatusCommand() {
-            this(new ZoltTomlParser(), new UserGlobalConfigParser(), new JavaToolchainStatusService());
+            this(
+                    new ZoltTomlParser(),
+                    new ToolchainConfigReader(),
+                    new UserGlobalConfigParser(),
+                    new JavaToolchainStatusService());
         }
 
         StatusCommand(
                 ZoltTomlParser tomlParser,
+                ToolchainConfigReader toolchainConfigReader,
                 UserGlobalConfigParser globalConfigParser,
                 JavaToolchainStatusService statusService) {
             this.tomlParser = tomlParser;
+            this.toolchainConfigReader = toolchainConfigReader;
             this.globalConfigParser = globalConfigParser;
             this.statusService = statusService;
         }
@@ -104,6 +112,17 @@ public final class ToolchainCommand implements Runnable {
         }
 
         private JavaToolchainStatus projectStatus(Path projectRoot) {
+            JavaToolchainRequest configured = toolchainConfigReader
+                    .readJava(projectRoot.resolve("zolt.toml"))
+                    .orElse(null);
+            if (configured != null) {
+                return statusService.status(
+                        configured,
+                        "[toolchain.java]",
+                        projectRoot.resolve("zolt.lock"),
+                        HostPlatform.parse(target),
+                        new ToolchainStore(installRoot));
+            }
             ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             return statusService.status(
                     projectRoot,
@@ -134,7 +153,7 @@ public final class ToolchainCommand implements Runnable {
 
     @Command(name = "sync", description = "Install and lock the Java toolchain for this platform.")
     public static final class SyncCommand implements Callable<Integer> {
-        private final ZoltTomlParser tomlParser;
+        private final ToolchainConfigReader toolchainConfigReader;
         private final UserGlobalConfigParser globalConfigParser;
         private final ToolchainSyncService syncService;
 
@@ -157,14 +176,14 @@ public final class ToolchainCommand implements Runnable {
         private CommandSpec spec;
 
         public SyncCommand() {
-            this(new ZoltTomlParser(), new UserGlobalConfigParser(), new ToolchainSyncService());
+            this(new ToolchainConfigReader(), new UserGlobalConfigParser(), new ToolchainSyncService());
         }
 
         SyncCommand(
-                ZoltTomlParser tomlParser,
+                ToolchainConfigReader toolchainConfigReader,
                 UserGlobalConfigParser globalConfigParser,
                 ToolchainSyncService syncService) {
-            this.tomlParser = tomlParser;
+            this.toolchainConfigReader = toolchainConfigReader;
             this.globalConfigParser = globalConfigParser;
             this.syncService = syncService;
         }
@@ -184,10 +203,14 @@ public final class ToolchainCommand implements Runnable {
         }
 
         private ToolchainSyncResult syncProject(Path projectRoot) {
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            JavaToolchainRequest request = toolchainConfigReader
+                    .readJava(projectRoot.resolve("zolt.toml"))
+                    .orElseThrow(() -> new ActionableException(
+                            "Toolchain sync needs an explicit [toolchain.java] table.",
+                            "Add [toolchain.java] with version, distribution, and features, then rerun `zolt toolchain sync`."));
             return syncService.sync(
-                    projectRoot,
-                    config,
+                    request,
+                    projectRoot.resolve("zolt.lock"),
                     HostPlatform.parse(target),
                     new ToolchainStore(installRoot));
         }

@@ -29,10 +29,26 @@ final class BundledJavaToolchainCatalogTest {
         LockedJavaToolchain java = locked.orElseThrow();
         assertEquals("java-graalvm-community-21-native-image", java.id());
         assertEquals("builtin:java-graalvm-community-21-native-image", java.catalog());
-        assertEquals("bin/native-image", java.layout().nativeImage());
+        assertEquals("lib/svm/bin/native-image", java.layout().nativeImage());
         JavaToolchainArtifact artifact = catalog.artifact(java).orElseThrow();
         assertEquals(JavaToolchainArchiveFormat.TAR_GZ, artifact.format());
         assertTrue(artifact.uri().toString().contains("graalvm-community-jdk-21.0.2_linux-x64_bin.tar.gz"));
+    }
+
+    @Test
+    void locksMacArchivesUnderContentsHome() {
+        LockedJavaToolchain locked = catalog.lock(
+                        new JavaToolchainRequest(
+                                "21",
+                                JavaDistribution.GRAALVM_COMMUNITY,
+                                Set.of(JavaFeature.NATIVE_IMAGE),
+                                ToolchainPolicy.PREFER_MANAGED),
+                        HostPlatform.parse("macos-aarch64"))
+                .orElseThrow();
+
+        assertEquals("Contents/Home", locked.layout().javaHome());
+        assertEquals("bin/java", locked.layout().java());
+        assertEquals("lib/svm/bin/native-image", locked.layout().nativeImage());
     }
 
     @Test

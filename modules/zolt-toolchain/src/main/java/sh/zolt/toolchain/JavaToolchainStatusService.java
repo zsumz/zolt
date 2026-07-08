@@ -12,6 +12,7 @@ import sh.zolt.toolchain.lock.LockedJavaToolchain;
 import sh.zolt.toolchain.lock.ToolchainLockfileService;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.store.ToolchainStore;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,19 +56,46 @@ public final class JavaToolchainStatusService {
             ToolchainStore store) {
         HostPlatform effectivePlatform = platform == null ? HostPlatform.current() : platform;
         ToolchainStore effectiveStore = store == null ? ToolchainStore.defaults() : store;
-        Optional<JavaToolchainRequest> configured = configReader.readJava(projectRoot.resolve("zolt.toml"));
+        Optional<JavaToolchainRequest> configured = readConfigured(projectRoot);
+        Optional<JavaToolchainRequest> workspaceConfigured = configured.isPresent()
+                ? Optional.empty()
+                : readWorkspaceConfigured(projectRoot, lockRoot);
         JavaToolchainRequest request = configured
+                .or(() -> workspaceConfigured)
                 .orElseGet(() -> JavaToolchainRequest.projectDefault(config.project().java()));
-        String source = configured.isPresent()
-                ? "[toolchain.java]"
-                : "[project].java";
+        String source = requestSource(configured, workspaceConfigured);
         return status(
                 request,
                 source,
                 lockRoot.resolve("zolt.lock"),
-                configured.isPresent(),
+                configured.isPresent() || workspaceConfigured.isPresent(),
                 effectivePlatform,
                 effectiveStore);
+    }
+
+    private Optional<JavaToolchainRequest> readConfigured(Path projectRoot) {
+        return configReader.readJava(projectRoot.resolve("zolt.toml"));
+    }
+
+    private Optional<JavaToolchainRequest> readWorkspaceConfigured(Path projectRoot, Path lockRoot) {
+        Path projectConfig = projectRoot.resolve("zolt.toml").toAbsolutePath().normalize();
+        Path workspaceConfig = lockRoot.resolve("zolt.toml").toAbsolutePath().normalize();
+        if (projectConfig.equals(workspaceConfig) || !Files.isRegularFile(workspaceConfig)) {
+            return Optional.empty();
+        }
+        return configReader.readJava(workspaceConfig);
+    }
+
+    private static String requestSource(
+            Optional<JavaToolchainRequest> configured,
+            Optional<JavaToolchainRequest> workspaceConfigured) {
+        if (configured.isPresent()) {
+            return "[toolchain.java]";
+        }
+        if (workspaceConfigured.isPresent()) {
+            return "[workspace toolchain.java]";
+        }
+        return "[project].java";
     }
 
     public JavaToolchainStatus status(

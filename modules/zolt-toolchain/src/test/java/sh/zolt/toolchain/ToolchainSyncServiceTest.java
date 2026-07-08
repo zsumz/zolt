@@ -76,6 +76,41 @@ final class ToolchainSyncServiceTest {
     }
 
     @Test
+    void syncInstallsMacGraalVmContentsHomeLayout() throws IOException {
+        Path project = writeProject("mac-graal-sync");
+        Path archive = fakeMacGraalArchive(tempDir.resolve("mac-graal.zip"));
+        JavaToolchainRequest request = new JavaToolchainRequest(
+                "21",
+                JavaDistribution.GRAALVM_COMMUNITY,
+                Set.of(JavaFeature.NATIVE_IMAGE),
+                ToolchainPolicy.REQUIRE_MANAGED);
+        LockedJavaToolchain locked = new LockedJavaToolchain(
+                "java-graalvm-community-21-native-image",
+                request,
+                HostPlatform.parse("macos-aarch64"),
+                "21",
+                JavaDistribution.GRAALVM_COMMUNITY,
+                "test",
+                new JavaToolchainLayout(
+                        "Contents/Home",
+                        "bin/java",
+                        "bin/javac",
+                        "bin/jar",
+                        "lib/svm/bin/native-image"));
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+
+        ToolchainSyncResult result = service(locked, artifact(archive, true)).sync(
+                project,
+                null,
+                HostPlatform.parse("macos-aarch64"),
+                store);
+
+        assertTrue(result.installed());
+        assertTrue(Files.isExecutable(store.java(locked)));
+        assertTrue(store.nativeImage(locked).map(Files::isExecutable).orElse(false));
+    }
+
+    @Test
     void syncSkipsDownloadWhenToolchainIsAlreadyInstalled() throws IOException {
         Path project = writeProject("already-installed");
         LockedJavaToolchain locked = locked(JavaDistribution.TEMURIN, Set.of());
@@ -158,6 +193,17 @@ final class ToolchainSyncServiceTest {
             if (nativeImage) {
                 tool(output, "jdk/bin/native-image", "native-image");
             }
+        }
+        return archive;
+    }
+
+    private static Path fakeMacGraalArchive(Path archive) throws IOException {
+        Files.createDirectories(archive.getParent());
+        try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(archive))) {
+            tool(output, "jdk/Contents/Home/bin/java", "java");
+            tool(output, "jdk/Contents/Home/bin/javac", "javac");
+            tool(output, "jdk/Contents/Home/bin/jar", "jar");
+            tool(output, "jdk/Contents/Home/lib/svm/bin/native-image", "native-image");
         }
         return archive;
     }

@@ -34,7 +34,7 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
                 "21",
                 distribution,
                 "builtin:" + id,
-                JavaToolchainLayout.standard(request.features().contains(JavaFeature.NATIVE_IMAGE))));
+                layout(distribution, request, platform)));
     }
 
     @Override
@@ -57,6 +57,25 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
     private static String id(JavaDistribution distribution, JavaToolchainRequest request) {
         return "java-" + distribution.id() + "-" + request.version()
                 + (request.requiresNativeImage() ? "-native-image" : "");
+    }
+
+    private static JavaToolchainLayout layout(
+            JavaDistribution distribution,
+            JavaToolchainRequest request,
+            HostPlatform platform) {
+        String javaHome = platform.os() == OperatingSystem.MACOS ? "Contents/Home" : ".";
+        String nativeImage = "";
+        if (request.features().contains(JavaFeature.NATIVE_IMAGE)) {
+            nativeImage = distribution == JavaDistribution.GRAALVM_COMMUNITY
+                    ? "lib/svm/bin/native-image"
+                    : "bin/native-image";
+        }
+        return new JavaToolchainLayout(
+                javaHome,
+                "bin/java",
+                "bin/javac",
+                "bin/jar",
+                nativeImage);
     }
 
     private static String temurinUrl(LockedJavaToolchain locked) {

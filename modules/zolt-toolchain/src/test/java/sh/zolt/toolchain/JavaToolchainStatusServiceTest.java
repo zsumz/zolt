@@ -111,6 +111,48 @@ final class JavaToolchainStatusServiceTest {
         assertEquals(JavaToolchainSource.AMBIENT, status.resolved().source());
     }
 
+    @Test
+    void workspaceToolchainConfigAppliesToMemberWithoutProjectToolchain() throws IOException {
+        Path workspace = tempDir.resolve("workspace");
+        Path member = workspace.resolve("apps/api");
+        Files.createDirectories(member);
+        Files.writeString(workspace.resolve("zolt.toml"), """
+                [workspace]
+                name = "demo"
+                members = ["apps/api"]
+
+                [toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                policy = "require-managed"
+                """);
+        Files.writeString(member.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+                """);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = locked(ToolchainPolicy.REQUIRE_MANAGED);
+        lockfiles.writeJava(workspace.resolve("zolt.lock"), locked);
+        install(store, locked);
+        JavaToolchainStatusService service = serviceWithAmbientFailure();
+
+        JavaToolchainStatus status = service.status(
+                member,
+                workspace,
+                parse(member),
+                HostPlatform.parse("linux-x64"),
+                store);
+
+        assertTrue(status.ok());
+        assertEquals("[workspace toolchain.java]", status.requestSource());
+        assertEquals(JavaToolchainSource.MANAGED, status.resolved().source());
+        assertEquals(Optional.of(store.javaHome(locked)), status.resolved().javaHome());
+    }
+
     private Path writeProject(ToolchainPolicy policy) throws IOException {
         Path project = tempDir.resolve("project-" + policy.id());
         Files.createDirectories(project);

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -37,6 +38,41 @@ final class JavaToolchainArchiveExtractorTest {
     }
 
     @Test
+    void extractsPaxPathHeaders() throws IOException {
+        Path archive = tempDir.resolve("pax.tar.gz");
+        writeTarGz(
+                archive,
+                paxEntry(
+                        "jdk/Contents/Home/conf/security/policy/unlimited/default_local.pol",
+                        "jdk/Contents/Home/conf/security/policy/unlimited/default_local.policy",
+                        "policy",
+                        0644));
+        Path destination = tempDir.resolve("out");
+
+        extractor.extract(archive, JavaToolchainArchiveFormat.TAR_GZ, destination, true);
+
+        assertTrue(Files.exists(destination.resolve(
+                "Contents/Home/conf/security/policy/unlimited/default_local.policy")));
+        assertTrue(Files.notExists(destination.resolve(
+                "Contents/Home/conf/security/policy/unlimited/default_local.pol")));
+    }
+
+    @Test
+    void extractsSafeTarSymlinks() throws IOException {
+        Path archive = tempDir.resolve("symlink.tar.gz");
+        writeTarGz(
+                archive,
+                entry("jdk/lib/svm/bin/native-image", "native-image", 0755),
+                symlink("jdk/bin/native-image", "../lib/svm/bin/native-image"));
+        Path destination = tempDir.resolve("out");
+
+        extractor.extract(archive, JavaToolchainArchiveFormat.TAR_GZ, destination, true);
+
+        assertTrue(Files.isSymbolicLink(destination.resolve("bin/native-image")));
+        assertTrue(Files.exists(destination.resolve("bin/native-image")));
+    }
+
+    @Test
     void rejectsUnsafeTarPaths() throws IOException {
         Path archive = tempDir.resolve("unsafe.tar.gz");
         writeTarGz(archive, entry("jdk/../../escape", "nope", 0644));
@@ -47,36 +83,110 @@ final class JavaToolchainArchiveExtractorTest {
         assertTrue(exception.getMessage().contains("unsafe path"));
     }
 
+    @Test
+    void rejectsUnsafeTarSymlinks() throws IOException {
+        Path archive = tempDir.resolve("unsafe-symlink.tar.gz");
+        writeTarGz(archive, symlink("jdk/bin/java", "../../../escape"));
+
+        ActionableException exception = assertThrows(ActionableException.class, () ->
+                extractor.extract(archive, JavaToolchainArchiveFormat.TAR_GZ, tempDir.resolve("out"), true));
+
+        assertTrue(exception.getMessage().contains("unsafe symlink"));
+    }
+
     private static TarEntry entry(String name, String content, int mode) {
-        return new TarEntry(name, content.getBytes(StandardCharsets.UTF_8), mode);
+        return new TarEntry(
+                name,
+                Optional.empty(),
+                content.getBytes(StandardCharsets.UTF_8),
+                mode,
+                (byte) '0',
+                "");
+    }
+
+    private static TarEntry paxEntry(String headerName, String paxPath, String content, int mode) {
+        return new TarEntry(
+                headerName,
+                Optional.of(paxPath),
+                content.getBytes(StandardCharsets.UTF_8),
+                mode,
+                (byte) '0',
+                "");
+    }
+
+    private static TarEntry symlink(String name, String linkName) {
+        return new TarEntry(
+                name,
+                Optional.empty(),
+                new byte[0],
+                0644,
+                (byte) '2',
+                linkName);
     }
 
     private static void writeTarGz(Path archive, TarEntry... entries) throws IOException {
         try (GZIPOutputStream output = new GZIPOutputStream(Files.newOutputStream(archive))) {
             for (TarEntry entry : entries) {
-                byte[] header = new byte[512];
-                putString(header, 0, 100, entry.name());
-                putOctal(header, 100, 8, entry.mode());
-                putOctal(header, 108, 8, 0);
-                putOctal(header, 116, 8, 0);
-                putOctal(header, 124, 12, entry.content().length);
-                putOctal(header, 136, 12, 0);
-                header[156] = '0';
-                putString(header, 257, 6, "ustar");
-                for (int index = 148; index < 156; index++) {
-                    header[index] = ' ';
+                if (entry.paxPath().isPresent()) {
+                    byte[] pax = paxRecord("path", entry.paxPath().orElseThrow());
+                    writeEntry(output, new TarEntry(
+                            "PaxHeaders/path",
+                            Optional.empty(),
+                            pax,
+                            0644,
+                            (byte) 'x',
+                            ""));
                 }
-                long checksum = 0;
-                for (byte value : header) {
-                    checksum += Byte.toUnsignedInt(value);
-                }
-                putOctal(header, 148, 8, checksum);
-                output.write(header);
-                output.write(entry.content());
-                int padding = (int) ((512 - (entry.content().length % 512)) % 512);
-                output.write(new byte[padding]);
+                writeEntry(output, entry);
             }
             output.write(new byte[1024]);
+        }
+    }
+
+    private static void writeEntry(GZIPOutputStream output, TarEntry entry) throws IOException {
+        writeHeader(output, entry.name(), entry.content(), entry.mode(), entry.type(), entry.linkName());
+        output.write(entry.content());
+        int padding = (int) ((512 - (entry.content().length % 512)) % 512);
+        output.write(new byte[padding]);
+    }
+
+    private static void writeHeader(
+            GZIPOutputStream output,
+            String name,
+            byte[] content,
+            int mode,
+            byte type,
+            String linkName) throws IOException {
+        byte[] header = new byte[512];
+        putString(header, 0, 100, name);
+        putOctal(header, 100, 8, mode);
+        putOctal(header, 108, 8, 0);
+        putOctal(header, 116, 8, 0);
+        putOctal(header, 124, 12, content.length);
+        putOctal(header, 136, 12, 0);
+        header[156] = type;
+        putString(header, 157, 100, linkName);
+        putString(header, 257, 6, "ustar");
+        for (int index = 148; index < 156; index++) {
+            header[index] = ' ';
+        }
+        long checksum = 0;
+        for (byte value : header) {
+            checksum += Byte.toUnsignedInt(value);
+        }
+        putOctal(header, 148, 8, checksum);
+        output.write(header);
+    }
+
+    private static byte[] paxRecord(String key, String value) {
+        String payload = key + "=" + value + "\n";
+        int length = payload.length() + 2;
+        while (true) {
+            String record = length + " " + payload;
+            if (record.length() == length) {
+                return record.getBytes(StandardCharsets.UTF_8);
+            }
+            length = record.length();
         }
     }
 
@@ -92,6 +202,12 @@ final class JavaToolchainArchiveExtractorTest {
         header[offset + length - 1] = 0;
     }
 
-    private record TarEntry(String name, byte[] content, int mode) {
+    private record TarEntry(
+            String name,
+            Optional<String> paxPath,
+            byte[] content,
+            int mode,
+            byte type,
+            String linkName) {
     }
 }

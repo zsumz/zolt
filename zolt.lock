@@ -603,3 +603,20 @@ requested = "3.6.2.Final"
 source = "io.quarkus:quarkus-bootstrap-app-model:3.33.2"
 policy = "dependency edge exclusion from io.quarkus:quarkus-bootstrap-app-model:3.33.2 to org.jboss.logging:jboss-logging"
 
+[[toolchain.java]]
+id = "java-graalvm-community-21-native-image"
+request.version = "21"
+request.distribution = "graalvm-community"
+request.features = ["native-image"]
+request.policy = "prefer-managed"
+platform.os = "macos"
+platform.arch = "aarch64"
+resolved.version = "21"
+resolved.distribution = "graalvm-community"
+artifact.catalog = "builtin:java-graalvm-community-21-native-image"
+layout.javaHome = "Contents/Home"
+layout.executables.java = "bin/java"
+layout.executables.javac = "bin/javac"
+layout.executables.jar = "bin/jar"
+layout.executables.nativeImage = "lib/svm/bin/native-image"
+

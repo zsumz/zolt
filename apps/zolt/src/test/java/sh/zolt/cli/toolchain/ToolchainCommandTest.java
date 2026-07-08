@@ -149,6 +149,77 @@ final class ToolchainCommandTest {
     }
 
     @Test
+    void syncCanUseWorkspaceRootToolchainTable() throws IOException {
+        Path workspace = tempDir.resolve("workspace");
+        Files.createDirectories(workspace);
+        Files.writeString(workspace.resolve("zolt.toml"), """
+                [workspace]
+                name = "demo"
+                members = ["apps/demo"]
+
+                [toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                """);
+        Files.writeString(workspace.resolve("zolt.lock"), "version = 1\n\n");
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        install(store, locked());
+
+        var result = execute(
+                "toolchain",
+                "sync",
+                "--directory",
+                workspace.toString(),
+                "--target",
+                "linux-x64",
+                "--install-root",
+                tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Synced Java toolchain"));
+        String lock = Files.readString(workspace.resolve("zolt.lock"));
+        assertTrue(lock.contains("[[toolchain.java]]"));
+        assertTrue(lock.contains("request.features = [\"native-image\"]"));
+    }
+
+    @Test
+    void statusCanUseWorkspaceRootToolchainTable() throws IOException {
+        Path workspace = tempDir.resolve("workspace-status");
+        Files.createDirectories(workspace);
+        Files.writeString(workspace.resolve("zolt.toml"), """
+                [workspace]
+                name = "demo"
+                members = ["apps/demo"]
+
+                [toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                """);
+        Files.writeString(workspace.resolve("zolt.lock"), "version = 1\n\n");
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = locked();
+        new ToolchainLockfileService().writeJava(workspace.resolve("zolt.lock"), locked);
+        install(store, locked);
+
+        var result = execute(
+                "toolchain",
+                "status",
+                "--directory",
+                workspace.toString(),
+                "--target",
+                "linux-x64",
+                "--install-root",
+                tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("source: [toolchain.java]"));
+        assertTrue(result.stdout().contains("source: managed"));
+        assertTrue(result.stdout().contains("javaHome: " + store.javaHome(locked)));
+    }
+
+    @Test
     void globalUseSyncAndStatusUseUserConfigAndGlobalLockfile() throws IOException {
         Path configPath = tempDir.resolve("home/config.toml");
         ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
@@ -234,7 +305,12 @@ final class ToolchainCommandTest {
                 "21",
                 JavaDistribution.GRAALVM_COMMUNITY,
                 "builtin:java-graalvm-community-21-native-image",
-                JavaToolchainLayout.standard(true));
+                new JavaToolchainLayout(
+                        ".",
+                        "bin/java",
+                        "bin/javac",
+                        "bin/jar",
+                        "lib/svm/bin/native-image"));
     }
 
     private static void install(ToolchainStore store, LockedJavaToolchain locked) throws IOException {

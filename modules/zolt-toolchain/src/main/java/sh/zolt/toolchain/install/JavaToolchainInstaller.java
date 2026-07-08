@@ -42,7 +42,7 @@ public final class JavaToolchainInstaller {
             downloader.download(artifact, archive);
             artifact.sha256().ifPresent(expected -> JavaToolchainChecksum.verifySha256(archive, expected));
             extractor.extract(archive, artifact.format(), staging, artifact.stripTopLevelDirectory());
-            makeExpectedToolsExecutable(locked, staging);
+            makeExpectedToolsExecutable(locked, staging.resolve(locked.layout().javaHome()));
             if (Files.exists(installRoot)) {
                 deleteDirectory(installRoot);
             }

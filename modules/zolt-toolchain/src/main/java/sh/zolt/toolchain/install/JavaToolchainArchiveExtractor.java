@@ -7,6 +7,8 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -61,19 +63,31 @@ final class JavaToolchainArchiveExtractor {
             boolean stripTopLevelDirectory) throws IOException {
         try (InputStream input = new GZIPInputStream(Files.newInputStream(archive))) {
             byte[] header = new byte[TAR_BLOCK_SIZE];
+            Map<String, String> pax = Map.of();
             while (readBlock(input, header)) {
                 if (isZeroBlock(header)) {
                     return;
                 }
-                String rawName = tarName(header);
                 long size = parseOctal(header, 124, 12);
                 int mode = (int) parseOctal(header, 100, 8);
                 byte type = header[156];
+                if (type == 'x') {
+                    pax = parsePax(readBytes(input, size));
+                    skipPadding(input, size);
+                    continue;
+                }
+                String rawName = pax.getOrDefault("path", tarName(header));
+                String rawLinkName = pax.getOrDefault("linkpath", tarLinkName(header));
+                pax = Map.of();
                 String name = normalizedName(rawName, stripTopLevelDirectory);
-                if (!name.isBlank() && (type == 0 || type == '0' || type == '5')) {
+                if (!name.isBlank() && (type == 0 || type == '0' || type == '5' || type == '2')) {
                     Path target = safeTarget(destination, name);
                     if (type == '5') {
                         Files.createDirectories(target);
+                        skipFully(input, size);
+                    } else if (type == '2') {
+                        createSymlink(destination, target, rawLinkName);
+                        skipFully(input, size);
                     } else {
                         Files.createDirectories(target.getParent());
                         copyBytes(input, target, size);
@@ -140,6 +154,60 @@ final class JavaToolchainArchiveExtractor {
         return prefix.isBlank() ? name : prefix + "/" + name;
     }
 
+    private static String tarLinkName(byte[] header) {
+        return string(header, 157, 100);
+    }
+
+    private static Map<String, String> parsePax(byte[] bytes) {
+        String content = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        Map<String, String> values = new HashMap<>();
+        int index = 0;
+        while (index < content.length()) {
+            int space = content.indexOf(' ', index);
+            if (space < 0) {
+                break;
+            }
+            int recordLength;
+            try {
+                recordLength = Integer.parseInt(content.substring(index, space));
+            } catch (NumberFormatException exception) {
+                break;
+            }
+            int end = index + recordLength;
+            if (recordLength <= 0 || end > content.length()) {
+                break;
+            }
+            String record = content.substring(space + 1, Math.max(space + 1, end - 1));
+            int separator = record.indexOf('=');
+            if (separator > 0) {
+                values.put(record.substring(0, separator), record.substring(separator + 1));
+            }
+            index = end;
+        }
+        return Map.copyOf(values);
+    }
+
+    private static void createSymlink(Path destination, Path target, String rawLinkName) throws IOException {
+        if (rawLinkName == null || rawLinkName.isBlank()) {
+            throw new ActionableException(
+                    "Java toolchain archive contains a symlink without a target.",
+                    "Use a trusted toolchain archive and retry `zolt toolchain sync`.");
+        }
+        Path linkTarget = Path.of(rawLinkName);
+        Path resolved = linkTarget.isAbsolute()
+                ? linkTarget.normalize()
+                : target.getParent().resolve(linkTarget).normalize();
+        Path root = destination.toAbsolutePath().normalize();
+        if (!resolved.toAbsolutePath().normalize().startsWith(root)) {
+            throw new ActionableException(
+                    "Java toolchain archive contains an unsafe symlink target `" + rawLinkName + "`.",
+                    "Use a trusted toolchain archive and retry `zolt toolchain sync`.");
+        }
+        Files.createDirectories(target.getParent());
+        Files.deleteIfExists(target);
+        Files.createSymbolicLink(target, linkTarget);
+    }
+
     private static String string(byte[] block, int offset, int length) {
         int end = offset;
         int max = offset + length;
@@ -176,6 +244,19 @@ final class JavaToolchainArchiveExtractor {
                 remaining -= read;
             }
         }
+    }
+
+    private static byte[] readBytes(InputStream input, long size) throws IOException {
+        byte[] bytes = new byte[Math.toIntExact(size)];
+        int offset = 0;
+        while (offset < bytes.length) {
+            int read = input.read(bytes, offset, bytes.length - offset);
+            if (read < 0) {
+                throw new IOException("Unexpected end of tar entry.");
+            }
+            offset += read;
+        }
+        return bytes;
     }
 
     private static void skipPadding(InputStream input, long size) throws IOException {

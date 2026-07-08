@@ -114,7 +114,12 @@ final class NativeCommandToolchainTest {
                 "21",
                 JavaDistribution.GRAALVM_COMMUNITY,
                 "builtin:java-graalvm-community-21-native-image",
-                JavaToolchainLayout.standard(true));
+                new JavaToolchainLayout(
+                        ".",
+                        "bin/java",
+                        "bin/javac",
+                        "bin/jar",
+                        "lib/svm/bin/native-image"));
     }
 
     private static void installManagedToolchain(ToolchainStore store, LockedJavaToolchain locked) throws IOException {

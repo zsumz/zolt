@@ -98,6 +98,62 @@ final class BuildCommandToolchainTest {
     }
 
     @Test
+    void workspaceBuildUsesRootToolchainConfigWhenMemberDoesNotDeclareOne() throws IOException {
+        Path workspaceDir = tempDir.resolve("root-managed-workspace");
+        Path memberDir = workspaceDir.resolve("apps/api");
+        LockedJavaToolchain locked = ManagedJavaToolchainTestFixture.locked();
+        Files.createDirectories(memberDir);
+        Files.writeString(workspaceDir.resolve("zolt.toml"), """
+                [workspace]
+                name = "root-managed-workspace"
+                members = ["apps/api"]
+                defaultMembers = ["apps/api"]
+
+                [toolchain.java]
+                version = "%s"
+                distribution = "temurin"
+                features = []
+                policy = "require-managed"
+                """.formatted(locked.request().version()));
+        Files.writeString(memberDir.resolve("zolt.toml"), """
+                [project]
+                name = "api"
+                version = "0.1.0"
+                group = "com.example"
+                java = "%s"
+                main = "com.example.Main"
+                """.formatted(locked.request().version()));
+        Path source = memberDir.resolve("src/main/java/com/example/Main.java");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, """
+                package com.example;
+
+                public final class Main {
+                    public static void main(String[] args) {
+                        System.out.println("workspace");
+                    }
+                }
+                """);
+        new ToolchainLockfileService().writeJava(workspaceDir.resolve("zolt.lock"), locked);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        Path javacMarker = workspaceDir.resolve("javac-marker.txt");
+        ManagedJavaToolchainTestFixture.installManagedToolchain(store, locked, javacMarker);
+
+        var result = execute(
+                "build",
+                "--workspace",
+                "--directory", workspaceDir.toString(),
+                "--cache-root", tempDir.resolve("cache").toString(),
+                "--toolchain-target", "linux-x64",
+                "--toolchain-install-root", tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(Files.exists(memberDir.resolve("target/classes/com/example/Main.class")));
+        assertTrue(Files.readString(javacMarker).contains("javac=" + store.javac(locked)));
+        assertTrue(result.stdout().contains("Compiled 1 main source files in apps/api"));
+    }
+
+    @Test
     void buildFailsClearlyWhenStrictManagedToolchainIsMissing() throws IOException {
         Path projectDir = ManagedJavaToolchainTestFixture.writeProject(tempDir, "missing-build-demo");
 

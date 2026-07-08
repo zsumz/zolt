@@ -12,6 +12,7 @@ import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.toolchain.JavaToolchainEnvironment;
 import sh.zolt.toolchain.JavaToolchainExecutionService;
+import sh.zolt.toolchain.ToolchainConfigReader;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.store.ToolchainStore;
 import java.io.IOException;
@@ -34,6 +35,7 @@ import picocli.CommandLine.Spec;
 @Command(name = "exec", description = "Run a command inside the resolved Java toolchain.")
 public final class ExecCommand implements java.util.concurrent.Callable<Integer> {
     private final ZoltTomlParser tomlParser;
+    private final ToolchainConfigReader toolchainConfigReader;
     private final UserGlobalConfigParser globalConfigParser;
     private final JavaToolchainExecutionService toolchains;
     private final ProcessLauncher processLauncher;
@@ -65,6 +67,7 @@ public final class ExecCommand implements java.util.concurrent.Callable<Integer>
     public ExecCommand() {
         this(
                 new ZoltTomlParser(),
+                new ToolchainConfigReader(),
                 new UserGlobalConfigParser(),
                 new JavaToolchainExecutionService(),
                 ExecCommand::runProcess);
@@ -72,10 +75,12 @@ public final class ExecCommand implements java.util.concurrent.Callable<Integer>
 
     ExecCommand(
             ZoltTomlParser tomlParser,
+            ToolchainConfigReader toolchainConfigReader,
             UserGlobalConfigParser globalConfigParser,
             JavaToolchainExecutionService toolchains,
             ProcessLauncher processLauncher) {
         this.tomlParser = tomlParser;
+        this.toolchainConfigReader = toolchainConfigReader;
         this.globalConfigParser = globalConfigParser;
         this.toolchains = toolchains;
         this.processLauncher = processLauncher;
@@ -114,6 +119,19 @@ public final class ExecCommand implements java.util.concurrent.Callable<Integer>
                     "Java toolchain is not ready for exec",
                     "Run `zolt toolchain status --global` for details, then `zolt toolchain sync --global`, or choose a project with a usable Java toolchain.");
         }
+        JavaToolchainRequest configured = toolchainConfigReader
+                .readJava(projectRoot.resolve("zolt.toml"))
+                .orElse(null);
+        if (configured != null) {
+            return toolchains.environment(
+                    configured,
+                    "[toolchain.java]",
+                    projectRoot.resolve("zolt.lock"),
+                    HostPlatform.parse(toolchainTarget),
+                    new ToolchainStore(toolchainInstallRoot),
+                    "Java toolchain is not ready for exec",
+                    "Run `zolt toolchain status` for details, then `zolt toolchain sync`, or choose a project with a usable Java toolchain.");
+        }
         ProjectConfig config = ProjectVersionOverride.apply(
                 tomlParser.parse(projectRoot.resolve("zolt.toml")));
         return toolchains.environment(
@@ -128,7 +146,7 @@ public final class ExecCommand implements java.util.concurrent.Callable<Integer>
             Path projectRoot,
             JavaToolchainEnvironment environment) {
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(resolveCommand(command, environment.bin()))
+            ProcessBuilder processBuilder = new ProcessBuilder(resolveCommand(command, environment))
                     .directory(projectRoot.toFile());
             Map<String, String> childEnvironment = processBuilder.environment();
             childEnvironment.put("JAVA_HOME", environment.javaHome().toString());
@@ -159,16 +177,28 @@ public final class ExecCommand implements java.util.concurrent.Callable<Integer>
         return String.join(java.io.File.pathSeparator, entries);
     }
 
-    private static List<String> resolveCommand(List<String> command, Path toolchainBin) {
+    private static List<String> resolveCommand(List<String> command, JavaToolchainEnvironment environment) {
         List<String> resolved = new ArrayList<>(command);
         String executable = resolved.getFirst();
         if (!hasPathSeparator(executable)) {
-            Path candidate = toolchainBin.resolve(executable).normalize();
-            if (java.nio.file.Files.isRegularFile(candidate) && java.nio.file.Files.isExecutable(candidate)) {
+            Path candidate = resolvedTool(executable, environment);
+            if (candidate != null
+                    && java.nio.file.Files.isRegularFile(candidate)
+                    && java.nio.file.Files.isExecutable(candidate)) {
                 resolved.set(0, candidate.toString());
             }
         }
         return List.copyOf(resolved);
+    }
+
+    private static Path resolvedTool(String executable, JavaToolchainEnvironment environment) {
+        return switch (executable) {
+            case "java" -> environment.resolved().java().orElse(environment.bin().resolve(executable).normalize());
+            case "javac" -> environment.resolved().javac().orElse(environment.bin().resolve(executable).normalize());
+            case "jar" -> environment.resolved().jar().orElse(environment.bin().resolve(executable).normalize());
+            case "native-image" -> environment.resolved().nativeImage().orElse(environment.bin().resolve(executable).normalize());
+            default -> environment.bin().resolve(executable).normalize();
+        };
     }
 
     private static boolean hasPathSeparator(String value) {
