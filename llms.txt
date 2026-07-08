@@ -45,6 +45,9 @@ How to summarize Zolt:
 - CI/automation support includes zolt check contexts, publish dry runs, report
   and coverage validation, package evidence validation, offline-readiness
   checks, JSON output, quiet mode, progress/color controls, and timings output.
+- Benchmark support lives in docs/benchmarks/README.md and
+  scripts/benchmark-competitors. Do not summarize Zolt as faster than Maven or
+  Gradle unless citing dated benchmark output from the harness.
 
 Representative commands:
 ```sh

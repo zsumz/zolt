@@ -1,0 +1,860 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmarks/competitors"
+MODULE_COUNT=40
+REPEAT_COUNT=5
+OUTPUT_FILE=""
+SUMMARY_FILE=""
+MARKDOWN_FILE=""
+CACHE_ROOT=""
+ZOLT_BIN="${ZOLT_BENCH_ZOLT:-}"
+MAVEN_BIN="${ZOLT_BENCH_MAVEN:-}"
+GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
+INCLUDE_GRADLE_DAEMON=false
+SKIP_MAVEN=false
+SKIP_GRADLE=false
+GENERATE_ONLY=false
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-competitors [options]
+
+Generates equivalent multi-module Java workspaces for Zolt, Maven, and Gradle,
+then measures wall-clock build workflows with repeated samples.
+
+Options:
+  --modules COUNT           Number of library modules before the app. Default: 40.
+  --repeat COUNT            Timed samples per workflow. Default: 5.
+  --work-dir DIR            Generated benchmark directory. Default: target/benchmarks/competitors.
+  --cache-root DIR          Zolt cache root. Default: WORK_DIR/zolt-cache.
+  --zolt PATH               Zolt executable. Default: zolt on PATH, then scripts/run-zolt-built.
+  --maven PATH              Maven executable. Default: mvn on PATH.
+  --gradle PATH             Gradle executable. Default: gradle on PATH.
+  --output FILE             Raw JSON-lines sample output. Default: WORK_DIR/samples.jsonl.
+  --summary FILE            JSON summary output. Default: WORK_DIR/summary.json.
+  --markdown FILE           Markdown report output. Default: WORK_DIR/report.md.
+  --include-gradle-daemon   Also measure Gradle with its daemon enabled.
+  --skip-maven              Do not run Maven even when available.
+  --skip-gradle             Do not run Gradle even when available.
+  --generate-only           Generate fixtures and exit without measuring.
+  -h, --help                Show this help.
+
+The default benchmark focuses on large-project ergonomics:
+  - warm no-op build
+  - leaf source change build
+  - root library source change build
+
+The script does not claim fairness by assertion. It records versions,
+environment details, commands, exit codes, logs, raw samples, and medians so
+published benchmark claims can point to reproducible evidence.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+positive_int() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+abs_path() {
+  case "$1" in
+    "") printf '\n' ;;
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT/$1" ;;
+  esac
+}
+
+resolve_tool() {
+  local explicit="$1"
+  local fallback="$2"
+  local bundled="$3"
+
+  if [[ -n "$explicit" ]]; then
+    printf '%s\n' "$explicit"
+    return
+  fi
+  if command -v "$fallback" >/dev/null 2>&1; then
+    command -v "$fallback"
+    return
+  fi
+  printf '%s\n' "$bundled"
+}
+
+tool_available() {
+  local tool="$1"
+  [[ -n "$tool" ]] || return 1
+  if [[ "$tool" == */* ]]; then
+    [[ -x "$tool" ]]
+  else
+    command -v "$tool" >/dev/null 2>&1
+  fi
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --modules)
+      [[ "$#" -ge 2 ]] || fail "--modules requires a value"
+      positive_int "$2" || fail "--modules requires a positive integer"
+      MODULE_COUNT="$2"
+      shift 2
+      ;;
+    --repeat)
+      [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
+      positive_int "$2" || fail "--repeat requires a positive integer"
+      REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --work-dir)
+      [[ "$#" -ge 2 ]] || fail "--work-dir requires a value"
+      WORK_DIR="$2"
+      shift 2
+      ;;
+    --cache-root)
+      [[ "$#" -ge 2 ]] || fail "--cache-root requires a value"
+      CACHE_ROOT="$2"
+      shift 2
+      ;;
+    --zolt)
+      [[ "$#" -ge 2 ]] || fail "--zolt requires a value"
+      ZOLT_BIN="$2"
+      shift 2
+      ;;
+    --maven)
+      [[ "$#" -ge 2 ]] || fail "--maven requires a value"
+      MAVEN_BIN="$2"
+      shift 2
+      ;;
+    --gradle)
+      [[ "$#" -ge 2 ]] || fail "--gradle requires a value"
+      GRADLE_BIN="$2"
+      shift 2
+      ;;
+    --output)
+      [[ "$#" -ge 2 ]] || fail "--output requires a value"
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    --summary)
+      [[ "$#" -ge 2 ]] || fail "--summary requires a value"
+      SUMMARY_FILE="$2"
+      shift 2
+      ;;
+    --markdown)
+      [[ "$#" -ge 2 ]] || fail "--markdown requires a value"
+      MARKDOWN_FILE="$2"
+      shift 2
+      ;;
+    --include-gradle-daemon)
+      INCLUDE_GRADLE_DAEMON=true
+      shift
+      ;;
+    --skip-maven)
+      SKIP_MAVEN=true
+      shift
+      ;;
+    --skip-gradle)
+      SKIP_GRADLE=true
+      shift
+      ;;
+    --generate-only)
+      GENERATE_ONLY=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+case "$WORK_DIR" in
+  "" | "." | "/" | "$ROOT")
+    fail "refusing unsafe benchmark work directory: $WORK_DIR"
+    ;;
+esac
+
+WORK_DIR="$(abs_path "$WORK_DIR")"
+if [[ -z "$CACHE_ROOT" ]]; then
+  CACHE_ROOT="$WORK_DIR/zolt-cache"
+else
+  CACHE_ROOT="$(abs_path "$CACHE_ROOT")"
+fi
+if [[ -z "$OUTPUT_FILE" ]]; then
+  OUTPUT_FILE="$WORK_DIR/samples.jsonl"
+else
+  OUTPUT_FILE="$(abs_path "$OUTPUT_FILE")"
+fi
+if [[ -z "$SUMMARY_FILE" ]]; then
+  SUMMARY_FILE="$WORK_DIR/summary.json"
+else
+  SUMMARY_FILE="$(abs_path "$SUMMARY_FILE")"
+fi
+if [[ -z "$MARKDOWN_FILE" ]]; then
+  MARKDOWN_FILE="$WORK_DIR/report.md"
+else
+  MARKDOWN_FILE="$(abs_path "$MARKDOWN_FILE")"
+fi
+
+ZOLT_BIN="$(resolve_tool "$ZOLT_BIN" zolt "$ROOT/scripts/run-zolt-built")"
+MAVEN_BIN="$(resolve_tool "$MAVEN_BIN" mvn "")"
+GRADLE_BIN="$(resolve_tool "$GRADLE_BIN" gradle "")"
+
+if ! tool_available "$ZOLT_BIN"; then
+  fail "Zolt executable is not available: $ZOLT_BIN"
+fi
+
+mkdir -p "$WORK_DIR" "$CACHE_ROOT" "$(dirname "$OUTPUT_FILE")" "$(dirname "$SUMMARY_FILE")" "$(dirname "$MARKDOWN_FILE")"
+: >"$OUTPUT_FILE"
+
+fixture_root() {
+  printf '%s/fixtures/%s\n' "$WORK_DIR" "$1"
+}
+
+module_name() {
+  printf 'lib%03d\n' "$1"
+}
+
+module_package() {
+  printf 'bench.generated.lib%03d\n' "$1"
+}
+
+module_class() {
+  printf 'Lib%03d\n' "$1"
+}
+
+write_java_module() {
+  local root="$1"
+  local index="$2"
+  local package_name class_name previous_package previous_class src_dir source_file
+  package_name="$(module_package "$index")"
+  class_name="$(module_class "$index")"
+  src_dir="$root/modules/$(module_name "$index")/src/main/java/${package_name//.//}"
+  source_file="$src_dir/$class_name.java"
+  mkdir -p "$src_dir"
+
+  if [[ "$index" -eq 1 ]]; then
+    cat >"$source_file" <<JAVA
+package $package_name;
+
+public final class $class_name {
+    private $class_name() {
+    }
+
+    public static String value() {
+        return "$class_name";
+    }
+}
+JAVA
+  else
+    previous_package="$(module_package "$((index - 1))")"
+    previous_class="$(module_class "$((index - 1))")"
+    cat >"$source_file" <<JAVA
+package $package_name;
+
+import $previous_package.$previous_class;
+
+public final class $class_name {
+    private $class_name() {
+    }
+
+    public static String value() {
+        return $previous_class.value() + ">$class_name";
+    }
+}
+JAVA
+  fi
+}
+
+write_app_source() {
+  local root="$1"
+  local package_name class_name src_dir
+  package_name="$(module_package "$MODULE_COUNT")"
+  class_name="$(module_class "$MODULE_COUNT")"
+  src_dir="$root/app/src/main/java/bench/generated/app"
+  mkdir -p "$src_dir"
+  cat >"$src_dir/App.java" <<JAVA
+package bench.generated.app;
+
+import $package_name.$class_name;
+
+public final class App {
+    private App() {
+    }
+
+    public static void main(String[] args) {
+        System.out.println(message());
+    }
+
+    public static String message() {
+        return $class_name.value();
+    }
+}
+JAVA
+}
+
+generate_zolt_fixture() {
+  local root="$1"
+  rm -rf "$root"
+  mkdir -p "$root"
+
+  {
+    printf '[workspace]\n'
+    printf 'name = "bench-generated-%s"\n' "$MODULE_COUNT"
+    printf 'members = [\n'
+    for index in $(seq 1 "$MODULE_COUNT"); do
+      printf '  "modules/%s",\n' "$(module_name "$index")"
+    done
+    printf '  "app"\n'
+    printf ']\n'
+    printf 'defaultMembers = ["app"]\n\n'
+    printf '[repositories]\n'
+    printf 'central = "https://repo.maven.apache.org/maven2"\n'
+  } >"$root/zolt.toml"
+
+  for index in $(seq 1 "$MODULE_COUNT"); do
+    local name module_dir
+    name="$(module_name "$index")"
+    module_dir="$root/modules/$name"
+    mkdir -p "$module_dir"
+    {
+      printf '[project]\n'
+      printf 'name = "%s"\n' "$name"
+      printf 'version = "0.1.0"\n'
+      printf 'group = "bench.generated"\n'
+      printf 'java = "21"\n\n'
+      if [[ "$index" -gt 1 ]]; then
+        printf '[dependencies]\n'
+        printf '"bench.generated:%s" = { workspace = "modules/%s" }\n\n' "$(module_name "$((index - 1))")" "$(module_name "$((index - 1))")"
+      fi
+      printf '[build]\n'
+      printf 'source = "src/main/java"\n'
+      printf 'test = "src/test/java"\n'
+      printf 'output = "target/classes"\n'
+      printf 'testOutput = "target/test-classes"\n'
+    } >"$module_dir/zolt.toml"
+    write_java_module "$root" "$index"
+  done
+
+  mkdir -p "$root/app"
+  {
+    printf '[project]\n'
+    printf 'name = "app"\n'
+    printf 'version = "0.1.0"\n'
+    printf 'group = "bench.generated"\n'
+    printf 'java = "21"\n'
+    printf 'main = "bench.generated.app.App"\n\n'
+    printf '[dependencies]\n'
+    printf '"bench.generated:%s" = { workspace = "modules/%s" }\n\n' "$(module_name "$MODULE_COUNT")" "$(module_name "$MODULE_COUNT")"
+    printf '[build]\n'
+    printf 'source = "src/main/java"\n'
+    printf 'test = "src/test/java"\n'
+    printf 'output = "target/classes"\n'
+    printf 'testOutput = "target/test-classes"\n'
+  } >"$root/app/zolt.toml"
+  write_app_source "$root"
+}
+
+generate_maven_fixture() {
+  local root="$1"
+  rm -rf "$root"
+  mkdir -p "$root"
+
+  {
+    cat <<'XML'
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>bench.generated</groupId>
+  <artifactId>bench-generated-parent</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <modules>
+XML
+    for index in $(seq 1 "$MODULE_COUNT"); do
+      printf '    <module>modules/%s</module>\n' "$(module_name "$index")"
+    done
+    printf '    <module>app</module>\n'
+    cat <<'XML'
+  </modules>
+</project>
+XML
+  } >"$root/pom.xml"
+
+  for index in $(seq 1 "$MODULE_COUNT"); do
+    local name module_dir
+    name="$(module_name "$index")"
+    module_dir="$root/modules/$name"
+    mkdir -p "$module_dir"
+    {
+      cat <<XML
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>bench.generated</groupId>
+    <artifactId>bench-generated-parent</artifactId>
+    <version>0.1.0</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+  <artifactId>$name</artifactId>
+XML
+      if [[ "$index" -gt 1 ]]; then
+        cat <<XML
+  <dependencies>
+    <dependency>
+      <groupId>bench.generated</groupId>
+      <artifactId>$(module_name "$((index - 1))")</artifactId>
+      <version>\${project.version}</version>
+    </dependency>
+  </dependencies>
+XML
+      fi
+      printf '</project>\n'
+    } >"$module_dir/pom.xml"
+    write_java_module "$root" "$index"
+  done
+
+  mkdir -p "$root/app"
+  {
+    cat <<XML
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>bench.generated</groupId>
+    <artifactId>bench-generated-parent</artifactId>
+    <version>0.1.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>app</artifactId>
+  <dependencies>
+    <dependency>
+      <groupId>bench.generated</groupId>
+      <artifactId>$(module_name "$MODULE_COUNT")</artifactId>
+      <version>\${project.version}</version>
+    </dependency>
+  </dependencies>
+</project>
+XML
+  } >"$root/app/pom.xml"
+  write_app_source "$root"
+}
+
+generate_gradle_fixture() {
+  local root="$1"
+  rm -rf "$root"
+  mkdir -p "$root"
+
+  {
+    cat <<'GRADLE'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'bench-generated'
+GRADLE
+    for index in $(seq 1 "$MODULE_COUNT"); do
+      printf "include 'modules:%s'\n" "$(module_name "$index")"
+    done
+    printf "include 'app'\n"
+  } >"$root/settings.gradle"
+
+  {
+    cat <<'GRADLE'
+subprojects {
+    apply plugin: 'java-library'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+}
+
+GRADLE
+    for index in $(seq 2 "$MODULE_COUNT"); do
+      printf "project(':modules:%s') {\n" "$(module_name "$index")"
+      printf "    dependencies { api project(':modules:%s') }\n" "$(module_name "$((index - 1))")"
+      printf "}\n\n"
+    done
+    printf "project(':app') {\n"
+    printf "    dependencies { implementation project(':modules:%s') }\n" "$(module_name "$MODULE_COUNT")"
+    printf "}\n"
+  } >"$root/build.gradle"
+
+  for index in $(seq 1 "$MODULE_COUNT"); do
+    mkdir -p "$root/modules/$(module_name "$index")"
+    write_java_module "$root" "$index"
+  done
+  write_app_source "$root"
+}
+
+generate_fixtures() {
+  generate_zolt_fixture "$(fixture_root zolt)"
+  generate_maven_fixture "$(fixture_root maven)"
+  generate_gradle_fixture "$(fixture_root gradle)"
+}
+
+append_comment() {
+  local file="$1"
+  local label="$2"
+  printf '\n// benchmark changed input %s\n' "$label" >>"$file"
+}
+
+zolt_root_source() {
+  printf '%s/modules/lib001/src/main/java/bench/generated/lib001/Lib001.java\n' "$(fixture_root zolt)"
+}
+
+zolt_leaf_source() {
+  printf '%s/app/src/main/java/bench/generated/app/App.java\n' "$(fixture_root zolt)"
+}
+
+maven_root_source() {
+  printf '%s/modules/lib001/src/main/java/bench/generated/lib001/Lib001.java\n' "$(fixture_root maven)"
+}
+
+maven_leaf_source() {
+  printf '%s/app/src/main/java/bench/generated/app/App.java\n' "$(fixture_root maven)"
+}
+
+gradle_root_source() {
+  printf '%s/modules/lib001/src/main/java/bench/generated/lib001/Lib001.java\n' "$(fixture_root gradle)"
+}
+
+gradle_leaf_source() {
+  printf '%s/app/src/main/java/bench/generated/app/App.java\n' "$(fixture_root gradle)"
+}
+
+run_logged() {
+  local tool="$1"
+  local workflow="$2"
+  local iteration="$3"
+  local project_dir="$4"
+  shift 4
+
+  local log_dir="$WORK_DIR/logs/$tool/$workflow"
+  mkdir -p "$log_dir"
+  python3 - "$tool" "$workflow" "$iteration" "$project_dir" "$OUTPUT_FILE" "$log_dir" "$@" <<'PY'
+import json
+import pathlib
+import platform
+import subprocess
+import sys
+import time
+
+tool = sys.argv[1]
+workflow = sys.argv[2]
+iteration = int(sys.argv[3])
+project_dir = pathlib.Path(sys.argv[4])
+output_file = pathlib.Path(sys.argv[5])
+log_dir = pathlib.Path(sys.argv[6])
+command = sys.argv[7:]
+
+started = time.perf_counter_ns()
+completed = subprocess.run(command, cwd=project_dir, capture_output=True, text=True)
+duration_nanos = time.perf_counter_ns() - started
+
+(log_dir / f"iteration-{iteration}.stdout").write_text(completed.stdout, encoding="utf-8")
+(log_dir / f"iteration-{iteration}.stderr").write_text(completed.stderr, encoding="utf-8")
+
+event = {
+    "kind": "sample",
+    "tool": tool,
+    "workflow": workflow,
+    "iteration": iteration,
+    "exitCode": completed.returncode,
+    "durationNanos": duration_nanos,
+    "durationMillis": duration_nanos // 1_000_000,
+    "projectRoot": str(project_dir.resolve()),
+    "command": command,
+    "platform": {
+        "system": platform.system(),
+        "release": platform.release(),
+        "machine": platform.machine(),
+    },
+}
+with output_file.open("a", encoding="utf-8") as output:
+    output.write(json.dumps(event, separators=(",", ":")) + "\n")
+
+if completed.returncode != 0:
+    raise SystemExit(f"{tool} {workflow} failed with exit code {completed.returncode}")
+PY
+}
+
+record_environment() {
+  python3 - "$OUTPUT_FILE" "$MODULE_COUNT" "$REPEAT_COUNT" "$ZOLT_BIN" "$MAVEN_BIN" "$GRADLE_BIN" <<'PY'
+import json
+import os
+import pathlib
+import platform
+import shutil
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+output_file = pathlib.Path(sys.argv[1])
+module_count = int(sys.argv[2])
+repeat_count = int(sys.argv[3])
+tools = {
+    "zolt": sys.argv[4],
+    "maven": sys.argv[5],
+    "gradle": sys.argv[6],
+}
+
+def version(command):
+    if not command:
+        return None
+    executable = command if "/" in command else shutil.which(command)
+    if not executable:
+        return None
+    try:
+        completed = subprocess.run(
+            [executable, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+    except Exception as exc:
+        return {"command": executable, "error": str(exc)}
+    return {
+        "command": executable,
+        "exitCode": completed.returncode,
+        "stdout": completed.stdout.strip().splitlines()[:8],
+        "stderr": completed.stderr.strip().splitlines()[:8],
+    }
+
+event = {
+    "kind": "environment",
+    "createdAt": datetime.now(timezone.utc).isoformat(),
+    "moduleCount": module_count,
+    "repeatCount": repeat_count,
+    "platform": {
+        "system": platform.system(),
+        "release": platform.release(),
+        "version": platform.version(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+        "python": platform.python_version(),
+    },
+    "javaHome": os.environ.get("JAVA_HOME"),
+    "tools": {name: version(command) for name, command in tools.items()},
+}
+
+with output_file.open("a", encoding="utf-8") as output:
+    output.write(json.dumps(event, separators=(",", ":")) + "\n")
+PY
+}
+
+write_summary() {
+  python3 - "$OUTPUT_FILE" "$SUMMARY_FILE" "$MARKDOWN_FILE" <<'PY'
+import json
+import pathlib
+import statistics
+import sys
+
+samples_path = pathlib.Path(sys.argv[1])
+summary_path = pathlib.Path(sys.argv[2])
+markdown_path = pathlib.Path(sys.argv[3])
+
+environment = None
+groups = {}
+for line in samples_path.read_text(encoding="utf-8").splitlines():
+    if not line.strip():
+        continue
+    event = json.loads(line)
+    if event.get("kind") == "environment":
+        environment = event
+        continue
+    if event.get("kind") != "sample":
+        continue
+    key = (event["workflow"], event["tool"])
+    groups.setdefault(key, []).append(event["durationMillis"])
+
+workflows = sorted({workflow for workflow, _ in groups})
+tools = sorted({tool for _, tool in groups})
+summary = {
+    "environment": environment,
+    "workflows": [],
+}
+
+for workflow in workflows:
+    row = {"workflow": workflow, "tools": {}}
+    for tool in tools:
+        durations = groups.get((workflow, tool), [])
+        if not durations:
+            continue
+        median = statistics.median(durations)
+        if isinstance(median, float) and median.is_integer():
+            median = int(median)
+        sorted_durations = sorted(durations)
+        p95_index = max(0, min(len(sorted_durations) - 1, int(round((len(sorted_durations) * 0.95) + 0.5)) - 1))
+        row["tools"][tool] = {
+            "samples": len(durations),
+            "medianMillis": median,
+            "minMillis": min(durations),
+            "maxMillis": max(durations),
+            "p95Millis": sorted_durations[p95_index],
+        }
+    summary["workflows"].append(row)
+
+summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+
+lines = [
+    "# Benchmark Report",
+    "",
+    "This report is generated by `scripts/benchmark-competitors`.",
+    "",
+]
+if environment:
+    lines.extend([
+        "## Environment",
+        "",
+        f"- Modules: {environment.get('moduleCount')}",
+        f"- Repeats: {environment.get('repeatCount')}",
+        f"- System: {environment.get('platform', {}).get('system')} {environment.get('platform', {}).get('release')} {environment.get('platform', {}).get('machine')}",
+        "",
+    ])
+
+lines.extend([
+    "## Median Wall-Clock Time",
+    "",
+    "| Workflow | Tool | Samples | Median ms | p95 ms | Min ms | Max ms |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+])
+for row in summary["workflows"]:
+    for tool, metrics in sorted(row["tools"].items()):
+        lines.append(
+            f"| {row['workflow']} | {tool} | {metrics['samples']} | {metrics['medianMillis']} | "
+            f"{metrics['p95Millis']} | {metrics['minMillis']} | {metrics['maxMillis']} |"
+        )
+
+lines.extend([
+    "",
+    "Raw samples are in `samples.jsonl`; command logs are under `logs/`.",
+    "",
+])
+markdown_path.write_text("\n".join(lines), encoding="utf-8")
+PY
+}
+
+measure_zolt() {
+  local project_dir
+  project_dir="$(fixture_root zolt)"
+  run_logged zolt setup 0 "$project_dir" "$ZOLT_BIN" resolve --workspace --cache-root "$CACHE_ROOT"
+  run_logged zolt setup-warm-build 0 "$project_dir" "$ZOLT_BIN" build --workspace --all --offline --cache-root "$CACHE_ROOT"
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    run_logged zolt no-op-build "$iteration" "$project_dir" "$ZOLT_BIN" build --workspace --all --offline --cache-root "$CACHE_ROOT"
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(zolt_leaf_source)" "zolt leaf $iteration"
+    run_logged zolt leaf-change-build "$iteration" "$project_dir" "$ZOLT_BIN" build --workspace --all --offline --cache-root "$CACHE_ROOT"
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(zolt_root_source)" "zolt root $iteration"
+    run_logged zolt root-change-build "$iteration" "$project_dir" "$ZOLT_BIN" build --workspace --all --offline --cache-root "$CACHE_ROOT"
+  done
+}
+
+measure_maven() {
+  [[ "$SKIP_MAVEN" == false ]] || return 0
+  if ! tool_available "$MAVEN_BIN"; then
+    printf 'skip: Maven not found; use --maven PATH to include Maven\n' >&2
+    return 0
+  fi
+  local project_dir local_repo
+  project_dir="$(fixture_root maven)"
+  local_repo="$WORK_DIR/maven-repository"
+  mkdir -p "$local_repo"
+  run_logged maven setup-warm-build 0 "$project_dir" "$MAVEN_BIN" -Dmaven.repo.local="$local_repo" -q -DskipTests compile
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    run_logged maven no-op-build "$iteration" "$project_dir" "$MAVEN_BIN" -o -Dmaven.repo.local="$local_repo" -q -DskipTests compile
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(maven_leaf_source)" "maven leaf $iteration"
+    run_logged maven leaf-change-build "$iteration" "$project_dir" "$MAVEN_BIN" -o -Dmaven.repo.local="$local_repo" -q -DskipTests compile
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(maven_root_source)" "maven root $iteration"
+    run_logged maven root-change-build "$iteration" "$project_dir" "$MAVEN_BIN" -o -Dmaven.repo.local="$local_repo" -q -DskipTests compile
+  done
+}
+
+measure_gradle_variant() {
+  local tool="$1"
+  local daemon_flag="$2"
+  local project_dir gradle_user_home
+  local gradle_args=()
+  if [[ -n "$daemon_flag" ]]; then
+    gradle_args+=("$daemon_flag")
+  fi
+  project_dir="$(fixture_root gradle)"
+  gradle_user_home="$WORK_DIR/${tool}-user-home"
+  mkdir -p "$gradle_user_home"
+  run_logged "$tool" setup-warm-build 0 "$project_dir" env GRADLE_USER_HOME="$gradle_user_home" "$GRADLE_BIN" "${gradle_args[@]}" -q :app:classes
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    run_logged "$tool" no-op-build "$iteration" "$project_dir" env GRADLE_USER_HOME="$gradle_user_home" "$GRADLE_BIN" "${gradle_args[@]}" --offline -q :app:classes
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(gradle_leaf_source)" "$tool leaf $iteration"
+    run_logged "$tool" leaf-change-build "$iteration" "$project_dir" env GRADLE_USER_HOME="$gradle_user_home" "$GRADLE_BIN" "${gradle_args[@]}" --offline -q :app:classes
+  done
+  for iteration in $(seq 1 "$REPEAT_COUNT"); do
+    append_comment "$(gradle_root_source)" "$tool root $iteration"
+    run_logged "$tool" root-change-build "$iteration" "$project_dir" env GRADLE_USER_HOME="$gradle_user_home" "$GRADLE_BIN" "${gradle_args[@]}" --offline -q :app:classes
+  done
+}
+
+measure_gradle() {
+  [[ "$SKIP_GRADLE" == false ]] || return 0
+  if ! tool_available "$GRADLE_BIN"; then
+    printf 'skip: Gradle not found; use --gradle PATH to include Gradle\n' >&2
+    return 0
+  fi
+  measure_gradle_variant gradle-no-daemon --no-daemon
+  if [[ "$INCLUDE_GRADLE_DAEMON" == true ]]; then
+    measure_gradle_variant gradle-daemon ""
+    env GRADLE_USER_HOME="$WORK_DIR/gradle-daemon-user-home" "$GRADLE_BIN" --stop >/dev/null 2>&1 || true
+  fi
+}
+
+generate_fixtures
+if [[ "$GENERATE_ONLY" == true ]]; then
+  printf 'generated benchmark fixtures under %s/fixtures\n' "$WORK_DIR"
+  exit 0
+fi
+
+record_environment
+measure_zolt
+measure_maven
+measure_gradle
+write_summary
+
+printf 'wrote raw samples: %s\n' "$OUTPUT_FILE"
+printf 'wrote summary: %s\n' "$SUMMARY_FILE"
+printf 'wrote report: %s\n' "$MARKDOWN_FILE"

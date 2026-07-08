@@ -22,6 +22,8 @@
   <span> · </span>
   <a href="#features">Features</a>
   <span> · </span>
+  <a href="#benchmarks">Benchmarks</a>
+  <span> · </span>
   <a href="./llms.txt">LLMs</a>
 </p>
 
@@ -90,6 +92,12 @@ native release archive/index/verify flows
 installer-managed Zolt self updates
 self-hosted builds
 ```
+
+## Benchmarks
+
+Benchmark claims should point to repeatable evidence. See
+[docs/benchmarks](./docs/benchmarks/) for the public harness that compares Zolt,
+Maven, and Gradle on generated multi-module Java workspaces.
 
 ## Why not rust?
 
