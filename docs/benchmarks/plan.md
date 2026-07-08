@@ -162,8 +162,8 @@ large enterprise-grade baseline:
 - Spring PetClinic for familiar Spring application shape;
 - Apache Commons CLI for a compact Maven library;
 - HikariCP for a Gradle library;
-- Apache Camel or Keycloak as the large enterprise baseline once runtime cost is
-  acceptable.
+- Netty as the large Maven codebase benchmark, following the public Mill
+  comparison shape: clean-all, single-module, incremental, and no-op workflows.
 
 Large real projects are valuable, but they should not block the enterprise
 fixture. The generated enterprise workload is the controllable centerpiece.
@@ -176,7 +176,8 @@ fixture. The generated enterprise workload is the controllable centerpiece.
    samples, and artifact paths.
 3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`.
 4. Add real-project checkout/adapters for Spring PetClinic and Commons CLI.
-5. Add one large native-baseline real project, then work toward a Zolt adapter.
+5. Add Netty as the large native-baseline project, then work toward a Zolt
+   adapter.
 6. Publish a dated benchmark result under `docs/benchmarks/results/`.
 
 Done means a manual GitHub run produces one clean artifact with raw samples,

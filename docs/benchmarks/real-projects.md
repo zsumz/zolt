@@ -27,6 +27,7 @@ included with the result.
 | Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Needs pinned adapter |
 | Apache Commons CLI | `https://github.com/apache/commons-cli` | Maven | Small Java library with classic release metadata | Needs pinned adapter |
 | HikariCP | `https://github.com/brettwooldridge/HikariCP` | Gradle | Popular Java library with optional dependencies | Needs pinned adapter |
+| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Native baseline first; adapter planned |
 | JUnit 5 | `https://github.com/junit-team/junit-framework` | Gradle | Large multi-module test framework | Later; likely post-beta |
 
 ## Adapter Policy
@@ -57,11 +58,13 @@ Once those are stable, add HikariCP as the first Gradle-library benchmark.
 
 ## Large Baselines
 
-For a more enterprise-looking public story, add one large native-tool baseline
-after the adapter flow is proven. Good candidates are Apache Camel or Keycloak:
-they are large, recognizable Java projects, and their native Maven/Gradle runs
-show the scale of the comparison target even before Zolt can build the same
-source set.
+For a more enterprise-looking public story, add Netty as the first large
+native-tool baseline after the adapter flow is proven. Netty is large,
+recognizable, Maven-based, and already used by Mill as a build-tool benchmark
+target. Its native Maven run shows the scale of the comparison target even
+before Zolt can build the same source set.
 
 Do not present those as Zolt comparisons until the adapter is reviewable and the
 summary names exactly which modules, tests, and packaging work are covered.
+
+See [netty.md](./netty.md) for the dedicated Netty lane plan.
