@@ -1,0 +1,131 @@
+name: benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      modules:
+        description: Number of generated library modules before the app.
+        required: true
+        default: "40"
+        type: string
+      repeat:
+        description: Timed samples per workflow.
+        required: true
+        default: "5"
+        type: string
+      zolt_runtime:
+        description: Zolt executable used for benchmark samples.
+        required: true
+        default: native
+        type: choice
+        options:
+          - native
+          - jvm
+      include_gradle_daemon:
+        description: Also measure Gradle with its daemon enabled.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: generated workspace
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    env:
+      BENCHMARK_DIR: target/benchmarks/competitors
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: "21"
+          components: native-image
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: current
+
+      - name: Cache Zolt artifacts
+        uses: actions/cache@v4
+        with:
+          path: .zolt/cache
+          key: zolt-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-cache-${{ runner.os }}-${{ runner.arch }}-
+            zolt-cache-${{ runner.os }}-
+
+      - name: Build native Zolt
+        if: inputs.zolt_runtime == 'native'
+        run: scripts/zap-distribution --target linux-x64
+
+      - name: Select native Zolt
+        if: inputs.zolt_runtime == 'native'
+        run: |
+          printf 'ZOLT_BENCH_ZOLT=%s/apps/zolt/target/native/zolt\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          apps/zolt/target/native/zolt --version
+
+      - name: Build JVM Zolt
+        if: inputs.zolt_runtime == 'jvm'
+        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Select JVM Zolt
+        if: inputs.zolt_runtime == 'jvm'
+        run: |
+          printf 'ZOLT_BENCH_ZOLT=%s/scripts/run-zolt-built\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          scripts/run-zolt-built --version
+
+      - name: Run benchmark
+        run: |
+          args=(
+            --modules "${{ inputs.modules }}"
+            --repeat "${{ inputs.repeat }}"
+            --work-dir "$BENCHMARK_DIR"
+            --zolt "$ZOLT_BENCH_ZOLT"
+          )
+          if [[ "${{ inputs.include_gradle_daemon }}" == "true" ]]; then
+            args+=(--include-gradle-daemon)
+          fi
+          scripts/benchmark-competitors "${args[@]}"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            printf '## Zolt Benchmark\n\n'
+            printf -- '- Ref: `%s`\n' "${GITHUB_REF_NAME}"
+            printf -- '- Commit: `%s`\n' "${GITHUB_SHA}"
+            printf -- '- Zolt runtime: `%s`\n' "${{ inputs.zolt_runtime }}"
+            printf -- '- Modules: `%s`\n' "${{ inputs.modules }}"
+            printf -- '- Repeats: `%s`\n' "${{ inputs.repeat }}"
+            printf -- '- Gradle daemon included: `%s`\n\n' "${{ inputs.include_gradle_daemon }}"
+            if [[ -f "$BENCHMARK_DIR/report.md" ]]; then
+              cat "$BENCHMARK_DIR/report.md"
+            else
+              printf 'Benchmark report was not generated. Check the job logs and uploaded artifacts.\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zolt-benchmark-${{ inputs.zolt_runtime }}-${{ inputs.modules }}-modules-${{ inputs.repeat }}-repeats
+          path: |
+            target/benchmarks/competitors/report.md
+            target/benchmarks/competitors/summary.json
+            target/benchmarks/competitors/samples.jsonl
+            target/benchmarks/competitors/logs/**
+          if-no-files-found: warn

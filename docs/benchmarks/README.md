@@ -27,6 +27,15 @@ scripts/benchmark-competitors --zolt ~/.zolt/bin/zolt
 scripts/benchmark-competitors --skip-maven --skip-gradle --modules 200
 ```
 
+## GitHub Actions
+
+Use the manual `benchmarks` workflow for public runs. It builds Zolt, runs this
+harness, writes the generated Markdown report into the job summary, and uploads
+the raw samples, JSON summary, and command logs as workflow artifacts.
+
+Use the native Zolt runtime for publishable results. The JVM runtime input is
+available for faster workflow smoke checks.
+
 ## Publishing Results
 
 When publishing benchmark evidence:
