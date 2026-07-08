@@ -92,9 +92,59 @@ jobs:
       - name: Smoke packaged workflows
         run: scripts/smoke-smoque
 
+  managed-toolchain:
+    name: managed Java toolchain dogfood
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up bootstrap Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Zolt artifacts
+        uses: actions/cache@v4
+        with:
+          path: .zolt/cache
+          key: zolt-cache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-cache-${{ runner.os }}-${{ runner.arch }}-
+            zolt-cache-${{ runner.os }}-
+
+      - name: Cache Zolt managed toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
+      - name: Package bootstrap Zolt
+        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Sync managed Java toolchain
+        run: scripts/run-zolt-built toolchain sync
+
+      - name: Check managed Java status
+        run: scripts/run-zolt-built toolchain status --json
+
+      - name: Build with managed Java
+        run: scripts/run-zolt-built build --workspace --member apps/zolt --no-progress --cache-root .zolt/cache
+
+      - name: Build native image with managed GraalVM
+        run: scripts/run-zolt-built native --workspace --member apps/zolt --no-progress --cache-root .zolt/cache
+
   zap-version:
     name: zap version
-    needs: smoke
+    needs:
+      - smoke
+      - managed-toolchain
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     outputs:
