@@ -253,13 +253,19 @@ Use `temurin` for JVM-only work, or `graalvm-community` with
 - `require-managed`: never use ambient `JAVA_HOME` or `PATH`.
 - `allow-system`: prefer a matching ambient JDK.
 
-Sync installs the managed JDK and writes platform-specific toolchain metadata:
+Sync installs the managed JDK into the default user store and writes stable
+multi-platform toolchain metadata:
 
 ```sh
 zolt toolchain sync
 zolt toolchain status
 zolt toolchain status --json
 ```
+
+`zolt.lock` records the supported target matrix, so a macOS developer and Linux
+CI do not rewrite the lock back and forth. The install itself stays local to the
+machine under `~/.zolt/toolchains`; only the current host's archive is downloaded
+when it is missing.
 
 Build, run, test, package, and native commands use the resolved toolchain
 automatically. `zolt exec -- ...` runs an arbitrary command with `JAVA_HOME` and
