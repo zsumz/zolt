@@ -301,5 +301,6 @@ jobs:
             target/benchmarks/competitors/generated-java-workspace/**
             target/benchmarks/competitors/real-projects/**
             !target/benchmarks/competitors/real-projects/*/checkout/**
+            benchmarks/adapters/**
             docs/benchmarks/projects.json
           if-no-files-found: warn

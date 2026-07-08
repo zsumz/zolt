@@ -178,7 +178,8 @@
       "sourceBranch": "4.1",
       "nativeTool": "maven",
       "status": "native-baseline-ready",
-      "adapterStatus": "planned",
+      "adapterStatus": "groundwork",
+      "adapterPath": "benchmarks/adapters/netty/coverage.json",
       "priority": 4,
       "pin": {
         "type": "commit",
@@ -313,6 +314,7 @@
       "coverageNotes": [
         "Large Maven reactor lane.",
         "Starts as a native Maven baseline.",
+        "Adapter groundwork lives under benchmarks/adapters/netty/.",
         "The full Netty lane can be expensive; run it manually before publishing.",
         "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."
       ]

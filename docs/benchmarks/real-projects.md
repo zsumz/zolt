@@ -48,6 +48,7 @@ A Zolt adapter is a checked-in benchmark overlay, not a hidden migration. It
 should include:
 
 - `zolt.toml` and any workspace metadata needed to build the project;
+- a coverage record under `benchmarks/adapters/<project>/`;
 - notes for dependency or task differences from upstream;
 - the source paths covered by the benchmark;
 - the exact Zolt command used for each lane.

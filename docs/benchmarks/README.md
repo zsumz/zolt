@@ -104,6 +104,8 @@ The workflow installs a pinned Gradle distribution directly instead of using
 benchmark report and avoids unrelated Gradle action cache/build-scan summaries.
 Uploaded real-project artifacts keep summaries, samples, and command logs, but
 exclude the checked-out upstream source trees.
+Adapter groundwork under `benchmarks/adapters/` is included so future
+real-project comparisons carry their coverage notes with the data.
 
 ## Real Projects
 

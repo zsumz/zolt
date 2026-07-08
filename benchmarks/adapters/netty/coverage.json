@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "projectId": "netty",
+  "status": "groundwork",
+  "upstream": {
+    "url": "https://github.com/netty/netty",
+    "branch": "4.1",
+    "commit": "bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6"
+  },
+  "adapter": {
+    "type": "overlay",
+    "zoltConfig": null,
+    "includedModules": [],
+    "omittedModules": [],
+    "coveredWorkflows": [],
+    "omittedBuildFeatures": [
+      "jni",
+      "generated-sources",
+      "tests",
+      "integration-tests",
+      "release-packaging"
+    ]
+  },
+  "comparisonStatus": "native-baseline-only"
+}

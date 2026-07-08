@@ -67,6 +67,8 @@ The Zolt adapter should be an overlay, not a fork of Netty:
 
 - keep the upstream checkout unchanged where possible;
 - store adapter files under `benchmarks/adapters/netty/`;
+- start from `benchmarks/adapters/netty/coverage.json` and keep the coverage
+  record current as modules and workflows are added;
 - copy or overlay `zolt.toml` and workspace metadata during the run;
 - record every module included and excluded;
 - record whether JNI, Groovy code generation, tests, integration tests, and
