@@ -63,7 +63,7 @@ output_dir = pathlib.Path(sys.argv[2])
 summary = json.loads(summary_path.read_text(encoding="utf-8"))
 
 workflow_labels = {
-    "setup-warm-build": "First warm build",
+    "setup-warm-build": "First clean build",
     "no-op-build": "Warm no-op build",
     "leaf-change-build": "Leaf source change",
     "root-change-build": "Root library change",
@@ -71,6 +71,11 @@ workflow_labels = {
 }
 workflow_order = [
     "setup-warm-build",
+    "no-op-build",
+    "leaf-change-build",
+    "root-change-build",
+]
+repeated_workflows = [
     "no-op-build",
     "leaf-change-build",
     "root-change-build",
@@ -141,6 +146,7 @@ def run_type():
 
 lanes = []
 zolt_fastest_count = 0
+zolt_fastest_repeated_count = 0
 for workflow in workflow_order:
     tools = workflows.get(workflow, {})
     zolt_median = median(tools, "zolt")
@@ -156,6 +162,8 @@ for workflow in workflow_order:
     fastest_tool = min(available_tools, key=lambda tool: median(tools, tool))
     if fastest_tool == "zolt":
         zolt_fastest_count += 1
+        if workflow in repeated_workflows:
+            zolt_fastest_repeated_count += 1
     competitors = []
     for tool in available_tools:
         if tool == "zolt":
@@ -173,6 +181,7 @@ for workflow in workflow_order:
     lanes.append({
         "workflow": workflow,
         "label": workflow_labels.get(workflow, workflow),
+        "kind": "setup" if workflow == "setup-warm-build" else "repeated",
         "samples": tools.get("zolt", {}).get("samples"),
         "zoltMedianMillis": zolt_median,
         "fastestTool": fastest_tool,
@@ -198,7 +207,9 @@ context = {
             "gradle": first_version_line("gradle"),
         },
         "zoltFastestWorkflows": zolt_fastest_count,
+        "zoltFastestRepeatedWorkflows": zolt_fastest_repeated_count,
         "comparableWorkflows": len(lanes),
+        "repeatedWorkflows": sum(1 for lane in lanes if lane["kind"] == "repeated"),
     },
     "lanes": lanes,
 }
@@ -212,9 +223,9 @@ sample_word = "sample" if context["run"]["repeatCount"] == 1 else "samples"
 summary_lines = [
     "# Benchmark Summary",
     "",
-    f"- Run: {context['run']['type']}; {context['run']['moduleCount']} library modules + app; {context['run']['repeatCount']} {sample_word} per timed workflow.",
+    f"- Run: {context['run']['type']}; {context['run']['moduleCount']} library modules + app; {context['run']['repeatCount']} {sample_word} per repeated workflow.",
     f"- Tools: Zolt `{context['run']['tools']['zolt']}`; Maven `{context['run']['tools']['maven']}`; Gradle `{context['run']['tools']['gradle']}`.",
-    f"- Result: Zolt was fastest in {zolt_fastest_count} / {len(lanes)} comparable workflows.",
+    f"- Result: Zolt was fastest in {zolt_fastest_repeated_count} / {context['run']['repeatedWorkflows']} repeated workflows; the first clean build is reported separately.",
     "",
     "## Lanes",
     "",
@@ -250,6 +261,7 @@ prompt_lines = [
     "- Keep it factual and concise.",
     "- Mention the run type, module count, repeat count, and tool versions.",
     "- Include one bullet per lane.",
+    "- Treat the first clean build as a single setup lane, not a repeated steady-state lane.",
     "- Do not claim publication-grade evidence unless run.type is `Publication candidate`.",
     "- Use wall-clock milliseconds and ratios exactly as provided or directly derived.",
     "",

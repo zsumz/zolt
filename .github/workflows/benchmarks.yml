@@ -193,7 +193,8 @@ jobs:
               fi
             fi
             printf '| Modules before app | `%s` |\n' "$BENCHMARK_MODULES"
-            printf '| Samples per timed workflow | `%s` |\n' "$BENCHMARK_REPEAT"
+            printf '| Samples per repeated workflow | `%s` |\n' "$BENCHMARK_REPEAT"
+            printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
             printf '| Uploaded artifact | `%s` |\n\n' "$artifact_name"
             if [[ -f "$BENCHMARK_DIR/llm-summary.md" ]]; then

@@ -730,7 +730,7 @@ summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 workflow_labels = {
     "setup": "Zolt dependency setup",
-    "setup-warm-build": "First warm build",
+    "setup-warm-build": "First clean build",
     "no-op-build": "Warm no-op build",
     "leaf-change-build": "Leaf source change",
     "root-change-build": "Root library change",
@@ -742,6 +742,11 @@ workflow_order = [
     "root-change-build",
     "setup",
 ]
+repeated_workflows = {
+    "no-op-build",
+    "leaf-change-build",
+    "root-change-build",
+}
 tool_labels = {
     "zolt": "Zolt",
     "maven": "Maven",
@@ -816,7 +821,13 @@ comparable_rows = [
     for row in sorted(summary["workflows"], key=workflow_sort_key)
     if row["workflow"] != "setup" and "zolt" in row["tools"] and len(row["tools"]) > 1
 ]
+repeated_rows = [
+    row
+    for row in comparable_rows
+    if row["workflow"] in repeated_workflows
+]
 zolt_wins = 0
+zolt_repeated_wins = 0
 for row in comparable_rows:
     medians = {
         tool: metrics["medianMillis"]
@@ -824,6 +835,8 @@ for row in comparable_rows:
     }
     if medians and min(medians, key=medians.get) == "zolt":
         zolt_wins += 1
+        if row["workflow"] in repeated_workflows:
+            zolt_repeated_wins += 1
 
 lines = [
     "# Zolt Native Benchmark",
@@ -838,13 +851,15 @@ if environment:
         "| --- | --- |",
         f"| Type | {classification} |",
         f"| Modules | {environment.get('moduleCount')} + app |",
-        f"| Samples | {environment.get('repeatCount')} per timed workflow |",
+        f"| Repeated samples | {environment.get('repeatCount')} per repeated workflow |",
+        "| First clean build samples | 1 setup sample |",
         f"| Machine | {environment.get('platform', {}).get('system')} {environment.get('platform', {}).get('release')} {environment.get('platform', {}).get('machine')} |",
         f"| Java home | `{environment.get('javaHome') or 'not set'}` |",
         f"| Zolt | `{first_version_line('zolt')}` |",
         f"| Maven | `{first_version_line('maven')}` |",
         f"| Gradle | `{first_version_line('gradle')}` |",
-        f"| Zolt fastest workflows | {zolt_wins} / {len(comparable_rows)} |",
+        f"| Zolt fastest repeated workflows | {zolt_repeated_wins} / {len(repeated_rows)} |",
+        f"| Zolt fastest comparable workflows | {zolt_wins} / {len(comparable_rows)} |",
         "",
     ])
 
@@ -854,6 +869,8 @@ if comparable_rows:
     headers += [f"{tool_labels.get(tool, tool)} / Zolt" for tool in comparison_tools]
     lines.extend([
         "## Median Results",
+        "",
+        "First clean build is a single setup lane. The other lanes use the configured repeat count.",
         "",
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join(["---"] * len(headers)) + " |",
@@ -892,7 +909,8 @@ lines.extend([
     "## Notes",
     "",
     "- Times are wall-clock milliseconds; lower is better.",
-    "- Maven and Gradle timed builds run offline after the first warm build.",
+    "- First clean build is a single setup sample; repeated lanes are the steady-state comparisons.",
+    "- Maven and Gradle repeated builds run offline after the first clean build.",
     "- Raw data: `summary.json`, `samples.jsonl`, `logs/`.",
     "",
 ])

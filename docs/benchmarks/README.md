@@ -7,6 +7,7 @@ The first public harness is `scripts/benchmark-competitors`. It generates the
 same multi-module Java workspace shape for Zolt, Maven, and Gradle, then records
 wall-clock samples for workflows that matter on larger projects:
 
+- first clean build as a single setup lane;
 - warm no-op build;
 - leaf source change build;
 - root library source change build.
@@ -68,7 +69,8 @@ When publishing benchmark evidence:
   the run;
 - include tool versions, JDK version, OS, CPU architecture, module count, and
   repeat count;
-- separate no-op, leaf-change, and root-change workflows;
+- keep the first clean build separate from repeated no-op, leaf-change, and
+  root-change workflows;
 - compare medians and keep raw samples available;
 - say whether Gradle was measured with or without the daemon;
 - avoid claims from machines with missing competitors, failed setup commands, or
