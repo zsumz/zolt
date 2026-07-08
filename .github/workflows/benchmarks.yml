@@ -86,7 +86,7 @@ jobs:
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name != 'workflow_dispatch' || inputs.include_gradle_daemon }}
-      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || '' }}
+      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || 'apache-commons-cli,spring-petclinic' }}
       BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}
       BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_sample_timeout || '1800' }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"

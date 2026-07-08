@@ -94,9 +94,10 @@ Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
 `zolt_source=build` only when measuring the checked-out branch's native binary.
 While this work is on the `benchmarks` branch, pushes to that branch run a
-40-module, 5-repeat, release-native generated benchmark automatically so the job
-summary can be reviewed before the manual workflow is merged. Manual runs default
-to 100 modules, 7 repeats, and Gradle daemon coverage.
+40-module, 5-repeat, release-native generated benchmark plus the Spring
+PetClinic and Apache Commons CLI native baselines automatically so the combined
+job summary can be reviewed before the manual workflow is merged. Manual runs
+default to 100 modules, 7 repeats, and Gradle daemon coverage.
 
 The workflow installs a pinned Gradle distribution directly instead of using
 `gradle/actions/setup-gradle`. That keeps the GitHub summary dedicated to the

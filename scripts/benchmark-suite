@@ -442,9 +442,13 @@ classifications = [
     for lane in lanes
     if ((lane.get("summary") or {}).get("classification"))
 ]
+has_generated_lane = any(lane.get("kind") == "generated" for lane in lanes)
+has_real_project_lane = any(lane.get("kind") == "real-project-native-baseline" for lane in lanes)
 classification = "Planned benchmark suite"
 if classifications:
-    if any(value == "Production-grade generated evidence" for value in classifications):
+    if has_generated_lane and has_real_project_lane:
+        classification = "Generated comparison with real-project baselines"
+    elif any(value == "Production-grade generated evidence" for value in classifications):
         classification = "Production-grade generated evidence"
     elif any(value == "Exploratory benchmark" for value in classifications):
         classification = "Exploratory benchmark"
