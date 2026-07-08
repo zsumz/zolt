@@ -122,6 +122,24 @@ final class BundledJavaToolchainCatalogTest {
     }
 
     @Test
+    void availableListsTemurinAndGraalVmNativeImagePlatformMatrix() {
+        List<LockedJavaToolchain> available = catalog.available();
+
+        assertEquals(8, available.size());
+        assertEquals(4, available.stream()
+                .filter(locked -> locked.resolvedDistribution() == JavaDistribution.TEMURIN)
+                .count());
+        assertEquals(4, available.stream()
+                .filter(locked -> locked.resolvedDistribution() == JavaDistribution.GRAALVM_COMMUNITY)
+                .filter(locked -> locked.request().requiresNativeImage())
+                .count());
+        assertTrue(available.stream()
+                .anyMatch(locked -> locked.platform().id().equals("macos-aarch64")
+                        && locked.resolvedVersion().equals("21.0.2")
+                        && locked.artifactSha256().equals("515e3a93acc7e1938daba83eda4272e5495fd302d7cdd99ec7ebf408ed505ab7")));
+    }
+
+    @Test
     void resolvesLegacyLocksWithoutArtifactFieldsThroughPinnedCatalog() {
         JavaToolchainRequest request = new JavaToolchainRequest(
                 "21",

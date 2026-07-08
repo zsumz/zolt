@@ -77,6 +77,10 @@ public final class ToolchainLockfileService {
 
     public void writeJava(Path lockfile, List<LockedJavaToolchain> locked) {
         try {
+            Path parent = lockfile.toAbsolutePath().normalize().getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             String base = Files.isRegularFile(lockfile) ? Files.readString(lockfile) : "version = 1\n\n";
             String content = removeJavaLocks(base);
             for (LockedJavaToolchain java : ordered(locked)) {

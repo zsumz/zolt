@@ -275,6 +275,114 @@ final class ToolchainCommandTest {
     }
 
     @Test
+    void installExplicitJavaToolchainWithoutProjectConfig() throws IOException {
+        Path configPath = tempDir.resolve("home/install-config.toml");
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = locked();
+        install(store, locked);
+
+        var result = execute(
+                "toolchain",
+                "install",
+                "java",
+                "21",
+                "--graalvm",
+                "--native-image",
+                "--config",
+                configPath.toString(),
+                "--target",
+                "linux-x64",
+                "--install-root",
+                tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Installed Java toolchain"));
+        assertTrue(result.stdout().contains("java graalvm-community 21"));
+        assertTrue(result.stdout().contains("Managed Java toolchain is already installed"));
+        Path globalLockfile = configPath.getParent().resolve("global-toolchains.lock");
+        String globalLock = Files.readString(globalLockfile);
+        assertEquals(4, countJavaLocks(globalLock));
+        assertTrue(globalLock.contains("artifact.sha256 = \"b048069aaa3a99b84f5b957b162cc181a32a4330cbc35402766363c5be76ae48\""));
+    }
+
+    @Test
+    void availableShowsBundledCatalogAndInstalledStatus() throws IOException {
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        LockedJavaToolchain locked = locked();
+        install(store, locked);
+
+        var result = execute(
+                "toolchain",
+                "available",
+                "--install-root",
+                tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Available Java toolchains"));
+        assertTrue(result.stdout().contains("temurin 21 -> 21.0.11+10"));
+        assertTrue(result.stdout().contains("graalvm-community 21 -> 21.0.2"));
+        assertTrue(result.stdout().contains("features: native-image"));
+        assertTrue(result.stdout().contains("linux-x64: installed at " + store.javaHome(locked)));
+    }
+
+    @Test
+    void listShowsProjectGlobalLocksAndInstalledToolchains() throws IOException {
+        Path project = tempDir.resolve("list-project");
+        Files.createDirectories(project);
+        Files.writeString(project.resolve("zolt.toml"), """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                """);
+        LockedJavaToolchain locked = locked();
+        new ToolchainLockfileService().writeJava(project.resolve("zolt.lock"), locked);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        install(store, locked);
+        Path configPath = tempDir.resolve("home/list-config.toml");
+        Files.createDirectories(configPath.getParent());
+        Files.writeString(configPath, """
+                version = 1
+
+                [defaults.toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                policy = "prefer-managed"
+                """);
+        new ToolchainLockfileService().writeJava(configPath.getParent().resolve("global-toolchains.lock"), locked);
+
+        var result = execute(
+                "toolchain",
+                "list",
+                "--directory",
+                project.toString(),
+                "--config",
+                configPath.toString(),
+                "--target",
+                "linux-x64",
+                "--install-root",
+                tempDir.resolve("toolchains").toString());
+
+        assertEquals(0, result.exitCode(), result.stderr());
+        assertTrue(result.stdout().contains("Java toolchains"));
+        assertTrue(result.stdout().contains("active"));
+        assertTrue(result.stdout().contains("project: graalvm-community 21 features=native-image policy=prefer-managed -> ok managed"));
+        assertTrue(result.stdout().contains("global"));
+        assertTrue(result.stdout().contains("request: graalvm-community 21 features=native-image policy=prefer-managed"));
+        assertTrue(result.stdout().contains("project lock"));
+        assertTrue(result.stdout().contains("global lock"));
+        assertTrue(result.stdout().contains("installed"));
+        assertTrue(result.stdout().contains("graalvm-community 21.0.2 linux-x64 features=native-image at " + store.javaHome(locked)));
+    }
+
+    @Test
     void syncRequiresExplicitJavaToolchainTable() throws IOException {
         Path project = tempDir.resolve("project-without-toolchain");
         Files.createDirectories(project);

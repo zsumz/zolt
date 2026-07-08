@@ -8,8 +8,6 @@ import sh.zolt.config.UserGlobalConfigEditor;
 import sh.zolt.config.UserGlobalConfigException;
 import sh.zolt.config.UserGlobalConfigParser;
 import sh.zolt.error.ActionableException;
-import sh.zolt.project.toolchain.JavaDistribution;
-import sh.zolt.project.toolchain.JavaFeature;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
 import sh.zolt.project.toolchain.ToolchainPolicy;
 import sh.zolt.toolchain.JavaToolchainStatus;
@@ -17,7 +15,6 @@ import sh.zolt.toolchain.JavaToolchainStatusService;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.store.ToolchainStore;
 import java.nio.file.Path;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -105,24 +102,14 @@ public final class GlobalToolchainCommand implements Runnable {
         }
 
         private JavaToolchainRequest request() {
-            if (temurin && graalvm) {
-                throw new ActionableException(
-                        "Choose one Java distribution for the global default.",
-                        "Use either --temurin or --graalvm, not both.");
-            }
-            if (temurin && nativeImage) {
-                throw new ActionableException(
-                        "Temurin does not provide native-image in Zolt's bundled toolchain catalog.",
-                        "Use --graalvm --native-image for a global Native Image-capable Java.");
-            }
-            JavaDistribution distribution = graalvm || nativeImage
-                    ? JavaDistribution.GRAALVM_COMMUNITY
-                    : JavaDistribution.TEMURIN;
-            ToolchainPolicy parsedPolicy = ToolchainPolicy.fromId(policy).orElseThrow(() -> new ActionableException(
-                    "Unsupported global Java toolchain policy `" + policy + "`.",
-                    "Use one of: " + ToolchainPolicy.supportedIds() + "."));
-            Set<JavaFeature> features = nativeImage ? Set.of(JavaFeature.NATIVE_IMAGE) : Set.of();
-            return new JavaToolchainRequest(version, distribution, features, parsedPolicy);
+            return JavaToolchainRequestOptions.javaRequest(
+                    version,
+                    temurin,
+                    graalvm,
+                    nativeImage,
+                    policy,
+                    "the global default",
+                    "global Java toolchain");
         }
     }
 

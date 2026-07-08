@@ -522,6 +522,30 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainInstallCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainInstallCommand$JavaCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainListCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.toolchain.ToolchainAvailableCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "sh.zolt.cli.command.toolchain.ExecCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

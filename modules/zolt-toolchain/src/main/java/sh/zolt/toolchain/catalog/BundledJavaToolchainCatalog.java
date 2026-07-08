@@ -3,6 +3,7 @@ package sh.zolt.toolchain.catalog;
 import sh.zolt.project.toolchain.JavaDistribution;
 import sh.zolt.project.toolchain.JavaFeature;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
+import sh.zolt.project.toolchain.ToolchainPolicy;
 import sh.zolt.toolchain.lock.JavaToolchainLayout;
 import sh.zolt.toolchain.lock.LockedJavaToolchain;
 import sh.zolt.toolchain.platform.Architecture;
@@ -11,6 +12,7 @@ import sh.zolt.toolchain.platform.OperatingSystem;
 import java.net.URI;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
     private static final String GRAALVM_JDK_21 = "21.0.2";
@@ -55,6 +57,24 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
         return SUPPORTED_PLATFORMS.stream()
                 .map(target -> lock(request, target))
                 .flatMap(Optional::stream)
+                .toList();
+    }
+
+    @Override
+    public List<LockedJavaToolchain> available() {
+        return List.of(
+                        new JavaToolchainRequest(
+                                "21",
+                                JavaDistribution.TEMURIN,
+                                Set.of(),
+                                ToolchainPolicy.PREFER_MANAGED),
+                        new JavaToolchainRequest(
+                                "21",
+                                JavaDistribution.GRAALVM_COMMUNITY,
+                                Set.of(JavaFeature.NATIVE_IMAGE),
+                                ToolchainPolicy.PREFER_MANAGED))
+                .stream()
+                .flatMap(request -> locks(request, SUPPORTED_PLATFORMS.getFirst()).stream())
                 .toList();
     }
 

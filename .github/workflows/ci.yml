@@ -93,9 +93,19 @@ jobs:
         run: scripts/smoke-smoque
 
   managed-toolchain:
-    name: managed Java toolchain dogfood
-    runs-on: ubuntu-latest
+    name: managed Java toolchain dogfood ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-native
+            runner: ubuntu-latest
+            native: true
+          - name: macos-build
+            runner: macos-15
+            native: false
 
     steps:
       - name: Check out repository
@@ -138,6 +148,7 @@ jobs:
         run: scripts/run-zolt-built build --workspace --member apps/zolt --no-progress --cache-root .zolt/cache
 
       - name: Build native image with managed GraalVM
+        if: matrix.native
         run: scripts/run-zolt-built native --workspace --member apps/zolt --no-progress --cache-root .zolt/cache
 
   zap-version:

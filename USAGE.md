@@ -82,6 +82,9 @@ Toolchain commands:
 zolt toolchain status
 zolt toolchain status --json
 zolt toolchain sync
+zolt toolchain install java 21 --graalvm --native-image
+zolt toolchain list
+zolt toolchain available
 zolt exec -- java -version
 zolt toolchain global use java 21 --temurin
 zolt toolchain global use java 21 --graalvm --native-image
@@ -257,10 +260,20 @@ Sync installs the managed JDK into the default user store and writes stable
 multi-platform toolchain metadata:
 
 ```sh
+zolt toolchain install java 21 --graalvm --native-image
 zolt toolchain sync
+zolt toolchain list
+zolt toolchain available
 zolt toolchain status
 zolt toolchain status --json
 ```
+
+Use `zolt toolchain install java ...` when you want a managed Java version
+available without first creating a project config. It installs into the same
+shared user store and writes reusable global lock metadata, but it does not
+change the global default. `zolt toolchain list` shows the active project or
+global selection, lock entries, and installed catalog entries. `zolt toolchain
+available` shows the bundled Temurin and GraalVM catalog matrix.
 
 `zolt.lock` records the supported target matrix, so a macOS developer and Linux
 CI do not rewrite the lock back and forth. The install itself stays local to the

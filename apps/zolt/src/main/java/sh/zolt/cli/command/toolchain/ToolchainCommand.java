@@ -32,6 +32,9 @@ import picocli.CommandLine.Spec;
         subcommands = {
                 ToolchainCommand.StatusCommand.class,
                 ToolchainCommand.SyncCommand.class,
+                ToolchainInstallCommand.class,
+                ToolchainListCommand.class,
+                ToolchainAvailableCommand.class,
                 GlobalToolchainCommand.class
         })
 public final class ToolchainCommand implements Runnable {

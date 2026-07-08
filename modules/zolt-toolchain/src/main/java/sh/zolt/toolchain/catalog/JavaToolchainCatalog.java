@@ -13,6 +13,10 @@ public interface JavaToolchainCatalog {
         return lock(request, platform).stream().toList();
     }
 
+    default List<LockedJavaToolchain> available() {
+        return List.of();
+    }
+
     default Optional<JavaToolchainArtifact> artifact(LockedJavaToolchain locked) {
         return Optional.empty();
     }
