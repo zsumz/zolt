@@ -158,15 +158,16 @@ def classify(environment, workflows):
             or "gradle-no-daemon" in row.get("tools", {})
         )
     ]
-    has_core_competitors = all(
+    has_production_competitors = bool(comparable) and all(
         "maven" in row.get("tools", {})
         and "gradle-no-daemon" in row.get("tools", {})
+        and "gradle-daemon" in row.get("tools", {})
         for row in comparable
     )
     if module_count < 20 or repeat_count < 3:
         return "Smoke validation"
-    if module_count >= 40 and repeat_count >= 5 and has_core_competitors:
-        return "Publication candidate"
+    if module_count >= 40 and repeat_count >= 5 and has_production_competitors:
+        return "Production-grade generated evidence"
     return "Exploratory benchmark"
 
 
@@ -230,14 +231,19 @@ for row in source_workflows:
 caveats = [
     "First clean build is a single setup sample; steady-state claims should use repeated workflows.",
 ]
-if classification != "Publication candidate":
-    caveats.append(f"This is a {classification.lower()} run, not publication-grade evidence.")
+if classification != "Production-grade generated evidence":
+    article = "an" if classification[:1].lower() in {"a", "e", "i", "o", "u"} else "a"
+    caveats.append(f"This is {article} {classification.lower()} run, not production-grade evidence.")
 available_tools = {
     tool
     for row in source_workflows
     for tool in (row.get("tools") or {})
 }
-for required_tool, label in [("maven", "Maven"), ("gradle-no-daemon", "Gradle")]:
+for required_tool, label in [
+    ("maven", "Maven"),
+    ("gradle-no-daemon", "Gradle no-daemon"),
+    ("gradle-daemon", "Gradle daemon"),
+]:
     if required_tool not in available_tools:
         caveats.append(f"{label} results are missing from at least one core comparison.")
 

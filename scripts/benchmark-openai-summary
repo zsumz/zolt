@@ -101,7 +101,7 @@ model = sys.argv[4]
 reasoning_effort = sys.argv[5]
 dry_run = sys.argv[6] == "true"
 suite = json.loads(input_path.read_text(encoding="utf-8"))
-prompt_version = "zolt-benchmark-summary-v1"
+prompt_version = "zolt-benchmark-summary-v2"
 
 model_input = {
     "schemaVersion": suite.get("schemaVersion"),
@@ -129,6 +129,7 @@ schema = {
     "additionalProperties": False,
     "properties": {
         "headline": {"type": "string"},
+        "evidenceGrade": {"type": "string"},
         "overall": {"type": "string"},
         "laneSummaries": {
             "type": "array",
@@ -138,47 +139,51 @@ schema = {
                 "properties": {
                     "lane": {"type": "string"},
                     "winner": {"type": "string"},
+                    "scope": {"type": "string"},
                     "plainEnglish": {"type": "string"},
                     "evidence": {"type": "string"},
-                    "caveats": {
+                    "methodologyNotes": {
                         "type": "array",
                         "items": {"type": "string"},
                     },
                 },
-                "required": ["lane", "winner", "plainEnglish", "evidence", "caveats"],
+                "required": ["lane", "winner", "scope", "plainEnglish", "evidence", "methodologyNotes"],
             },
         },
         "publishableClaims": {
             "type": "array",
             "items": {"type": "string"},
         },
-        "caveats": {
-            "type": "array",
-            "items": {"type": "string"},
-        },
-        "followUps": {
+        "limitations": {
             "type": "array",
             "items": {"type": "string"},
         },
     },
     "required": [
         "headline",
+        "evidenceGrade",
         "overall",
         "laneSummaries",
         "publishableClaims",
-        "caveats",
-        "followUps",
+        "limitations",
     ],
 }
 
 system_prompt = (
-    "You summarize benchmark results for Zolt, a native Java build tool. "
-    "Use only the supplied suite JSON. Keep first clean build separate from "
-    "repeated workflows. Do not inflate smoke validation into publication "
-    "evidence. Mention missing competitors and caveats plainly. Be concise."
+    "You write final benchmark summaries for Zolt, a native Java build tool. "
+    "Use only the supplied suite JSON. The run.classification field is the "
+    "evidence grade; do not invent a stricter or weaker grade. If the "
+    "classification is Production-grade generated evidence, write the summary "
+    "as production-grade generated benchmark evidence. If it is not, state the "
+    "validation grade once and keep the tone factual. Keep first clean build "
+    "separate from repeated workflows. Mention missing competitors only when "
+    "the supplied workflows are actually missing them. Do not write follow-ups, "
+    "recommendations, next steps, roadmap items, or backlog prose. Be concise."
 )
 user_prompt = (
-    "Create a concise benchmark summary from this suite-summary.json. "
+    "Create a concise public benchmark report from this suite-summary.json. "
+    "Lead with the results, include the measured evidence, and keep limitations "
+    "strictly about the current methodology. "
     "Return only the structured JSON required by the schema.\n\n"
     + json.dumps(model_input, indent=2)
 )
@@ -264,9 +269,11 @@ document = {
 output_json_path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 lines = [
-    "## Model Summary",
+    "## Benchmark Summary",
     "",
     f"**{model_summary['headline']}**",
+    "",
+    f"Evidence grade: `{model_summary['evidenceGrade']}`",
     "",
     model_summary["overall"],
     "",
@@ -279,26 +286,24 @@ if model_summary["laneSummaries"]:
             "",
             f"Winner: `{lane['winner']}`",
             "",
+            f"Scope: {lane['scope']}",
+            "",
             lane["plainEnglish"],
             "",
             f"Evidence: {lane['evidence']}",
             "",
         ])
-        if lane["caveats"]:
-            lines.extend(["Lane caveats:", ""])
-            lines.extend(f"- {caveat}" for caveat in lane["caveats"])
+        if lane["methodologyNotes"]:
+            lines.extend(["Methodology notes:", ""])
+            lines.extend(f"- {note}" for note in lane["methodologyNotes"])
             lines.append("")
 if model_summary["publishableClaims"]:
     lines.extend(["### Publishable Claims", ""])
     lines.extend(f"- {claim}" for claim in model_summary["publishableClaims"])
     lines.append("")
-if model_summary["caveats"]:
-    lines.extend(["### Caveats", ""])
-    lines.extend(f"- {caveat}" for caveat in model_summary["caveats"])
-    lines.append("")
-if model_summary["followUps"]:
-    lines.extend(["### Follow-ups", ""])
-    lines.extend(f"- {follow_up}" for follow_up in model_summary["followUps"])
+if model_summary["limitations"]:
+    lines.extend(["### Limitations", ""])
+    lines.extend(f"- {limitation}" for limitation in model_summary["limitations"])
     lines.append("")
 output_markdown_path.write_text("\n".join(lines), encoding="utf-8")
 print(f"wrote OpenAI summary JSON: {output_json_path}")

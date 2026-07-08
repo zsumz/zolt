@@ -133,15 +133,16 @@ def run_type():
         if "zolt" in workflows.get(workflow, {})
         and ("maven" in workflows.get(workflow, {}) or "gradle-no-daemon" in workflows.get(workflow, {}))
     ]
-    has_core_competitors = all(
+    has_production_competitors = bool(comparable) and all(
         "maven" in workflows.get(workflow, {})
         and "gradle-no-daemon" in workflows.get(workflow, {})
+        and "gradle-daemon" in workflows.get(workflow, {})
         for workflow in comparable
     )
     if module_count < 20 or repeat_count < 3:
         return "Smoke validation"
-    if module_count >= 40 and repeat_count >= 5 and has_core_competitors:
-        return "Publication candidate"
+    if module_count >= 40 and repeat_count >= 5 and has_production_competitors:
+        return "Production-grade generated evidence"
     return "Exploratory benchmark"
 
 lanes = []
@@ -258,7 +259,7 @@ prompt_lines = [
     "- Mention the run type, module count, repeat count, and tool versions.",
     "- Include one bullet per lane.",
     "- Treat the first clean build as a single setup lane, not a repeated steady-state lane.",
-    "- Do not claim publication-grade evidence unless run.type is `Publication candidate`.",
+    "- Do not claim production-grade evidence unless run.type is `Production-grade generated evidence`.",
     "- Use wall-clock milliseconds and ratios exactly as provided or directly derived.",
     "",
     "```json",

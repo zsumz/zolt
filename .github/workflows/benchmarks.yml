@@ -9,12 +9,12 @@ on:
       modules:
         description: Number of generated library modules before the app.
         required: true
-        default: "40"
+        default: "100"
         type: string
       repeat:
         description: Timed samples per workflow.
         required: true
-        default: "5"
+        default: "7"
         type: string
       zolt_source:
         description: Native Zolt binary source.
@@ -41,7 +41,7 @@ on:
       include_gradle_daemon:
         description: Also measure Gradle with its daemon enabled.
         required: true
-        default: false
+        default: true
         type: boolean
       openai_reasoning_effort:
         description: Reasoning effort for optional OpenAI benchmark summary.
@@ -65,12 +65,12 @@ jobs:
 
     env:
       BENCHMARK_DIR: target/benchmarks/competitors
-      BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '3' }}
-      BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
+      BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '40' }}
+      BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '5' }}
       BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'release' }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
-      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon || false }}
+      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name != 'workflow_dispatch' || inputs.include_gradle_daemon }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"
       BENCHMARK_AI_SUMMARY: ${{ vars.BENCHMARK_AI_SUMMARY || 'true' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
@@ -212,11 +212,16 @@ jobs:
         if: always()
         run: |
           run_class="Exploratory benchmark"
-          if [[ "$BENCHMARK_MODULES" =~ ^[0-9]+$ && "$BENCHMARK_REPEAT" =~ ^[0-9]+$ ]]; then
+          if [[ -f "$BENCHMARK_DIR/suite-summary.json" ]]; then
+            run_class="$(
+              python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8")).get("run", {}).get("classification") or "Exploratory benchmark")' \
+                "$BENCHMARK_DIR/suite-summary.json"
+            )"
+          elif [[ "$BENCHMARK_MODULES" =~ ^[0-9]+$ && "$BENCHMARK_REPEAT" =~ ^[0-9]+$ ]]; then
             if (( BENCHMARK_MODULES < 20 || BENCHMARK_REPEAT < 3 )); then
               run_class="Smoke validation"
-            elif (( BENCHMARK_MODULES >= 40 && BENCHMARK_REPEAT >= 5 )); then
-              run_class="Publication candidate"
+            elif (( BENCHMARK_MODULES >= 40 && BENCHMARK_REPEAT >= 5 )) && [[ "$BENCHMARK_INCLUDE_GRADLE_DAEMON" == "true" ]]; then
+              run_class="Production-grade generated evidence"
             fi
           fi
           {

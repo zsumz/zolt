@@ -115,38 +115,39 @@ Suggested environment variables:
 ```text
 OPENAI_API_KEY
 OPENAI_MODEL=gpt-5.5
-OPENAI_REASONING_EFFORT=medium
+OPENAI_REASONING_EFFORT=high
 BENCHMARK_AI_SUMMARY=true
 ```
 
-Keep the model and reasoning effort configurable. Use `medium` by default for
-normal benchmark prose and `high` only for publishable runs where better caveat
-detection is worth extra latency and cost.
+Keep the model and reasoning effort configurable. Use `high` by default for
+public benchmark prose where better evidence handling is worth the extra latency
+and cost.
 
 The first useful summary schema:
 
 ```json
 {
   "headline": "string",
+  "evidenceGrade": "string",
   "overall": "string",
   "laneSummaries": [
     {
       "lane": "string",
       "winner": "string",
-      "zoltMedianMillis": 0,
-      "competitorMedians": {},
-      "plainEnglish": "string"
+      "scope": "string",
+      "plainEnglish": "string",
+      "evidence": "string",
+      "methodologyNotes": ["string"]
     }
   ],
   "publishableClaims": ["string"],
-  "caveats": ["string"],
-  "followUps": ["string"]
+  "limitations": ["string"]
 }
 ```
 
 The prompt should be strict: summarize only the supplied JSON, keep first clean
-build separate, mention missing competitors, and never turn a smoke run into a
-publication claim.
+build separate, mention missing competitors only when data is actually missing,
+and never include follow-ups, recommendations, roadmap items, or backlog prose.
 
 ## Real Projects
 

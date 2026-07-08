@@ -805,14 +805,16 @@ def run_classification():
         and "zolt" in row["tools"]
         and ("maven" in row["tools"] or "gradle-no-daemon" in row["tools"])
     ]
-    has_core_competitors = all(
-        "maven" in row["tools"] and "gradle-no-daemon" in row["tools"]
+    has_production_competitors = bool(comparable) and all(
+        "maven" in row["tools"]
+        and "gradle-no-daemon" in row["tools"]
+        and "gradle-daemon" in row["tools"]
         for row in comparable
     )
     if module_count < 20 or repeat_count < 3:
         return "Smoke validation"
-    if module_count >= 40 and repeat_count >= 5 and has_core_competitors:
-        return "Publication candidate"
+    if module_count >= 40 and repeat_count >= 5 and has_production_competitors:
+        return "Production-grade generated evidence"
     return "Exploratory benchmark"
 
 classification = run_classification()
