@@ -51,8 +51,29 @@ jobs:
           restore-keys: |
             zolt-cache-${{ runner.os }}-
 
-      - name: Test workspace group
-        run: scripts/bootstrap-zolt-jvm --no-progress test --workspace --members "${{ matrix.members }}" --cache-root .zolt/cache
+      - name: Cache Zolt managed toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
+      - name: Package stage-0 Zolt
+        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Sync Zolt-managed Java
+        run: scripts/run-zolt-built toolchain sync
+
+      - name: Check Zolt-managed Java status
+        run: scripts/run-zolt-built toolchain status --json
+
+      - name: Package JUnit worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-junit-worker --no-progress --cache-root .zolt/cache
+
+      - name: Test workspace group with managed Java
+        run: scripts/run-zolt-built test --workspace --members "${{ matrix.members }}" --no-progress --cache-root .zolt/cache
 
   smoke:
     name: smoke packaged workflows
@@ -85,6 +106,15 @@ jobs:
           restore-keys: |
             zolt-cache-${{ runner.os }}-
 
+      - name: Cache Zolt managed toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
       - name: Cache npx packages
         uses: actions/cache@v4
         with:
@@ -93,7 +123,24 @@ jobs:
           restore-keys: |
             npm-cache-${{ runner.os }}-
 
-      - name: Smoke packaged workflows
+      - name: Package stage-0 Zolt
+        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Sync Zolt-managed Java
+        run: scripts/run-zolt-built toolchain sync
+
+      - name: Check Zolt-managed Java status
+        run: scripts/run-zolt-built toolchain status --json
+
+      - name: Package CLI with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt --no-progress --cache-root .zolt/cache
+
+      - name: Package JUnit worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-junit-worker --no-progress --cache-root .zolt/cache
+
+      - name: Smoke packaged workflows with managed Java
+        env:
+          ZOLT_SMOKE_PREBUILT: "1"
         run: scripts/smoke-smoque
 
   managed-toolchain:
