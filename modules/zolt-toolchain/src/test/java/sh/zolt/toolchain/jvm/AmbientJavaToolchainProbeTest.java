@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -69,6 +70,31 @@ final class AmbientJavaToolchainProbeTest {
 
         assertFalse(resolved.ok());
         assertTrue(resolved.problems().stream().anyMatch(problem -> problem.contains("Native Image is missing")));
+    }
+
+    @Test
+    void reusesAmbientRuntimeProbeAcrossRequests() throws IOException {
+        Path javaHome = tempDir.resolve("jdk");
+        tool(javaHome, "java");
+        tool(javaHome, "javac");
+        tool(javaHome, "jar");
+        AtomicInteger runtimeReads = new AtomicInteger();
+        AmbientJavaToolchainProbe probe = probe(
+                Map.of("JAVA_HOME", javaHome.toString()),
+                java -> {
+                    runtimeReads.incrementAndGet();
+                    return Optional.of(new JavaRuntimeInfo(
+                            Optional.of("21.0.2"),
+                            Optional.of("21"),
+                            Optional.of("Eclipse Temurin")));
+                });
+
+        ResolvedJavaToolchain java17 = probe.resolve(JavaToolchainRequest.projectDefault("17"));
+        ResolvedJavaToolchain java23 = probe.resolve(JavaToolchainRequest.projectDefault("23"));
+
+        assertTrue(java17.ok());
+        assertFalse(java23.ok());
+        assertEquals(1, runtimeReads.get());
     }
 
     @Test

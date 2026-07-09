@@ -142,15 +142,23 @@ public final class BuildCommand implements Runnable {
                     output.detail("Resolved workspace dependencies because zolt.lock was missing");
                 }
                 for (WorkspaceBuildResult.MemberBuildResult member : result.members()) {
-                    output.detail(
-                            "Compiled "
-                                    + member.result().sourceCount()
-                                    + " main source files in "
-                                    + member.member());
+                    if (member.result().mainCompilationSkipped()) {
+                        output.detail("Skipped main compilation in " + member.member() + "; inputs are unchanged");
+                    } else {
+                        output.detail(
+                                "Compiled "
+                                        + member.result().sourceCount()
+                                        + " main source files in "
+                                        + member.member());
+                    }
                 }
-                output.summary(
-                        "Compiled " + result.sourceCount() + " workspace main source files",
-                        result.members().size() + " members");
+                if (result.mainCompilationExecutedCount() == 0) {
+                    output.detail("Skipped workspace main compilation; inputs are unchanged");
+                } else {
+                    output.summary(
+                            "Compiled " + result.compiledSourceCount() + " workspace main source files",
+                            result.members().size() + " members");
+                }
                 output.provenance(CommandBuildProvenance.read(projectRoot));
                 progress.result("Built " + result.sourceCount() + " workspace main source files");
                 return;

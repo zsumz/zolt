@@ -24,6 +24,7 @@ public final class AmbientJavaToolchainProbe implements JavaToolchainProbe {
     private final String osName;
     private final Optional<Path> runtimeJavaHome;
     private final RuntimeInfoReader runtimeInfoReader;
+    private volatile AmbientTools cachedTools;
 
     public AmbientJavaToolchainProbe() {
         this(
@@ -49,26 +50,55 @@ public final class AmbientJavaToolchainProbe implements JavaToolchainProbe {
 
     @Override
     public ResolvedJavaToolchain resolve(JavaToolchainRequest request) {
+        AmbientTools tools = ambientTools();
+        List<String> problems = problems(
+                request,
+                tools.java(),
+                tools.javac(),
+                tools.jar(),
+                tools.nativeImage(),
+                tools.runtime());
+        List<String> notes = notes(request);
+        return new ResolvedJavaToolchain(
+                JavaToolchainSource.AMBIENT,
+                tools.javaHome(),
+                tools.java(),
+                tools.javac(),
+                tools.jar(),
+                tools.nativeImage(),
+                tools.runtime(),
+                request,
+                problems,
+                notes);
+    }
+
+    private AmbientTools ambientTools() {
+        AmbientTools tools = cachedTools;
+        if (tools != null) {
+            return tools;
+        }
+        synchronized (this) {
+            if (cachedTools == null) {
+                cachedTools = detectAmbientTools();
+            }
+            return cachedTools;
+        }
+    }
+
+    private AmbientTools detectAmbientTools() {
         Optional<Path> configuredJavaHome = value("JAVA_HOME").map(Path::of);
         Optional<Path> java = findTool("java", configuredJavaHome);
         Optional<Path> javac = findTool("javac", configuredJavaHome);
         Optional<Path> jar = findTool("jar", configuredJavaHome);
         Optional<Path> nativeImage = findTool("native-image", configuredJavaHome);
         JavaRuntimeInfo runtime = java.flatMap(runtimeInfoReader::read).orElse(JavaRuntimeInfo.empty());
-        Optional<Path> javaHome = selectedJavaHome(configuredJavaHome, java);
-        List<String> problems = problems(request, java, javac, jar, nativeImage, runtime);
-        List<String> notes = notes(request);
-        return new ResolvedJavaToolchain(
-                JavaToolchainSource.AMBIENT,
-                javaHome,
+        return new AmbientTools(
+                selectedJavaHome(configuredJavaHome, java),
                 java,
                 javac,
                 jar,
                 nativeImage,
-                runtime,
-                request,
-                problems,
-                notes);
+                runtime);
     }
 
     static Optional<String> featureVersion(String value) {
@@ -266,5 +296,22 @@ public final class AmbientJavaToolchainProbe implements JavaToolchainProbe {
     @FunctionalInterface
     interface RuntimeInfoReader {
         Optional<JavaRuntimeInfo> read(Path java);
+    }
+
+    private record AmbientTools(
+            Optional<Path> javaHome,
+            Optional<Path> java,
+            Optional<Path> javac,
+            Optional<Path> jar,
+            Optional<Path> nativeImage,
+            JavaRuntimeInfo runtime) {
+        private AmbientTools {
+            javaHome = javaHome == null ? Optional.empty() : javaHome;
+            java = java == null ? Optional.empty() : java;
+            javac = javac == null ? Optional.empty() : javac;
+            jar = jar == null ? Optional.empty() : jar;
+            nativeImage = nativeImage == null ? Optional.empty() : nativeImage;
+            runtime = runtime == null ? JavaRuntimeInfo.empty() : runtime;
+        }
     }
 }

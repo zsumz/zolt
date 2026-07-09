@@ -18,7 +18,7 @@ public final class JdkDetector implements JdkChecker {
     private final String osName;
     private final Optional<Path> runtimeJavaHome;
     private final ToolVersionReader versionReader;
-    private Toolchain toolchain;
+    private volatile Toolchain toolchain;
 
     public JdkDetector() {
         this(
@@ -55,16 +55,21 @@ public final class JdkDetector implements JdkChecker {
     }
 
     private Toolchain toolchain() {
-        if (toolchain != null) {
+        Toolchain detected = toolchain;
+        if (detected != null) {
+            return detected;
+        }
+        synchronized (this) {
+            if (toolchain == null) {
+                Optional<Path> javaHome = value("JAVA_HOME").map(Path::of);
+                Optional<Path> java = findTool("java", javaHome);
+                Optional<Path> javac = findTool("javac", javaHome);
+                Optional<Path> jar = findTool("jar", javaHome);
+                Optional<String> version = java.flatMap(versionReader::read).flatMap(JdkDetector::majorVersion);
+                toolchain = new Toolchain(javaHome, java, javac, jar, version);
+            }
             return toolchain;
         }
-        Optional<Path> javaHome = value("JAVA_HOME").map(Path::of);
-        Optional<Path> java = findTool("java", javaHome);
-        Optional<Path> javac = findTool("javac", javaHome);
-        Optional<Path> jar = findTool("jar", javaHome);
-        Optional<String> version = java.flatMap(versionReader::read).flatMap(JdkDetector::majorVersion);
-        toolchain = new Toolchain(javaHome, java, javac, jar, version);
-        return toolchain;
     }
 
     static Optional<String> majorVersion(String versionOutput) {

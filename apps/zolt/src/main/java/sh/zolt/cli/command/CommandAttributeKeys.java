@@ -125,6 +125,8 @@ public final class CommandAttributeKeys {
     public static final String WARNINGS = "warnings";
     public static final String WORKSPACE = "workspace";
     public static final String WORKSPACE_ABI_INVALIDATIONS = "workspaceAbiInvalidations";
+    public static final String WORKSPACE_BUILD_MAX_WORKERS = "workspaceBuildMaxWorkers";
+    public static final String WORKSPACE_BUILD_WAVES = "workspaceBuildWaves";
     public static final String XML_REPORT = "xmlReport";
 
     private CommandAttributeKeys() {

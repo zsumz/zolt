@@ -10,10 +10,20 @@ import java.util.Optional;
 
 public record WorkspaceBuildResult(
         Optional<ResolveResult> resolveResult,
-        List<MemberBuildResult> members) {
+        List<MemberBuildResult> members,
+        int buildWaveCount,
+        int buildMaxWorkers) {
+    public WorkspaceBuildResult(
+            Optional<ResolveResult> resolveResult,
+            List<MemberBuildResult> members) {
+        this(resolveResult, members, defaultWaveCount(members), defaultMaxWorkers(members));
+    }
+
     public WorkspaceBuildResult {
         resolveResult = resolveResult == null ? Optional.empty() : resolveResult;
         members = List.copyOf(members);
+        buildWaveCount = Math.max(0, buildWaveCount);
+        buildMaxWorkers = Math.max(0, buildMaxWorkers);
     }
 
     public boolean resolvedLockfile() {
@@ -23,6 +33,14 @@ public record WorkspaceBuildResult(
     public int sourceCount() {
         return members.stream()
                 .map(MemberBuildResult::result)
+                .mapToInt(BuildResult::sourceCount)
+                .sum();
+    }
+
+    public int compiledSourceCount() {
+        return members.stream()
+                .map(MemberBuildResult::result)
+                .filter(result -> !result.mainCompilationSkipped())
                 .mapToInt(BuildResult::sourceCount)
                 .sum();
     }
@@ -85,6 +103,14 @@ public record WorkspaceBuildResult(
                 .map(BuildResult::mainCompileDiagnostics)
                 .mapToInt(value)
                 .sum();
+    }
+
+    private static int defaultWaveCount(List<MemberBuildResult> members) {
+        return members == null || members.isEmpty() ? 0 : 1;
+    }
+
+    private static int defaultMaxWorkers(List<MemberBuildResult> members) {
+        return members == null || members.isEmpty() ? 0 : 1;
     }
 
     public record MemberBuildResult(

@@ -32,6 +32,8 @@ public final class CommandBuildAttributes {
         Map<String, String> attributes = new LinkedHashMap<>();
         attributes.put(CommandAttributeKeys.MEMBERS, Integer.toString(result.members().size()));
         attributes.put(CommandAttributeKeys.SOURCE_FILES, Integer.toString(result.sourceCount()));
+        attributes.put(CommandAttributeKeys.WORKSPACE_BUILD_WAVES, Integer.toString(result.buildWaveCount()));
+        attributes.put(CommandAttributeKeys.WORKSPACE_BUILD_MAX_WORKERS, Integer.toString(result.buildMaxWorkers()));
         attributes.put(CommandAttributeKeys.MAIN_COMPILATIONS_SKIPPED, Integer.toString(result.mainCompilationSkippedCount()));
         attributes.put(CommandAttributeKeys.MAIN_COMPILATIONS_EXECUTED, Integer.toString(result.mainCompilationExecutedCount()));
         addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
