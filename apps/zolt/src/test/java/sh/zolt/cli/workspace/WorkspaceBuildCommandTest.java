@@ -58,6 +58,9 @@ final class WorkspaceBuildCommandTest {
 
         assertEquals(0, result.exitCode());
         assertTrue(result.stdout().contains("Compiled 2 workspace main source files"));
+        String expectedMaxWorkers = "\"workspaceBuildMaxWorkers\":\""
+                + Math.max(1, Math.min(2, Runtime.getRuntime().availableProcessors()))
+                + "\"";
         String[] lines = result.stderr().lines().toArray(String[]::new);
         assertEquals(3, lines.length);
         assertTrue(lines[0].contains("\"phase\":\"plan workspace build\""));
@@ -69,6 +72,8 @@ final class WorkspaceBuildCommandTest {
         assertTrue(lines[1].contains("\"depth\":1"));
         assertTrue(lines[1].contains("\"members\":\"2\""));
         assertTrue(lines[1].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[1].contains("\"workspaceBuildWaves\":\"2\""));
+        assertTrue(lines[1].contains(expectedMaxWorkers));
         assertTrue(lines[1].contains("\"mainCompilationsSkipped\":\"0\""));
         assertTrue(lines[1].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[1].contains("\"mainSourcesRecompiled\""));
@@ -78,10 +83,40 @@ final class WorkspaceBuildCommandTest {
         assertTrue(lines[2].contains("\"depth\":0"));
         assertTrue(lines[2].contains("\"members\":\"2\""));
         assertTrue(lines[2].contains("\"sourceFiles\":\"2\""));
+        assertTrue(lines[2].contains("\"workspaceBuildWaves\":\"2\""));
+        assertTrue(lines[2].contains(expectedMaxWorkers));
         assertTrue(lines[2].contains("\"mainCompilationsSkipped\":\"0\""));
         assertTrue(lines[2].contains("\"mainCompilationsExecuted\":\"2\""));
         assertTrue(lines[2].contains("\"mainSourcesRecompiled\""));
         assertTrue(lines[2].contains("\"workspaceAbiInvalidations\""));
+    }
+
+    @Test
+    void buildWorkspaceReportsSkippedMembersOnNoOpBuild() throws IOException {
+        WorkspaceApplicationFixture fixture = WorkspaceCommandFixture.create(tempDir, "workspace");
+        Path cacheRoot = tempDir.resolve("cache");
+        CommandResult first = execute(
+                "build",
+                "--workspace",
+                "--all",
+                "--cwd", fixture.apiDir().toString(),
+                "--cache-root", cacheRoot.toString());
+
+        CommandResult second = execute(
+                "build",
+                "--workspace",
+                "--all",
+                "--cwd", fixture.apiDir().toString(),
+                "--cache-root", cacheRoot.toString());
+
+        assertEquals(0, first.exitCode());
+        assertEquals(0, second.exitCode());
+        assertTrue(second.stdout().contains("Skipped main compilation in modules/core; inputs are unchanged"));
+        assertTrue(second.stdout().contains("Skipped main compilation in apps/api; inputs are unchanged"));
+        assertTrue(second.stdout().contains("Skipped workspace main compilation; inputs are unchanged"));
+        assertFalse(second.stdout().contains("Compiled 1 main source files in modules/core"));
+        assertFalse(second.stdout().contains("Compiled 1 main source files in apps/api"));
+        assertFalse(second.stdout().contains("Compiled 2 workspace main source files"));
     }
 
     @Test

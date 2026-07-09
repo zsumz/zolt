@@ -59,6 +59,7 @@ final class WorkspaceBuildServiceTest extends WorkspaceBuildServiceTestSupport {
                 .map(WorkspaceBuildResult.MemberBuildResult::member)
                 .toList());
         assertEquals(2, result.sourceCount());
+        assertEquals(2, result.buildWaveCount());
         assertTrue(result.members().get(1).classpaths().compile().entries()
                 .contains(tempDir.resolve("modules/core/target/classes")));
         assertTrue(Files.exists(tempDir.resolve("modules/core/target/classes/com/acme/core/Core.class")));

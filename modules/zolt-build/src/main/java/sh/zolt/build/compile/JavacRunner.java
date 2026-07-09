@@ -2,6 +2,7 @@ package sh.zolt.build.compile;
 
 import sh.zolt.build.JavacException;
 import sh.zolt.classpath.Classpath;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,6 +13,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 
 public final class JavacRunner {
     private static final Pattern MISSING_PACKAGE_PATTERN =
@@ -19,14 +22,30 @@ public final class JavacRunner {
 
     private final String pathSeparator;
     private final ProcessRunner processRunner;
+    private final InProcessRunner inProcessRunner;
+    private final Path runtimeJavac;
 
     public JavacRunner() {
-        this(java.io.File.pathSeparator, JavacRunner::runProcess);
+        this(
+                java.io.File.pathSeparator,
+                JavacRunner::runProcess,
+                JavacRunner::runInProcess,
+                runtimeJavac());
     }
 
     JavacRunner(String pathSeparator, ProcessRunner processRunner) {
+        this(pathSeparator, processRunner, null, null);
+    }
+
+    JavacRunner(
+            String pathSeparator,
+            ProcessRunner processRunner,
+            InProcessRunner inProcessRunner,
+            Path runtimeJavac) {
         this.pathSeparator = pathSeparator;
         this.processRunner = processRunner;
+        this.inProcessRunner = inProcessRunner;
+        this.runtimeJavac = runtimeJavac;
     }
 
     public JavacResult compile(
@@ -91,7 +110,9 @@ public final class JavacRunner {
                 processorClasspath,
                 effectiveGeneratedSourcesDirectory,
                 effectiveOptions);
-        ProcessResult result = processRunner.run(command);
+        ProcessResult result = canRunInProcess(javac, processorClasspath, effectiveOptions)
+                ? inProcessRunner.run(command.subList(1, command.size()))
+                : processRunner.run(command);
         if (result.exitCode() != 0) {
             String diagnostics = result.output().stripTrailing();
             String summary = "javac failed with exit code " + result.exitCode() + "."
@@ -99,6 +120,14 @@ public final class JavacRunner {
             throw new JavacException(sh.zolt.error.ActionableError.of(summary, remediation(diagnostics)));
         }
         return new JavacResult(sortedSources.size(), outputDirectory, result.output());
+    }
+
+    private boolean canRunInProcess(Path javac, Classpath processorClasspath, JavacOptions options) {
+        return inProcessRunner != null
+                && runtimeJavac != null
+                && sameExecutable(javac, runtimeJavac)
+                && sortedEntries(processorClasspath).isEmpty()
+                && options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
     }
 
     private static String remediation(String diagnostics) {
@@ -243,9 +272,60 @@ public final class JavacRunner {
         }
     }
 
+    private static ProcessResult runInProcess(List<String> arguments) {
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        if (compiler == null) {
+            return runProcess(withJavacExecutable(runtimeJavac(), arguments));
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        int exitCode = compiler.run(
+                null,
+                output,
+                output,
+                arguments.toArray(String[]::new));
+        return new ProcessResult(exitCode, output.toString(StandardCharsets.UTF_8));
+    }
+
+    private static List<String> withJavacExecutable(Path javac, List<String> arguments) {
+        List<String> command = new ArrayList<>();
+        command.add(javac.toString());
+        command.addAll(arguments);
+        return List.copyOf(command);
+    }
+
+    private static Path runtimeJavac() {
+        return Path.of(System.getProperty("java.home"))
+                .resolve("bin")
+                .resolve(executable("javac"));
+    }
+
+    private static boolean sameExecutable(Path left, Path right) {
+        Path normalizedLeft = left.toAbsolutePath().normalize();
+        Path normalizedRight = right.toAbsolutePath().normalize();
+        if (Files.exists(normalizedLeft) && Files.exists(normalizedRight)) {
+            try {
+                return Files.isSameFile(normalizedLeft, normalizedRight);
+            } catch (IOException exception) {
+                return false;
+            }
+        }
+        return normalizedLeft.equals(normalizedRight);
+    }
+
+    private static String executable(String name) {
+        return System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).contains("win")
+                ? name + ".exe"
+                : name;
+    }
+
     @FunctionalInterface
     interface ProcessRunner {
         ProcessResult run(List<String> command);
+    }
+
+    @FunctionalInterface
+    interface InProcessRunner {
+        ProcessResult run(List<String> arguments);
     }
 
     record ProcessResult(int exitCode, String output) {

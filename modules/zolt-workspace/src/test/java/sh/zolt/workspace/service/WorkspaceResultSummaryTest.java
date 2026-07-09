@@ -48,6 +48,9 @@ final class WorkspaceResultSummaryTest {
 
         assertTrue(result.resolvedLockfile());
         assertEquals(5, result.sourceCount());
+        assertEquals(3, result.compiledSourceCount());
+        assertEquals(1, result.buildWaveCount());
+        assertEquals(1, result.buildMaxWorkers());
         assertEquals(1, result.mainCompilationSkippedCount());
         assertEquals(1, result.mainCompilationExecutedCount());
         assertEquals(5_000_000L, result.mainFingerprintCheckNanos());
