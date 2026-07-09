@@ -20,7 +20,9 @@ import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.command.CommandServiceBundles.CommandRunServices;
 import sh.zolt.cli.command.CommandTimings;
+import sh.zolt.cli.command.CommandToolchainOptions;
 import sh.zolt.cli.command.CommandWorkspaceSelections;
+import sh.zolt.error.ActionableException;
 import sh.zolt.framework.FrameworkRunException;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.perf.TimingRecorder;
@@ -71,6 +73,9 @@ public final class RunCommand implements Runnable {
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
     @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
+
+    @Mixin
     private ZoltCli.TimingOptions timingOptions = new ZoltCli.TimingOptions();
 
     @Spec
@@ -111,24 +116,26 @@ public final class RunCommand implements Runnable {
         Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
+                WorkspaceRunService projectWorkspaceRunService =
+                        workspaceRunService.withJdkCheckers(toolchainOptions.workspaceJdkCheckers("run"));
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
                 WorkspaceRunResult result = timings.measure(
                         "run workspace",
                         () -> {
                             WorkspaceBuildPlan plan = timings.measure(
                                     "plan workspace run",
-                                    () -> workspaceRunService.planRun(
+                                    () -> projectWorkspaceRunService.planRun(
                                             projectRoot,
                                             cacheRoot,
                                             CommandWorkspaceSelections.from(all, members, memberGroups)),
                                     CommandBuildAttributes::workspaceBuildPlan);
                             WorkspaceBuildResult buildResult = timings.measure(
                                     "build workspace run inputs",
-                                    () -> workspaceRunService.buildRunInputs(plan, cacheRoot),
+                                    () -> projectWorkspaceRunService.buildRunInputs(plan, cacheRoot),
                                     CommandBuildAttributes::workspaceBuild);
                             return timings.measure(
                                     "launch workspace members",
-                                    () -> workspaceRunService.runBuiltMembers(
+                                    () -> projectWorkspaceRunService.runBuiltMembers(
                                             plan,
                                             buildResult,
                                             arguments,
@@ -169,7 +176,7 @@ public final class RunCommand implements Runnable {
             lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
             RunResult result = timings.measure(
                     "run application",
-                    () -> runService.run(
+                    () -> runService.withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "run")).run(
                             projectRoot,
                             config,
                             cacheRoot,
@@ -200,6 +207,7 @@ public final class RunCommand implements Runnable {
                 | RunException
                 | FrameworkRunException
                 | SourceDiscoveryException
+                | ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException

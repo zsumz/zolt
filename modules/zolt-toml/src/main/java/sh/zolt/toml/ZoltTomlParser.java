@@ -74,6 +74,7 @@ public final class ZoltTomlParser {
 
         validateTopLevelSections(result);
         ToolchainSectionCodec.parseZoltVersion(result, "zolt.toml");
+        ToolchainSectionCodec.parseJavaToolchain(result, "zolt.toml");
 
         ProjectMetadata project = ProjectSectionCodec.parse(result);
 

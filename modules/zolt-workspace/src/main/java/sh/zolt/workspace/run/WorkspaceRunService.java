@@ -13,6 +13,7 @@ import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
 import sh.zolt.workspace.service.WorkspaceBuildResult;
 import sh.zolt.workspace.service.WorkspaceBuildService;
+import sh.zolt.workspace.service.WorkspaceJdkCheckerResolver;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.service.WorkspaceSelection;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
@@ -25,7 +26,7 @@ import java.util.function.Consumer;
 
 public final class WorkspaceRunService {
     private final WorkspaceBuildService workspaceBuildService;
-    private final JdkChecker jdkDetector;
+    private final WorkspaceJdkCheckerResolver jdkCheckers;
     private final JavaRunner javaRunner;
 
     public WorkspaceRunService() {
@@ -52,8 +53,24 @@ public final class WorkspaceRunService {
             JdkChecker jdkDetector,
             JavaRunner javaRunner) {
         this.workspaceBuildService = workspaceBuildService;
-        this.jdkDetector = jdkDetector;
+        this.jdkCheckers = WorkspaceJdkCheckerResolver.fixed(jdkDetector);
         this.javaRunner = javaRunner;
+    }
+
+    private WorkspaceRunService(
+            WorkspaceBuildService workspaceBuildService,
+            WorkspaceJdkCheckerResolver jdkCheckers,
+            JavaRunner javaRunner) {
+        this.workspaceBuildService = workspaceBuildService;
+        this.jdkCheckers = jdkCheckers;
+        this.javaRunner = javaRunner;
+    }
+
+    public WorkspaceRunService withJdkCheckers(WorkspaceJdkCheckerResolver jdkCheckers) {
+        return new WorkspaceRunService(
+                workspaceBuildService.withJdkCheckers(jdkCheckers),
+                jdkCheckers,
+                javaRunner);
     }
 
     public WorkspaceRunResult run(
@@ -96,7 +113,7 @@ public final class WorkspaceRunService {
                     "Workspace member `"
                             + member.path()
                             + "` has no main class configured. Add [project].main to its zolt.toml or choose an application member."));
-            JdkStatus jdkStatus = jdkDetector.detect(member.config().project().java());
+            JdkStatus jdkStatus = jdkCheckers.forMember(workspace, member).detect(member.config().project().java());
             if (!jdkStatus.ok()) {
                 throw new RunException("JDK check failed. " + String.join(" ", jdkStatus.problems()));
             }

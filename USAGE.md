@@ -76,6 +76,26 @@ zolt coverage --suite smoke --xml-report target/coverage/jacoco.xml
 zolt test plan --shard-count 4 --format json
 ```
 
+Toolchain commands:
+
+```sh
+zolt toolchain status
+zolt toolchain status --json
+zolt toolchain sync
+zolt toolchain install java 21 --graalvm --native-image
+zolt toolchain list
+zolt toolchain available
+zolt exec -- java -version
+zolt toolchain global use java 21 --temurin
+zolt toolchain global use java 21 --graalvm --native-image
+zolt toolchain sync --global
+zolt toolchain status --global
+zolt toolchain global unset
+zolt shims install
+zolt shims status
+zolt shims uninstall
+```
+
 Workspace commands:
 
 ```sh
@@ -209,6 +229,94 @@ exclude = [
 [dependencyConstraints]
 "org.apache.tomcat.embed:tomcat-embed-core" = { version = "11.0.21", kind = "strict", reason = "Servlet baseline" }
 ```
+
+## Java Toolchains
+
+Zolt can run `java`, `javac`, `jar`, and GraalVM `native-image` from a concrete
+managed JDK instead of whatever happens to be on `PATH`.
+
+Project-pinned toolchains are declared in `zolt.toml` and locked in `zolt.lock`:
+
+```toml
+[project]
+java = "21"
+
+[toolchain.java]
+version = "21"
+distribution = "graalvm-community"
+features = ["native-image"]
+policy = "prefer-managed"
+```
+
+Use `temurin` for JVM-only work, or `graalvm-community` with
+`features = ["native-image"]` for native builds. Supported policies are:
+
+- `prefer-managed`: use the Zolt-managed JDK when installed, but allow a
+  matching system JDK.
+- `require-managed`: never use ambient `JAVA_HOME` or `PATH`.
+- `allow-system`: prefer a matching ambient JDK.
+
+Sync installs the managed JDK into the default user store and writes stable
+multi-platform toolchain metadata:
+
+```sh
+zolt toolchain install java 21 --graalvm --native-image
+zolt toolchain sync
+zolt toolchain list
+zolt toolchain available
+zolt toolchain status
+zolt toolchain status --json
+```
+
+Use `zolt toolchain install java ...` when you want a managed Java version
+available without first creating a project config. It installs into the same
+shared user store and writes reusable global lock metadata, but it does not
+change the global default. `zolt toolchain list` shows the active project or
+global selection, lock entries, and installed catalog entries. `zolt toolchain
+available` shows the bundled Temurin and GraalVM catalog matrix.
+
+`zolt.lock` records the supported target matrix, so a macOS developer and Linux
+CI do not rewrite the lock back and forth. The install itself stays local to the
+machine under `~/.zolt/toolchains`; only the current host's archive is downloaded
+when it is missing. Managed downloads are pinned to exact artifact URLs and
+verified with SHA-256 checksums from the lock.
+
+Build, run, test, package, and native commands use the resolved toolchain
+automatically. `zolt exec -- ...` runs an arbitrary command with `JAVA_HOME` and
+`PATH` pointed at the resolved JDK:
+
+```sh
+zolt exec -- java -version
+zolt exec -- native-image --version
+```
+
+User global Java is a default, not a project override. Store it in
+`~/.zolt/config.toml` with `[defaults.toolchain.java]`, or use the CLI:
+
+```sh
+zolt toolchain global use java 21 --temurin
+zolt toolchain sync --global
+zolt toolchain status --global
+zolt exec --global -- java -version
+```
+
+When a project declares `[toolchain.java]`, project config wins. Outside a Zolt
+project, `zolt exec -- java -version` can use the global default. Global lock
+metadata lives beside the user config in `~/.zolt/global-toolchains.lock`, while
+installed JDKs are shared in `~/.zolt/toolchains`.
+
+Shell-global Java is opt-in through shims:
+
+```sh
+zolt shims install
+export PATH="$HOME/.zolt/shims:$PATH"
+java -version
+```
+
+The shims are small wrapper scripts for `java`, `javac`, `jar`, `javadoc`,
+`jshell`, and `native-image`. Each wrapper calls `zolt exec -- <tool> ...`, so a
+project toolchain still wins inside a Zolt project and the global default is
+used outside one. Zolt does not edit shell profiles automatically.
 
 ## Workspaces
 

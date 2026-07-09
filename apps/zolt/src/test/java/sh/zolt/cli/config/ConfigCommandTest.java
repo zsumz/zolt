@@ -32,6 +32,7 @@ final class ConfigCommandTest {
         assertTrue(result.stdout().contains("repository.downloadConcurrency: 8 (source: built-in default)"));
         assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.kind: maven-local (source: built-in default)"));
         assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.enabled: false (source: built-in default)"));
+        assertTrue(result.stdout().contains("defaults.toolchain.java: none (source: built-in default)"));
         assertTrue(result.stdout().contains("local overlay CI policy: reject with --no-local-overlays or zolt check --context ci"));
         assertTrue(result.stdout().contains("repository credentials stay in env references from committed project config"));
     }
@@ -62,6 +63,11 @@ final class ConfigCommandTest {
                 [repositoryOverlays.mavenLocal]
                 enabled = true
 
+                [defaults.toolchain.java]
+                version = "21"
+                distribution = "temurin"
+                features = []
+
                 [ui]
                 color = "never"
                 """);
@@ -76,6 +82,8 @@ final class ConfigCommandTest {
         assertTrue(result.stdout().contains("repository.executionLane: platform (source: built-in default)"));
         assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.kind: maven-local (source: built-in default)"));
         assertTrue(result.stdout().contains("repositoryOverlays.mavenLocal.enabled: true (source: user global config)"));
+        assertTrue(result.stdout().contains(
+                "defaults.toolchain.java: temurin 21 (features: none, policy: prefer-managed) (source: user global config)"));
         assertTrue(result.stdout().contains("ui.color: never (source: user global config)"));
         assertTrue(result.stdout().contains("ui.progress: auto (source: built-in default)"));
     }

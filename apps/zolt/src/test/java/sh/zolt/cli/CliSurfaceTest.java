@@ -212,6 +212,8 @@ final class CliSurfaceTest {
                 "task",
                 "build",
                 "run",
+                "exec",
+                "shims",
                 "test",
                 "integration-test",
                 "coverage",
@@ -241,6 +243,8 @@ final class CliSurfaceTest {
         assertEquals(commandClass("release-index"), "sh.zolt.cli.command.publish.ReleaseIndexCommand");
         assertEquals(commandClass("publish"), "sh.zolt.cli.command.publish.PublishCommand");
         assertEquals(commandClass("native"), "sh.zolt.cli.command.nativeimage.NativeCommand");
+        assertEquals(commandClass("exec"), "sh.zolt.cli.command.toolchain.ExecCommand");
+        assertEquals(commandClass("shims"), "sh.zolt.cli.command.toolchain.ShimsCommand");
         assertEquals(commandClass("plan"), "sh.zolt.cli.command.build.PlanCommand");
         assertEquals(commandClass("explain"), "sh.zolt.cli.command.insight.ExplainCommand");
     }

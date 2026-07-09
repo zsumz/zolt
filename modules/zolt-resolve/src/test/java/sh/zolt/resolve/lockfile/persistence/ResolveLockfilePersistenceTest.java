@@ -96,11 +96,49 @@ final class ResolveLockfilePersistenceTest {
     }
 
     @Test
+    void persistPreservesJavaToolchainMetadataOnUnlockedResolve() throws Exception {
+        Path lockfilePath = tempDir.resolve("zolt.lock");
+        Files.writeString(lockfilePath, withJavaToolchainBlock(
+                writer.write(lockfile("maven-central", DependencyScope.COMPILE))));
+
+        persistence.persist(
+                lockfilePath,
+                lockfile("maven-central", DependencyScope.COMPILE, "2.0.0"),
+                ResolveMetrics.empty(),
+                false,
+                ResolveOptions.defaults());
+
+        String content = Files.readString(lockfilePath);
+        assertTrue(content.contains("[[toolchain.java]]"));
+        assertTrue(content.contains("layout.executables.nativeImage = \"lib/svm/bin/native-image\""));
+        assertEquals(1, reader.read(lockfilePath).packages().size());
+    }
+
+    @Test
     void persistVerifiesLockedLockfileAndDoesNotRewriteIt() throws Exception {
         Path lockfilePath = tempDir.resolve("zolt.lock");
         ZoltLockfile lockfile = lockfile("maven-central", DependencyScope.COMPILE);
         writer.write(lockfilePath, lockfile);
         String existing = Files.readString(lockfilePath);
+
+        ResolveMetrics metrics = persistence.persist(
+                lockfilePath,
+                lockfile,
+                ResolveMetrics.empty(),
+                true,
+                ResolveOptions.defaults());
+
+        assertEquals(existing, Files.readString(lockfilePath));
+        assertEquals(0, metrics.lockfileWriteNanos());
+        assertTrue(metrics.lockfileVerificationNanos() > 0);
+    }
+
+    @Test
+    void persistVerifiesLockedLockfileWithJavaToolchainMetadata() throws Exception {
+        Path lockfilePath = tempDir.resolve("zolt.lock");
+        ZoltLockfile lockfile = lockfile("maven-central", DependencyScope.COMPILE);
+        String existing = withJavaToolchainBlock(writer.write(lockfile));
+        Files.writeString(lockfilePath, existing);
 
         ResolveMetrics metrics = persistence.persist(
                 lockfilePath,
@@ -168,5 +206,27 @@ final class ResolveLockfilePersistenceTest {
                         Optional.of("pom-sha"),
                         List.of())),
                 List.of());
+    }
+
+    private static String withJavaToolchainBlock(String content) {
+        return content.stripTrailing() + """
+
+                [[toolchain.java]]
+                id = "java-graalvm-community-21-native-image"
+                request.version = "21"
+                request.distribution = "graalvm-community"
+                request.features = ["native-image"]
+                request.policy = "prefer-managed"
+                platform.os = "macos"
+                platform.arch = "aarch64"
+                resolved.version = "21"
+                resolved.distribution = "graalvm-community"
+                artifact.catalog = "builtin:java-graalvm-community-21-native-image"
+                layout.javaHome = "Contents/Home"
+                layout.executables.java = "bin/java"
+                layout.executables.javac = "bin/javac"
+                layout.executables.jar = "bin/jar"
+                layout.executables.nativeImage = "lib/svm/bin/native-image"
+                """;
     }
 }

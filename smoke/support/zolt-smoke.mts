@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 const CACHE_ROOT = ".zolt/cache";
 const CLI_MEMBER = "apps/zolt";
 const JUNIT_WORKER_MEMBER = "apps/zolt-junit-worker";
+const PREBUILT_ENV = "ZOLT_SMOKE_PREBUILT";
 
 export interface ZoltRuntime {
   cacheRoot: string;
@@ -21,9 +22,13 @@ export async function packagedZolt(t: SmokeContext): Promise<ZoltRuntime> {
     return await t.step("reuse packaged JUnit worker and CLI", async () => await cached);
   }
 
-  packagedRuntime = t.step("package JUnit worker and CLI", async () => {
+  const usePrebuilt = process.env[PREBUILT_ENV] === "1";
+  packagedRuntime = t.step(usePrebuilt ? "use prebuilt JUnit worker and CLI" : "package JUnit worker and CLI", async () => {
     await t.tools.node({ minVersion: 22 });
     await t.tools.npm({ minVersion: 10 });
+    if (usePrebuilt) {
+      return await usePackagedZolt(t, t.repoRoot());
+    }
     return await buildPackagedZolt(t, t.repoRoot());
   });
   return await packagedRuntime;
@@ -123,6 +128,11 @@ async function buildPackagedZolt(t: SmokeContext, root: PathRef): Promise<ZoltRu
     cacheRoot,
   ], { cwd: root, timeout: "10m" });
 
+  return await usePackagedZolt(t, root);
+}
+
+async function usePackagedZolt(t: SmokeContext, root: PathRef): Promise<ZoltRuntime> {
+  const cacheRoot = root.path(CACHE_ROOT);
   const jar = await singleJar(root.path(CLI_MEMBER, "target"));
   const workerJar = await singleJar(root.path(JUNIT_WORKER_MEMBER, "target"));
   const runtimeClasspathFile = jar.replace(/\.jar$/u, ".runtime-classpath");

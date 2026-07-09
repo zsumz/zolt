@@ -80,6 +80,31 @@ final class BuildServiceDependencies {
                         new MainCompileSourceExecutor(
                                 javacRunner,
                                 incrementalCompileStateRecorder,
+                        new IncrementalCompilePlanner())));
+    }
+
+    BuildServiceDependencies withJdkChecker(JdkChecker jdkDetector) {
+        JavacRunner javacRunner = new JavacRunner();
+        IncrementalCompileStateRecorder incrementalCompileStateRecorder = new IncrementalCompileStateRecorder();
+        return new BuildServiceDependencies(
+                new ResolveDependencies(
+                        resolveService,
+                        lockfileReader,
+                        classpathBuilder),
+                new OutputDependencies(
+                        sourceDiscoverer,
+                        resourceCopier,
+                        buildMetadataGenerator,
+                        buildFingerprintService),
+                new GeneratedSourceDependencies(
+                        jdkDetector,
+                        new OpenApiGeneratedSourceService(jdkDetector),
+                        protobufGeneratedSourceService,
+                        new SpringBootAotGenerationService(javacRunner),
+                        incrementalCompileStateRecorder,
+                        new MainCompileSourceExecutor(
+                                javacRunner,
+                                incrementalCompileStateRecorder,
                                 new IncrementalCompilePlanner())));
     }
 

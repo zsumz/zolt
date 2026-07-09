@@ -167,9 +167,15 @@ final class CommandServiceBundlesTest {
         assertRejectsNullCollaborators(
                 () -> new CommandTestServices(
                         null,
-                        services.workspaceTestService()),
+                        services.workspaceTestService(),
+                        services.testRunServiceFactory()),
                 () -> new CommandTestServices(
                         services.testRunService(),
+                        null,
+                        services.testRunServiceFactory()),
+                () -> new CommandTestServices(
+                        services.testRunService(),
+                        services.workspaceTestService(),
                         null));
     }
 

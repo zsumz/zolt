@@ -91,6 +91,56 @@ final class WorkspaceResolveServiceLockedTest {
     }
 
     @Test
+    void lockedWorkspaceResolveIgnoresJavaToolchainMetadata() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+                """);
+        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+        String existing = withJavaToolchainBlock(Files.readString(first.lockfilePath()));
+        Files.writeString(first.lockfilePath(), existing);
+
+        ResolveResult locked = service.resolve(tempDir, tempDir.resolve("cache"), true, false);
+
+        assertEquals(first.resolvedCount(), locked.resolvedCount());
+        assertEquals(existing, Files.readString(first.lockfilePath()));
+    }
+
+    @Test
+    void unlockedWorkspaceResolvePreservesJavaToolchainMetadata() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.example:app" = "1.0.0"
+                """);
+        ResolveResult first = service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+        Files.writeString(first.lockfilePath(), withJavaToolchainBlock(Files.readString(first.lockfilePath())));
+
+        service.resolve(tempDir, tempDir.resolve("cache"), false, false);
+
+        String content = Files.readString(first.lockfilePath());
+        assertTrue(content.contains("[[toolchain.java]]"));
+        assertTrue(content.contains("layout.executables.nativeImage = \"lib/svm/bin/native-image\""));
+    }
+
+    @Test
     void lockedWorkspaceResolveCarriesForwardExistingCoverageTooling() throws IOException {
         addArtifact(
                 "org.junit.platform",
@@ -182,5 +232,27 @@ final class WorkspaceResolveServiceLockedTest {
             exchange.sendResponseHeaders(statusCode, body.length);
             exchange.getResponseBody().write(body);
         }
+    }
+
+    private static String withJavaToolchainBlock(String content) {
+        return content.stripTrailing() + """
+
+                [[toolchain.java]]
+                id = "java-graalvm-community-21-native-image"
+                request.version = "21"
+                request.distribution = "graalvm-community"
+                request.features = ["native-image"]
+                request.policy = "prefer-managed"
+                platform.os = "macos"
+                platform.arch = "aarch64"
+                resolved.version = "21"
+                resolved.distribution = "graalvm-community"
+                artifact.catalog = "builtin:java-graalvm-community-21-native-image"
+                layout.javaHome = "Contents/Home"
+                layout.executables.java = "bin/java"
+                layout.executables.javac = "bin/javac"
+                layout.executables.jar = "bin/jar"
+                layout.executables.nativeImage = "lib/svm/bin/native-image"
+                """;
     }
 }

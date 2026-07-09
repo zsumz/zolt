@@ -11,6 +11,7 @@ members = [
     "modules/zolt-build",
     "modules/zolt-test-runtime",
     "modules/zolt-native-image",
+    "modules/zolt-toolchain",
     "modules/zolt-workspace",
     "modules/zolt-ide",
     "modules/zolt-quarkus",
@@ -31,3 +32,9 @@ defaultMembers = ["apps/zolt"]
 
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
+
+[toolchain.java]
+version = "21"
+distribution = "graalvm-community"
+features = ["native-image"]
+policy = "require-managed"

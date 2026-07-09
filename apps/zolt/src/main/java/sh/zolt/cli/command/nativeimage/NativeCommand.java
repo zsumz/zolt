@@ -19,16 +19,22 @@ import sh.zolt.cli.command.CommandLockfiles;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.command.CommandServiceBundles.CommandNativeServices;
 import sh.zolt.cli.command.CommandWorkspaceSelections;
+import sh.zolt.cli.command.toolchain.CommandJavaToolchainJdkChecker;
 import sh.zolt.cli.console.ProgressWriter;
+import sh.zolt.error.ActionableException;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectVersionOverride;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
+import sh.zolt.toolchain.JavaToolchainExecutionService;
+import sh.zolt.toolchain.platform.HostPlatform;
+import sh.zolt.toolchain.store.ToolchainStore;
 import sh.zolt.workspace.WorkspaceConfigException;
 import sh.zolt.workspace.packaging.WorkspaceNativeBuildResult;
 import sh.zolt.workspace.packaging.WorkspaceNativeBuildService;
+import sh.zolt.workspace.service.WorkspaceJdkCheckerResolver;
 import java.nio.file.Path;
 import java.util.List;
 import picocli.CommandLine.Command;
@@ -45,9 +51,16 @@ public final class NativeCommand implements Runnable {
     private final NativeBuildService nativeBuildService;
     private final WorkspaceNativeBuildService workspaceNativeBuildService;
     private final CommandLockfiles lockfiles;
+    private final JavaToolchainExecutionService toolchains;
 
     @Option(names = "--native-image", description = "Path to the native-image executable.")
     private Path nativeImageExecutable;
+
+    @Option(names = "--toolchain-target", hidden = true)
+    private String toolchainTarget;
+
+    @Option(names = "--toolchain-install-root", hidden = true)
+    private Path toolchainInstallRoot;
 
     @Option(names = "--workspace", description = "Build native binaries for selected workspace members.")
     private boolean workspace;
@@ -79,18 +92,21 @@ public final class NativeCommand implements Runnable {
                 services.tomlParser(),
                 services.nativeBuildService(),
                 services.workspaceNativeBuildService(),
-                new CommandLockfiles());
+                new CommandLockfiles(),
+                new JavaToolchainExecutionService());
     }
 
     NativeCommand(
             ZoltTomlParser tomlParser,
             NativeBuildService nativeBuildService,
             WorkspaceNativeBuildService workspaceNativeBuildService,
-            CommandLockfiles lockfiles) {
+            CommandLockfiles lockfiles,
+            JavaToolchainExecutionService toolchains) {
         this.tomlParser = tomlParser;
         this.nativeBuildService = nativeBuildService;
         this.workspaceNativeBuildService = workspaceNativeBuildService;
         this.lockfiles = lockfiles;
+        this.toolchains = toolchains;
     }
 
     @Override
@@ -99,13 +115,15 @@ public final class NativeCommand implements Runnable {
         Path projectRoot = projectDirectory.path();
         try {
             if (workspace) {
+                WorkspaceNativeBuildService projectWorkspaceNativeBuildService =
+                        workspaceNativeBuildService.withJdkCheckers(workspaceJdkCheckers());
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, false);
                 progress.start("Building workspace native images");
-                WorkspaceNativeBuildResult result = workspaceNativeBuildService.buildNative(
+                WorkspaceNativeBuildResult result = projectWorkspaceNativeBuildService.buildNative(
                         projectRoot,
                         cacheRoot,
                         CommandWorkspaceSelections.from(all, members, memberGroups),
-                        nativeImageExecutable,
+                        workspaceNativeImageResolver(),
                         nativeImageProgress(progress));
                 CommandHumanOutput output = CommandHumanOutput.of(spec);
                 if (result.resolvedLockfile()) {
@@ -131,7 +149,7 @@ public final class NativeCommand implements Runnable {
                     projectRoot,
                     config,
                     cacheRoot,
-                    nativeImageExecutable,
+                    resolvedNativeImage(projectRoot, config),
                     nativeImageProgress(progress));
             CommandHumanOutput output = CommandHumanOutput.of(spec);
             if (result.packageResult().buildResult().resolvedLockfile()) {
@@ -151,12 +169,48 @@ public final class NativeCommand implements Runnable {
                 | PackageException
                 | ResourceCopyException
                 | SourceDiscoveryException
+                | ActionableException
                 | LockfileReadException
                 | ResolveException
                 | WorkspaceConfigException
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private Path resolvedNativeImage(Path projectRoot, ProjectConfig config) {
+        if (nativeImageExecutable != null) {
+            return nativeImageExecutable;
+        }
+        return toolchains.nativeImage(
+                        projectRoot,
+                        config,
+                        HostPlatform.parse(toolchainTarget),
+                        new ToolchainStore(toolchainInstallRoot))
+                .orElse(null);
+    }
+
+    private WorkspaceNativeBuildService.NativeImageExecutableResolver workspaceNativeImageResolver() {
+        if (nativeImageExecutable != null) {
+            return WorkspaceNativeBuildService.NativeImageExecutableResolver.fixed(nativeImageExecutable);
+        }
+        return (workspace, member, config) -> toolchains.nativeImage(
+                        member.directory(),
+                        workspace.root(),
+                        config,
+                        HostPlatform.parse(toolchainTarget),
+                        new ToolchainStore(toolchainInstallRoot))
+                .orElse(null);
+    }
+
+    private WorkspaceJdkCheckerResolver workspaceJdkCheckers() {
+        return (workspace, member) -> CommandJavaToolchainJdkChecker.forCommand(
+                member.directory(),
+                workspace.root(),
+                member.config(),
+                toolchainTarget,
+                toolchainInstallRoot,
+                "native");
     }
 
     private void printSpringBootAotEvidence(NativeBuildResult result, String suffix) {

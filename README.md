@@ -72,6 +72,8 @@ single native binary
 fast startup
 Cargo-like project workflow
 reproducible lockfile
+managed Java and GraalVM toolchains
+opt-in Java command shims
 dependency editing and BOM imports
 version aliases, scopes, exclusions, and constraints
 workspace builds

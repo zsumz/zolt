@@ -5,9 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.project.toolchain.JavaDistribution;
+import sh.zolt.project.toolchain.JavaFeature;
+import sh.zolt.project.toolchain.ToolchainPolicy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -51,6 +55,12 @@ final class UserGlobalConfigParserTest {
                 kind = "maven-local"
                 enabled = true
 
+                [defaults.toolchain.java]
+                version = "21"
+                distribution = "graalvm-community"
+                features = ["native-image"]
+                policy = "require-managed"
+
                 [ui]
                 color = "never"
                 progress = "always"
@@ -63,6 +73,13 @@ final class UserGlobalConfigParserTest {
         assertEquals("serial", config.repository().executionLane());
         assertTrue(config.repositoryOverlays().get("mavenLocal").enabled());
         assertEquals("maven-local", config.repositoryOverlays().get("mavenLocal").kind());
+        assertTrue(config.toolchainDefaults().java().isPresent());
+        assertEquals("21", config.toolchainDefaults().java().orElseThrow().version());
+        assertEquals(
+                JavaDistribution.GRAALVM_COMMUNITY,
+                config.toolchainDefaults().java().orElseThrow().distribution().orElseThrow());
+        assertEquals(Set.of(JavaFeature.NATIVE_IMAGE), config.toolchainDefaults().java().orElseThrow().features());
+        assertEquals(ToolchainPolicy.REQUIRE_MANAGED, config.toolchainDefaults().java().orElseThrow().policy());
         assertEquals("never", config.ui().color());
         assertEquals("always", config.ui().progress());
         assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().cacheRoot());
@@ -74,6 +91,7 @@ final class UserGlobalConfigParserTest {
         assertEquals(
                 UserGlobalConfigSources.USER_GLOBAL_CONFIG,
                 config.sources().repositoryOverlays().get("mavenLocal").enabled());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().javaToolchainDefault());
         assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().uiColor());
         assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().uiProgress());
     }
@@ -100,8 +118,54 @@ final class UserGlobalConfigParserTest {
         assertEquals(
                 UserGlobalConfigSources.USER_GLOBAL_CONFIG,
                 config.sources().repositoryOverlays().get("mavenLocal").enabled());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().javaToolchainDefault());
         assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().uiColor());
         assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().uiProgress());
+    }
+
+    @Test
+    void editsGlobalJavaToolchainDefaultWithoutDroppingOtherSettings() throws IOException {
+        Path configPath = tempDir.resolve("config.toml");
+        Files.writeString(configPath, """
+                version = 1
+
+                [cache]
+                root = "cache"
+                """);
+
+        new UserGlobalConfigEditor().setJavaToolchainDefault(
+                configPath,
+                new sh.zolt.project.toolchain.JavaToolchainRequest(
+                        "21",
+                        JavaDistribution.TEMURIN,
+                        Set.of(),
+                        ToolchainPolicy.PREFER_MANAGED));
+
+        String content = Files.readString(configPath);
+        assertTrue(content.contains("[cache]"));
+        assertTrue(content.contains("[defaults.toolchain.java]"));
+        assertTrue(content.contains("distribution = \"temurin\""));
+        UserGlobalConfig parsed = new UserGlobalConfigParser().read(configPath);
+        assertEquals("21", parsed.toolchainDefaults().java().orElseThrow().version());
+    }
+
+    @Test
+    void unsetsGlobalJavaToolchainDefault() throws IOException {
+        Path configPath = tempDir.resolve("config.toml");
+        Files.writeString(configPath, """
+                version = 1
+
+                [defaults.toolchain.java]
+                version = "21"
+                distribution = "temurin"
+                features = []
+                """);
+
+        new UserGlobalConfigEditor().unsetJavaToolchainDefault(configPath);
+
+        String content = Files.readString(configPath);
+        assertFalse(content.contains("[defaults.toolchain.java]"));
+        assertTrue(new UserGlobalConfigParser().read(configPath).toolchainDefaults().java().isEmpty());
     }
 
     @Test

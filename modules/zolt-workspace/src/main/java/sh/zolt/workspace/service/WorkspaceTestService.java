@@ -21,7 +21,7 @@ import java.util.Optional;
 
 public final class WorkspaceTestService {
     private final WorkspaceBuildService workspaceBuildService;
-    private final TestRunService testRunService;
+    private final WorkspaceTestRunServiceResolver testRunServices;
 
     public WorkspaceTestService() {
         this(new JdkDetector());
@@ -48,7 +48,22 @@ public final class WorkspaceTestService {
             WorkspaceBuildService workspaceBuildService,
             TestRunService testRunService) {
         this.workspaceBuildService = workspaceBuildService;
-        this.testRunService = testRunService;
+        this.testRunServices = WorkspaceTestRunServiceResolver.fixed(testRunService);
+    }
+
+    private WorkspaceTestService(
+            WorkspaceBuildService workspaceBuildService,
+            WorkspaceTestRunServiceResolver testRunServices) {
+        this.workspaceBuildService = workspaceBuildService;
+        this.testRunServices = testRunServices;
+    }
+
+    public WorkspaceTestService withMemberServices(
+            WorkspaceJdkCheckerResolver jdkCheckers,
+            WorkspaceTestRunServiceResolver testRunServices) {
+        return new WorkspaceTestService(
+                workspaceBuildService.withJdkCheckers(jdkCheckers),
+                testRunServices);
     }
 
     public WorkspaceTestResult test(Path startDirectory, Path cacheRoot) {
@@ -200,6 +215,7 @@ public final class WorkspaceTestService {
         for (String memberPath : selection.selectedMembers()) {
             WorkspaceMember member = membersByPath.get(memberPath);
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
+            TestRunService testRunService = testRunServices.forMember(workspace, member);
             results.add(new WorkspaceTestResult.MemberTestRunResult(
                     member.path(),
                     testRunService.runCompiledTests(
@@ -254,6 +270,7 @@ public final class WorkspaceTestService {
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPath);
             sh.zolt.project.ProjectConfig integrationConfig = member.config()
                     .withBuildSettings(member.config().build().asIntegrationTestBuild());
+            TestRunService testRunService = testRunServices.forMember(workspace, member);
             results.add(new WorkspaceTestResult.MemberTestRunResult(
                     member.path(),
                     testRunService.runTests(

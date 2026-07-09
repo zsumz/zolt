@@ -14,6 +14,7 @@ import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
 import sh.zolt.workspace.service.WorkspaceBuildResult;
 import sh.zolt.workspace.service.WorkspaceBuildService;
+import sh.zolt.workspace.service.WorkspaceJdkCheckerResolver;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.service.WorkspaceSelection;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
@@ -86,6 +87,12 @@ public final class WorkspacePackageService {
             PackageService packageService) {
         this.workspaceBuildService = workspaceBuildService;
         this.packageService = packageService;
+    }
+
+    public WorkspacePackageService withJdkCheckers(WorkspaceJdkCheckerResolver jdkCheckers) {
+        return new WorkspacePackageService(
+                workspaceBuildService.withJdkCheckers(jdkCheckers),
+                packageService);
     }
 
     public WorkspacePackageResult packageJars(

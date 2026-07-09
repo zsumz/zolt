@@ -8,6 +8,7 @@ public record UserGlobalConfigSources(
         String repositoryDownloadConcurrency,
         String repositoryExecutionLane,
         Map<String, RepositoryOverlayConfigSource> repositoryOverlays,
+        String javaToolchainDefault,
         String uiColor,
         String uiProgress) {
     public static final String BUILT_IN_DEFAULT = "built-in default";
@@ -24,6 +25,7 @@ public record UserGlobalConfigSources(
                 BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT,
                 Map.of("mavenLocal", RepositoryOverlayConfigSource.defaults()),
+                BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT);
     }

@@ -92,6 +92,9 @@ public final class ConfigCommand implements Runnable {
                         "repositoryOverlays." + overlay.id() + ".enabled",
                         overlay.enabled() + " (source: " + source.enabled() + ")");
             }
+            output.context(
+                    "defaults.toolchain.java",
+                    javaToolchain(config) + " (source: " + config.sources().javaToolchainDefault() + ")");
             output.context("ui.color", config.ui().color() + " (source: " + config.sources().uiColor() + ")");
             output.context("ui.progress", config.ui().progress() + " (source: " + config.sources().uiProgress() + ")");
             output.context("local overlay CI policy", "reject with --no-local-overlays or zolt check --context ci");
@@ -106,6 +109,19 @@ public final class ConfigCommand implements Runnable {
 
         private static boolean isDefaultConfigPath(Path path) {
             return path.toAbsolutePath().normalize().equals(defaultConfigPath());
+        }
+
+        private static String javaToolchain(UserGlobalConfig config) {
+            return config.toolchainDefaults().java()
+                    .map(request -> request.distributionLabel()
+                            + " "
+                            + request.version()
+                            + " (features: "
+                            + request.featuresLabel()
+                            + ", policy: "
+                            + request.policy().id()
+                            + ")")
+                    .orElse("none");
         }
     }
 }

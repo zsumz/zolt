@@ -52,10 +52,25 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   fi
 done < "$RUNTIME_CLASSPATH_FILE"
 
+RUN_JAR_PATH="$JAR_PATH"
+TEMP_RUN_DIR=""
+cleanup() {
+  if [[ -n "$TEMP_RUN_DIR" ]]; then
+    rm -rf "$TEMP_RUN_DIR"
+  fi
+}
+trap cleanup EXIT
+
+if [[ "${ZOLT_RUN_BUILT_IN_PLACE:-}" != "1" ]]; then
+  TEMP_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/zolt-run-built.XXXXXX")"
+  RUN_JAR_PATH="$TEMP_RUN_DIR/$(basename "$JAR_PATH")"
+  cp "$JAR_PATH" "$RUN_JAR_PATH"
+fi
+
 if [[ -n "$runtime_cp" ]]; then
-  classpath="${JAR_PATH}:${runtime_cp}"
+  classpath="${RUN_JAR_PATH}:${runtime_cp}"
 else
-  classpath="$JAR_PATH"
+  classpath="$RUN_JAR_PATH"
 fi
 
 if [[ -z "$WORKER_JAR_PATH" ]]; then
@@ -81,7 +96,7 @@ if [[ -n "$WORKER_JAR_PATH" ]]; then
 fi
 
 if [[ "${#java_opts[@]}" -gt 0 ]]; then
-  exec java "${java_opts[@]}" -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
+  java "${java_opts[@]}" -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
 else
-  exec java -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
+  java -cp "$classpath" sh.zolt.cli.ZoltCli "$@"
 fi

@@ -13,7 +13,13 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class UserGlobalConfigParser {
-    private static final Set<String> TOP_LEVEL_KEYS = Set.of("version", "cache", "repository", "repositoryOverlays", "ui");
+    private static final Set<String> TOP_LEVEL_KEYS = Set.of(
+            "version",
+            "cache",
+            "repository",
+            "repositoryOverlays",
+            "defaults",
+            "ui");
     private static final Set<String> REJECTED_TOP_LEVEL_KEYS = Set.of(
             "repositories",
             "repositoryCredentials",
@@ -67,9 +73,11 @@ public final class UserGlobalConfigParser {
         Path cacheRoot = cacheRoot(optionalTable(result, "cache"), normalizedPath, defaults.cacheRoot());
         RepositoryExecutionConfig repository = repository(optionalTable(result, "repository"), defaults.repository());
         Map<String, RepositoryOverlayConfig> overlays = repositoryOverlays(optionalTable(result, "repositoryOverlays"), defaults.repositoryOverlays());
+        UserGlobalToolchainDefaults toolchainDefaults =
+                UserGlobalToolchainDefaultsParser.parse(optionalTable(result, "defaults"));
         UiConfig ui = ui(optionalTable(result, "ui"), defaults.ui());
         UserGlobalConfigSources sources = sources(result, defaults.sources());
-        return new UserGlobalConfig(version, normalizedPath, cacheRoot, repository, overlays, ui, sources);
+        return new UserGlobalConfig(version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, sources);
     }
 
     static Path expandUserHome(Path path) {
@@ -157,6 +165,7 @@ public final class UserGlobalConfigParser {
         TomlTable cacheTable = optionalTable(result, "cache");
         TomlTable repositoryTable = optionalTable(result, "repository");
         TomlTable overlaysTable = optionalTable(result, "repositoryOverlays");
+        TomlTable defaultsTable = optionalTable(result, "defaults");
         TomlTable uiTable = optionalTable(result, "ui");
         return new UserGlobalConfigSources(
                 UserGlobalConfigSources.USER_GLOBAL_CONFIG,
@@ -164,6 +173,7 @@ public final class UserGlobalConfigParser {
                 source(repositoryTable, "downloadConcurrency"),
                 source(repositoryTable, "executionLane"),
                 overlaySources(overlaysTable, defaults.repositoryOverlays()),
+                UserGlobalToolchainDefaultsParser.source(defaultsTable),
                 source(uiTable, "color"),
                 source(uiTable, "progress"));
     }

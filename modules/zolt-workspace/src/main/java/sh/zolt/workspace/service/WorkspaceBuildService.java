@@ -30,6 +30,7 @@ public final class WorkspaceBuildService {
     private final ZoltLockfileReader lockfileReader;
     private final WorkspaceClasspathService workspaceClasspathService;
     private final BuildService buildService;
+    private final WorkspaceJdkCheckerResolver jdkCheckers;
     private final WorkspaceMemberSelector memberSelector;
 
     public WorkspaceBuildService() {
@@ -62,6 +63,7 @@ public final class WorkspaceBuildService {
                 new ZoltLockfileReader(),
                 new WorkspaceClasspathService(),
                 new BuildService(jdkDetector, resolveService, provenanceSource),
+                WorkspaceJdkCheckerResolver.fixed(jdkDetector),
                 new WorkspaceMemberSelector());
     }
 
@@ -71,13 +73,26 @@ public final class WorkspaceBuildService {
             ZoltLockfileReader lockfileReader,
             WorkspaceClasspathService workspaceClasspathService,
             BuildService buildService,
+            WorkspaceJdkCheckerResolver jdkCheckers,
             WorkspaceMemberSelector memberSelector) {
         this.workspaceDiscoveryService = workspaceDiscoveryService;
         this.workspaceResolveService = workspaceResolveService;
         this.lockfileReader = lockfileReader;
         this.workspaceClasspathService = workspaceClasspathService;
         this.buildService = buildService;
+        this.jdkCheckers = jdkCheckers;
         this.memberSelector = memberSelector;
+    }
+
+    public WorkspaceBuildService withJdkCheckers(WorkspaceJdkCheckerResolver jdkCheckers) {
+        return new WorkspaceBuildService(
+                workspaceDiscoveryService,
+                workspaceResolveService,
+                lockfileReader,
+                workspaceClasspathService,
+                buildService,
+                jdkCheckers,
+                memberSelector);
     }
 
     public WorkspaceBuildResult build(Path startDirectory, Path cacheRoot, boolean offline) {
@@ -151,7 +166,10 @@ public final class WorkspaceBuildService {
             try {
                 results.add(new WorkspaceBuildResult.MemberBuildResult(
                         member.path(),
-                        buildService.build(member.directory(), member.config(), classpaths),
+                        buildService.withJdkChecker(jdkCheckers.forMember(workspace, member)).build(
+                                member.directory(),
+                                member.config(),
+                                classpaths),
                         classpaths,
                         classpathPackagesByMember.get(member.path())));
             } catch (JavacException exception) {

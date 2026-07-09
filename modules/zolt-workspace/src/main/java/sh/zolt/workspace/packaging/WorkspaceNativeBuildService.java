@@ -13,6 +13,7 @@ import sh.zolt.resolve.ResolveService;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceBuildPlan;
 import sh.zolt.workspace.service.WorkspaceBuildResult;
+import sh.zolt.workspace.service.WorkspaceJdkCheckerResolver;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.nio.file.Path;
@@ -58,6 +59,12 @@ public final class WorkspaceNativeBuildService {
         this.nativeBuildService = nativeBuildService;
     }
 
+    public WorkspaceNativeBuildService withJdkCheckers(WorkspaceJdkCheckerResolver jdkCheckers) {
+        return new WorkspaceNativeBuildService(
+                workspacePackageService.withJdkCheckers(jdkCheckers),
+                nativeBuildService);
+    }
+
     public WorkspaceNativeBuildResult buildNative(
             Path startDirectory,
             Path cacheRoot,
@@ -78,10 +85,24 @@ public final class WorkspaceNativeBuildService {
             WorkspaceSelectionRequest selectionRequest,
             Path nativeImageExecutable,
             Runnable progress) {
+        return buildNative(
+                startDirectory,
+                cacheRoot,
+                selectionRequest,
+                NativeImageExecutableResolver.fixed(nativeImageExecutable),
+                progress);
+    }
+
+    public WorkspaceNativeBuildResult buildNative(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            NativeImageExecutableResolver nativeImageExecutableResolver,
+            Runnable progress) {
         WorkspaceBuildPlan plan = planNative(startDirectory, cacheRoot, selectionRequest);
         WorkspaceBuildResult buildResult = buildNativeInputs(plan, cacheRoot);
         WorkspacePackageResult packageResult = packageNativeInputs(plan, buildResult);
-        return buildNativeImages(plan, packageResult, nativeImageExecutable, progress);
+        return buildNativeImages(plan, packageResult, nativeImageExecutableResolver, progress);
     }
 
     public WorkspaceBuildPlan planNative(
@@ -117,6 +138,18 @@ public final class WorkspaceNativeBuildService {
             WorkspacePackageResult packageResult,
             Path nativeImageExecutable,
             Runnable progress) {
+        return buildNativeImages(
+                plan,
+                packageResult,
+                NativeImageExecutableResolver.fixed(nativeImageExecutable),
+                progress);
+    }
+
+    public WorkspaceNativeBuildResult buildNativeImages(
+            WorkspaceBuildPlan plan,
+            WorkspacePackageResult packageResult,
+            NativeImageExecutableResolver nativeImageExecutableResolver,
+            Runnable progress) {
         Map<String, WorkspaceMember> membersByPath = membersByPath(plan.workspace());
         Map<String, WorkspaceBuildResult.MemberBuildResult> buildsByPath = buildsByPath(packageResult);
         List<WorkspaceNativeBuildResult.MemberNativeBuildResult> results = new ArrayList<>();
@@ -125,6 +158,7 @@ public final class WorkspaceNativeBuildService {
             WorkspaceBuildResult.MemberBuildResult memberBuild = buildsByPath.get(memberPackage.member());
             requireMainClass(member);
             ProjectConfig config = ProjectVersionOverride.apply(member.config());
+            Path nativeImageExecutable = nativeImageExecutableResolver.resolve(plan.workspace(), member, config);
             NativeBuildResult result = nativeBuildService.buildNativeImage(
                     member.directory(),
                     config,
@@ -138,6 +172,15 @@ public final class WorkspaceNativeBuildService {
                 packageResult.resolveResult(),
                 packageResult.builtMembers(),
                 results);
+    }
+
+    @FunctionalInterface
+    public interface NativeImageExecutableResolver {
+        Path resolve(Workspace workspace, WorkspaceMember member, ProjectConfig config);
+
+        static NativeImageExecutableResolver fixed(Path executable) {
+            return (workspace, member, config) -> executable;
+        }
     }
 
     private static void requireMainClass(WorkspaceMember member) {

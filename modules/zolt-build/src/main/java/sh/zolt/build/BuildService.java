@@ -37,6 +37,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public final class BuildService {
+    private final BuildServiceDependencies dependencies;
     private final ResolveService resolveService;
     private final ZoltLockfileReader lockfileReader;
     private final ClasspathBuilder classpathBuilder;
@@ -79,6 +80,7 @@ public final class BuildService {
     }
 
     BuildService(BuildServiceDependencies dependencies) {
+        this.dependencies = dependencies;
         this.resolveService = dependencies.resolveService();
         this.lockfileReader = dependencies.lockfileReader();
         this.classpathBuilder = dependencies.classpathBuilder();
@@ -92,6 +94,11 @@ public final class BuildService {
         this.springBootAotGenerationService = dependencies.springBootAotGenerationService();
         this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = dependencies.sourceExecutor();
+    }
+
+    public BuildService withJdkChecker(JdkChecker jdkChecker) {
+        Objects.requireNonNull(jdkChecker, "jdkChecker");
+        return new BuildService(dependencies.withJdkChecker(jdkChecker));
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, Path cacheRoot) {
