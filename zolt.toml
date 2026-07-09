@@ -37,4 +37,4 @@ central = "https://repo.maven.apache.org/maven2"
 version = "21"
 distribution = "graalvm-community"
 features = ["native-image"]
-policy = "prefer-managed"
+policy = "require-managed"
