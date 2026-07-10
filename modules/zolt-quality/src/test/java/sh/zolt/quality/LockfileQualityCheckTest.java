@@ -181,7 +181,7 @@ final class LockfileQualityCheckTest extends QualityCheckServiceTestSupport {
         assertEquals(QualityCheckService.CACHE_INTEGRITY, result.id());
         assertEquals(QualityCheckStatus.FAILED, result.status());
         assertEquals("zolt.lock", result.subject());
-        assertTrue(result.message().contains("Unsupported zolt.lock version 99."));
+        assertTrue(result.message().contains("zolt.lock version 99 is newer than this Zolt supports"));
         assertEquals("Run `zolt resolve` to regenerate zolt.lock.", result.nextStep());
     }
 

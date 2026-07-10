@@ -66,7 +66,8 @@ final class ExecutionContextQualityCheckTest {
         assertEquals(QualityCheckService.EXECUTION_CONTEXT, result.id());
         assertEquals(QualityCheckStatus.FAILED, result.status());
         assertEquals("zolt.lock", result.subject());
-        org.junit.jupiter.api.Assertions.assertTrue(result.message().contains("Unsupported zolt.lock version 99."));
+        org.junit.jupiter.api.Assertions.assertTrue(result.message().contains(
+                "zolt.lock version 99 is newer than this Zolt supports"));
         assertEquals("Run `zolt resolve`, commit zolt.lock, then rerun `zolt check --context ci`.", result.nextStep());
     }
 
