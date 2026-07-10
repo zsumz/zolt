@@ -1,0 +1,110 @@
+{
+  "root": "software.amazon.awssdk:s3:2.29.45",
+  "maven_count": 46,
+  "zolt_count": 30,
+  "zolt_conflicts": [],
+  "zolt_policies": [],
+  "diffs": [
+    {
+      "package": "commons-codec:commons-codec",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "1.17.1",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "commons-logging:commons-logging",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "1.2",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-buffer",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-codec",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-codec-http",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-codec-http2",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-common",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-handler",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-resolver",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-transport",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-transport-classes-epoll",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "io.netty:netty-transport-native-unix-common",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.1.115.Final",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "org.apache.httpcomponents:httpclient",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.5.13",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "org.apache.httpcomponents:httpcore",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "4.4.16",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "software.amazon.awssdk:apache-client",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "2.29.45",
+      "maven_scope": "runtime"
+    },
+    {
+      "package": "software.amazon.awssdk:netty-nio-client",
+      "class": "only-maven/INVESTIGATE",
+      "maven": "2.29.45",
+      "maven_scope": "runtime"
+    }
+  ],
+  "counts": {
+    "only-maven/INVESTIGATE": 16,
+    "match": 30
+  },
+  "verdict": "16 divergences"
+}

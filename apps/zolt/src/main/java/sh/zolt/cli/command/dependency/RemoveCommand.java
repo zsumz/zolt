@@ -92,6 +92,7 @@ public final class RemoveCommand implements Runnable {
                 return;
             }
             ProjectConfig updated = tomlWriter.removeDependency(config, request.section(), request.coordinate());
+            DependencyEditCommentWarning.printIfNeeded(output, configPath);
             tomlWriter.write(configPath, updated);
             output.summary("Removed dependency " + request.coordinate() + " from [" + section + "]");
             CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));

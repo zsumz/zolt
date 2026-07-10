@@ -94,8 +94,9 @@ public final class AddCommand implements Runnable {
             Path configPath = projectRoot.resolve("zolt.toml");
             ProjectConfig config = tomlParser.parse(configPath);
             ProjectConfig updated = updateConfig(config, request);
-            tomlWriter.write(configPath, updated);
             CommandHumanOutput output = CommandHumanOutput.of(spec);
+            DependencyEditCommentWarning.printIfNeeded(output, configPath);
+            tomlWriter.write(configPath, updated);
             printAddSummary(output, config, request);
             if (noResolve) {
                 output.detail("Skipped resolve; run zolt resolve to refresh zolt.lock.");

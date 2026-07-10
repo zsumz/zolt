@@ -2,6 +2,7 @@ package sh.zolt.maven.repository;
 
 import static sh.zolt.maven.repository.PomDependencyManagerTestSupport.effective;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,73 @@ final class PomDependencyManagerTest {
         RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
 
         assertEquals("2.0.16", dependency.version().orElseThrow());
+    }
+
+    @Test
+    void unusedManagedEntryWithUnresolvedVersionDoesNotFail() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.16</version>
+                      </dependency>
+                      <dependency>
+                        <groupId>org.apache.hbase</groupId>
+                        <artifactId>hbase-client</artifactId>
+                        <version>${hbase.version}</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals("2.0.16", dependency.version().orElseThrow());
+    }
+
+    @Test
+    void usedManagedEntryWithUnresolvedVersionStillFails() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.apache.hbase</groupId>
+                        <artifactId>hbase-client</artifactId>
+                        <version>${hbase.version}</version>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.apache.hbase</groupId>
+                      <artifactId>hbase-client</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        PomInterpolationException exception = assertThrows(
+                PomInterpolationException.class,
+                () -> manager.applyManagedVersions(pom));
+
+        assertTrue(exception.getMessage().contains("${hbase.version}"));
     }
 
     @Test

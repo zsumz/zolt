@@ -166,12 +166,27 @@ public final class ZoltLockfileWriter {
     }
 
     private static String quote(String value) {
-        return "\"" + value
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t")
-                + "\"";
+        StringBuilder quoted = new StringBuilder(value.length() + 2);
+        quoted.append('"');
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '\\' -> quoted.append("\\\\");
+                case '"' -> quoted.append("\\\"");
+                case '\b' -> quoted.append("\\b");
+                case '\t' -> quoted.append("\\t");
+                case '\n' -> quoted.append("\\n");
+                case '\f' -> quoted.append("\\f");
+                case '\r' -> quoted.append("\\r");
+                default -> {
+                    if (character < 0x20 || character == 0x7F) {
+                        quoted.append("\\u%04X".formatted((int) character));
+                    } else {
+                        quoted.append(character);
+                    }
+                }
+            }
+        }
+        return quoted.append('"').toString();
     }
 }

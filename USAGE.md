@@ -230,6 +230,35 @@ exclude = [
 "org.apache.tomcat.embed:tomcat-embed-core" = { version = "11.0.21", kind = "strict", reason = "Servlet baseline" }
 ```
 
+## Resolution and Lockfile Contracts
+
+Zolt deliberately documents the parts of resolution that Maven leaves
+ambient or historically shaped:
+
+- Version conflicts use direct-preference plus newest-wins mediation, not
+  Maven nearest-wins. Every mediation is recorded in `zolt.lock` as a
+  `[[conflict]]` entry.
+- Dynamic versions, version ranges, external SNAPSHOT dependencies, system
+  scope, and uninterpolated `${...}` versions at point of use are rejected
+  instead of resolved dynamically.
+- Repositories are tried in alphabetical order of repository id because TOML
+  table order is not a contract. The `source` recorded in `zolt.lock` makes
+  the selected repository id part of the lockfile contract.
+- Integrity is lockfile-pinned. Zolt records the SHA-256 of each fetched POM
+  and JAR and verifies cached/build inputs against those lockfile hashes.
+  Repository checksum sidecars are not fetched; the first download trusts the
+  repository TLS channel.
+- `zolt.lock` version 1 is deterministic: no timestamps, no absolute paths,
+  stable ordering, and LF line endings. Older lockfile versions should be
+  regenerated with the current Zolt; newer lockfile versions require a newer
+  Zolt before `zolt resolve --locked` can verify them.
+- `zolt add`, `zolt remove`, and `zolt platform` rewrite `zolt.toml`. They
+  warn before rewriting a file that contains comments because comments and
+  custom formatting may be removed.
+- `[publish]` is active project configuration for `zolt publish --dry-run`
+  and uploads, and can reference `[repositoryCredentials]` entries for
+  authenticated repositories.
+
 ## Java Toolchains
 
 Zolt can run `java`, `javac`, `jar`, and GraalVM `native-image` from a concrete

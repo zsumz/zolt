@@ -139,6 +139,58 @@ final class ParentPomResolverTest {
     }
 
     @Test
+    void childDependenciesOverrideParentDependenciesByKey() {
+        MapBackedSource source = new MapBackedSource();
+        source.put("com.example:parent:1.0.0", pom("""
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>parent</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>runtime-client</artifactId>
+                      <version>2.0.0</version>
+                      <scope>runtime</scope>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """));
+        RawPom child = pom("""
+                <project>
+                  <parent>
+                    <groupId>com.example</groupId>
+                    <artifactId>parent</artifactId>
+                    <version>1.0.0</version>
+                  </parent>
+                  <artifactId>app</artifactId>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>runtime-client</artifactId>
+                      <version>1.0.0</version>
+                      <scope>runtime</scope>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>com.example</groupId>
+                          <artifactId>legacy-helper</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        EffectiveRawPom effective = new ParentPomResolver(source).resolve(child);
+
+        assertEquals(1, effective.dependencies().size());
+        RawPomDependency dependency = effective.dependencies().getFirst();
+        assertEquals("runtime-client", dependency.artifactId());
+        assertEquals("1.0.0", dependency.version().orElseThrow());
+        assertEquals(List.of(new RawPomExclusion("com.example", "legacy-helper")), dependency.exclusions());
+    }
+
+    @Test
     void loadsMultiLevelParentChainRootFirst() {
         MapBackedSource source = new MapBackedSource();
         source.put("com.example:parent:1.0.0", pom("""

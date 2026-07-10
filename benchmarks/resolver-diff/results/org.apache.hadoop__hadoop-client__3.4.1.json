@@ -1,0 +1,6 @@
+{
+  "root": "org.apache.hadoop:hadoop-client:3.4.1",
+  "maven_count": 117,
+  "verdict": "zolt-hard-fail/intended-no-uninterpolated-versions",
+  "zolt_error": "zolt add exit 1: error: Unresolved POM property `${hbase.version}` while processing org.apache.hadoop:hadoop-client:3.4.1. Define the property or declare the value explicitly.\n"
+}

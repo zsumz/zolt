@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import  sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.lockfile.ZoltLockfile;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -71,13 +71,24 @@ final class ZoltLockfileReaderTest {
     }
 
     @Test
-    void rejectsUnsupportedLockfileVersion() {
+    void rejectsNewerLockfileVersionWithUpgradeHint() {
         LockfileReadException exception = assertThrows(
                 LockfileReadException.class,
                 () -> reader.read("version = 99\n"));
 
         assertEquals(
-                "Unsupported zolt.lock version 99. Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.",
+                "zolt.lock version 99 is newer than this Zolt supports (current 1). Upgrade Zolt, then run `zolt resolve --locked` to verify the lockfile.",
+                exception.getMessage());
+    }
+
+    @Test
+    void rejectsOlderLockfileVersionWithRegenerateHint() {
+        LockfileReadException exception = assertThrows(
+                LockfileReadException.class,
+                () -> reader.read("version = 0\n"));
+
+        assertEquals(
+                "zolt.lock version 0 is older than this Zolt supports (current 1). Run `zolt resolve` with this Zolt version to regenerate the lockfile.",
                 exception.getMessage());
     }
 
