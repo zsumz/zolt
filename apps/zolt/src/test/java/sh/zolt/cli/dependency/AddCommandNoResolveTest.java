@@ -38,6 +38,25 @@ final class AddCommandNoResolveTest {
     }
 
     @Test
+    void addWarnsBeforeRewritingCommentedManifest() throws IOException {
+        Path projectDir = tempDir.resolve("commented-demo");
+        writeProjectConfig(projectDir);
+        Path configPath = projectDir.resolve("zolt.toml");
+        Files.writeString(configPath, "# kept for humans\n" + Files.readString(configPath));
+
+        CommandResult result = execute(
+                "add",
+                "--directory", projectDir.toString(),
+                "--no-resolve",
+                "com.google.guava:guava:33.4.0-jre");
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "Warning: zolt.toml contains comments; this edit rewrites the file and may remove comments or formatting."));
+        assertFalse(Files.readString(configPath).contains("# kept for humans"));
+    }
+
+    @Test
     void addHumanOutputSupportsForcedColorAndQuietMode() throws IOException {
         Path colorProjectDir = tempDir.resolve("color-demo");
         writeProjectConfig(colorProjectDir);

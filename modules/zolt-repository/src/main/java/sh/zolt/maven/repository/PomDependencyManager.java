@@ -1,7 +1,5 @@
 package sh.zolt.maven.repository;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 
 public final class PomDependencyManager {
@@ -21,24 +19,29 @@ public final class PomDependencyManager {
             return interpolated;
         }
 
-        RawPomDependency managed = managedDependencies(pom).get(key(interpolated));
-        if (managed == null || managed.version().isEmpty()) {
+        Optional<RawPomDependency> managed = managedDependency(interpolated, pom);
+        if (managed.isEmpty()) {
+            return interpolated;
+        }
+
+        RawPomDependency managedDependency = managed.orElseThrow();
+        if (managedDependency.version().isEmpty()) {
             return interpolated;
         }
 
         return new RawPomDependency(
                 interpolated.groupId(),
                 interpolated.artifactId(),
-                managed.version(),
-                interpolated.scope().or(managed::scope),
-                interpolated.type().or(managed::type),
+                managedDependency.version(),
+                interpolated.scope().or(managedDependency::scope),
+                interpolated.type().or(managedDependency::type),
                 interpolated.classifier(),
                 interpolated.optional(),
                 interpolated.exclusions());
     }
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {
-        return pom.rawPom().dependencies().stream()
+        return pom.dependencies().stream()
                 .filter(PomDependencyManager::entersTransitiveGraphBeforeInterpolation)
                 .map(dependency -> applyManagedVersion(dependency, pom))
                 .filter(PomDependencyManager::entersTransitiveGraph)
@@ -62,21 +65,17 @@ public final class PomDependencyManager {
         return !"test".equals(scope) && !"provided".equals(scope);
     }
 
-    private Map<ManagedDependencyKey, RawPomDependency> managedDependencies(EffectiveRawPom pom) {
-        Map<ManagedDependencyKey, RawPomDependency> dependencies = new LinkedHashMap<>();
+    private Optional<RawPomDependency> managedDependency(RawPomDependency requested, EffectiveRawPom pom) {
+        ManagedDependencyKey requestedKey = key(requested);
+        RawPomDependency match = null;
         for (RawPomDependency dependency : pom.dependencyManagement()) {
-            RawPomDependency interpolated;
-            try {
-                interpolated = interpolator.interpolateDependency(dependency, pom);
-            } catch (PomInterpolationException exception) {
-                if (dependency.classifier().isPresent()) {
-                    continue;
-                }
-                throw exception;
+            Optional<ManagedDependencyKey> dependencyKey = managedDependencyKey(dependency, pom);
+            if (dependencyKey.isPresent() && dependencyKey.orElseThrow().equals(requestedKey)) {
+                match = dependency;
             }
-            dependencies.put(key(interpolated), interpolated);
         }
-        return dependencies;
+        return Optional.ofNullable(match)
+                .map(dependency -> interpolator.interpolateDependency(dependency, pom));
     }
 
     private ManagedDependencyKey key(RawPomDependency dependency) {
@@ -85,6 +84,20 @@ public final class PomDependencyManager {
                 dependency.artifactId(),
                 dependency.type().orElse("jar"),
                 dependency.classifier());
+    }
+
+    private Optional<ManagedDependencyKey> managedDependencyKey(RawPomDependency dependency, EffectiveRawPom pom) {
+        try {
+            return Optional.of(new ManagedDependencyKey(
+                    interpolator.interpolate(dependency.groupId(), pom),
+                    interpolator.interpolate(dependency.artifactId(), pom),
+                    dependency.type()
+                            .map(value -> interpolator.interpolate(value, pom))
+                            .orElse("jar"),
+                    dependency.classifier().map(value -> interpolator.interpolate(value, pom))));
+        } catch (PomInterpolationException exception) {
+            return Optional.empty();
+        }
     }
 
     private record ManagedDependencyKey(

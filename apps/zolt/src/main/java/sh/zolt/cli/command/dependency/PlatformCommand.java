@@ -110,8 +110,9 @@ public final class PlatformCommand implements Runnable {
                                 platform,
                                 request.versionRef(),
                                 request.version());
-                tomlWriter.write(configPath, updated);
                 CommandHumanOutput output = CommandHumanOutput.of(spec);
+                DependencyEditCommentWarning.printIfNeeded(output, configPath);
+                tomlWriter.write(configPath, updated);
                 printAddSummary(output, config, platform, request);
                 if (noResolve) {
                     output.detail("Skipped resolve; run zolt resolve to refresh zolt.lock.");
@@ -274,6 +275,7 @@ public final class PlatformCommand implements Runnable {
                     return;
                 }
                 ProjectConfig updated = tomlWriter.removePlatform(config, platform);
+                DependencyEditCommentWarning.printIfNeeded(output, configPath);
                 tomlWriter.write(configPath, updated);
                 output.summary("Removed platform " + platform + " from [platforms]");
                 CommandResolveOutput.print(spec, resolveService.resolve(projectRoot, updated, cacheRoot));

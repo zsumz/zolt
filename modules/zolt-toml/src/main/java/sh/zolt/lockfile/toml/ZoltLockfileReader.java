@@ -52,9 +52,7 @@ public final class ZoltLockfileReader {
 
             int version = LockfileTomlValues.requireInt(result, "version");
             if (version != ZoltLockfile.CURRENT_VERSION) {
-                throw LockfileReadException.actionable(
-                        "Unsupported zolt.lock version " + version + ".",
-                        "Run `zolt resolve` with a compatible Zolt version to regenerate the lockfile.");
+                throw unsupportedVersion(version);
             }
 
             return new ZoltLockfile(
@@ -122,5 +120,24 @@ public final class ZoltLockfileReader {
             default -> throw new LockfileReadException(
                     "Invalid conflict reason `" + value + "` in zolt.lock.");
         };
+    }
+
+    private static LockfileReadException unsupportedVersion(int version) {
+        if (version > ZoltLockfile.CURRENT_VERSION) {
+            return LockfileReadException.actionable(
+                    "zolt.lock version "
+                            + version
+                            + " is newer than this Zolt supports (current "
+                            + ZoltLockfile.CURRENT_VERSION
+                            + ").",
+                    "Upgrade Zolt, then run `zolt resolve --locked` to verify the lockfile.");
+        }
+        return LockfileReadException.actionable(
+                "zolt.lock version "
+                        + version
+                        + " is older than this Zolt supports (current "
+                        + ZoltLockfile.CURRENT_VERSION
+                        + ").",
+                "Run `zolt resolve` with this Zolt version to regenerate the lockfile.");
     }
 }

@@ -125,6 +125,26 @@ final class ZoltLockfileWriterTest {
                 """));
     }
 
+    @Test
+    void escapesTomlControlCharacters() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(),
+                List.of(),
+                List.of(new LockPolicyEffect(
+                        "global-exclusion",
+                        new PackageId("com.example", "demo"),
+                        Optional.of("1.0.0"),
+                        Optional.empty(),
+                        "reason:\u0001\u0007\f\u007F")));
+
+        String output = writer.write(lockfile);
+
+        assertTrue(output.contains("policy = \"reason:\\u0001\\u0007\\f\\u007F\""));
+        ZoltLockfile parsed = new ZoltLockfileReader().read(output);
+        assertEquals("reason:\u0001\u0007\f\u007F", parsed.policyEffects().getFirst().policy());
+    }
+
     private static ZoltLockfile unsortedLockfile() {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
