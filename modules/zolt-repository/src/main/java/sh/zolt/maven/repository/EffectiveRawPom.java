@@ -1,8 +1,9 @@
 package sh.zolt.maven.repository;
 
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public record EffectiveRawPom(
         RawPom rawPom,
@@ -18,11 +19,33 @@ public record EffectiveRawPom(
     }
 
     public List<RawPomDependency> dependencies() {
-        List<RawPomDependency> dependencies = new ArrayList<>();
+        Map<DependencyKey, RawPomDependency> dependencies = new LinkedHashMap<>();
         for (RawPom parent : parents) {
-            dependencies.addAll(parent.dependencies());
+            putDependencies(dependencies, parent.dependencies());
         }
-        dependencies.addAll(rawPom.dependencies());
-        return List.copyOf(dependencies);
+        putDependencies(dependencies, rawPom.dependencies());
+        return List.copyOf(dependencies.values());
+    }
+
+    private static void putDependencies(
+            Map<DependencyKey, RawPomDependency> dependencies,
+            List<RawPomDependency> incoming) {
+        for (RawPomDependency dependency : incoming) {
+            dependencies.put(DependencyKey.from(dependency), dependency);
+        }
+    }
+
+    private record DependencyKey(
+            String groupId,
+            String artifactId,
+            String type,
+            Optional<String> classifier) {
+        static DependencyKey from(RawPomDependency dependency) {
+            return new DependencyKey(
+                    dependency.groupId(),
+                    dependency.artifactId(),
+                    dependency.type().orElse("jar"),
+                    dependency.classifier());
+        }
     }
 }

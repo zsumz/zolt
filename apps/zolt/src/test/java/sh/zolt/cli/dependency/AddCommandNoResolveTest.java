@@ -62,6 +62,8 @@ final class AddCommandNoResolveTest {
         writeProjectConfig(colorProjectDir);
         Path quietProjectDir = tempDir.resolve("quiet-demo");
         writeProjectConfig(quietProjectDir);
+        Path quietConfigPath = quietProjectDir.resolve("zolt.toml");
+        Files.writeString(quietConfigPath, "# quiet rewrite note\n" + Files.readString(quietConfigPath));
 
         CommandResult color = execute(
                 "--color=always",
@@ -87,8 +89,9 @@ final class AddCommandNoResolveTest {
                 "\u001B[32mSkipped resolve; run zolt resolve to refresh zolt.lock.\u001B[0m"));
         assertEquals(0, quiet.exitCode());
         assertEquals("", quiet.stdout());
-        String quietConfig = Files.readString(quietProjectDir.resolve("zolt.toml"));
+        String quietConfig = Files.readString(quietConfigPath);
         assertTrue(quietConfig.contains("\"com.google.guava:guava\" = \"33.4.0-jre\""));
+        assertFalse(quietConfig.contains("# quiet rewrite note"));
         assertFalse(Files.exists(quietProjectDir.resolve("zolt.lock")));
     }
 
