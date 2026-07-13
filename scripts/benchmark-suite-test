@@ -117,4 +117,31 @@ jq -e '
 ' "$WORK_DIR/suite/suite-summary.json" >/dev/null \
   || fail "suite summary did not preserve both generated topologies"
 
+scripts/benchmark-suite \
+  --skip-generated \
+  --real-projects spring-petclinic,apache-commons-cli,hikaricp,netty,junit-framework \
+  --real-project-dry-run \
+  --repeat 1 \
+  --zolt "$FAKE_TOOL" \
+  --maven "$FAKE_TOOL" \
+  --gradle "$FAKE_TOOL" \
+  --work-dir "$WORK_DIR/real-project-suite" >/dev/null
+
+jq -e '
+  .run.laneCount == 5
+  and .run.configuredProjectCount == 5
+  and (.configuredProjects | length) == 5
+  and all(.lanes[];
+    .kind == "real-project-comparison"
+    and .status == "dry-run"
+    and (.workflows | length) == 3
+    and all(.workflows[]; (.tools | length) == 2)
+  )
+' "$WORK_DIR/real-project-suite/suite-summary.json" >/dev/null \
+  || fail "suite summary did not preserve all five real-project comparisons"
+
+if grep -E '\| (planned|not run|needs pin) \|' "$WORK_DIR/real-project-suite/summary-brief.md" >/dev/null; then
+  fail "real-project summary still reported a planned, unpinned, or unrun lane"
+fi
+
 printf 'benchmark suite script test passed\n'

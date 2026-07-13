@@ -50,7 +50,7 @@ Options:
   --include-gradle-daemon     Include Gradle daemon in generated lane.
   --generated-summary FILE    Use an existing generated-lane summary instead of running it.
   --skip-generated            Do not run or summarize the generated lane.
-  --real-project ID           Run a pinned real-project upstream-tool baseline. Repeatable.
+  --real-project ID           Run a pinned real-project same-source comparison. Repeatable.
   --real-projects IDS         Comma-separated real-project ids.
   --real-project-dry-run      Validate real-project lanes without cloning or timing.
   --real-project-sample-timeout SECONDS
@@ -330,9 +330,13 @@ if [[ "${#REAL_PROJECTS[@]}" -gt 0 ]]; then
       --project "$project_id"
       --project-manifest "$PROJECT_MANIFEST"
       --work-dir "$project_dir"
+      --cache-dir "$WORK_DIR/real-project-cache"
       --repeat "$REPEAT_COUNT"
       --sample-timeout "$REAL_PROJECT_SAMPLE_TIMEOUT_SECONDS"
     )
+    if [[ -n "$ZOLT_BIN" ]]; then
+      real_project_args+=(--zolt "$ZOLT_BIN")
+    fi
     if [[ -n "$MAVEN_BIN" ]]; then
       real_project_args+=(--maven "$MAVEN_BIN")
     fi
@@ -516,11 +520,11 @@ classifications = [
     if ((lane.get("summary") or {}).get("classification"))
 ]
 has_generated_lane = any(lane.get("kind") == "generated" for lane in lanes)
-has_real_project_lane = any(lane.get("kind") == "real-project-native-baseline" for lane in lanes)
+has_real_project_lane = any(lane.get("kind") == "real-project-comparison" for lane in lanes)
 classification = "Planned benchmark suite"
 if classifications:
     if has_generated_lane and has_real_project_lane:
-        classification = "Generated comparison with real-project upstream baselines"
+        classification = "Generated and real-project comparisons"
     elif any(value == "Production-grade generated evidence" for value in classifications):
         classification = "Production-grade generated evidence"
     elif any(value == "Exploratory benchmark" for value in classifications):
@@ -540,11 +544,11 @@ suite = {
         "classification": classification,
         "laneCount": len(lanes),
         "completedLaneCount": sum(1 for lane in lanes if lane.get("status") == "complete"),
-        "plannedProjectCount": len(projects),
+        "configuredProjectCount": len(projects),
         "artifactName": artifact_name,
     },
     "lanes": lanes,
-    "plannedProjects": projects,
+    "configuredProjects": projects,
     "artifacts": {
         "suiteSummary": str(output_path),
         "summaryBrief": str(summary_brief_path),
@@ -559,12 +563,12 @@ if lanes:
     lane_count = len(lanes)
     completed = suite["run"]["completedLaneCount"]
     generated_count = sum(1 for lane in lanes if lane.get("kind") == "generated")
-    real_project_count = sum(1 for lane in lanes if lane.get("kind") == "real-project-native-baseline")
+    real_project_count = sum(1 for lane in lanes if lane.get("kind") == "real-project-comparison")
     lane_parts = []
     if generated_count:
         lane_parts.append(f"{generated_count} generated comparison{'s' if generated_count != 1 else ''}")
     if real_project_count:
-        lane_parts.append(f"{real_project_count} real-project upstream-tool baseline{'s' if real_project_count != 1 else ''}")
+        lane_parts.append(f"{real_project_count} real-project comparison{'s' if real_project_count != 1 else ''}")
     if lane_parts:
         lines.append(
             f"This suite contains {lane_count} benchmark lane{'s' if lane_count != 1 else ''}: "
@@ -594,7 +598,7 @@ if lanes:
             workflow_id = workflow.get("id")
             tools = workflow.get("tools") or {}
             if len(tools) <= 1:
-                if tools and lane.get("kind") == "real-project-native-baseline":
+                if tools and lane.get("kind") == "real-project-comparison":
                     tool = next(iter(tools))
                     metrics = tools[tool] or {}
                     native_rows.append([
@@ -612,15 +616,15 @@ if lanes:
                 workflow_labels.get(workflow_id, workflow.get("label") or workflow_id or "unknown"),
                 tool_labels.get(workflow.get("winner"), workflow.get("winner") or "n/a"),
             ]
-            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"])
+            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in ["zolt", "maven", "gradle", "gradle-no-daemon", "gradle-daemon"])
             comparison_rows.append(row)
 
     if comparison_rows:
         lines.extend([
             "## Comparison Results",
             "",
-            "| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
-            "| --- | --- | --- | ---: | ---: | ---: | ---: |",
+            "| Workload | Workflow | Winner | Zolt | Maven | Gradle | Gradle no-daemon | Gradle daemon |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
         ])
         for row in comparison_rows:
             lines.append("| " + " | ".join(row) + " |")
@@ -654,7 +658,7 @@ else:
 if projects:
     project_run_status = {}
     for lane in lanes:
-        if lane.get("kind") != "real-project-native-baseline":
+        if lane.get("kind") != "real-project-comparison":
             continue
         project = ((lane.get("workload") or {}).get("project") or {})
         project_id = project.get("id")

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "projectId": "spring-petclinic",
+  "status": "comparison-ready",
+  "upstream": {
+    "url": "https://github.com/spring-projects/spring-petclinic",
+    "branch": "main",
+    "commit": "51045d1648dad955df586150c1a1a6e22ef400c2"
+  },
+  "adapter": {
+    "type": "generated-same-source-overlay",
+    "group": "org.springframework.samples",
+    "name": "spring-petclinic-benchmark",
+    "version": "4.0.0-benchmark",
+    "java": "21",
+    "compilerRelease": 17,
+    "sourceRoots": [
+      { "from": "src/main/java", "to": "src/main/java" }
+    ],
+    "resourceRoots": [
+      { "from": "src/main/resources", "to": "src/main/resources" }
+    ],
+    "sourceChangeTarget": "src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java",
+    "platforms": {
+      "org.springframework.boot:spring-boot-dependencies": "4.1.0"
+    },
+    "dependencies": {
+      "org.springframework.boot:spring-boot-starter-actuator": null,
+      "org.springframework.boot:spring-boot-starter-cache": null,
+      "org.springframework.boot:spring-boot-starter-data-jpa": null,
+      "org.springframework.boot:spring-boot-starter-thymeleaf": null,
+      "org.springframework.boot:spring-boot-starter-validation": null,
+      "org.springframework.boot:spring-boot-starter-webmvc": null,
+      "javax.cache:cache-api": null,
+      "jakarta.xml.bind:jakarta.xml.bind-api": null
+    },
+    "providedDependencies": {},
+    "excludes": [],
+    "coveredWorkflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "omittedBuildFeatures": ["tests", "spring-boot-repackage", "frontend-assets", "release-plugins"]
+  }
+}

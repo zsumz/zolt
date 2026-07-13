@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "projectId": "apache-commons-cli",
+  "status": "comparison-ready",
+  "upstream": {
+    "url": "https://github.com/apache/commons-cli",
+    "branch": "master",
+    "commit": "5ee80a0592c3126c7d54afe0e743717bdbc54057"
+  },
+  "adapter": {
+    "type": "generated-same-source-overlay",
+    "group": "org.apache.commons",
+    "name": "commons-cli-benchmark",
+    "version": "1.11.0-benchmark",
+    "java": "21",
+    "compilerRelease": 8,
+    "sourceRoots": [
+      { "from": "src/main/java", "to": "src/main/java" }
+    ],
+    "resourceRoots": [
+      { "from": "src/main/resources", "to": "src/main/resources", "optional": true }
+    ],
+    "sourceChangeTarget": "src/main/java/org/apache/commons/cli/CommandLine.java",
+    "platforms": {},
+    "dependencies": {},
+    "providedDependencies": {},
+    "excludes": [],
+    "coveredWorkflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "omittedBuildFeatures": ["tests", "reports", "site", "release-plugins"]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "projectId": "hikaricp",
+  "status": "comparison-ready",
+  "upstream": {
+    "url": "https://github.com/brettwooldridge/HikariCP",
+    "branch": "dev",
+    "commit": "a4d93f4f85517f90e632b795486d7102e933d7ff"
+  },
+  "adapter": {
+    "type": "generated-same-source-overlay",
+    "group": "com.zaxxer",
+    "name": "HikariCP-benchmark",
+    "version": "7.1.1-benchmark",
+    "java": "21",
+    "compilerRelease": 11,
+    "sourceRoots": [
+      { "from": "src/main/java", "to": "src/main/java" }
+    ],
+    "resourceRoots": [
+      { "from": "src/main/resources", "to": "src/main/resources", "optional": true }
+    ],
+    "sourceChangeTarget": "src/main/java/com/zaxxer/hikari/HikariConfig.java",
+    "platforms": {},
+    "dependencies": {
+      "org.slf4j:slf4j-api": "2.0.17"
+    },
+    "providedDependencies": {
+      "org.javassist:javassist": "3.29.2-GA",
+      "io.micrometer:micrometer-core": "1.5.4",
+      "org.hibernate:hibernate-core": "5.4.24.Final",
+      "javax.persistence:javax.persistence-api": "2.2",
+      "io.dropwizard.metrics:metrics-core": "3.2.5",
+      "io.dropwizard.metrics:metrics-healthchecks": "3.2.5",
+      "io.dropwizard.metrics5:metrics-core": "5.0.0-rc17",
+      "io.prometheus:simpleclient": "0.16.0"
+    },
+    "excludes": [],
+    "coveredWorkflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "omittedBuildFeatures": ["tests", "generated-proxy-sources", "osgi-bundle-metadata", "release-plugins"]
+  }
+}

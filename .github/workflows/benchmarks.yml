@@ -69,9 +69,9 @@ on:
         default: false
         type: boolean
       real_projects:
-        description: Comma-separated real-project ids to run. Empty runs generated only.
+        description: Comma-separated comparison-ready real-project ids to run.
         required: false
-        default: ""
+        default: "spring-petclinic,apache-commons-cli,hikaricp,netty,junit-framework"
         type: string
       real_project_dry_run:
         description: Validate selected real-project lanes without cloning or timing.
@@ -116,7 +116,7 @@ jobs:
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon }}
       BENCHMARK_SKIP_GENERATED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_generated || false }}
-      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || '' }}
+      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || 'spring-petclinic,apache-commons-cli,hikaricp,netty,junit-framework' }}
       BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}
       BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_sample_timeout || '1800' }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"
@@ -143,7 +143,6 @@ jobs:
         with:
           distribution: graalvm
           java-version: "21"
-          components: native-image
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Gradle
@@ -196,6 +195,7 @@ jobs:
           scripts/benchmark-large-source-test
           scripts/benchmark-large-source-report-test
           scripts/benchmark-netty-compare-test
+          scripts/benchmark-real-project-test
 
       - name: Install released native Zolt
         if: env.BENCHMARK_ZOLT_SOURCE == 'release'

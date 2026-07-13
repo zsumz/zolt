@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "projectId": "junit-framework",
+  "status": "comparison-ready",
+  "upstream": {
+    "url": "https://github.com/junit-team/junit-framework",
+    "branch": "main",
+    "commit": "b87db9fe6616cefe4c03e165e61f54bd9c76017b"
+  },
+  "adapter": {
+    "type": "generated-same-source-overlay",
+    "group": "org.junit.platform",
+    "name": "junit-platform-commons-benchmark",
+    "version": "1.14.0-benchmark",
+    "java": "21",
+    "compilerRelease": 17,
+    "sourceRoots": [
+      { "from": "junit-platform-commons/src/main/java", "to": "src/main/java" }
+    ],
+    "resourceRoots": [
+      { "from": "junit-platform-commons/src/main/resources", "to": "src/main/resources", "optional": true }
+    ],
+    "sourceChangeTarget": "src/main/java/org/junit/platform/commons/util/Preconditions.java",
+    "platforms": {},
+    "dependencies": {},
+    "providedDependencies": {
+      "org.apiguardian:apiguardian-api": "1.1.2",
+      "org.jspecify:jspecify": "1.0.0",
+      "org.jetbrains.kotlin:kotlin-stdlib": "2.4.0",
+      "org.jetbrains.kotlin:kotlin-reflect": "2.4.0",
+      "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": "1.11.0"
+    },
+    "excludes": [],
+    "coveredWorkflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "omittedBuildFeatures": ["all-other-modules", "kotlin-sources", "tests", "test-fixtures", "documentation", "release-plugins"]
+  }
+}

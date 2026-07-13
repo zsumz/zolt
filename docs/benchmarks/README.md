@@ -109,17 +109,17 @@ release channel and avoids mixing Zolt build time into the benchmark setup. Use
 `zolt_source=build` only when measuring the checked-out branch's native binary.
 While this work is on the `benchmarks` branch, pushes to that branch build the
 branch's native binary and run a 10-module, 1-repeat `wide` smoke benchmark
-without the Gradle daemon, real-project lanes, or model summary. This keeps
-branch validation quick while still exercising every generated workflow and
-competitor. Production-grade generated evidence and real-project baselines
-remain explicit manual runs. Manual runs default to 100 modules, 7 repeats,
-`wide,layered` topologies, and Gradle daemon coverage.
+without the Gradle daemon or model summary, plus one repeat of every configured
+real-project comparison. This makes the five pinned adapters a branch merge
+gate. Production-grade generated evidence remains an explicit manual run.
+Manual runs default to 100 modules, 7 repeats, `wide,layered` topologies, all
+five real-project comparisons, and Gradle daemon coverage.
 For a Netty-only validation run, dispatch the workflow with
 `skip_generated=true`, `real_projects=netty`, `repeat=1`, and
 `real_project_sample_timeout=3600`.
-That lane currently measures Netty's core Java Maven reactor plus focused
-`common` module workflows; native platform modules and testsuites are separate
-future lanes.
+That lane measures the same filtered Netty `common` main-source overlay with
+Zolt and Maven; native platform modules, the rest of the reactor, and tests are
+explicitly omitted.
 
 The workflow installs a pinned Gradle distribution directly instead of using
 `gradle/actions/setup-gradle`. That keeps the GitHub summary dedicated to the
@@ -164,6 +164,7 @@ scripts/benchmark-suite-test
 scripts/benchmark-large-source-test
 scripts/benchmark-large-source-report-test
 scripts/benchmark-netty-compare-test
+scripts/benchmark-real-project-test
 ```
 
 ## Real Projects
@@ -175,19 +176,22 @@ set. See [real-projects.md](./real-projects.md) for the project policy and
 initial candidate suite.
 `projects.json` is the machine-readable version used by the suite runner.
 
-The first real-project runner records upstream-tool baselines only:
+The real-project runner checks out a pinned commit and generates isolated Zolt
+and Maven or Gradle overlays from the same checked-in adapter contract:
 
 ```sh
 scripts/benchmark-real-project --project spring-petclinic --repeat 5
 scripts/benchmark-real-project --project apache-commons-cli --repeat 5
 scripts/benchmark-real-project --project netty --repeat 3 --sample-timeout 3600
+scripts/benchmark-real-project --project junit-framework --repeat 3
 ```
 
 Those runs clone the pinned upstream commit into the benchmark output directory,
-record upstream Maven or Gradle timings, and write a suite-compatible lane summary.
-They are not Zolt comparisons. The separate `benchmark-netty-compare` runner is
-the first honest Zolt comparison for the smaller `common` source subset; it does
-not replace the upstream core-reactor baseline.
+warm dependency caches outside the timed samples, and record clean compile,
+warm no-op, and incremental source-change timings for both tools. Each result
+includes the adapter scope and omissions. The separate `benchmark-netty-compare`
+runner remains a specialist lane with additional dependency and thin-package
+rows for the same smaller `common` source subset.
 
 ## Publishing Results
 

@@ -7,7 +7,9 @@ cd "$ROOT"
 PROJECT_MANIFEST="docs/benchmarks/projects.json"
 PROJECT_ID=""
 WORK_DIR="target/benchmarks/competitors/real-projects"
+CACHE_DIR=""
 REPEAT_COUNT=3
+ZOLT_BIN="${ZOLT_BENCH_ZOLT:-}"
 MAVEN_BIN="${ZOLT_BENCH_MAVEN:-}"
 GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
 SAMPLE_TIMEOUT_SECONDS=1800
@@ -17,23 +19,25 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/benchmark-real-project [options]
 
-Runs a pinned real-project upstream-tool baseline and writes a suite lane summary.
+Runs a pinned same-source Zolt-versus-upstream-tool comparison.
 
 Options:
   --project ID             Project id from docs/benchmarks/projects.json.
   --project-manifest FILE  Project manifest. Default: docs/benchmarks/projects.json.
   --work-dir DIR           Output directory. Default: target/benchmarks/competitors/real-projects.
-  --repeat COUNT           Timed samples for repeat workflows. Default: 3.
+  --cache-dir DIR          Shared dependency cache directory. Default: WORK_DIR/caches.
+  --repeat COUNT           Timed samples for repeated workflows. Default: 3.
+  --zolt PATH              Zolt executable. Default: ZOLT_BENCH_ZOLT or zolt on PATH.
   --maven PATH             Maven executable. Default: mvn on PATH.
   --gradle PATH            Gradle executable. Default: gradle on PATH.
   --sample-timeout SECONDS Per-command timeout. Default: 1800.
   --dry-run                Validate the lane and write planned outputs without cloning or timing.
   -h, --help               Show this help.
 
-Real-project lanes are upstream-tool baselines until a checked-in Zolt adapter
-builds the same source set. The runner records pins, commands, tool versions,
-raw samples, logs, and caveats so those baselines can be compared later without
-rewriting the evidence contract.
+Each checked-in adapter copies one explicit upstream source set into isolated
+Zolt and Maven/Gradle overlays. Dependency caches are warmed before timing. The
+measured workflows are a clean compile, a warm no-op compile, and an incremental
+source change. Adapter omissions remain part of every result artifact.
 USAGE
 }
 
@@ -71,10 +75,20 @@ while [[ "$#" -gt 0 ]]; do
       WORK_DIR="$2"
       shift 2
       ;;
+    --cache-dir)
+      [[ "$#" -ge 2 ]] || fail "--cache-dir requires a value"
+      CACHE_DIR="$2"
+      shift 2
+      ;;
     --repeat)
       [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
       positive_int "$2" || fail "--repeat requires a positive integer"
       REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --zolt)
+      [[ "$#" -ge 2 ]] || fail "--zolt requires a value"
+      ZOLT_BIN="$2"
       shift 2
       ;;
     --maven)
@@ -108,19 +122,21 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 [[ -n "$PROJECT_ID" ]] || fail "--project is required"
-
 case "$WORK_DIR" in
-  "" | "." | "/" | "$ROOT")
-    fail "refusing unsafe benchmark work directory: $WORK_DIR"
-    ;;
+  "" | "." | "/" | "$ROOT") fail "refusing unsafe benchmark work directory: $WORK_DIR" ;;
 esac
 
 PROJECT_MANIFEST="$(abs_path "$PROJECT_MANIFEST")"
 WORK_DIR="$(abs_path "$WORK_DIR")"
-
+if [[ -z "$CACHE_DIR" ]]; then
+  CACHE_DIR="$WORK_DIR/caches"
+else
+  CACHE_DIR="$(abs_path "$CACHE_DIR")"
+fi
 mkdir -p "$WORK_DIR"
 
-python3 - "$PROJECT_MANIFEST" "$PROJECT_ID" "$WORK_DIR" "$REPEAT_COUNT" "$MAVEN_BIN" "$GRADLE_BIN" "$SAMPLE_TIMEOUT_SECONDS" "$DRY_RUN" <<'PY'
+python3 - "$ROOT" "$PROJECT_MANIFEST" "$PROJECT_ID" "$WORK_DIR" "$CACHE_DIR" "$REPEAT_COUNT" "$ZOLT_BIN" "$MAVEN_BIN" "$GRADLE_BIN" "$SAMPLE_TIMEOUT_SECONDS" "$DRY_RUN" <<'PY'
+import html
 import json
 import os
 import pathlib
@@ -132,14 +148,17 @@ import sys
 import time
 from datetime import datetime, timezone
 
-manifest_path = pathlib.Path(sys.argv[1])
-project_id = sys.argv[2]
-work_dir = pathlib.Path(sys.argv[3])
-repeat_count = int(sys.argv[4])
-explicit_maven = sys.argv[5] or None
-explicit_gradle = sys.argv[6] or None
-sample_timeout_seconds = int(sys.argv[7])
-dry_run = sys.argv[8] == "true"
+repo_root = pathlib.Path(sys.argv[1])
+manifest_path = pathlib.Path(sys.argv[2])
+project_id = sys.argv[3]
+work_dir = pathlib.Path(sys.argv[4])
+cache_dir = pathlib.Path(sys.argv[5])
+repeat_count = int(sys.argv[6])
+explicit_zolt = sys.argv[7] or None
+explicit_maven = sys.argv[8] or None
+explicit_gradle = sys.argv[9] or None
+sample_timeout_seconds = int(sys.argv[10])
+dry_run = sys.argv[11] == "true"
 
 if not manifest_path.is_file():
     raise SystemExit(f"project manifest not found: {manifest_path}")
@@ -148,6 +167,8 @@ manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 project = next((item for item in manifest.get("projects", []) if item.get("id") == project_id), None)
 if not project:
     raise SystemExit(f"project not found in manifest: {project_id}")
+if project.get("status") != "comparison-ready":
+    raise SystemExit(f"project {project_id} is not comparison-ready")
 
 pin = project.get("pin") or {}
 pin_value = pin.get("value")
@@ -158,13 +179,33 @@ native_tool = project.get("nativeTool")
 if native_tool not in {"maven", "gradle"}:
     raise SystemExit(f"unsupported upstream tool for {project_id}: {native_tool}")
 
-native_workflows = [row for row in project.get("nativeWorkflows", []) if row.get("enabled", True)]
-if not native_workflows:
-    raise SystemExit(f"project {project_id} has no enabled nativeWorkflows")
+adapter_path = pathlib.Path(project.get("adapterPath") or "")
+if not adapter_path.is_absolute():
+    adapter_path = repo_root / adapter_path
+if not adapter_path.is_file():
+    raise SystemExit(f"adapter coverage file not found: {adapter_path}")
+coverage = json.loads(adapter_path.read_text(encoding="utf-8"))
+if coverage.get("projectId") != project_id or coverage.get("status") != "comparison-ready":
+    raise SystemExit(f"adapter coverage is not comparison-ready for {project_id}")
+if ((coverage.get("upstream") or {}).get("commit")) != pin_value:
+    raise SystemExit(f"adapter pin does not match manifest pin for {project_id}")
+adapter = coverage.get("adapter") or {}
+if adapter.get("type") != "generated-same-source-overlay":
+    raise SystemExit(f"unsupported adapter type for {project_id}: {adapter.get('type')}")
+
+source_roots = adapter.get("sourceRoots") or []
+if not source_roots:
+    raise SystemExit(f"adapter {project_id} has no source roots")
+source_change_target = adapter.get("sourceChangeTarget")
+if not source_change_target:
+    raise SystemExit(f"adapter {project_id} has no source-change target")
 
 work_dir.mkdir(parents=True, exist_ok=True)
 checkout_dir = work_dir / "checkout"
 logs_dir = work_dir / "logs"
+projects_dir = work_dir / "projects"
+zolt_project = projects_dir / "zolt"
+native_project = projects_dir / native_tool
 logs_dir.mkdir(parents=True, exist_ok=True)
 samples_path = work_dir / "samples.jsonl"
 summary_path = work_dir / "summary.json"
@@ -181,36 +222,26 @@ def resolve_tool(explicit, fallback):
         if "/" in explicit:
             return str(pathlib.Path(explicit).resolve())
         return explicit
-    found = shutil.which(fallback)
-    return found or fallback
+    return shutil.which(fallback) or fallback
 
 
 tool_paths = {
+    "zolt": resolve_tool(explicit_zolt, "zolt"),
     "maven": resolve_tool(explicit_maven, "mvn"),
     "gradle": resolve_tool(explicit_gradle, "gradle"),
 }
 
 
-def command_for(workflow):
-    command = list(workflow.get("command") or [])
-    if not command:
-        raise SystemExit(f"workflow {workflow.get('id')} has no command")
-    if command[0] in {"mvn", "maven"}:
-        command[0] = tool_paths["maven"]
-    elif command[0] == "gradle":
-        command[0] = tool_paths["gradle"]
-    return command
-
-
 def rel(path):
     try:
-        return str(path.resolve().relative_to(pathlib.Path.cwd()))
+        return str(path.resolve().relative_to(repo_root))
     except ValueError:
         return str(path.resolve())
 
 
-def run_process(command, cwd, log_name, check=False, timeout_seconds=None):
+def run_process(command, cwd, log_name, timeout_seconds=None):
     log_path = logs_dir / log_name
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     started_at = now_iso()
     start = time.perf_counter_ns()
     timed_out = False
@@ -231,133 +262,315 @@ def run_process(command, cwd, log_name, check=False, timeout_seconds=None):
             timed_out = True
             exit_code = 124
             log.write(f"\nCommand timed out after {timeout_seconds} seconds.\n")
-    finished_at = now_iso()
-    duration_ms = round((time.perf_counter_ns() - start) / 1_000_000)
-    if check and exit_code != 0:
-        raise subprocess.CalledProcessError(exit_code, command)
+        except FileNotFoundError as exc:
+            exit_code = 127
+            log.write(f"\n{exc}\n")
     return {
         "command": command,
         "exitCode": exit_code,
-        "durationMillis": duration_ms,
+        "durationMillis": round((time.perf_counter_ns() - start) / 1_000_000),
         "timedOut": timed_out,
         "startedAt": started_at,
-        "finishedAt": finished_at,
+        "finishedAt": now_iso(),
         "log": rel(log_path),
     }
 
 
-def capture_tool(command, cwd):
+def checked(command, cwd, log_name):
+    result = run_process(command, cwd, log_name, sample_timeout_seconds)
+    if result["exitCode"] != 0:
+        raise RuntimeError(f"command failed ({result['exitCode']}): {' '.join(command)}; log: {result['log']}")
+    return result
+
+
+def capture_tool(command):
     try:
         process = subprocess.run(
             command,
-            cwd=str(cwd),
+            cwd=str(work_dir),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             check=False,
+            timeout=30,
         )
-    except FileNotFoundError as exc:
-        return {
-            "command": command,
-            "exitCode": None,
-            "error": str(exc),
-            "stdout": [],
-        }
-    return {
-        "command": command,
-        "exitCode": process.returncode,
-        "stdout": process.stdout.splitlines()[:20],
-    }
-
-
-def git(command, log_name, check=True):
-    return run_process(["git", *command], checkout_dir, log_name, check=check, timeout_seconds=sample_timeout_seconds)
+        return {"command": command, "exitCode": process.returncode, "stdout": process.stdout.splitlines()[:20]}
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return {"command": command, "exitCode": None, "error": str(exc), "stdout": []}
 
 
 def prepare_checkout():
     if checkout_dir.exists() and not (checkout_dir / ".git").is_dir():
-        raise SystemExit(f"checkout path exists but is not a git repository: {checkout_dir}")
+        raise RuntimeError(f"checkout path exists but is not a git repository: {checkout_dir}")
     if not checkout_dir.exists():
         checkout_dir.mkdir(parents=True)
-        git(["init"], "checkout-001-git-init.log")
-        git(["remote", "add", "origin", project["upstreamUrl"]], "checkout-002-git-remote-add.log")
+        checked(["git", "init"], checkout_dir, "checkout/001-git-init.log")
+        checked(["git", "remote", "add", "origin", project["upstreamUrl"]], checkout_dir, "checkout/002-git-remote-add.log")
     else:
-        git(["remote", "set-url", "origin", project["upstreamUrl"]], "checkout-002-git-remote-set-url.log")
-    git(["fetch", "--depth", "1", "origin", pin_value], "checkout-003-git-fetch.log")
-    git(["checkout", "--detach", "FETCH_HEAD"], "checkout-004-git-checkout.log")
-    git(["reset", "--hard", pin_value], "checkout-005-git-reset.log")
-    git(["clean", "-ffdx"], "checkout-006-git-clean.log")
+        checked(["git", "remote", "set-url", "origin", project["upstreamUrl"]], checkout_dir, "checkout/002-git-remote-set-url.log")
+    checked(["git", "fetch", "--depth", "1", "origin", pin_value], checkout_dir, "checkout/003-git-fetch.log")
+    checked(["git", "checkout", "--detach", "FETCH_HEAD"], checkout_dir, "checkout/004-git-checkout.log")
+    checked(["git", "reset", "--hard", pin_value], checkout_dir, "checkout/005-git-reset.log")
+    checked(["git", "clean", "-ffdx"], checkout_dir, "checkout/006-git-clean.log")
 
 
-def reset_checkout(sample_label):
-    git(["reset", "--hard", pin_value], f"{sample_label}-git-reset.log")
-    git(["clean", "-ffdx"], f"{sample_label}-git-clean.log")
+def copy_root(row, destination):
+    source = checkout_dir / row["from"]
+    if not source.exists():
+        if row.get("optional"):
+            return
+        raise RuntimeError(f"adapter source root does not exist: {row['from']}")
+    target = destination / row["to"]
+    if source.is_dir():
+        shutil.copytree(source, target, dirs_exist_ok=True)
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
 
 
-def apply_source_change(workflow_id, sample_index):
-    source_change = project.get("sourceChange") or {}
-    source_path = source_change.get("path")
-    if not source_path:
-        raise SystemExit(f"workflow {workflow_id} requires sourceChange.path")
-    target = checkout_dir / source_path
-    if not target.is_file():
-        raise SystemExit(f"source-change file not found: {source_path}")
-    marker = source_change.get("marker") or "Zolt benchmark source change"
-    text = target.read_text(encoding=source_change.get("encoding") or "utf-8")
-    suffix = f"\n// {marker}: {workflow_id} sample {sample_index}\n"
-    target.write_text(text.rstrip() + suffix, encoding=source_change.get("encoding") or "utf-8")
+def prepare_overlays():
+    if projects_dir.exists():
+        shutil.rmtree(projects_dir)
+    for destination in (zolt_project, native_project):
+        destination.mkdir(parents=True)
+        for row in source_roots:
+            copy_root(row, destination)
+        for row in adapter.get("resourceRoots") or []:
+            copy_root(row, destination)
+        for excluded in adapter.get("excludes") or []:
+            target = destination / excluded
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+        changed = destination / source_change_target
+        if not changed.is_file():
+            raise RuntimeError(f"source-change target is missing from overlay: {source_change_target}")
+    source_count = len(list(zolt_project.glob("**/*.java")))
+    if source_count == 0:
+        raise RuntimeError(f"adapter {project_id} copied no Java sources")
+    write_zolt_config()
+    if native_tool == "maven":
+        write_maven_config()
+    else:
+        write_gradle_config()
+    return source_count, sum(
+        len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+        for path in zolt_project.glob("**/*.java")
+    )
 
 
-def workflow_sample_count(workflow):
-    value = workflow.get("samples", "repeat")
-    if value == "repeat":
-        return repeat_count
-    return int(value)
+def toml_string(value):
+    return json.dumps(str(value))
+
+
+def write_zolt_config():
+    lines = [
+        "[project]",
+        f"name = {toml_string(adapter['name'])}",
+        f"version = {toml_string(adapter['version'])}",
+        f"group = {toml_string(adapter['group'])}",
+        f"java = {toml_string(adapter.get('java') or '21')}",
+        "",
+        "[repositories]",
+        'central = "https://repo.maven.apache.org/maven2"',
+    ]
+    platforms = adapter.get("platforms") or {}
+    if platforms:
+        lines.extend(["", "[platforms]"])
+        lines.extend(f"{toml_string(key)} = {toml_string(value)}" for key, value in sorted(platforms.items()))
+    lines.extend(["", "[dependencies]"])
+    for key, value in sorted((adapter.get("dependencies") or {}).items()):
+        rendered = "{}" if value is None else toml_string(value)
+        lines.append(f"{toml_string(key)} = {rendered}")
+    provided = adapter.get("providedDependencies") or {}
+    if provided:
+        lines.extend(["", "[provided.dependencies]"])
+        lines.extend(f"{toml_string(key)} = {toml_string(value)}" for key, value in sorted(provided.items()))
+    lines.extend([
+        "",
+        "[build]",
+        'source = "src/main/java"',
+        'test = "src/test/java"',
+        'output = "target/classes"',
+        'testOutput = "target/test-classes"',
+        "",
+        "[compiler]",
+        f"release = {toml_string(adapter['compilerRelease'])}",
+        'encoding = "UTF-8"',
+    ])
+    resource_paths = sorted({row["to"] for row in adapter.get("resourceRoots") or [] if (zolt_project / row["to"]).exists()})
+    if resource_paths:
+        lines.extend(["", "[resources]", "main = [" + ", ".join(toml_string(path) for path in resource_paths) + "]"])
+    (zolt_project / "src/test/java").mkdir(parents=True, exist_ok=True)
+    (zolt_project / "zolt.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def maven_dependency(coordinate, version, scope=None):
+    group, artifact = coordinate.split(":", 1)
+    values = [
+        "    <dependency>",
+        f"      <groupId>{html.escape(group)}</groupId>",
+        f"      <artifactId>{html.escape(artifact)}</artifactId>",
+    ]
+    if version is not None:
+        values.append(f"      <version>{html.escape(str(version))}</version>")
+    if scope:
+        values.append(f"      <scope>{scope}</scope>")
+    values.append("    </dependency>")
+    return values
+
+
+def write_maven_config():
+    lines = [
+        '<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+        '         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">',
+        "  <modelVersion>4.0.0</modelVersion>",
+        f"  <groupId>{html.escape(adapter['group'])}</groupId>",
+        f"  <artifactId>{html.escape(adapter['name'])}</artifactId>",
+        f"  <version>{html.escape(adapter['version'])}</version>",
+        "  <properties>",
+        f"    <maven.compiler.release>{int(adapter['compilerRelease'])}</maven.compiler.release>",
+        "    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>",
+        "  </properties>",
+    ]
+    platforms = adapter.get("platforms") or {}
+    if platforms:
+        lines.extend(["  <dependencyManagement>", "  <dependencies>"])
+        for coordinate, version in sorted(platforms.items()):
+            group, artifact = coordinate.split(":", 1)
+            lines.extend([
+                "    <dependency>",
+                f"      <groupId>{html.escape(group)}</groupId>",
+                f"      <artifactId>{html.escape(artifact)}</artifactId>",
+                f"      <version>{html.escape(str(version))}</version>",
+                "      <type>pom</type>",
+                "      <scope>import</scope>",
+                "    </dependency>",
+            ])
+        lines.extend(["  </dependencies>", "  </dependencyManagement>"])
+    lines.append("  <dependencies>")
+    for coordinate, version in sorted((adapter.get("dependencies") or {}).items()):
+        lines.extend(maven_dependency(coordinate, version))
+    for coordinate, version in sorted((adapter.get("providedDependencies") or {}).items()):
+        lines.extend(maven_dependency(coordinate, version, "provided"))
+    lines.extend([
+        "  </dependencies>",
+        "  <build>",
+        "    <plugins>",
+        "      <plugin>",
+        "        <groupId>org.apache.maven.plugins</groupId>",
+        "        <artifactId>maven-compiler-plugin</artifactId>",
+        "        <version>3.14.1</version>",
+        "      </plugin>",
+        "    </plugins>",
+        "  </build>",
+        "</project>",
+    ])
+    (native_project / "pom.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def gradle_quote(value):
+    return str(value).replace("\\", "\\\\").replace("'", "\\'")
+
+
+def write_gradle_config():
+    lines = [
+        "plugins { id 'java-library' }",
+        f"group = '{gradle_quote(adapter['group'])}'",
+        f"version = '{gradle_quote(adapter['version'])}'",
+        "repositories { mavenCentral() }",
+        "java { modularity.inferModulePath = true }",
+        "dependencies {",
+    ]
+    for coordinate, version in sorted((adapter.get("platforms") or {}).items()):
+        lines.append(f"    implementation platform('{gradle_quote(coordinate)}:{gradle_quote(version)}')")
+    for coordinate, version in sorted((adapter.get("dependencies") or {}).items()):
+        notation = coordinate if version is None else f"{coordinate}:{version}"
+        lines.append(f"    implementation '{gradle_quote(notation)}'")
+    for coordinate, version in sorted((adapter.get("providedDependencies") or {}).items()):
+        lines.append(f"    compileOnly '{gradle_quote(coordinate)}:{gradle_quote(version)}'")
+    lines.extend([
+        "}",
+        "tasks.withType(JavaCompile).configureEach {",
+        f"    options.release = {int(adapter['compilerRelease'])}",
+        "    options.encoding = 'UTF-8'",
+        "}",
+    ])
+    (native_project / "build.gradle").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (native_project / "settings.gradle").write_text(
+        f"rootProject.name = '{gradle_quote(adapter['name'])}'\n", encoding="utf-8"
+    )
+
+
+zolt_cache = cache_dir / "zolt"
+maven_cache = cache_dir / "maven"
+gradle_cache = cache_dir / "gradle"
+
+
+def tool_commands():
+    zolt = tool_paths["zolt"]
+    commands = {
+        "zolt": {
+            "cwd": zolt_project,
+            "resolve": [zolt, "resolve", "--cwd", str(zolt_project), "--cache-root", str(zolt_cache)],
+            "build": [zolt, "build", "--cwd", str(zolt_project), "--cache-root", str(zolt_cache)],
+            "clean": [zolt, "clean", "--cwd", str(zolt_project)],
+        }
+    }
+    if native_tool == "maven":
+        mvn = tool_paths["maven"]
+        prefix = [mvn, f"-Dmaven.repo.local={maven_cache}", "-q"]
+        commands["maven"] = {
+            "cwd": native_project,
+            "resolve": [*prefix, "-DskipTests", "compile"],
+            "build": [*prefix, "-DskipTests", "compile"],
+            "clean": [*prefix, "clean"],
+        }
+    else:
+        gradle = tool_paths["gradle"]
+        prefix = [gradle, "--gradle-user-home", str(gradle_cache), "--console=plain", "--quiet"]
+        commands["gradle"] = {
+            "cwd": native_project,
+            "resolve": [*prefix, "dependencies", "--configuration", "compileClasspath"],
+            "build": [*prefix, "classes"],
+            "clean": [*prefix, "clean"],
+        }
+    return commands
 
 
 def median(values):
-    if not values:
-        return None
-    return round(statistics.median(values))
+    return round(statistics.median(values)) if values else None
 
 
-def metric_for(workflow, command, workflow_samples):
-    successful = [sample for sample in workflow_samples if sample["exitCode"] == 0]
-    durations = [sample["durationMillis"] for sample in successful]
+def metric(command, rows):
+    successful = [row for row in rows if row["exitCode"] == 0]
+    durations = [row["durationMillis"] for row in successful]
     return {
         "command": command,
         "samples": durations,
-        "sampleCount": len(workflow_samples),
+        "sampleCount": len(rows),
         "successfulSampleCount": len(successful),
-        "timedOutSampleCount": sum(1 for sample in workflow_samples if sample.get("timedOut")),
+        "timedOutSampleCount": sum(1 for row in rows if row.get("timedOut")),
         "medianMillis": median(durations),
         "minMillis": min(durations) if durations else None,
         "maxMillis": max(durations) if durations else None,
-        "logs": [sample["log"] for sample in workflow_samples],
+        "logs": [row["log"] for row in rows],
     }
 
 
-def repository_record():
-    run_url = None
-    if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
-        run_url = (
-            f"{os.environ['GITHUB_SERVER_URL']}/"
-            f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
-            f"{os.environ['GITHUB_RUN_ID']}"
-        )
-    return {
-        "name": os.environ.get("GITHUB_REPOSITORY"),
-        "ref": os.environ.get("GITHUB_REF_NAME"),
-        "commit": os.environ.get("GITHUB_SHA"),
-        "runId": os.environ.get("GITHUB_RUN_ID"),
-        "runUrl": run_url,
-    }
-
-
+workflow_specs = [
+    ("first-clean-build", "Clean compile with warm dependency cache", 1),
+    ("warm-no-op-build", "Warm no-op compile", repeat_count),
+    ("source-change-build", "Incremental source change compile", repeat_count),
+]
+commands = tool_commands()
 samples = []
 workflow_records = []
 status = "dry-run" if dry_run else "complete"
 failure = None
+source_files = None
+source_lines = None
 
 environment = {
     "os": platform.platform(),
@@ -367,92 +580,97 @@ environment = {
     "repeatCount": repeat_count,
     "sampleTimeoutSeconds": sample_timeout_seconds,
     "tools": {
-        "git": capture_tool(["git", "--version"], work_dir),
-        "maven": capture_tool([tool_paths["maven"], "--version"], work_dir),
-        "gradle": capture_tool([tool_paths["gradle"], "--version"], work_dir),
+        "git": capture_tool(["git", "--version"]),
+        "zolt": capture_tool([tool_paths["zolt"], "--version"]),
+        native_tool: capture_tool([tool_paths[native_tool], "--version"]),
     },
 }
 
-planned_workflows = []
-for workflow in native_workflows:
-    planned_workflows.append({
-        "id": workflow.get("id"),
-        "label": workflow.get("label") or workflow.get("id"),
-        "kind": workflow.get("kind") or "repeated",
-        "samples": workflow_sample_count(workflow),
-        "command": command_for(workflow),
-        "prepare": workflow.get("prepare") or "none",
-    })
-
 if dry_run:
-    for workflow in planned_workflows:
-        workflow_records.append({
-            "id": workflow["id"],
-            "label": workflow["label"],
-            "kind": workflow["kind"],
-            "winner": None,
-            "tools": {
-                native_tool: {
-                    "command": workflow["command"],
-                    "sampleCount": workflow["samples"],
-                    "successfulSampleCount": 0,
-                    "medianMillis": None,
-                    "samples": [],
-                    "logs": [],
-                }
-            },
-        })
+    for workflow_id, label, sample_count in workflow_specs:
+        tools = {}
+        for tool in ("zolt", native_tool):
+            tools[tool] = {
+                "command": commands[tool]["build"],
+                "samples": [],
+                "sampleCount": sample_count,
+                "successfulSampleCount": 0,
+                "timedOutSampleCount": 0,
+                "medianMillis": None,
+                "minMillis": None,
+                "maxMillis": None,
+                "logs": [],
+            }
+        workflow_records.append({"id": workflow_id, "label": label, "kind": "comparison", "winner": None, "tools": tools})
 else:
     try:
         prepare_checkout()
-        sample_stream = samples_path.open("w", encoding="utf-8")
-        with sample_stream:
-            for workflow in native_workflows:
-                workflow_id = workflow.get("id")
-                workflow_command = command_for(workflow)
-                workflow_samples = []
-                for sample_index in range(1, workflow_sample_count(workflow) + 1):
-                    sample_label = f"{workflow_id}-{sample_index:03d}"
-                    if workflow.get("prepare") == "clean":
-                        reset_checkout(sample_label)
-                    if workflow.get("sourceChange"):
-                        apply_source_change(workflow_id, sample_index)
-                    result = run_process(
-                        workflow_command,
-                        checkout_dir,
-                        f"{sample_label}-{native_tool}.log",
-                        check=False,
-                        timeout_seconds=sample_timeout_seconds,
-                    )
-                    sample = {
-                        "project": project_id,
-                        "workflow": workflow_id,
-                        "workflowLabel": workflow.get("label") or workflow_id,
-                        "tool": native_tool,
-                        "sample": sample_index,
-                        **result,
-                    }
-                    samples.append(sample)
-                    workflow_samples.append(sample)
-                    sample_stream.write(json.dumps(sample) + "\n")
-                    sample_stream.flush()
-                    if sample["exitCode"] != 0:
-                        status = "failed"
-                        failure = {
+        source_files, source_lines = prepare_overlays()
+        for tool in ("zolt", native_tool):
+            checked(commands[tool]["resolve"], commands[tool]["cwd"], f"setup/{tool}-resolve.log")
+            checked(commands[tool]["build"], commands[tool]["cwd"], f"setup/{tool}-build.log")
+            checked(commands[tool]["clean"], commands[tool]["cwd"], f"setup/{tool}-clean.log")
+
+        with samples_path.open("w", encoding="utf-8") as sample_stream:
+            for workflow_id, label, sample_count in workflow_specs:
+                tools = {}
+                for tool in ("zolt", native_tool):
+                    rows = []
+                    changed_path = commands[tool]["cwd"] / source_change_target
+                    baseline = changed_path.read_text(encoding="utf-8")
+                    for sample_index in range(1, sample_count + 1):
+                        if workflow_id == "first-clean-build":
+                            checked(commands[tool]["clean"], commands[tool]["cwd"], f"prepare/{workflow_id}-{tool}-{sample_index:03d}-clean.log")
+                        elif workflow_id == "source-change-build":
+                            changed_path.write_text(
+                                baseline.rstrip() + f"\n// Zolt benchmark source change: {tool} sample {sample_index}\n",
+                                encoding="utf-8",
+                            )
+                        result = run_process(
+                            commands[tool]["build"],
+                            commands[tool]["cwd"],
+                            f"samples/{workflow_id}-{tool}-{sample_index:03d}.log",
+                            sample_timeout_seconds,
+                        )
+                        row = {
+                            "project": project_id,
                             "workflow": workflow_id,
+                            "workflowLabel": label,
+                            "tool": tool,
                             "sample": sample_index,
-                            "exitCode": sample["exitCode"],
-                            "log": sample["log"],
+                            **result,
                         }
+                        samples.append(row)
+                        rows.append(row)
+                        sample_stream.write(json.dumps(row) + "\n")
+                        sample_stream.flush()
+                        if result["exitCode"] != 0:
+                            failure = {
+                                "workflow": workflow_id,
+                                "tool": tool,
+                                "sample": sample_index,
+                                "exitCode": result["exitCode"],
+                                "log": result["log"],
+                            }
+                            status = "failed"
+                            break
+                    if workflow_id == "source-change-build":
+                        changed_path.write_text(baseline, encoding="utf-8")
+                    tools[tool] = metric(commands[tool]["build"], rows)
+                    if failure:
                         break
+                successful_medians = {
+                    tool: values.get("medianMillis")
+                    for tool, values in tools.items()
+                    if values.get("medianMillis") is not None
+                }
+                winner = min(successful_medians, key=successful_medians.get) if len(successful_medians) == 2 else None
                 workflow_records.append({
                     "id": workflow_id,
-                    "label": workflow.get("label") or workflow_id,
-                    "kind": workflow.get("kind") or "repeated",
-                    "winner": native_tool if workflow_samples and all(sample["exitCode"] == 0 for sample in workflow_samples) else None,
-                    "tools": {
-                        native_tool: metric_for(workflow, workflow_command, workflow_samples),
-                    },
+                    "label": label,
+                    "kind": "comparison",
+                    "winner": winner,
+                    "tools": tools,
                 })
                 if failure:
                     break
@@ -461,42 +679,60 @@ else:
         failure = {"error": str(exc)}
 
 caveats = [
-    "This is an upstream-tool baseline, not a Zolt comparison.",
-    "Zolt comparison results require a checked-in adapter that builds the same meaningful source set.",
-    "First clean builds are single setup samples unless the workflow states otherwise.",
+    "The Zolt and upstream-tool overlays compile the same copied source and resource trees with the same declared release level and dependencies.",
+    "Dependency caches are warmed before timed builds; dependency download speed is not measured.",
+    "Generated overlay builds do not reproduce every upstream plugin or packaging behavior.",
 ]
 caveats.extend(project.get("coverageNotes") or [])
 if dry_run:
     caveats.insert(0, "Dry run only; no repository checkout or timing samples were collected.")
 if failure:
-    caveats.insert(0, "At least one upstream-tool baseline command failed; inspect the referenced command log.")
+    caveats.insert(0, "At least one comparison command failed; inspect the referenced log.")
 
+completed_workflows = sum(
+    1
+    for row in workflow_records
+    if len(row.get("tools") or {}) == 2
+    and all((values.get("successfulSampleCount") or 0) == (values.get("sampleCount") or 0) for values in row["tools"].values())
+)
+
+project_record = {
+    "id": project_id,
+    "name": project.get("name"),
+    "upstreamUrl": project.get("upstreamUrl"),
+    "nativeTool": native_tool,
+    "status": project.get("status"),
+    "adapterStatus": project.get("adapterStatus"),
+    "adapterPath": project.get("adapterPath"),
+    "pin": pin,
+    "sourceBranch": project.get("sourceBranch"),
+}
 lane = {
-    "id": f"real-{project_id}-{native_tool}-baseline",
-    "name": f"{project.get('name') or project_id} upstream {native_tool.title()} baseline",
-    "kind": "real-project-native-baseline",
+    "id": f"real-{project_id}-comparison",
+    "name": f"{project.get('name') or project_id} same-source comparison",
+    "kind": "real-project-comparison",
     "status": status,
     "workload": {
-        "project": {
-            "id": project_id,
-            "name": project.get("name"),
-            "upstreamUrl": project.get("upstreamUrl"),
-            "nativeTool": native_tool,
-            "status": project.get("status"),
-            "pin": pin,
-            "sourceBranch": project.get("sourceBranch"),
-        }
+        "project": project_record,
+        "adapter": {
+            "type": adapter.get("type"),
+            "sourceFiles": source_files,
+            "sourceLines": source_lines,
+            "compilerRelease": adapter.get("compilerRelease"),
+            "omittedBuildFeatures": adapter.get("omittedBuildFeatures") or [],
+        },
     },
     "tools": {
+        "zolt": {"label": "Zolt", "version": environment["tools"]["zolt"]},
         native_tool: {
             "label": "Maven" if native_tool == "maven" else "Gradle",
-            "version": environment["tools"].get(native_tool),
-        }
+            "version": environment["tools"][native_tool],
+        },
     },
     "summary": {
-        "classification": "Real-project upstream-tool baseline",
-        "completedWorkflowCount": sum(1 for row in workflow_records if row.get("winner") == native_tool),
-        "plannedWorkflowCount": len(native_workflows),
+        "classification": "Real-project same-source comparison",
+        "completedWorkflowCount": completed_workflows,
+        "plannedWorkflowCount": len(workflow_specs),
         "repeatCount": repeat_count,
         "failure": failure,
     },
@@ -509,30 +745,39 @@ lane = {
         "samples": rel(samples_path),
         "report": rel(report_path),
         "logs": rel(logs_dir),
+        "adapter": rel(adapter_path),
         "checkout": rel(checkout_dir) if checkout_dir.exists() else None,
     },
 }
 
+run_url = None
+if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
+    run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+repository = {
+    "name": os.environ.get("GITHUB_REPOSITORY"),
+    "ref": os.environ.get("GITHUB_REF_NAME"),
+    "commit": os.environ.get("GITHUB_SHA"),
+    "runId": os.environ.get("GITHUB_RUN_ID"),
+    "runUrl": run_url,
+}
+
 summary = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "createdAt": now_iso(),
-    "project": lane["workload"]["project"],
+    "project": project_record,
     "status": status,
+    "coverage": coverage,
     "environment": environment,
     "workflows": workflow_records,
     "samples": samples,
     "caveats": caveats,
     "failure": failure,
 }
-
 suite = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "createdAt": now_iso(),
-    "suite": {
-        "name": "zolt-real-project-benchmark",
-        "mode": "single-lane",
-    },
-    "repository": repository_record(),
+    "suite": {"name": "zolt-real-project-benchmark", "mode": "single-lane"},
+    "repository": repository,
     "run": {
         "classification": lane["summary"]["classification"],
         "laneCount": 1,
@@ -545,31 +790,23 @@ summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 suite_path.write_text(json.dumps(suite, indent=2) + "\n", encoding="utf-8")
 
 lines = [
-    f"# {project.get('name') or project_id} Upstream {native_tool.title()} Baseline",
+    f"# {project.get('name') or project_id} Same-Source Comparison",
     "",
     f"- Project: `{project_id}`",
-    f"- Upstream tool: `{native_tool}`",
     f"- Pin: `{pin_value}`",
+    f"- Adapter: `{project.get('adapterPath')}`",
     f"- Status: `{status}`",
     "",
-    "| Workflow | Median | Samples | Command |",
-    "| --- | ---: | ---: | --- |",
+    "| Workflow | Winner | Zolt | Upstream tool |",
+    "| --- | --- | ---: | ---: |",
 ]
 for workflow in workflow_records:
-    metrics = (workflow.get("tools") or {}).get(native_tool) or {}
-    median_ms = metrics.get("medianMillis")
-    median_text = f"{median_ms:,} ms" if isinstance(median_ms, (int, float)) else "n/a"
-    command_text = "`" + " ".join(metrics.get("command") or []) + "`"
-    command_text = command_text.replace("|", "\\|")
+    tools = workflow.get("tools") or {}
+    zolt_ms = (tools.get("zolt") or {}).get("medianMillis")
+    native_ms = (tools.get(native_tool) or {}).get("medianMillis")
+    fmt = lambda value: f"{value:,} ms" if isinstance(value, (int, float)) else "n/a"
     lines.append(
-        "| "
-        + " | ".join([
-            workflow.get("label") or workflow.get("id") or "unknown",
-            median_text,
-            str(metrics.get("successfulSampleCount") or 0),
-            command_text,
-        ])
-        + " |"
+        f"| {workflow.get('label')} | {workflow.get('winner') or 'n/a'} | {fmt(zolt_ms)} | {fmt(native_ms)} |"
     )
 if failure:
     lines.extend(["", f"Failure: `{json.dumps(failure, sort_keys=True)}`"])
@@ -578,7 +815,7 @@ lines.extend(f"- {item}" for item in caveats)
 lines.append("")
 report_path.write_text("\n".join(lines), encoding="utf-8")
 
-print(f"wrote real-project summary: {summary_path}")
+print(f"wrote real-project comparison summary: {summary_path}")
 print(f"wrote real-project suite lane: {suite_path}")
 print(f"wrote real-project report: {report_path}")
 

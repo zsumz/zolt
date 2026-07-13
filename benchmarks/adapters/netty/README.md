@@ -8,10 +8,10 @@ filtered `common` main Java sources, dependencies, and Java level, then records
 the source count, commands, compiler difference, and package difference.
 
 This is a useful Netty source-subset comparison, not a full Netty comparison.
-The larger `benchmark-real-project` lane remains an upstream Maven baseline for
-the selected core Java reactor.
+The `benchmark-real-project` lane uses the same `common` coverage boundary for
+its standard clean, no-op, and source-change comparison workflows.
 
-Current upstream Maven baseline:
+Current pinned comparison source:
 
 - upstream: `https://github.com/netty/netty`
 - branch: `4.1`

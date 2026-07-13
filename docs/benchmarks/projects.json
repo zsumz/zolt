@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "projects": [
     {
       "id": "spring-petclinic",
@@ -7,8 +7,9 @@
       "upstreamUrl": "https://github.com/spring-projects/spring-petclinic",
       "sourceBranch": "main",
       "nativeTool": "maven",
-      "status": "upstream-baseline-ready",
-      "adapterStatus": "planned",
+      "status": "comparison-ready",
+      "adapterStatus": "main-source-ready",
+      "adapterPath": "benchmarks/adapters/spring-petclinic/coverage.json",
       "priority": 1,
       "pin": {
         "type": "commit",
@@ -19,59 +20,11 @@
       "workflows": [
         "first-clean-build",
         "warm-no-op-build",
-        "source-change-build",
-        "test"
+        "source-change-build"
       ],
-      "nativeWorkflows": [
-        {
-          "id": "first-clean-build",
-          "label": "First clean build",
-          "kind": "setup",
-          "samples": 1,
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        },
-        {
-          "id": "warm-no-op-build",
-          "label": "Warm no-op build",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "none",
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        },
-        {
-          "id": "source-change-build",
-          "label": "Source change build",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "sourceChange": true,
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        }
-      ],
-      "sourceChange": {
-        "path": "src/main/java/org/springframework/samples/petclinic/model/BaseEntity.java",
-        "marker": "Zolt benchmark source change"
-      },
       "coverageNotes": [
-        "Real Spring Boot application lane.",
-        "Pinned upstream commit on the main branch.",
-        "Upstream Maven baseline only until a checked-in Zolt adapter builds the same source set."
+        "Full main Java and resource source set at the pinned commit.",
+        "Tests, Spring Boot repackaging, frontend asset generation, and release plugins are excluded."
       ]
     },
     {
@@ -80,8 +33,9 @@
       "upstreamUrl": "https://github.com/apache/commons-cli",
       "sourceBranch": "master",
       "nativeTool": "maven",
-      "status": "upstream-baseline-ready",
-      "adapterStatus": "planned",
+      "status": "comparison-ready",
+      "adapterStatus": "main-source-ready",
+      "adapterPath": "benchmarks/adapters/apache-commons-cli/coverage.json",
       "priority": 2,
       "pin": {
         "type": "commit",
@@ -92,59 +46,11 @@
       "workflows": [
         "first-clean-build",
         "warm-no-op-build",
-        "source-change-build",
-        "test"
+        "source-change-build"
       ],
-      "nativeWorkflows": [
-        {
-          "id": "first-clean-build",
-          "label": "First clean build",
-          "kind": "setup",
-          "samples": 1,
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        },
-        {
-          "id": "warm-no-op-build",
-          "label": "Warm no-op build",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "none",
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        },
-        {
-          "id": "source-change-build",
-          "label": "Source change build",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "sourceChange": true,
-          "command": [
-            "mvn",
-            "-q",
-            "-DskipTests",
-            "compile"
-          ]
-        }
-      ],
-      "sourceChange": {
-        "path": "src/main/java/org/apache/commons/cli/CommandLine.java",
-        "marker": "Zolt benchmark source change"
-      },
       "coverageNotes": [
-        "Compact Maven library lane.",
-        "Pinned upstream commit on the master branch.",
-        "Upstream Maven baseline only until a checked-in Zolt adapter builds the same source set."
+        "Full main Java and resource source set at the pinned commit.",
+        "Tests, reports, site generation, and release plugins are excluded."
       ]
     },
     {
@@ -152,23 +58,26 @@
       "name": "HikariCP",
       "upstreamUrl": "https://github.com/brettwooldridge/HikariCP",
       "sourceBranch": "dev",
-      "nativeTool": "gradle",
-      "status": "later",
-      "adapterStatus": "planned",
+      "nativeTool": "maven",
+      "status": "comparison-ready",
+      "adapterStatus": "main-source-ready",
+      "adapterPath": "benchmarks/adapters/hikaricp/coverage.json",
       "priority": 3,
       "pin": {
         "type": "commit",
-        "value": null
+        "value": "a4d93f4f85517f90e632b795486d7102e933d7ff",
+        "sourceBranch": "dev",
+        "pinnedAt": "2026-07-13"
       },
       "workflows": [
         "first-clean-build",
         "warm-no-op-build",
-        "source-change-build",
-        "test"
+        "source-change-build"
       ],
       "coverageNotes": [
-        "First Gradle-library real-project lane.",
-        "Run after the Maven real-project lanes prove the manifest and artifact flow."
+        "Full main Java source set and optional compile dependencies at the pinned commit.",
+        "The pinned upstream project uses Maven; the stale planned Gradle label was corrected.",
+        "Tests, generated proxy sources, OSGi bundle metadata, and release plugins are excluded."
       ]
     },
     {
@@ -177,7 +86,7 @@
       "upstreamUrl": "https://github.com/netty/netty",
       "sourceBranch": "4.1",
       "nativeTool": "maven",
-      "status": "upstream-baseline-ready",
+      "status": "comparison-ready",
       "adapterStatus": "common-subset-ready",
       "adapterPath": "benchmarks/adapters/netty/coverage.json",
       "priority": 4,
@@ -188,123 +97,13 @@
         "pinnedAt": "2026-07-08"
       },
       "workflows": [
-        "core-clean-package",
-        "core-parallel-clean-package",
-        "clean-compile-common",
-        "warm-no-op-common",
-        "implementation-change-common"
+        "first-clean-build",
+        "warm-no-op-build",
+        "source-change-build"
       ],
-      "nativeWorkflows": [
-        {
-          "id": "core-clean-package",
-          "label": "Clean package Netty core Java reactor",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-pl",
-            "common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp",
-            "-am",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "package"
-          ]
-        },
-        {
-          "id": "core-parallel-clean-package",
-          "label": "Parallel clean package Netty core Java reactor",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-T",
-            "1C",
-            "-pl",
-            "common,buffer,transport,resolver,codec,codec-dns,codec-haproxy,codec-http,codec-http2,codec-memcache,codec-mqtt,codec-redis,codec-smtp,codec-socks,codec-stomp,codec-xml,handler,handler-proxy,handler-ssl-ocsp",
-            "-am",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "package"
-          ]
-        },
-        {
-          "id": "clean-compile-common",
-          "label": "Clean compile common module",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "command": [
-            "mvn",
-            "-q",
-            "-pl",
-            "common",
-            "-am",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "compile"
-          ]
-        },
-        {
-          "id": "warm-no-op-common",
-          "label": "Warm no-op common module",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "none",
-          "command": [
-            "mvn",
-            "-q",
-            "-pl",
-            "common",
-            "-am",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "compile"
-          ]
-        },
-        {
-          "id": "implementation-change-common",
-          "label": "Implementation change in common",
-          "kind": "repeated",
-          "samples": "repeat",
-          "prepare": "clean",
-          "sourceChange": true,
-          "command": [
-            "mvn",
-            "-q",
-            "-pl",
-            "common",
-            "-am",
-            "-DskipTests",
-            "-Dcheckstyle.skip",
-            "-DskipAutobahnTestsuite",
-            "-DskipHttp2Testsuite",
-            "compile"
-          ]
-        }
-      ],
-      "sourceChange": {
-        "path": "common/src/main/java/io/netty/util/internal/ObjectUtil.java",
-        "marker": "Zolt benchmark source change"
-      },
       "coverageNotes": [
-        "Large Netty core Java Maven reactor lane.",
-        "Native platform modules and testsuites are intentionally excluded from this baseline.",
-        "This manifest lane remains an upstream Maven baseline.",
-        "Full native packaging is a separate future lane because the pinned 4.1 snapshot can require native-src artifacts that are not available from public repositories.",
-        "scripts/benchmark-netty-compare provides a separate source-compatible Zolt comparison for the common main-source subset only.",
-        "The common subset comparison does not establish full core-reactor, test, native, generated-source, or package parity."
+        "Netty common main Java subset at the pinned commit.",
+        "Native-image substitutions, all other modules, tests, native transports, generated native sources, and full-reactor packaging are excluded."
       ]
     },
     {
@@ -313,22 +112,24 @@
       "upstreamUrl": "https://github.com/junit-team/junit-framework",
       "sourceBranch": "main",
       "nativeTool": "gradle",
-      "status": "later",
-      "adapterStatus": "planned",
+      "status": "comparison-ready",
+      "adapterStatus": "platform-commons-subset-ready",
+      "adapterPath": "benchmarks/adapters/junit-framework/coverage.json",
       "priority": 5,
       "pin": {
         "type": "commit",
-        "value": null
+        "value": "b87db9fe6616cefe4c03e165e61f54bd9c76017b",
+        "sourceBranch": "main",
+        "pinnedAt": "2026-07-13"
       },
       "workflows": [
         "first-clean-build",
         "warm-no-op-build",
-        "source-change-build",
-        "test"
+        "source-change-build"
       ],
       "coverageNotes": [
-        "Large Gradle multi-module project.",
-        "Likely post-beta once Maven real-project and Netty lanes are stable."
+        "JUnit Platform Commons main Java and resource subset at the pinned commit.",
+        "Other modules, Kotlin sources, tests, test fixtures, documentation, and release plugins are excluded."
       ]
     }
   ]

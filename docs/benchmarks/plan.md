@@ -83,8 +83,9 @@ The suite runner sits on top of the generated-workspace
 - `scripts/benchmark-large-source` preserves the roughly 500,000-line source
   volume and ABI-change comparison as a specialist manual lane;
 - `scripts/benchmark-netty-compare` creates an explicitly scoped Netty `common`
-  overlay comparison while the full core-reactor adapter remains incomplete;
-- `docs/benchmarks/projects.json` records planned pinned real-project lanes;
+  specialist comparison while the full core-reactor adapter remains incomplete;
+- `docs/benchmarks/projects.json` records five pinned, comparison-ready
+  real-project lanes;
 - `scripts/benchmark-enterprise-fixture` generates Zolt, Maven, and Gradle
   versions of the enterprise workload;
 - `scripts/benchmark-real-project` checks out pinned upstream refs, applies
@@ -96,7 +97,7 @@ The GitHub workflow should expose simple modes:
 
 - `smoke`: small generated workload, one repeat, runs on push to this branch;
 - `enterprise`: large generated workload, five to seven repeats, manual;
-- `real-projects`: pinned real projects, manual at first;
+- `real-projects`: pinned real projects, required on pushes to the benchmark branch;
 - `publishable`: enterprise plus stable real-project adapters, manual or
   scheduled after the workflow is proven.
 
@@ -166,7 +167,7 @@ large enterprise-grade baseline:
 
 - Spring PetClinic for familiar Spring application shape;
 - Apache Commons CLI for a compact Maven library;
-- HikariCP for a Gradle library;
+- HikariCP for a library with optional compile dependencies;
 - Netty as the large Maven codebase benchmark, following the public Mill
   comparison shape: clean-all, single-module, incremental, and no-op workflows.
 
@@ -182,10 +183,10 @@ fixture. The generated enterprise workload is the controllable centerpiece.
    above remain future work.
 3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`. Done
    for the current suite summary.
-4. Add real-project checkout/adapters for Spring PetClinic and Commons CLI.
-5. Add Netty as the large upstream-baseline project and a conservative Zolt
-   `common` subset comparison. Done; full core-reactor parity remains future
-   work.
+4. Add real-project checkout/adapters for Spring PetClinic, Commons CLI,
+   HikariCP, Netty `common`, and JUnit Platform Commons. Done.
+5. Add Netty as a conservative Zolt `common` subset comparison. Done; full
+   core-reactor parity remains future work.
 6. Publish a dated benchmark result under `docs/benchmarks/results/`.
 
 Done means a manual GitHub run produces one clean artifact with raw samples,

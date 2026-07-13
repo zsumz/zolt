@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmark-real-project-test"
+UPSTREAM="$WORK_DIR/upstream"
+ADAPTER="$WORK_DIR/coverage.json"
+MANIFEST="$WORK_DIR/projects.json"
+FAKE_ZOLT="$WORK_DIR/fake-zolt"
+FAKE_MAVEN="$WORK_DIR/fake-maven"
+FAKE_GRADLE="$WORK_DIR/fake-gradle"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+rm -rf "$WORK_DIR"
+mkdir -p "$UPSTREAM/src/main/java/example" "$UPSTREAM/src/main/resources"
+
+cat >"$UPSTREAM/src/main/java/example/Sample.java" <<'EOF'
+package example;
+
+public final class Sample {
+    public String value() {
+        return "sample";
+    }
+}
+EOF
+printf 'fixture=true\n' >"$UPSTREAM/src/main/resources/application.properties"
+
+git -C "$UPSTREAM" init -q
+git -C "$UPSTREAM" config user.name "Benchmark Test"
+git -C "$UPSTREAM" config user.email "benchmark@example.test"
+git -C "$UPSTREAM" config commit.gpgsign false
+git -C "$UPSTREAM" add .
+git -C "$UPSTREAM" commit -q -m "fixture"
+PIN="$(git -C "$UPSTREAM" rev-parse HEAD)"
+UPSTREAM_ABS="$(cd "$UPSTREAM" && pwd)"
+
+cat >"$ADAPTER" <<EOF
+{
+  "schemaVersion": 2,
+  "projectId": "PROJECT_ID",
+  "status": "comparison-ready",
+  "upstream": { "url": "$UPSTREAM_ABS", "branch": "main", "commit": "$PIN" },
+  "adapter": {
+    "type": "generated-same-source-overlay",
+    "group": "example",
+    "name": "real-project-fixture",
+    "version": "1.0.0",
+    "java": "21",
+    "compilerRelease": 17,
+    "sourceRoots": [{ "from": "src/main/java", "to": "src/main/java" }],
+    "resourceRoots": [{ "from": "src/main/resources", "to": "src/main/resources" }],
+    "sourceChangeTarget": "src/main/java/example/Sample.java",
+    "platforms": {},
+    "dependencies": {},
+    "providedDependencies": {},
+    "excludes": [],
+    "coveredWorkflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "omittedBuildFeatures": ["tests"]
+  }
+}
+EOF
+
+cat >"$FAKE_ZOLT" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'fake zolt 1.0\n'
+  exit 0
+fi
+case "${1:-}" in
+  resolve | build | clean) printf 'zolt %s ok\n' "$1" ;;
+  *) exit 2 ;;
+esac
+FAKE
+
+cat >"$FAKE_MAVEN" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'fake maven 1.0\n'
+  exit 0
+fi
+printf 'maven ok\n'
+FAKE
+
+cat >"$FAKE_GRADLE" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'fake gradle 1.0\n'
+  exit 0
+fi
+printf 'gradle ok\n'
+FAKE
+chmod +x "$FAKE_ZOLT" "$FAKE_MAVEN" "$FAKE_GRADLE"
+
+for tool in maven gradle; do
+  project_id="fixture-$tool"
+  sed "s/PROJECT_ID/$project_id/g" "$ADAPTER" >"$WORK_DIR/$project_id-coverage.json"
+  cat >"$MANIFEST" <<EOF
+{
+  "schemaVersion": 2,
+  "projects": [{
+    "id": "$project_id",
+    "name": "Fixture $tool",
+    "upstreamUrl": "$UPSTREAM_ABS",
+    "sourceBranch": "main",
+    "nativeTool": "$tool",
+    "status": "comparison-ready",
+    "adapterStatus": "main-source-ready",
+    "adapterPath": "$WORK_DIR/$project_id-coverage.json",
+    "pin": { "type": "commit", "value": "$PIN", "sourceBranch": "main" },
+    "workflows": ["first-clean-build", "warm-no-op-build", "source-change-build"],
+    "coverageNotes": ["Fixture coverage note."]
+  }]
+}
+EOF
+
+  scripts/benchmark-real-project \
+    --project "$project_id" \
+    --project-manifest "$MANIFEST" \
+    --work-dir "$WORK_DIR/run-$tool" \
+    --repeat 2 \
+    --zolt "$FAKE_ZOLT" \
+    --maven "$FAKE_MAVEN" \
+    --gradle "$FAKE_GRADLE" \
+    >/dev/null
+
+  jq -e --arg tool "$tool" '
+    .status == "complete"
+    and (.workflows | length) == 3
+    and all(.workflows[];
+      (.tools | keys | sort) == (["zolt", $tool] | sort)
+      and all(.tools[]; .sampleCount == .successfulSampleCount)
+    )
+  ' "$WORK_DIR/run-$tool/summary.json" >/dev/null \
+    || fail "$tool comparison summary did not record three successful workflows"
+
+  jq -e '
+    .lanes[0].kind == "real-project-comparison"
+    and .lanes[0].status == "complete"
+    and .lanes[0].summary.completedWorkflowCount == 3
+  ' "$WORK_DIR/run-$tool/suite-summary.json" >/dev/null \
+    || fail "$tool suite lane was not a completed real-project comparison"
+
+  diff -qr \
+    "$WORK_DIR/run-$tool/projects/zolt/src/main" \
+    "$WORK_DIR/run-$tool/projects/$tool/src/main" \
+    >/dev/null || fail "$tool overlays did not contain the same source and resource trees"
+done
+
+jq -e '
+  .schemaVersion == 2
+  and (.projects | length) == 5
+  and all(.projects[];
+    .status == "comparison-ready"
+    and (.adapterStatus | endswith("ready"))
+    and (.pin.value | length) == 40
+    and (.adapterPath | length) > 0
+  )
+' docs/benchmarks/projects.json >/dev/null \
+  || fail "configured real-project manifest is not fully pinned and comparison-ready"
+
+while IFS= read -r adapter_path; do
+  jq -e '
+    .status == "comparison-ready"
+    and .adapter.type == "generated-same-source-overlay"
+    and (.adapter.sourceRoots | length) > 0
+    and (.adapter.coveredWorkflows == ["first-clean-build", "warm-no-op-build", "source-change-build"])
+  ' "$adapter_path" >/dev/null || fail "adapter is not comparison-ready: $adapter_path"
+done < <(jq -r '.projects[].adapterPath' docs/benchmarks/projects.json)
+
+printf 'benchmark real-project comparison script test passed\n'
