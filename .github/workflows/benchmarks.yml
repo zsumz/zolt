@@ -87,7 +87,7 @@ jobs:
       BENCHMARK_DIR: target/benchmarks/competitors
       BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '10' }}
       BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
-      BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'release' }}
+      BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'build' }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon }}
