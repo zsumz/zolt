@@ -1,6 +1,7 @@
 package sh.zolt.build.compile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.classpath.Classpath;
@@ -72,6 +73,33 @@ final class JavacRunnerInProcessTest {
 
         assertTrue(inProcessArguments.isEmpty());
         assertEquals("managed-javac", externalCommands.getFirst().getFirst());
+    }
+
+    @Test
+    void usesExternalJavacWhenRuntimeJavacIsUnavailable() throws IOException {
+        Path source = source("src/main/java/com/example/Main.java", "final class Main {}\n");
+        List<List<String>> inProcessArguments = new ArrayList<>();
+        List<List<String>> externalCommands = new ArrayList<>();
+        JavacRunner runner = runner(externalCommands, inProcessArguments, null);
+
+        runner.compile(
+                Path.of("managed-javac"),
+                List.of(source),
+                new Classpath(List.of()),
+                tempDir.resolve("target/classes"));
+
+        assertTrue(inProcessArguments.isEmpty());
+        assertEquals("managed-javac", externalCommands.getFirst().getFirst());
+    }
+
+    @Test
+    void runtimeJavacIsUnavailableWithoutJavaHome() {
+        assertNull(JavacRunner.runtimeJavac(null, null));
+    }
+
+    @Test
+    void runtimeJavacIsUnavailableInsideNativeImage() {
+        assertNull(JavacRunner.runtimeJavac("/runtime-jdk", "runtime"));
     }
 
     @Test

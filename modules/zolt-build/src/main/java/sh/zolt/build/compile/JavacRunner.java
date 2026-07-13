@@ -294,7 +294,16 @@ public final class JavacRunner {
     }
 
     private static Path runtimeJavac() {
-        return Path.of(System.getProperty("java.home"))
+        return runtimeJavac(
+                System.getProperty("java.home"),
+                System.getProperty("org.graalvm.nativeimage.imagecode"));
+    }
+
+    static Path runtimeJavac(String javaHome, String nativeImageCode) {
+        if (nativeImageCode != null || javaHome == null || javaHome.isBlank()) {
+            return null;
+        }
+        return Path.of(javaHome)
                 .resolve("bin")
                 .resolve(executable("javac"));
     }

@@ -4,7 +4,6 @@ on:
   pull_request:
   push:
     branches:
-      - dev
       - main
   workflow_dispatch:
 
@@ -218,7 +217,7 @@ jobs:
     needs:
       - smoke
       - managed-toolchain
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -245,7 +244,7 @@ jobs:
       - test
       - zap-version
       - zap-config
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
@@ -305,7 +304,7 @@ jobs:
     needs:
       - test
       - zap-version
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -346,7 +345,7 @@ jobs:
       - test
       - zap-version
       - zap-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
