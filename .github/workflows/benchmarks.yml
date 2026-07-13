@@ -119,6 +119,7 @@ jobs:
         with:
           distribution: graalvm
           java-version: "21"
+          components: native-image
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Gradle
@@ -142,6 +143,20 @@ jobs:
           restore-keys: |
             zolt-cache-${{ runner.os }}-${{ runner.arch }}-
             zolt-cache-${{ runner.os }}-
+
+      - name: Cache Zolt managed toolchains
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
+        uses: actions/cache@v6
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
+      - name: Bootstrap sync Zolt-managed Java
+        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
+        run: scripts/bootstrap-zolt-jvm --no-progress toolchain sync
 
       - name: Show benchmark tool versions
         run: |
