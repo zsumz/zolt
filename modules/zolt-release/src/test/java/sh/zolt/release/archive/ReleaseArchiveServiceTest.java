@@ -56,13 +56,14 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
     }
 
     @Test
-    void includesBundledJunitWorkerWhenPackagedBesideTheCliApp() throws IOException {
+    void includesBundledWorkersWhenPackagedBesideTheCliApp() throws IOException {
         Path repoRoot = projectDir.resolve("repo");
         projectDir = repoRoot.resolve("apps/zolt");
         Files.createDirectories(projectDir);
         writeProjectFiles();
         Path binary = writeBinary("target/native/zolt");
         writeWorkerJar("../zolt-junit-worker/target/zolt-junit-worker-0.1.0.jar");
+        writeWorkerJar("../zolt-javac-worker/target/zolt-javac-worker-0.1.0.jar");
 
         ReleaseArchiveResult result = service.assemble(
                 projectDir,
@@ -71,13 +72,14 @@ final class ReleaseArchiveServiceTest extends ReleaseArchiveTestSupport {
                 binary,
                 Path.of("dist"));
 
-        assertEquals(5, result.fileCount());
+        assertEquals(6, result.fileCount());
         assertEquals(List.of(
                 "zolt-0.1.0-linux-x64/",
                 "zolt-0.1.0-linux-x64/bin/",
                 "zolt-0.1.0-linux-x64/bin/zolt",
                 "zolt-0.1.0-linux-x64/libexec/",
                 "zolt-0.1.0-linux-x64/libexec/zolt-junit-worker.jar",
+                "zolt-0.1.0-linux-x64/libexec/zolt-javac-worker.jar",
                 "zolt-0.1.0-linux-x64/VERSION",
                 "zolt-0.1.0-linux-x64/README.md",
                 "zolt-0.1.0-linux-x64/LICENSE"), tarEntries(result.archivePath()));

@@ -7,6 +7,7 @@ cd "$ROOT"
 JAR_PATH="${ZOLT_JAR:-}"
 RUNTIME_CLASSPATH_FILE="${ZOLT_RUNTIME_CLASSPATH_FILE:-}"
 WORKER_JAR_PATH="${ZOLT_JUNIT_WORKER_JAR:-}"
+JAVAC_WORKER_JAR_PATH="${ZOLT_JAVAC_WORKER_JAR:-}"
 java_opts=()
 if [[ -n "${ZOLT_JAVA_OPTS:-}" ]]; then
   read -r -a java_opts <<< "$ZOLT_JAVA_OPTS"
@@ -93,6 +94,24 @@ if [[ -n "$WORKER_JAR_PATH" ]]; then
   else
     java_opts=("-Dzolt.junit.worker.classpath=${WORKER_JAR_PATH}")
   fi
+fi
+
+if [[ -z "$JAVAC_WORKER_JAR_PATH" ]]; then
+  shopt -s nullglob
+  javac_worker_jars=(apps/zolt-javac-worker/target/*.jar)
+  shopt -u nullglob
+  if [[ "${#javac_worker_jars[@]}" -eq 1 ]]; then
+    JAVAC_WORKER_JAR_PATH="${javac_worker_jars[0]}"
+  fi
+fi
+
+if [[ -n "$JAVAC_WORKER_JAR_PATH" ]]; then
+  if [[ ! -f "$JAVAC_WORKER_JAR_PATH" ]]; then
+    printf 'error: Zolt javac worker jar does not exist at %s\n' "$JAVAC_WORKER_JAR_PATH" >&2
+    printf 'hint: run zolt package --workspace --member apps/zolt-javac-worker before scripts/run-zolt-built\n' >&2
+    exit 1
+  fi
+  java_opts=("-Dzolt.javac.worker.classpath=${JAVAC_WORKER_JAR_PATH}" "${java_opts[@]}")
 fi
 
 if [[ "${#java_opts[@]}" -gt 0 ]]; then

@@ -229,6 +229,31 @@ final class ReleaseVerificationFailureTest {
     }
 
     @Test
+    void missingBundledJavacWorkerFailsBeforeSmokeCommands() throws IOException {
+        Path archive = projectDir.resolve("zolt-0.1.0-windows-x64.zip");
+        writeZip(
+                archive,
+                new ZipFile("zolt-0.1.0-windows-x64/bin/zolt.exe", "native"),
+                new ZipFile("zolt-0.1.0-windows-x64/libexec/zolt-junit-worker.jar", "worker"),
+                new ZipFile("zolt-0.1.0-windows-x64/VERSION", "0.1.0\n"));
+        Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
+                sha256(archive) + "  " + archive.getFileName() + "\n");
+        List<List<String>> commands = new ArrayList<>();
+        ReleaseVerificationService service = new ReleaseVerificationService((command, directory) -> {
+            commands.add(command);
+            return new ReleaseVerificationService.ProcessResult(0, "0.1.0\n");
+        });
+
+        ReleaseVerificationException exception = assertThrows(
+                ReleaseVerificationException.class,
+                () -> service.verify(List.of(archive), projectDir.resolve("verify-no-javac-worker"), "0.1.0"));
+
+        assertTrue(exception.getMessage().contains("expected bundled javac worker"));
+        assertTrue(exception.getMessage().contains("libexec/zolt-javac-worker.jar"));
+        assertEquals(List.of(), commands);
+    }
+
+    @Test
     void versionSmokeFailureReportsArchiveAndOutput() throws IOException {
         writeProjectFiles(projectDir);
         Path binary = writeBinary(projectDir, "target/native/zolt");
@@ -375,6 +400,7 @@ final class ReleaseVerificationFailureTest {
                 archive,
                 new ZipFile("zolt-0.1.0-windows-x64/bin/zolt.exe", "#!/definitely/missing/zolt\n"),
                 new ZipFile("zolt-0.1.0-windows-x64/libexec/zolt-junit-worker.jar", "worker"),
+                new ZipFile("zolt-0.1.0-windows-x64/libexec/zolt-javac-worker.jar", "worker"),
                 new ZipFile("zolt-0.1.0-windows-x64/VERSION", "0.1.0\n"));
         Files.writeString(archive.resolveSibling(archive.getFileName() + ".sha256"),
                 sha256(archive) + "  " + archive.getFileName() + "\n");

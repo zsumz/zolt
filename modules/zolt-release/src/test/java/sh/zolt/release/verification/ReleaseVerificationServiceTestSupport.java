@@ -24,6 +24,7 @@ final class ReleaseVerificationServiceTestSupport {
         Path workerJar = projectDir.resolve("target/libexec/zolt-junit-worker.jar");
         Files.createDirectories(workerJar.getParent());
         Files.writeString(workerJar, "worker");
+        Files.writeString(projectDir.resolve("target/libexec/zolt-javac-worker.jar"), "worker");
     }
 
     static Path writeBinary(Path projectDir, String path) throws IOException {

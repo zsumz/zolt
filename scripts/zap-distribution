@@ -538,17 +538,26 @@ fi
 printf 'Building %s distribution %s for %s\n' "$CHANNEL" "$VERSION" "$TARGET"
 
 rm -f apps/zolt-junit-worker/target/zolt-junit-worker-*.jar
+rm -f apps/zolt-javac-worker/target/zolt-javac-worker-*.jar
 rm -f apps/zolt/target/libexec/zolt-junit-worker.jar
+rm -f apps/zolt/target/libexec/zolt-javac-worker.jar
 scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt-junit-worker --cache-root .zolt/cache
+scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt-javac-worker --cache-root .zolt/cache
 shopt -s nullglob
 WORKER_JARS=(apps/zolt-junit-worker/target/zolt-junit-worker-*.jar)
+JAVAC_WORKER_JARS=(apps/zolt-javac-worker/target/zolt-javac-worker-*.jar)
 shopt -u nullglob
 if [[ "${#WORKER_JARS[@]}" -ne 1 ]]; then
   printf 'error: expected exactly one JUnit worker jar, found %s\n' "${#WORKER_JARS[@]}" >&2
   exit 1
 fi
+if [[ "${#JAVAC_WORKER_JARS[@]}" -ne 1 ]]; then
+  printf 'error: expected exactly one javac worker jar, found %s\n' "${#JAVAC_WORKER_JARS[@]}" >&2
+  exit 1
+fi
 mkdir -p apps/zolt/target/libexec
 cp "${WORKER_JARS[0]}" apps/zolt/target/libexec/zolt-junit-worker.jar
+cp "${JAVAC_WORKER_JARS[0]}" apps/zolt/target/libexec/zolt-javac-worker.jar
 scripts/bootstrap-zolt-jvm --no-progress native --workspace --member apps/zolt --cache-root .zolt/cache
 scripts/bootstrap-zolt-jvm --no-progress release-archive \
   --directory "$APP_DIR" \

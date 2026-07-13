@@ -28,7 +28,7 @@ jobs:
           - name: release-quality
             members: modules/zolt-release,modules/zolt-publish,modules/zolt-policy,modules/zolt-quality,modules/zolt-tree,modules/zolt-plan
           - name: cli-apps
-            members: modules/zolt-explain,modules/zolt-config,modules/zolt-selfhost,modules/zolt-init,apps/zolt-junit-worker,apps/zolt
+            members: modules/zolt-explain,modules/zolt-config,modules/zolt-selfhost,modules/zolt-init,apps/zolt-javac-worker,apps/zolt-junit-worker,apps/zolt
 
     steps:
       - name: Check out repository
@@ -73,6 +73,9 @@ jobs:
 
       - name: Package JUnit worker with managed Java
         run: scripts/run-zolt-built package --workspace --member apps/zolt-junit-worker --no-progress --cache-root .zolt/cache
+
+      - name: Package javac worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-javac-worker --no-progress --cache-root .zolt/cache
 
       - name: Test workspace group with managed Java
         run: scripts/run-zolt-built test --workspace --members "${{ matrix.members }}" --no-progress --cache-root .zolt/cache
@@ -142,6 +145,9 @@ jobs:
 
       - name: Package JUnit worker with managed Java
         run: scripts/run-zolt-built package --workspace --member apps/zolt-junit-worker --no-progress --cache-root .zolt/cache
+
+      - name: Package javac worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-javac-worker --no-progress --cache-root .zolt/cache
 
       - name: Smoke packaged workflows with managed Java
         env:

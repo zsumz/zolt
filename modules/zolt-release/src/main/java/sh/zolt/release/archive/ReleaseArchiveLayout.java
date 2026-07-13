@@ -10,6 +10,8 @@ import java.util.Optional;
 final class ReleaseArchiveLayout {
     private static final String JUNIT_WORKER_ARTIFACT = "zolt-junit-worker";
     private static final String JUNIT_WORKER_ARCHIVE_NAME = "zolt-junit-worker.jar";
+    private static final String JAVAC_WORKER_ARTIFACT = "zolt-javac-worker";
+    private static final String JAVAC_WORKER_ARCHIVE_NAME = "zolt-javac-worker.jar";
 
     List<ReleaseArchiveEntry> entries(
             Path projectDirectory,
@@ -22,7 +24,7 @@ final class ReleaseArchiveLayout {
         entries.add(ReleaseArchiveEntry.directory(rootDirectory + "/"));
         entries.add(ReleaseArchiveEntry.directory(rootDirectory + "/bin/"));
         entries.add(ReleaseArchiveEntry.file(binary, rootDirectory + "/bin/" + binaryName, 0755));
-        addJunitWorkerIfPresent(entries, projectDirectory, rootDirectory, version);
+        addWorkersIfPresent(entries, projectDirectory, rootDirectory, version);
         entries.add(ReleaseArchiveEntry.content(
                 (version + "\n").getBytes(StandardCharsets.UTF_8),
                 rootDirectory + "/VERSION",
@@ -36,26 +38,43 @@ final class ReleaseArchiveLayout {
         return entries;
     }
 
-    private static void addJunitWorkerIfPresent(
+    private static void addWorkersIfPresent(
             List<ReleaseArchiveEntry> entries,
             Path projectDirectory,
             String rootDirectory,
             String version) {
-        Path workerJar = junitWorkerJar(projectDirectory, version);
-        if (!Files.isRegularFile(workerJar)) {
+        List<WorkerArtifact> workers = List.of(
+                new WorkerArtifact(JUNIT_WORKER_ARTIFACT, JUNIT_WORKER_ARCHIVE_NAME),
+                new WorkerArtifact(JAVAC_WORKER_ARTIFACT, JAVAC_WORKER_ARCHIVE_NAME));
+        List<WorkerJar> presentWorkers = workers.stream()
+                .map(worker -> new WorkerJar(
+                        workerJar(projectDirectory, version, worker.artifact(), worker.archiveName()),
+                        worker.archiveName()))
+                .filter(worker -> Files.isRegularFile(worker.path()))
+                .toList();
+        if (presentWorkers.isEmpty()) {
             return;
         }
         entries.add(ReleaseArchiveEntry.directory(rootDirectory + "/libexec/"));
-        entries.add(ReleaseArchiveEntry.file(workerJar, rootDirectory + "/libexec/" + JUNIT_WORKER_ARCHIVE_NAME, 0644));
+        for (WorkerJar worker : presentWorkers) {
+            entries.add(ReleaseArchiveEntry.file(
+                    worker.path(),
+                    rootDirectory + "/libexec/" + worker.archiveName(),
+                    0644));
+        }
     }
 
-    private static Path junitWorkerJar(Path projectDirectory, String version) {
-        String fileName = JUNIT_WORKER_ARTIFACT + "-" + version + ".jar";
+    private static Path workerJar(
+            Path projectDirectory,
+            String version,
+            String artifact,
+            String archiveName) {
+        String fileName = artifact + "-" + version + ".jar";
         List<Path> candidates = new ArrayList<>();
-        candidates.add(projectDirectory.resolve("target/libexec").resolve(JUNIT_WORKER_ARCHIVE_NAME));
+        candidates.add(projectDirectory.resolve("target/libexec").resolve(archiveName));
         candidates.add(projectDirectory.resolve("target").resolve(fileName));
-        candidates.add(projectDirectory.resolve("apps/" + JUNIT_WORKER_ARTIFACT + "/target").resolve(fileName));
-        siblingWorkerJar(projectDirectory, fileName).forEach(candidates::add);
+        candidates.add(projectDirectory.resolve("apps/" + artifact + "/target").resolve(fileName));
+        siblingWorkerJar(projectDirectory, artifact, fileName).forEach(candidates::add);
         return candidates.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .filter(Files::isRegularFile)
@@ -63,7 +82,7 @@ final class ReleaseArchiveLayout {
                 .orElse(candidates.getFirst().toAbsolutePath().normalize());
     }
 
-    private static List<Path> siblingWorkerJar(Path projectDirectory, String fileName) {
+    private static List<Path> siblingWorkerJar(Path projectDirectory, String artifact, String fileName) {
         Path parent = projectDirectory.getParent();
         if (parent == null || projectDirectory.getFileName() == null || parent.getFileName() == null) {
             return List.of();
@@ -72,12 +91,18 @@ final class ReleaseArchiveLayout {
                 || !"apps".equals(parent.getFileName().toString())) {
             return List.of();
         }
-        return List.of(parent.resolve(JUNIT_WORKER_ARTIFACT).resolve("target").resolve(fileName));
+        return List.of(parent.resolve(artifact).resolve("target").resolve(fileName));
     }
 
     private static void addIfPresent(List<ReleaseArchiveEntry> entries, Path source, String name, int mode) {
         if (Files.isRegularFile(source)) {
             entries.add(ReleaseArchiveEntry.file(source, name, mode));
         }
+    }
+
+    private record WorkerArtifact(String artifact, String archiveName) {
+    }
+
+    private record WorkerJar(Path path, String archiveName) {
     }
 }

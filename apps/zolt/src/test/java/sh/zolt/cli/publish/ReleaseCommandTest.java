@@ -121,6 +121,7 @@ final class ReleaseCommandTest {
         writeProjectConfig(projectDir, "https://repo.maven.apache.org/maven2");
         writeFakeZoltBinary(projectDir.resolve("target/native/zolt"));
         writeFakeJunitWorker(projectDir.resolve("target/libexec/zolt-junit-worker.jar"));
+        writeFakeJunitWorker(projectDir.resolve("target/libexec/zolt-javac-worker.jar"));
         CommandResult archiveResult = execute(
                 "release-archive",
                 "--directory", projectDir.toString(),

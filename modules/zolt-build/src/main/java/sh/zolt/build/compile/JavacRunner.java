@@ -8,10 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.StringJoiner;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
@@ -20,9 +18,10 @@ public final class JavacRunner {
     private static final Pattern MISSING_PACKAGE_PATTERN =
             Pattern.compile("package \\S+ does not exist");
 
-    private final String pathSeparator;
+    private final JavacCommandBuilder commandBuilder;
     private final ProcessRunner processRunner;
     private final InProcessRunner inProcessRunner;
+    private final WorkerRunner workerRunner;
     private final Path runtimeJavac;
 
     public JavacRunner() {
@@ -30,11 +29,12 @@ public final class JavacRunner {
                 java.io.File.pathSeparator,
                 JavacRunner::runProcess,
                 JavacRunner::runInProcess,
+                JavacWorkerPool::compile,
                 runtimeJavac());
     }
 
     JavacRunner(String pathSeparator, ProcessRunner processRunner) {
-        this(pathSeparator, processRunner, null, null);
+        this(pathSeparator, processRunner, null, null, null);
     }
 
     JavacRunner(
@@ -42,9 +42,19 @@ public final class JavacRunner {
             ProcessRunner processRunner,
             InProcessRunner inProcessRunner,
             Path runtimeJavac) {
-        this.pathSeparator = pathSeparator;
+        this(pathSeparator, processRunner, inProcessRunner, null, runtimeJavac);
+    }
+
+    JavacRunner(
+            String pathSeparator,
+            ProcessRunner processRunner,
+            InProcessRunner inProcessRunner,
+            WorkerRunner workerRunner,
+            Path runtimeJavac) {
+        this.commandBuilder = new JavacCommandBuilder(pathSeparator);
         this.processRunner = processRunner;
         this.inProcessRunner = inProcessRunner;
+        this.workerRunner = workerRunner;
         this.runtimeJavac = runtimeJavac;
     }
 
@@ -83,7 +93,7 @@ public final class JavacRunner {
             JavacOptions options) {
         JavacOptions effectiveOptions = options == null ? JavacOptions.empty() : options;
         List<Path> sortedSources = sources.stream().map(Path::normalize).sorted().toList();
-        Path effectiveGeneratedSourcesDirectory = sortedEntries(processorClasspath).isEmpty()
+        Path effectiveGeneratedSourcesDirectory = JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
                 ? null
                 : generatedSourcesDirectory;
         try {
@@ -102,7 +112,7 @@ public final class JavacRunner {
             return new JavacResult(0, outputDirectory, "");
         }
 
-        List<String> command = command(
+        List<String> command = commandBuilder.command(
                 javac,
                 sortedSources,
                 classpath,
@@ -110,9 +120,16 @@ public final class JavacRunner {
                 processorClasspath,
                 effectiveGeneratedSourcesDirectory,
                 effectiveOptions);
-        ProcessResult result = canRunInProcess(javac, processorClasspath, effectiveOptions)
-                ? inProcessRunner.run(command.subList(1, command.size()))
-                : processRunner.run(command);
+        List<String> arguments = command.subList(1, command.size());
+        ProcessResult result;
+        if (canRunInProcess(javac, processorClasspath, effectiveOptions)) {
+            result = inProcessRunner.run(arguments);
+        } else {
+            Optional<ProcessResult> workerResult = canRunInWorker(processorClasspath, effectiveOptions)
+                    ? workerRunner.run(javac, arguments)
+                    : Optional.empty();
+            result = workerResult.orElseGet(() -> processRunner.run(command));
+        }
         if (result.exitCode() != 0) {
             String diagnostics = result.output().stripTrailing();
             String summary = "javac failed with exit code " + result.exitCode() + "."
@@ -126,7 +143,13 @@ public final class JavacRunner {
         return inProcessRunner != null
                 && runtimeJavac != null
                 && sameExecutable(javac, runtimeJavac)
-                && sortedEntries(processorClasspath).isEmpty()
+                && JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
+                && options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
+    }
+
+    private boolean canRunInWorker(Classpath processorClasspath, JavacOptions options) {
+        return workerRunner != null
+                && JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
                 && options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
     }
 
@@ -143,111 +166,6 @@ public final class JavacRunner {
 
     private static boolean isMissingDependencyFailure(String diagnostics) {
         return MISSING_PACKAGE_PATTERN.matcher(diagnostics).find();
-    }
-
-    private List<String> command(
-            Path javac,
-            List<Path> sources,
-            Classpath classpath,
-            Path outputDirectory,
-            Classpath processorClasspath,
-            Path generatedSourcesDirectory,
-            JavacOptions options) {
-        List<String> command = new ArrayList<>();
-        command.add(javac.toString());
-        command.add("-d");
-        command.add(outputDirectory.toString());
-        if (!options.release().isBlank()) {
-            if (options.hostPlatformApi()) {
-                // Host mode: target bytecode N but compile against the build JDK's platform API,
-                // matching legacy Maven `-source/-target`. Not reproducible across build JDKs.
-                command.add("-source");
-                command.add(options.release());
-                command.add("-target");
-                command.add(options.release());
-            } else {
-                // Default: --release N pins the platform API to Java N via ct.sym, reproducible
-                // across build JDKs.
-                command.add("--release");
-                command.add(options.release());
-            }
-        }
-        if (!options.encoding().isBlank()) {
-            command.add("-encoding");
-            command.add(options.encoding());
-        }
-        List<Path> modulePathEntries = sortedModulePath(options);
-        List<Path> classpathEntries = classpathWithoutModulePath(sortedEntries(classpath), modulePathEntries);
-        if (!classpathEntries.isEmpty()) {
-            command.add("-classpath");
-            command.add(joinedPath(classpathEntries));
-        }
-        if (!modulePathEntries.isEmpty()) {
-            command.add("--module-path");
-            command.add(joinedPath(modulePathEntries));
-        }
-        List<Path> processorClasspathEntries = sortedEntries(processorClasspath);
-        if (processorClasspathEntries.isEmpty()) {
-            command.add("-proc:none");
-        } else {
-            command.add("-processorpath");
-            command.add(joinedPath(combinedProcessorPath(processorClasspathEntries, classpathEntries)));
-        }
-        if (generatedSourcesDirectory != null) {
-            command.add("-s");
-            command.add(generatedSourcesDirectory.toString());
-        }
-        command.addAll(options.arguments());
-        for (Path source : sources) {
-            command.add(source.toString());
-        }
-        return List.copyOf(command);
-    }
-
-    private static List<Path> sortedModulePath(JavacOptions options) {
-        if (options == null || options.modulePath().isEmpty()) {
-            return List.of();
-        }
-        return options.modulePath().stream()
-                .map(Path::normalize)
-                .distinct()
-                .sorted(Comparator.naturalOrder())
-                .toList();
-    }
-
-    private static List<Path> classpathWithoutModulePath(List<Path> classpathEntries, List<Path> modulePathEntries) {
-        if (modulePathEntries.isEmpty()) {
-            return classpathEntries;
-        }
-        LinkedHashSet<Path> moduleEntries = new LinkedHashSet<>(modulePathEntries);
-        return classpathEntries.stream()
-                .filter(entry -> !moduleEntries.contains(entry))
-                .toList();
-    }
-
-    private static List<Path> sortedEntries(Classpath classpath) {
-        if (classpath == null) {
-            return List.of();
-        }
-        return classpath.entries().stream()
-                .map(Path::normalize)
-                .sorted(Comparator.naturalOrder())
-                .toList();
-    }
-
-    private String joinedPath(List<Path> entries) {
-        StringJoiner joiner = new StringJoiner(pathSeparator);
-        for (Path entry : entries) {
-            joiner.add(entry.toString());
-        }
-        return joiner.toString();
-    }
-
-    private static List<Path> combinedProcessorPath(List<Path> processorEntries, List<Path> classpathEntries) {
-        LinkedHashSet<Path> entries = new LinkedHashSet<>();
-        entries.addAll(processorEntries);
-        entries.addAll(classpathEntries);
-        return List.copyOf(entries);
     }
 
     private static ProcessResult runProcess(List<String> command) {
@@ -335,6 +253,11 @@ public final class JavacRunner {
     @FunctionalInterface
     interface InProcessRunner {
         ProcessResult run(List<String> arguments);
+    }
+
+    @FunctionalInterface
+    interface WorkerRunner {
+        Optional<ProcessResult> run(Path javac, List<String> arguments);
     }
 
     record ProcessResult(int exitCode, String output) {

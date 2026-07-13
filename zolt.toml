@@ -25,6 +25,7 @@ members = [
     "modules/zolt-config",
     "modules/zolt-selfhost",
     "modules/zolt-init",
+    "apps/zolt-javac-worker",
     "apps/zolt-junit-worker",
     "apps/zolt",
 ]
