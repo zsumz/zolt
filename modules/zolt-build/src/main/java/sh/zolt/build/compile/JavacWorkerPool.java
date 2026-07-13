@@ -22,6 +22,13 @@ final class JavacWorkerPool {
         PoolKey key = new PoolKey(
                 javac.toAbsolutePath().normalize(),
                 workerJar.orElseThrow().toAbsolutePath().normalize());
+        Optional<JavacRunner.ProcessResult> persistentResult = JavacWorkerDaemon.compile(
+                key.javac(),
+                key.workerJar(),
+                arguments);
+        if (persistentResult.isPresent()) {
+            return persistentResult;
+        }
         return POOLS.computeIfAbsent(key, WorkerPool::new).compile(arguments);
     }
 

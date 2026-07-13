@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javax.tools.JavaCompiler;
@@ -22,6 +23,9 @@ public final class JavacWorkerMain {
     }
 
     public static void main(String[] args) {
+        if (args.length == 2 && "--server".equals(args[0])) {
+            System.exit(JavacWorkerServer.run(Path.of(args[1]), System.err));
+        }
         int exitCode = run(System.in, System.out, System.err);
         System.exit(exitCode);
     }
