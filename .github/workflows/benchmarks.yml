@@ -85,18 +85,18 @@ jobs:
 
     env:
       BENCHMARK_DIR: target/benchmarks/competitors
-      BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '40' }}
-      BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '5' }}
+      BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '10' }}
+      BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
       BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'release' }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
-      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name != 'workflow_dispatch' || inputs.include_gradle_daemon }}
+      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon }}
       BENCHMARK_SKIP_GENERATED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_generated || false }}
-      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || 'apache-commons-cli,spring-petclinic' }}
+      BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || '' }}
       BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}
       BENCHMARK_REAL_PROJECT_SAMPLE_TIMEOUT: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_sample_timeout || '1800' }}
       BENCHMARK_GRADLE_VERSION: "9.6.1"
-      BENCHMARK_AI_SUMMARY: ${{ vars.BENCHMARK_AI_SUMMARY || 'true' }}
+      BENCHMARK_AI_SUMMARY: ${{ github.event_name != 'workflow_dispatch' && 'false' || vars.BENCHMARK_AI_SUMMARY || 'true' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-5.5' }}
       OPENAI_REASONING_EFFORT: ${{ github.event_name == 'workflow_dispatch' && inputs.openai_reasoning_effort || vars.OPENAI_REASONING_EFFORT || 'high' }}
 

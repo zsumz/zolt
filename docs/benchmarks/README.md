@@ -94,9 +94,11 @@ Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
 `zolt_source=build` only when measuring the checked-out branch's native binary.
 While this work is on the `benchmarks` branch, pushes to that branch run a
-40-module, 5-repeat, released native-Zolt generated benchmark plus the Spring
-PetClinic and Apache Commons CLI upstream Maven baselines automatically so the
-combined job summary can be reviewed before the manual workflow is merged.
+10-module, 1-repeat, released native-Zolt generated smoke benchmark without the
+Gradle daemon, real-project lanes, or model summary. This keeps branch
+validation quick while still exercising every generated workflow and
+competitor. Production-grade
+generated evidence and real-project baselines remain explicit manual runs.
 Manual runs default to 100 modules, 7 repeats, and Gradle daemon coverage.
 For a Netty-only validation run, dispatch the workflow with
 `skip_generated=true`, `real_projects=netty`, `repeat=1`, and
