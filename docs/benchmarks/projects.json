@@ -178,7 +178,7 @@
       "sourceBranch": "4.1",
       "nativeTool": "maven",
       "status": "upstream-baseline-ready",
-      "adapterStatus": "groundwork",
+      "adapterStatus": "common-subset-ready",
       "adapterPath": "benchmarks/adapters/netty/coverage.json",
       "priority": 4,
       "pin": {
@@ -301,9 +301,10 @@
       "coverageNotes": [
         "Large Netty core Java Maven reactor lane.",
         "Native platform modules and testsuites are intentionally excluded from this baseline.",
-        "Starts as an upstream Maven baseline.",
+        "This manifest lane remains an upstream Maven baseline.",
         "Full native packaging is a separate future lane because the pinned 4.1 snapshot can require native-src artifacts that are not available from public repositories.",
-        "Becomes comparison-ready only when a checked-in Zolt adapter describes module coverage and omitted native build features."
+        "scripts/benchmark-netty-compare provides a separate source-compatible Zolt comparison for the common main-source subset only.",
+        "The common subset comparison does not establish full core-reactor, test, native, generated-source, or package parity."
       ]
     },
     {

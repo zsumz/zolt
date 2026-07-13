@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmark-netty-compare-test"
+NETTY_DIR="$WORK_DIR/netty"
+OUTPUT_FILE="$WORK_DIR/metrics.jsonl"
+SUMMARY_FILE="$WORK_DIR/summary.jsonl"
+FAKE_ZOLT="$WORK_DIR/fake-zolt"
+FAKE_MAVEN="$WORK_DIR/fake-maven"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  fail "jq is required to run benchmark-netty-compare-test"
+fi
+
+rm -rf "$WORK_DIR"
+mkdir -p \
+  "$NETTY_DIR/common/src/main/java/io/netty/util" \
+  "$NETTY_DIR/common/src/main/java/io/netty/util/internal/svm" \
+  "$NETTY_DIR/common/src/test/java/io/netty/util"
+cat >"$NETTY_DIR/pom.xml" <<'EOF'
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.netty</groupId>
+  <artifactId>netty-parent</artifactId>
+  <version>4.1.135.Final</version>
+  <packaging>pom</packaging>
+  <modules>
+    <module>common</module>
+  </modules>
+</project>
+EOF
+cat >"$NETTY_DIR/common/pom.xml" <<'EOF'
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>io.netty</groupId>
+    <artifactId>netty-parent</artifactId>
+    <version>4.1.135.Final</version>
+  </parent>
+  <artifactId>netty-common</artifactId>
+</project>
+EOF
+cat >"$NETTY_DIR/common/src/main/java/io/netty/util/NettySample.java" <<'EOF'
+package io.netty.util;
+
+public final class NettySample {
+    public String value() {
+        return "netty";
+    }
+}
+EOF
+cat >"$NETTY_DIR/common/src/main/java/io/netty/util/NetUtilSubstitutions.java" <<'EOF'
+package io.netty.util;
+
+public final class NetUtilSubstitutions {
+}
+EOF
+cat >"$NETTY_DIR/common/src/main/java/io/netty/util/internal/svm/PlatformDependentSubstitution.java" <<'EOF'
+package io.netty.util.internal.svm;
+
+public final class PlatformDependentSubstitution {
+}
+EOF
+cat >"$NETTY_DIR/common/src/test/java/io/netty/util/NettySampleTest.java" <<'EOF'
+package io.netty.util;
+
+public final class NettySampleTest {
+    public void value() {
+        new NettySample().value();
+    }
+}
+EOF
+
+cat >"$FAKE_ZOLT" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >>"${0}.invocations"
+case "${1:-}" in
+  resolve | build | test | package)
+    printf 'zolt %s ok\n' "$1"
+    ;;
+  *)
+    printf 'unexpected zolt command: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+FAKE
+
+cat >"$FAKE_MAVEN" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >>"${0}.invocations"
+case "$*" in
+  *"dependency:go-offline"* | *"compile"* | *"test"* | *"package"*)
+    printf 'maven ok\n'
+    ;;
+  *)
+    printf 'unexpected maven command: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+FAKE
+
+chmod +x "$FAKE_ZOLT" "$FAKE_MAVEN"
+
+scripts/benchmark-netty-compare \
+  --netty-dir "$NETTY_DIR" \
+  --allow-unpinned \
+  --zolt "$FAKE_ZOLT" \
+  --maven "$FAKE_MAVEN" \
+  --work-dir "$WORK_DIR/run" \
+  --output "$OUTPUT_FILE" \
+  --summary "$SUMMARY_FILE" \
+  --repeat 2 \
+  >"$WORK_DIR/stdout"
+
+[[ -s "$OUTPUT_FILE" ]] || fail "expected netty metrics"
+[[ -s "$SUMMARY_FILE" ]] || fail "expected netty summaries"
+[[ -f "$WORK_DIR/run/projects/zolt-netty-common/zolt.toml" ]] || fail "expected generated Zolt overlay"
+[[ -f "$WORK_DIR/run/projects/maven-netty-common/pom.xml" ]] || fail "expected generated Maven overlay"
+[[ -f "$WORK_DIR/run/projects/zolt-netty-common/src/main/java/io/netty/util/NettySample.java" ]] \
+  || fail "expected copied Netty main source"
+[[ ! -f "$WORK_DIR/run/projects/zolt-netty-common/src/main/java/io/netty/util/NetUtilSubstitutions.java" ]] \
+  || fail "expected native-image substitution source to be excluded"
+[[ ! -d "$WORK_DIR/run/projects/zolt-netty-common/src/main/java/io/netty/util/internal/svm" ]] \
+  || fail "expected svm substitution package to be excluded"
+[[ ! -f "$WORK_DIR/run/projects/zolt-netty-common/src/test/java/io/netty/util/NettySampleTest.java" ]] \
+  || fail "expected Netty tests to remain excluded"
+diff -qr \
+  "$WORK_DIR/run/projects/zolt-netty-common/src" \
+  "$WORK_DIR/run/projects/maven-netty-common/src" \
+  >/dev/null || fail "expected identical filtered source overlays"
+grep -F -- '[dependencies]' "$WORK_DIR/run/projects/zolt-netty-common/zolt.toml" >/dev/null \
+  || fail "expected generated Netty dependencies"
+grep -F -- '"org.jctools:jctools-core" = "4.0.5"' "$WORK_DIR/run/projects/zolt-netty-common/zolt.toml" >/dev/null \
+  || fail "expected generated jctools dependency"
+grep -F -- '[provided.dependencies]' "$WORK_DIR/run/projects/zolt-netty-common/zolt.toml" >/dev/null \
+  || fail "expected generated provided dependencies"
+
+grep -F -- "build --cwd" "$FAKE_ZOLT.invocations" >/dev/null || fail "expected Zolt build command"
+grep -F -- "-q -DskipTests compile" "$FAKE_MAVEN.invocations" >/dev/null \
+  || fail "expected Maven overlay compile command"
+grep -F -- "-q -DskipTests package" "$FAKE_MAVEN.invocations" >/dev/null \
+  || fail "expected Maven overlay package command"
+
+jq -s -e '
+  def expected_keys: [
+    ["netty-common", "cold-dependencies", "resolve", "wall clock"],
+    ["netty-common", "no-op-build", "build", "wall clock"],
+    ["netty-common", "zolt-thin-package", "package", "wall clock"],
+    ["netty-common", "maven-thin-package", "package", "wall clock"]
+  ];
+  def required_fields: [
+    "tool", "scenario", "mode", "iteration", "exitCode", "command", "projectRoot",
+    "phase", "durationMillis", "durationNanos", "depth", "attributes"
+  ];
+  . as $events
+  | ($events | length) > 0
+  and (all($events[];
+    . as $event
+    | all(required_fields[]; . as $field | $event | has($field))
+    and $event.exitCode == 0
+    and $event.attributes.nettyTag == "unknown"
+    and $event.attributes.nettyModule == "common"
+    and $event.attributes.sourceFiles == "1"
+    and $event.attributes.testSourceFiles == "0"
+    and $event.attributes.includeTests == "0"
+    and $event.attributes.compilerModel == "generated-jdk21-overlays"
+    and $event.attributes.compilerEquivalence == "same-filtered-sources-dependencies-and-java-level-not-bytecode-identical"
+    and $event.attributes.packageEquivalence == "thin-jars-not-byte-identical"
+    and ($event.attributes.excludedFeatures | contains("graal-native-image-substitutions"))
+  ))
+  and (($events | map(.tool) | unique) == ["maven", "zolt-native"])
+  and (($events | map(.iteration) | unique) == [1, 2])
+  and ((expected_keys - ($events | map([.scenario, .mode, .command, .phase]) | unique)) == [])
+' "$OUTPUT_FILE" >/dev/null || fail "metrics JSON did not match expected shape"
+
+jq -s -e '
+  def expected_keys: [
+    ["netty-common", "cold-dependencies", "resolve", "wall clock"],
+    ["netty-common", "no-op-build", "build", "wall clock"],
+    ["netty-common", "zolt-thin-package", "package", "wall clock"],
+    ["netty-common", "maven-thin-package", "package", "wall clock"]
+  ];
+  . as $summaries
+  | ($summaries | length) > 0
+  and (all($summaries[];
+    .baselineTool == "zolt-native"
+    and (
+      if .mode == "zolt-thin-package" then
+        (.mediansMillis | has("zolt-native"))
+        and (.mediansMillis | has("maven") | not)
+        and (.samples["zolt-native"] == 2)
+      elif .mode == "maven-thin-package" then
+        (.mediansMillis | has("maven"))
+        and (.mediansMillis | has("zolt-native") | not)
+        and (.samples["maven"] == 2)
+      else
+        (.mediansMillis | has("zolt-native"))
+        and (.mediansMillis | has("maven"))
+        and (.samples["zolt-native"] == 2)
+        and (.samples["maven"] == 2)
+      end
+    )
+  ))
+  and ((expected_keys - ($summaries | map([.scenario, .mode, .command, .phase]) | unique)) == [])
+' "$SUMMARY_FILE" >/dev/null || fail "summary JSON did not match expected shape"
+
+printf 'benchmark Netty comparison script test passed\n'

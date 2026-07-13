@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmark-large-source-report-test"
+SUMMARY_FILE="$WORK_DIR/summary.jsonl"
+REPORT_FILE="$WORK_DIR/report.md"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+
+cat >"$SUMMARY_FILE" <<'JSONL'
+{"scenario":"large-source","mode":"selected-test","command":"test","phase":"wall clock","mediansMillis":{"zolt-native":1040,"maven":3112,"gradle":3051},"samples":{"zolt-native":3,"maven":3,"gradle":3},"baselineTool":"zolt-native","competitorSlowerRatio":{"maven":2.99,"gradle":2.93}}
+{"scenario":"large-source","mode":"no-op","command":"build","phase":"wall clock","mediansMillis":{"zolt-native":645,"maven":910,"gradle":3075,"gradle-daemon":489},"samples":{"zolt-native":3,"maven":3,"gradle":3,"gradle-daemon":3},"baselineTool":"zolt-native","competitorSlowerRatio":{"maven":1.41,"gradle":4.77,"gradle-daemon":0.76}}
+JSONL
+
+scripts/benchmark-large-source-report "$SUMMARY_FILE" --output "$REPORT_FILE" --title "Sample Report"
+
+grep -F "# Sample Report" "$REPORT_FILE" >/dev/null || fail "expected title"
+grep -F "| Mode | Command | zolt-native | maven | gradle | gradle-daemon | Samples |" "$REPORT_FILE" >/dev/null \
+  || fail "expected tool header"
+grep -F "| no-op | build | 645 ms | 910 ms | 3075 ms | 489 ms | 3 |" "$REPORT_FILE" >/dev/null \
+  || fail "expected no-op row"
+grep -F "| selected-test | test | 1040 ms | 3112 ms | 3051 ms | - | 3 |" "$REPORT_FILE" >/dev/null \
+  || fail "expected selected-test row"
+grep -F "Use generated large-source rows only for generated-fixture claims." "$REPORT_FILE" >/dev/null \
+  || fail "expected caveat"
+
+printf 'benchmark large-source report script test passed\n'

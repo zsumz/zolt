@@ -1,0 +1,542 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+PINNED_NETTY_COMMIT="bb2ff68a1fb71cb4b0eb9a9e17b66c52aff680c6"
+WORK_DIR="target/benchmarks/netty-compare"
+CACHE_ROOT=".zolt/cache"
+ZOLT_BIN="${ZOLT_BENCH_ZOLT:-$ROOT/target/native/zolt}"
+MAVEN_BIN="${ZOLT_BENCH_MAVEN:-$(command -v mvn || true)}"
+NETTY_DIR=""
+NETTY_MODULE="common"
+OUTPUT_FILE=""
+SUMMARY_FILE=""
+REPEAT_COUNT=3
+ALLOW_UNPINNED=0
+SOURCE_FILES=""
+SOURCE_LINES=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-netty-compare --netty-dir DIR [options]
+
+Options:
+  --netty-dir DIR        Local Netty checkout. Required; this script does not download Netty.
+  --module NAME          Netty module to benchmark. Default: common.
+  --zolt PATH            Zolt executable. Default: target/native/zolt.
+  --maven PATH           Maven executable. Default: mvn from PATH, when present.
+  --work-dir DIR         Generated benchmark work directory. Default: target/benchmarks/netty-compare.
+  --cache-root DIR       Zolt warm-cache root. Default: .zolt/cache.
+  --output FILE          Write raw JSON-lines metrics to FILE.
+  --summary FILE         Write JSON-lines median summaries to FILE.
+  --repeat COUNT         Repeat each timed measurement COUNT times. Default: 3.
+  --allow-unpinned       Allow a checkout that is not at the manifest's pinned commit.
+  -h, --help             Show this help.
+
+Default scope is a conservative Netty common main-source compile/package subset.
+The runner generates Zolt and Maven overlays with the same filtered sources,
+dependencies, and Java level. Package rows stay split because their jar metadata
+is not byte-identical. The full Maven reactor, native transports, generated native
+sources, and tests are excluded and recorded in the attributes.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  fail "jq is required to write performance metrics"
+fi
+
+absolute_path() {
+  case "$1" in
+    "") printf '\n' ;;
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT/$1" ;;
+  esac
+}
+
+positive_integer() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --netty-dir)
+      [[ "$#" -ge 2 ]] || fail "--netty-dir requires a value"
+      NETTY_DIR="$2"
+      shift 2
+      ;;
+    --module)
+      [[ "$#" -ge 2 ]] || fail "--module requires a value"
+      NETTY_MODULE="$2"
+      shift 2
+      ;;
+    --zolt)
+      [[ "$#" -ge 2 ]] || fail "--zolt requires a value"
+      ZOLT_BIN="$2"
+      shift 2
+      ;;
+    --maven)
+      [[ "$#" -ge 2 ]] || fail "--maven requires a value"
+      MAVEN_BIN="$2"
+      shift 2
+      ;;
+    --work-dir)
+      [[ "$#" -ge 2 ]] || fail "--work-dir requires a value"
+      WORK_DIR="$2"
+      shift 2
+      ;;
+    --cache-root)
+      [[ "$#" -ge 2 ]] || fail "--cache-root requires a value"
+      CACHE_ROOT="$2"
+      shift 2
+      ;;
+    --output)
+      [[ "$#" -ge 2 ]] || fail "--output requires a value"
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    --summary)
+      [[ "$#" -ge 2 ]] || fail "--summary requires a value"
+      SUMMARY_FILE="$2"
+      shift 2
+      ;;
+    --repeat)
+      [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
+      positive_integer "$2" || fail "--repeat requires a positive integer"
+      REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --allow-unpinned)
+      ALLOW_UNPINNED=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+[[ -n "$NETTY_DIR" ]] || fail "--netty-dir is required"
+case "$WORK_DIR" in
+  "" | "." | "/" | "$ROOT")
+    fail "refusing unsafe performance work directory: $WORK_DIR"
+    ;;
+esac
+
+NETTY_DIR="$(absolute_path "$NETTY_DIR")"
+WORK_DIR="$(absolute_path "$WORK_DIR")"
+CACHE_ROOT="$(absolute_path "$CACHE_ROOT")"
+ZOLT_BIN="$(absolute_path "$ZOLT_BIN")"
+MAVEN_BIN="$(absolute_path "$MAVEN_BIN")"
+
+[[ -d "$NETTY_DIR" ]] || fail "Netty checkout does not exist: $NETTY_DIR"
+[[ -f "$NETTY_DIR/pom.xml" ]] || fail "Netty checkout is missing root pom.xml: $NETTY_DIR"
+[[ -d "$NETTY_DIR/$NETTY_MODULE/src/main/java" ]] || fail "Netty module has no main Java sources: $NETTY_MODULE"
+[[ -x "$ZOLT_BIN" ]] || fail "Zolt executable is not executable: $ZOLT_BIN"
+if [[ -z "$MAVEN_BIN" || ! -x "$MAVEN_BIN" ]]; then
+  fail "Maven executable is not available; pass --maven PATH"
+fi
+
+if [[ -z "$OUTPUT_FILE" ]]; then
+  OUTPUT_FILE="$WORK_DIR/netty-compare.jsonl"
+fi
+if [[ -z "$SUMMARY_FILE" ]]; then
+  SUMMARY_FILE="$WORK_DIR/netty-compare-summary.jsonl"
+fi
+OUTPUT_FILE="$(absolute_path "$OUTPUT_FILE")"
+SUMMARY_FILE="$(absolute_path "$SUMMARY_FILE")"
+mkdir -p "$WORK_DIR" "$(dirname "$OUTPUT_FILE")" "$(dirname "$SUMMARY_FILE")"
+: >"$OUTPUT_FILE"
+: >"$SUMMARY_FILE"
+
+ZOLT_PROJECT="$WORK_DIR/projects/zolt-netty-$NETTY_MODULE"
+MAVEN_PROJECT="$WORK_DIR/projects/maven-netty-$NETTY_MODULE"
+ATTRIBUTE_FILE="$WORK_DIR/netty-attributes.env"
+
+netty_commit() {
+  if git -C "$NETTY_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+    git -C "$NETTY_DIR" rev-parse HEAD
+  else
+    printf 'unknown\n'
+  fi
+}
+
+netty_tag() {
+  if git -C "$NETTY_DIR" describe --tags --exact-match HEAD >/dev/null 2>&1; then
+    git -C "$NETTY_DIR" describe --tags --exact-match HEAD
+  else
+    printf 'unknown\n'
+  fi
+}
+
+NETTY_COMMIT="$(netty_commit)"
+NETTY_TAG="$(netty_tag)"
+if [[ "$ALLOW_UNPINNED" -ne 1 && "$NETTY_COMMIT" != "$PINNED_NETTY_COMMIT" ]]; then
+  fail "Netty checkout must be at $PINNED_NETTY_COMMIT; found '$NETTY_COMMIT'. Pass --allow-unpinned for local experiments."
+fi
+
+copy_tree() {
+  local source="$1"
+  local target="$2"
+  mkdir -p "$(dirname "$target")"
+  rm -rf "$target"
+  cp -R "$source" "$target"
+}
+
+source_line_count() {
+  local root="$1"
+  if [[ ! -d "$root" ]]; then
+    printf '0\n'
+    return
+  fi
+  find "$root" -name '*.java' -print0 \
+    | while IFS= read -r -d '' source_file; do
+        wc -l <"$source_file"
+      done \
+    | awk '{ total += $1 } END { print total + 0 }'
+}
+
+source_file_count() {
+  local root="$1"
+  if [[ ! -d "$root" ]]; then
+    printf '0\n'
+    return
+  fi
+  find "$root" -name '*.java' | wc -l | tr -d ' '
+}
+
+write_zolt_overlay() {
+  rm -rf "$ZOLT_PROJECT"
+  mkdir -p "$ZOLT_PROJECT/src/main" "$ZOLT_PROJECT/src/test"
+  copy_tree "$NETTY_DIR/$NETTY_MODULE/src/main/java" "$ZOLT_PROJECT/src/main/java"
+  if [[ "$NETTY_MODULE" == "common" ]]; then
+    rm -f "$ZOLT_PROJECT/src/main/java/io/netty/util/NetUtilSubstitutions.java"
+    rm -rf "$ZOLT_PROJECT/src/main/java/io/netty/util/internal/svm"
+  fi
+  cat >"$ZOLT_PROJECT/zolt.toml" <<EOF
+[project]
+name = "netty-$NETTY_MODULE"
+version = "4.1.0-benchmark"
+group = "io.netty"
+java = "21"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
+
+[dependencies]
+"org.jctools:jctools-core" = "4.0.5"
+"org.slf4j:slf4j-api" = "1.7.30"
+"commons-logging:commons-logging" = "1.2"
+"org.apache.logging.log4j:log4j-api" = "2.25.3"
+"org.apache.logging.log4j:log4j-1.2-api" = "2.25.3"
+"io.projectreactor.tools:blockhound" = "1.0.16.RELEASE"
+
+[provided.dependencies]
+"org.jetbrains:annotations-java5" = "23.0.0"
+"org.jboss:jdk-misc" = "3.Final"
+EOF
+}
+
+write_maven_overlay() {
+  rm -rf "$MAVEN_PROJECT"
+  mkdir -p "$MAVEN_PROJECT"
+  copy_tree "$ZOLT_PROJECT/src" "$MAVEN_PROJECT/src"
+  cat >"$MAVEN_PROJECT/pom.xml" <<'EOF'
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.netty</groupId>
+  <artifactId>netty-common-benchmark</artifactId>
+  <version>4.1.0-benchmark</version>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.jctools</groupId>
+      <artifactId>jctools-core</artifactId>
+      <version>4.0.5</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.30</version>
+    </dependency>
+    <dependency>
+      <groupId>commons-logging</groupId>
+      <artifactId>commons-logging</artifactId>
+      <version>1.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-api</artifactId>
+      <version>2.25.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-1.2-api</artifactId>
+      <version>2.25.3</version>
+    </dependency>
+    <dependency>
+      <groupId>io.projectreactor.tools</groupId>
+      <artifactId>blockhound</artifactId>
+      <version>1.0.16.RELEASE</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations-java5</artifactId>
+      <version>23.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jboss</groupId>
+      <artifactId>jdk-misc</artifactId>
+      <version>3.Final</version>
+      <scope>provided</scope>
+    </dependency>
+EOF
+  cat >>"$MAVEN_PROJECT/pom.xml" <<'EOF'
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.14.1</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+EOF
+}
+
+write_attributes() {
+  local main_source_root="$ZOLT_PROJECT/src/main/java"
+  local source_files
+  local source_lines
+  source_files="$(source_file_count "$main_source_root")"
+  source_lines="$(source_line_count "$main_source_root")"
+  cat >"$ATTRIBUTE_FILE" <<EOF
+NETTY_TAG=$NETTY_TAG
+NETTY_COMMIT=$NETTY_COMMIT
+NETTY_MODULE=$NETTY_MODULE
+SOURCE_FILES=$source_files
+SOURCE_LINES=$source_lines
+EOF
+}
+
+source_attributes() {
+  # shellcheck disable=SC1090
+  source "$ATTRIBUTE_FILE"
+}
+
+json_attributes() {
+  jq -nc \
+    --arg nettyTag "$NETTY_TAG" \
+    --arg nettyCommit "$NETTY_COMMIT" \
+    --arg nettyModule "$NETTY_MODULE" \
+    --arg sourceFiles "$SOURCE_FILES" \
+    --arg sourceLines "$SOURCE_LINES" \
+    '{
+      nettyTag: $nettyTag,
+      nettyCommit: $nettyCommit,
+      nettyModule: $nettyModule,
+      sourceFiles: $sourceFiles,
+      sourceLines: $sourceLines,
+      testSourceFiles: "0",
+      includeTests: "0",
+      compilerModel: "generated-jdk21-overlays",
+      compilerEquivalence: "same-filtered-sources-dependencies-and-java-level-not-bytecode-identical",
+      packageEquivalence: "thin-jars-not-byte-identical",
+      excludedFeatures: "full-reactor,native-transports,generated-native-sources,graal-native-image-substitutions,upstream-maven-plugin-behavior"
+    }'
+}
+
+measure_command() {
+  local tool="$1"
+  local project_dir="$2"
+  local mode="$3"
+  local command_name="$4"
+  shift 4
+
+  local output_dir="$WORK_DIR/logs/$tool/$mode/$command_name/iteration-$CURRENT_ITERATION"
+  mkdir -p "$output_dir"
+  local stdout_file="$output_dir/stdout"
+  local stderr_file="$output_dir/stderr"
+  local attrs
+  attrs="$(json_attributes)"
+
+  local status
+  local duration_nanos
+  local duration_millis
+  local timing
+  timing="$(python3 - "$project_dir" "$stdout_file" "$stderr_file" "$@" <<'PY'
+import pathlib
+import subprocess
+import sys
+import time
+
+project_dir = pathlib.Path(sys.argv[1])
+stdout_file = pathlib.Path(sys.argv[2])
+stderr_file = pathlib.Path(sys.argv[3])
+command = sys.argv[4:]
+started = time.perf_counter_ns()
+with stdout_file.open("w", encoding="utf-8") as stdout, stderr_file.open("w", encoding="utf-8") as stderr:
+    completed = subprocess.run(command, cwd=project_dir, stdout=stdout, stderr=stderr)
+duration_nanos = time.perf_counter_ns() - started
+print(completed.returncode, duration_nanos, duration_nanos // 1_000_000)
+PY
+)"
+  read -r status duration_nanos duration_millis <<<"$timing"
+
+  jq -nc \
+    --arg scenario "netty-$NETTY_MODULE" \
+    --arg tool "$tool" \
+    --arg mode "$mode" \
+    --argjson iteration "$CURRENT_ITERATION" \
+    --argjson exitCode "$status" \
+    --arg command "$command_name" \
+    --arg projectRoot "$(cd "$project_dir" && pwd)" \
+    --argjson durationMillis "$duration_millis" \
+    --argjson durationNanos "$duration_nanos" \
+    --argjson attributes "$attrs" \
+    '{
+      tool: $tool,
+      scenario: $scenario,
+      mode: $mode,
+      iteration: $iteration,
+      exitCode: $exitCode,
+      command: $command,
+      projectRoot: $projectRoot,
+      phase: "wall clock",
+      durationMillis: $durationMillis,
+      durationNanos: $durationNanos,
+      depth: 0,
+      attributes: $attributes
+    }' >>"$OUTPUT_FILE"
+
+  if [[ "$status" -ne 0 ]]; then
+    cat "$stdout_file" >&2 || true
+    cat "$stderr_file" >&2 || true
+    fail "$tool $command_name failed in $mode with exit code $status"
+  fi
+}
+
+run_untimed() {
+  local project_dir="$1"
+  shift
+  (cd "$project_dir" && "$@") >/dev/null 2>&1 || fail "setup command failed: $*"
+}
+
+measure_zolt() {
+  local cache="$WORK_DIR/caches/zolt-warm"
+  local cold_cache="$WORK_DIR/caches/zolt-cold-$CURRENT_ITERATION"
+  mkdir -p "$cache"
+  rm -rf "$cold_cache"
+  mkdir -p "$cold_cache"
+
+  measure_command "zolt-native" "$ZOLT_PROJECT" "cold-dependencies" "resolve" \
+    "$ZOLT_BIN" resolve --cwd "$ZOLT_PROJECT" --cache-root "$cold_cache"
+  run_untimed "$ZOLT_PROJECT" "$ZOLT_BIN" resolve --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  run_untimed "$ZOLT_PROJECT" "$ZOLT_BIN" build --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "no-op-build" "build" \
+    "$ZOLT_BIN" build --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "zolt-thin-package" "package" \
+    "$ZOLT_BIN" package --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+}
+
+measure_maven() {
+  local repo="$WORK_DIR/caches/maven-warm"
+  local cold_repo="$WORK_DIR/caches/maven-cold-$CURRENT_ITERATION"
+  mkdir -p "$repo"
+  rm -rf "$cold_repo"
+  mkdir -p "$cold_repo"
+
+  measure_command "maven" "$MAVEN_PROJECT" "cold-dependencies" "resolve" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$cold_repo" -q dependency:go-offline
+  run_untimed "$MAVEN_PROJECT" "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q dependency:go-offline
+  run_untimed "$MAVEN_PROJECT" "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  measure_command "maven" "$MAVEN_PROJECT" "no-op-build" "build" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  measure_command "maven" "$MAVEN_PROJECT" "maven-thin-package" "package" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests package
+}
+
+write_summary() {
+  jq -s -c '
+    def median:
+      sort as $values
+      | ($values | length) as $count
+      | if $count == 0 then null
+        elif ($count % 2) == 1 then $values[($count / 2 | floor)]
+        else (($values[($count / 2 - 1)] + $values[($count / 2)]) / 2 | floor)
+        end;
+    def tool_medians:
+      reduce (group_by(.tool)[] | select(length > 0)) as $events ({};
+        . + {($events[0].tool): ($events | map(.durationMillis) | median)}
+      );
+    def tool_samples:
+      reduce (group_by(.tool)[] | select(length > 0)) as $events ({};
+        . + {($events[0].tool): ($events | length)}
+      );
+    def ratios($medians):
+      ($medians["zolt-native"] // 0) as $baseline
+      | if $baseline > 0 then
+          reduce ($medians | keys_unsorted[] | select(. != "zolt-native")) as $tool ({};
+            . + {($tool): ((($medians[$tool] / $baseline) * 100 | round) / 100)}
+          )
+        else {}
+        end;
+    group_by([.scenario, .mode, .command, .phase])[]
+    | sort_by(.tool, .durationMillis) as $group
+    | ($group | tool_medians) as $medians
+    | {
+        scenario: $group[0].scenario,
+        mode: $group[0].mode,
+        command: $group[0].command,
+        phase: $group[0].phase,
+        mediansMillis: $medians,
+        samples: ($group | tool_samples),
+        baselineTool: "zolt-native",
+        competitorSlowerRatio: ratios($medians)
+      }
+  ' "$OUTPUT_FILE" >"$SUMMARY_FILE"
+}
+
+write_zolt_overlay
+write_maven_overlay
+write_attributes
+source_attributes
+
+for CURRENT_ITERATION in $(seq 1 "$REPEAT_COUNT"); do
+  measure_zolt
+  measure_maven
+done
+
+write_summary
+
+printf 'netty comparison metrics: %s\n' "$OUTPUT_FILE"
+printf 'netty comparison summary: %s\n' "$SUMMARY_FILE"

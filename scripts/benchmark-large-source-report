@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TITLE="Generated Large-Source Benchmark"
+OUTPUT_FILE=""
+SUMMARY_FILE=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-large-source-report SUMMARY.jsonl [options]
+
+Options:
+  --output FILE    Write Markdown to FILE instead of stdout.
+  --title TEXT     Markdown title. Default: Generated Large-Source Benchmark.
+  -h, --help       Show this help.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --output)
+      [[ "$#" -ge 2 ]] || fail "--output requires a value"
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    --title)
+      [[ "$#" -ge 2 ]] || fail "--title requires a value"
+      TITLE="$2"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    -*)
+      fail "unknown option: $1"
+      ;;
+    *)
+      [[ -z "$SUMMARY_FILE" ]] || fail "expected one summary file"
+      SUMMARY_FILE="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$SUMMARY_FILE" ]] || fail "summary file is required"
+[[ -f "$SUMMARY_FILE" ]] || fail "summary file does not exist: $SUMMARY_FILE"
+if ! command -v jq >/dev/null 2>&1; then
+  fail "jq is required to render large-source performance reports"
+fi
+
+row_count="$(jq -s 'length' "$SUMMARY_FILE")"
+[[ "$row_count" -gt 0 ]] || fail "summary file is empty: $SUMMARY_FILE"
+
+tools="$(
+  jq -s -c '
+    def known_tools: ["zolt-native", "maven", "gradle", "gradle-daemon"];
+    ([.[].mediansMillis | keys[]] | unique) as $tools
+    | (known_tools | map(select($tools | index(.)))) + (($tools - known_tools) | sort)
+  ' "$SUMMARY_FILE"
+)"
+
+render() {
+  printf '# %s\n\n' "$TITLE"
+  jq -n -r --argjson tools "$tools" '
+    "| Mode | Command | " + ($tools | join(" | ")) + " | Samples |",
+    "| --- | --- | " + ([$tools[] | "---:"] | join(" | ")) + " | ---: |"
+  '
+  jq -s -r --argjson tools "$tools" '
+    def mode_order: ["cold-dependencies", "no-op", "body-change", "abi-change", "full-test", "selected-test"];
+    def mode_index($mode): (mode_order | index($mode)) // (mode_order | length);
+    def millis($value): if $value == null then "-" else "\($value) ms" end;
+    def samples($samples):
+      [$tools[] as $tool | select($samples[$tool] != null) | "\($samples[$tool])"] as $values
+      | if ($values | length) == 0 then "-"
+        elif ($values | unique | length) == 1 then $values[0]
+        else [$tools[] as $tool | select($samples[$tool] != null) | "\($tool)=\($samples[$tool])"] | join(", ")
+        end;
+    sort_by([.scenario, mode_index(.mode), .mode, .command, .phase])[]
+    | "| \(.mode) | \(.command) | "
+        + ([$tools[] as $tool | millis(.mediansMillis[$tool])] | join(" | "))
+        + " | "
+        + samples(.samples)
+        + " |"
+  ' "$SUMMARY_FILE"
+  printf '\n'
+  printf 'Use generated large-source rows only for generated-fixture claims. Use real Netty rows for Netty-specific claims.\n'
+}
+
+if [[ -n "$OUTPUT_FILE" ]]; then
+  mkdir -p "$(dirname "$OUTPUT_FILE")"
+  render >"$OUTPUT_FILE"
+else
+  render
+fi

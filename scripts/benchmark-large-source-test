@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmark-large-source-test"
+OUTPUT_FILE="$WORK_DIR/metrics.jsonl"
+SUMMARY_FILE="$WORK_DIR/summary.jsonl"
+SKIP_OUTPUT_FILE="$WORK_DIR/metrics-skip.jsonl"
+SKIP_SUMMARY_FILE="$WORK_DIR/summary-skip.jsonl"
+FAKE_ZOLT="$WORK_DIR/fake-zolt"
+FAKE_MAVEN="$WORK_DIR/fake-maven"
+FAKE_GRADLE="$WORK_DIR/fake-gradle"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  fail "jq is required to run benchmark-large-source-test"
+fi
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+
+cat >"$FAKE_ZOLT" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >>"${0}.invocations"
+
+case "${1:-}" in
+  resolve | build | test)
+    printf 'zolt %s ok\n' "$1"
+    ;;
+  *)
+    printf 'unexpected zolt command: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+FAKE
+
+cat >"$FAKE_MAVEN" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "$*" in
+  *"dependency:go-offline"* | *"compile"* | *"test"*)
+    printf 'maven ok\n'
+    ;;
+  *)
+    printf 'unexpected maven command: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+FAKE
+
+cat >"$FAKE_GRADLE" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "$*" in
+  *"--stop"*)
+    printf 'gradle daemon stopped\n'
+    ;;
+  *"dependencies"* | *"classes"* | *"test"*)
+    printf 'gradle ok\n'
+    ;;
+  *)
+    printf 'unexpected gradle command: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+FAKE
+
+chmod +x "$FAKE_ZOLT" "$FAKE_MAVEN" "$FAKE_GRADLE"
+
+scripts/benchmark-large-source \
+  --quick \
+  --zolt "$FAKE_ZOLT" \
+  --maven "$FAKE_MAVEN" \
+  --gradle "$FAKE_GRADLE" \
+  --work-dir "$WORK_DIR/run" \
+  --output "$OUTPUT_FILE" \
+  --summary "$SUMMARY_FILE" \
+  --repeat 2 \
+  --include-gradle-daemon \
+  >"$WORK_DIR/stdout"
+
+[[ -s "$OUTPUT_FILE" ]] || fail "expected large-source metrics"
+[[ -s "$SUMMARY_FILE" ]] || fail "expected large-source summaries"
+[[ -f "$WORK_DIR/run/projects/zolt-large-source/zolt.toml" ]] || fail "expected generated Zolt workspace"
+[[ ! -e "$WORK_DIR/run/projects/zolt-large-source/zolt-workspace.toml" ]] \
+  || fail "expected generated Zolt workspace to use root zolt.toml"
+grep -F -- "test --workspace --all --cwd" "$FAKE_ZOLT.invocations" >/dev/null \
+  || fail "expected Zolt full-test command to select all workspace members"
+grep -F -- "test --workspace --member module02 --cwd" "$FAKE_ZOLT.invocations" >/dev/null \
+  || fail "expected Zolt selected-test command to select the final member"
+
+java_source_count="$(find "$WORK_DIR/run/projects/zolt-large-source" -name '*.java' | wc -l | tr -d ' ')"
+[[ "$java_source_count" == "8" ]] || fail "expected quick generated Java sources, found $java_source_count"
+
+jq -s -e '
+  def expected_keys: [
+    ["large-source", "cold-dependencies", "resolve", "wall clock"],
+    ["large-source", "no-op", "build", "wall clock"],
+    ["large-source", "body-change", "build", "wall clock"],
+    ["large-source", "abi-change", "build", "wall clock"],
+    ["large-source", "full-test", "test", "wall clock"],
+    ["large-source", "selected-test", "test", "wall clock"]
+  ];
+  def required_fields: [
+    "tool", "scenario", "mode", "iteration", "exitCode", "command", "projectRoot",
+    "phase", "durationMillis", "durationNanos", "depth", "attributes"
+  ];
+  def attr_fields: ["sourceFiles", "sourceLines", "modules", "classesPerModule", "methodsPerClass"];
+  . as $events
+  | ($events | length) > 0
+  and (all($events[];
+    . as $event
+    | all(required_fields[]; . as $field | $event | has($field))
+    and $event.scenario == "large-source"
+    and $event.exitCode == 0
+    and ($event.attributes.modules == "2")
+    and all(attr_fields[]; . as $field | $event.attributes | has($field))
+  ))
+  and (($events | map(.tool) | unique) == ["gradle", "gradle-daemon", "maven", "zolt-native"])
+  and (($events | map(.iteration) | unique) == [1, 2])
+  and ((expected_keys - ($events | map([.scenario, .mode, .command, .phase]) | unique)) == [])
+' "$OUTPUT_FILE" >/dev/null || fail "metrics JSON did not match expected shape"
+
+jq -s -e '
+  def expected_keys: [
+    ["large-source", "cold-dependencies", "resolve", "wall clock"],
+    ["large-source", "no-op", "build", "wall clock"],
+    ["large-source", "body-change", "build", "wall clock"],
+    ["large-source", "abi-change", "build", "wall clock"],
+    ["large-source", "full-test", "test", "wall clock"],
+    ["large-source", "selected-test", "test", "wall clock"]
+  ];
+  def expected_tools: ["gradle", "gradle-daemon", "maven", "zolt-native"];
+  . as $summaries
+  | ($summaries | length) > 0
+  and (all($summaries[];
+    . as $summary
+    | $summary.baselineTool == "zolt-native"
+    and all(expected_tools[];
+      . as $tool
+      | ($summary.mediansMillis | has($tool)) and ($summary.samples[$tool] == 2)
+    )
+  ))
+  and ((expected_keys - ($summaries | map([.scenario, .mode, .command, .phase]) | unique)) == [])
+' "$SUMMARY_FILE" >/dev/null || fail "summary JSON did not match expected shape"
+
+scripts/benchmark-large-source \
+  --quick \
+  --zolt "$FAKE_ZOLT" \
+  --maven "$WORK_DIR/missing-maven" \
+  --gradle "$WORK_DIR/missing-gradle" \
+  --work-dir "$WORK_DIR/run-skip" \
+  --output "$SKIP_OUTPUT_FILE" \
+  --summary "$SKIP_SUMMARY_FILE" \
+  --repeat 1 \
+  >"$WORK_DIR/stdout-skip" \
+  2>"$WORK_DIR/stderr-skip"
+
+grep -F "skip: Maven executable is not available" "$WORK_DIR/stderr-skip" >/dev/null || fail "expected Maven skip diagnostic"
+grep -F "skip: Gradle executable is not available" "$WORK_DIR/stderr-skip" >/dev/null || fail "expected Gradle skip diagnostic"
+jq -s -e 'map(.tool) | unique == ["zolt-native"]' "$SKIP_OUTPUT_FILE" >/dev/null || fail "expected only zolt-native metrics after skips"
+[[ -s "$SKIP_SUMMARY_FILE" ]] || fail "expected zolt-native-only summaries"
+
+printf 'benchmark large-source script test passed\n'

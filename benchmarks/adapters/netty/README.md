@@ -1,12 +1,15 @@
-# Netty Adapter Groundwork
+# Netty Common Subset Adapter
 
-Status: upstream Maven baseline only.
+Status: source-compatible `common` main-source subset comparison ready.
 
-This directory is the reviewable home for the future Zolt overlay used by the
-Netty benchmark lane. The current benchmark suite times Netty with its upstream
-Maven build only; it must not be described as a Zolt comparison until this
-directory contains a working adapter and coverage record for the same meaningful
-source set.
+`scripts/benchmark-netty-compare` generates reviewable Zolt and Maven overlays
+from a pinned local Netty checkout. The runner gives both tools the same
+filtered `common` main Java sources, dependencies, and Java level, then records
+the source count, commands, compiler difference, and package difference.
+
+This is a useful Netty source-subset comparison, not a full Netty comparison.
+The larger `benchmark-real-project` lane remains an upstream Maven baseline for
+the selected core Java reactor.
 
 Current upstream Maven baseline:
 
@@ -16,7 +19,7 @@ Current upstream Maven baseline:
 - upstream tool: Maven
 - manifest: `docs/benchmarks/projects.json`
 
-The first comparison adapter should be an overlay, not a fork:
+The comparison adapter is an overlay, not a fork:
 
 - copy adapter files into the pinned upstream checkout during the benchmark run;
 - leave upstream source untouched except for explicit benchmark source-change
@@ -26,14 +29,23 @@ The first comparison adapter should be an overlay, not a fork:
   are covered;
 - keep the Zolt commands and Maven commands side by side in the result artifact.
 
-Initial target:
+Current coverage:
 
-- match the upstream core Java reactor package lane in
-  `docs/benchmarks/projects.json`;
-- clean package for the core Java reactor;
-- clean compile, warm no-op, and implementation-change workflows for `common`;
-- no claims about tests, native/JNI packaging, or full Netty release packaging
-  until those workflows are represented in the adapter.
+- copied `common/src/main/java` sources, excluding Graal substitution sources
+  that require Maven/native-image processing;
+- cold dependency resolution and warm no-op compile/build rows;
+- separate Zolt and Maven thin-jar rows, explicitly marked as not
+  byte-identical.
+
+Still omitted:
+
+- the rest of the Netty reactor;
+- native transports and generated native sources;
+- Graal substitution processing and Maven plugin behavior;
+- Netty's unreleased optional test tooling in the default main-source lane;
+- test compilation and execution;
+- equivalent release packaging;
+- publishable test parity.
 
 Publication rule: every Netty result must ship this adapter directory, the
 upstream Maven logs, raw samples, deterministic summary, and module coverage

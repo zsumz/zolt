@@ -1,0 +1,849 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmarks/large-source"
+CACHE_ROOT=".zolt/cache"
+ZOLT_BIN="${ZOLT_BENCH_ZOLT:-$ROOT/target/native/zolt}"
+MAVEN_BIN="${ZOLT_BENCH_MAVEN:-$(command -v mvn || true)}"
+GRADLE_BIN="${ZOLT_BENCH_GRADLE:-$(command -v gradle || true)}"
+OUTPUT_FILE=""
+SUMMARY_FILE=""
+REPEAT_COUNT=3
+INCLUDE_GRADLE_DAEMON=0
+MODULE_COUNT=8
+CLASSES_PER_MODULE=500
+METHODS_PER_CLASS=30
+MUTATION_SEQUENCE=0
+SOURCE_FILES=""
+SOURCE_LINES=""
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/benchmark-large-source [options]
+
+Options:
+  --zolt PATH            Native Zolt executable. Default: target/native/zolt.
+  --maven PATH           Maven executable. Default: mvn from PATH, when present.
+  --gradle PATH          Gradle executable. Default: gradle from PATH, when present.
+  --work-dir DIR         Generated comparison work directory. Default: target/benchmarks/large-source.
+  --cache-root DIR       Zolt warm-cache root. Default: .zolt/cache.
+  --output FILE          Write raw JSON-lines metrics to FILE.
+  --summary FILE         Write JSON-lines median summaries to FILE.
+  --repeat COUNT         Repeat each timed measurement COUNT times. Default: 3.
+  --modules COUNT        Generated module count. Default: 8.
+  --classes COUNT        Generated classes per module. Default: 500.
+  --methods COUNT        Generated methods per class. Default: 30.
+  --quick                Tiny scale for harness tests and script smoke.
+  --include-gradle-daemon
+                         Also measure Gradle with its daemon enabled as gradle-daemon.
+  -h, --help             Show this help.
+
+Default scale is intended to land near a 500,000 line generated Java workspace.
+Generated sources are written under WORK_DIR and are never committed.
+Measured build modes include warm no-op, body-change, and public ABI-change rows.
+USAGE
+}
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+if ! command -v jq >/dev/null 2>&1; then
+  fail "jq is required to write performance metrics"
+fi
+
+absolute_path() {
+  case "$1" in
+    "") printf '\n' ;;
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$ROOT/$1" ;;
+  esac
+}
+
+positive_integer() {
+  [[ "$1" =~ ^[1-9][0-9]*$ ]]
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --zolt)
+      [[ "$#" -ge 2 ]] || fail "--zolt requires a value"
+      ZOLT_BIN="$2"
+      shift 2
+      ;;
+    --maven)
+      [[ "$#" -ge 2 ]] || fail "--maven requires a value"
+      MAVEN_BIN="$2"
+      shift 2
+      ;;
+    --gradle)
+      [[ "$#" -ge 2 ]] || fail "--gradle requires a value"
+      GRADLE_BIN="$2"
+      shift 2
+      ;;
+    --work-dir)
+      [[ "$#" -ge 2 ]] || fail "--work-dir requires a value"
+      WORK_DIR="$2"
+      shift 2
+      ;;
+    --cache-root)
+      [[ "$#" -ge 2 ]] || fail "--cache-root requires a value"
+      CACHE_ROOT="$2"
+      shift 2
+      ;;
+    --output)
+      [[ "$#" -ge 2 ]] || fail "--output requires a value"
+      OUTPUT_FILE="$2"
+      shift 2
+      ;;
+    --summary)
+      [[ "$#" -ge 2 ]] || fail "--summary requires a value"
+      SUMMARY_FILE="$2"
+      shift 2
+      ;;
+    --repeat)
+      [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
+      positive_integer "$2" || fail "--repeat requires a positive integer"
+      REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --modules)
+      [[ "$#" -ge 2 ]] || fail "--modules requires a value"
+      positive_integer "$2" || fail "--modules requires a positive integer"
+      MODULE_COUNT="$2"
+      shift 2
+      ;;
+    --classes)
+      [[ "$#" -ge 2 ]] || fail "--classes requires a value"
+      positive_integer "$2" || fail "--classes requires a positive integer"
+      CLASSES_PER_MODULE="$2"
+      shift 2
+      ;;
+    --methods)
+      [[ "$#" -ge 2 ]] || fail "--methods requires a value"
+      positive_integer "$2" || fail "--methods requires a positive integer"
+      METHODS_PER_CLASS="$2"
+      shift 2
+      ;;
+    --quick)
+      MODULE_COUNT=2
+      CLASSES_PER_MODULE=2
+      METHODS_PER_CLASS=2
+      shift
+      ;;
+    --include-gradle-daemon)
+      INCLUDE_GRADLE_DAEMON=1
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown option '$1'"
+      ;;
+  esac
+done
+
+case "$WORK_DIR" in
+  "" | "." | "/" | "$ROOT")
+    fail "refusing unsafe performance work directory: $WORK_DIR"
+    ;;
+esac
+
+WORK_DIR="$(absolute_path "$WORK_DIR")"
+CACHE_ROOT="$(absolute_path "$CACHE_ROOT")"
+ZOLT_BIN="$(absolute_path "$ZOLT_BIN")"
+MAVEN_BIN="$(absolute_path "$MAVEN_BIN")"
+GRADLE_BIN="$(absolute_path "$GRADLE_BIN")"
+
+if [[ ! -x "$ZOLT_BIN" ]]; then
+  fail "native Zolt executable is not executable: $ZOLT_BIN"
+fi
+
+if [[ -z "$OUTPUT_FILE" ]]; then
+  OUTPUT_FILE="$WORK_DIR/large-source-compare.jsonl"
+fi
+if [[ -z "$SUMMARY_FILE" ]]; then
+  SUMMARY_FILE="$WORK_DIR/large-source-compare-summary.jsonl"
+fi
+
+OUTPUT_FILE="$(absolute_path "$OUTPUT_FILE")"
+SUMMARY_FILE="$(absolute_path "$SUMMARY_FILE")"
+mkdir -p "$WORK_DIR" "$(dirname "$OUTPUT_FILE")" "$(dirname "$SUMMARY_FILE")"
+: >"$OUTPUT_FILE"
+: >"$SUMMARY_FILE"
+
+PROJECTS_DIR="$WORK_DIR/projects"
+ZOLT_PROJECT="$PROJECTS_DIR/zolt-large-source"
+MAVEN_PROJECT="$PROJECTS_DIR/maven-large-source"
+GRADLE_PROJECT="$PROJECTS_DIR/gradle-large-source"
+ATTRIBUTE_FILE="$WORK_DIR/source-attributes.env"
+
+package_name() {
+  printf 'com.example.large.%s\n' "$1"
+}
+
+package_path() {
+  package_name "$1" | tr '.' '/'
+}
+
+api_name() {
+  local module="$1"
+  local first="${module%"${module#?}"}"
+  local rest="${module#?}"
+  printf '%s%sApi\n' "$(printf '%s' "$first" | tr '[:lower:]' '[:upper:]')" "$rest"
+}
+
+write_generated_class() {
+  local file="$1"
+  local module="$2"
+  local index="$3"
+  local package
+  local class_name
+  package="$(package_name "$module")"
+  class_name="$(printf 'Generated%04d' "$index")"
+  mkdir -p "$(dirname "$file")"
+  {
+    printf 'package %s;\n\n' "$package"
+    printf 'public final class %s {\n' "$class_name"
+    printf '    private final int seed = %s;\n\n' "$index"
+    local method
+    for method in $(seq 0 $((METHODS_PER_CLASS - 1))); do
+      printf '    public int value%03d() {\n' "$method"
+      printf '        return seed + %s;\n' "$method"
+      printf '    }\n\n'
+    done
+    printf '}\n'
+  } >"$file"
+}
+
+write_api_class() {
+  local file="$1"
+  local module="$2"
+  local previous="$3"
+  local package
+  local class_name
+  package="$(package_name "$module")"
+  class_name="$(api_name "$module")"
+  mkdir -p "$(dirname "$file")"
+  {
+    printf 'package %s;\n\n' "$package"
+    if [[ -n "$previous" ]]; then
+      printf 'import %s.%s;\n\n' "$(package_name "$previous")" "$(api_name "$previous")"
+    fi
+    printf 'public final class %s {\n' "$class_name"
+    printf '    public String message() {\n'
+    printf '        int value = new Generated0001().value000();\n'
+    if [[ -n "$previous" ]]; then
+      printf '        return "%s:" + value + ":" + new %s().message();\n' "$module" "$(api_name "$previous")"
+    else
+      printf '        return "%s:" + value;\n' "$module"
+    fi
+    printf '    }\n'
+    printf '}\n'
+  } >"$file"
+}
+
+write_test_class() {
+  local file="$1"
+  local module="$2"
+  local package
+  local class_name
+  package="$(package_name "$module")"
+  class_name="$(api_name "$module")"
+  mkdir -p "$(dirname "$file")"
+  cat >"$file" <<EOF
+package $package;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
+
+final class ${class_name}Test {
+    @Test
+    void messageIncludesModuleName() {
+        assertTrue(new ${class_name}().message().contains("$module"));
+    }
+}
+EOF
+}
+
+generate_sources() {
+  local base_root="$1"
+  local module="$2"
+  local previous="$3"
+  local package_root
+  local src_root
+  local test_root
+  package_root="$(package_path "$module")"
+  src_root="$base_root/$module/src/main/java/$package_root"
+  test_root="$base_root/$module/src/test/java/$package_root"
+  local index
+  for index in $(seq 1 "$CLASSES_PER_MODULE"); do
+    write_generated_class "$src_root/$(printf 'Generated%04d.java' "$index")" "$module" "$index"
+  done
+  write_api_class "$src_root/$(api_name "$module").java" "$module" "$previous"
+  write_test_class "$test_root/$(api_name "$module")Test.java" "$module"
+}
+
+generate_zolt_fixture() {
+  local modules=("$@")
+  local last="${modules[$((${#modules[@]} - 1))]}"
+  local member_list=""
+  local module
+  for module in "${modules[@]}"; do
+    if [[ -n "$member_list" ]]; then
+      member_list+=", "
+    fi
+    member_list+="\"$module\""
+  done
+
+  mkdir -p "$ZOLT_PROJECT"
+  cat >"$ZOLT_PROJECT/zolt.toml" <<EOF
+[workspace]
+name = "large-source"
+members = [$member_list]
+defaultMembers = ["$last"]
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+EOF
+
+  local index
+  for index in "${!modules[@]}"; do
+    module="${modules[$index]}"
+    local previous=""
+    if [[ "$index" -gt 0 ]]; then
+      previous="${modules[$((index - 1))]}"
+    fi
+    mkdir -p "$ZOLT_PROJECT/$module"
+    cat >"$ZOLT_PROJECT/$module/zolt.toml" <<EOF
+[project]
+name = "$module"
+version = "0.1.0"
+group = "com.example.large"
+java = "21"
+
+[dependencies]
+EOF
+    if [[ -n "$previous" ]]; then
+      printf '"com.example.large:%s" = { workspace = "%s" }\n' "$previous" "$previous" >>"$ZOLT_PROJECT/$module/zolt.toml"
+    fi
+    cat >>"$ZOLT_PROJECT/$module/zolt.toml" <<'EOF'
+
+[test.dependencies]
+"org.junit.jupiter:junit-jupiter" = "5.11.4"
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"
+EOF
+    generate_sources "$ZOLT_PROJECT" "$module" "$previous"
+  done
+}
+
+generate_maven_fixture() {
+  local modules=("$@")
+  mkdir -p "$MAVEN_PROJECT"
+  cat >"$MAVEN_PROJECT/pom.xml" <<'EOF'
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example.large</groupId>
+  <artifactId>large-source</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <modules>
+EOF
+  local module
+  for module in "${modules[@]}"; do
+    printf '    <module>%s</module>\n' "$module" >>"$MAVEN_PROJECT/pom.xml"
+  done
+  cat >>"$MAVEN_PROJECT/pom.xml" <<'EOF'
+  </modules>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.4</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>
+EOF
+
+  local index
+  for index in "${!modules[@]}"; do
+    module="${modules[$index]}"
+    local previous=""
+    if [[ "$index" -gt 0 ]]; then
+      previous="${modules[$((index - 1))]}"
+    fi
+    mkdir -p "$MAVEN_PROJECT/$module"
+    cat >"$MAVEN_PROJECT/$module/pom.xml" <<EOF
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.example.large</groupId>
+    <artifactId>large-source</artifactId>
+    <version>0.1.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>$module</artifactId>
+  <dependencies>
+EOF
+    if [[ -n "$previous" ]]; then
+      cat >>"$MAVEN_PROJECT/$module/pom.xml" <<EOF
+    <dependency>
+      <groupId>com.example.large</groupId>
+      <artifactId>$previous</artifactId>
+      <version>\${project.version}</version>
+    </dependency>
+EOF
+    fi
+    cat >>"$MAVEN_PROJECT/$module/pom.xml" <<'EOF'
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
+EOF
+    generate_sources "$MAVEN_PROJECT" "$module" "$previous"
+  done
+}
+
+generate_gradle_fixture() {
+  local modules=("$@")
+  mkdir -p "$GRADLE_PROJECT"
+  cat >"$GRADLE_PROJECT/settings.gradle" <<'EOF'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'large-source'
+EOF
+  local module
+  for module in "${modules[@]}"; do
+    printf "include '%s'\n" "$module" >>"$GRADLE_PROJECT/settings.gradle"
+  done
+
+  cat >"$GRADLE_PROJECT/build.gradle" <<'EOF'
+subprojects {
+    apply plugin: 'java-library'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}
+
+EOF
+  local index
+  for index in "${!modules[@]}"; do
+    module="${modules[$index]}"
+    local previous=""
+    if [[ "$index" -gt 0 ]]; then
+      previous="${modules[$((index - 1))]}"
+    fi
+    cat >>"$GRADLE_PROJECT/build.gradle" <<EOF
+project(':$module') {
+    dependencies {
+EOF
+    if [[ -n "$previous" ]]; then
+      printf "        api project(':%s')\n" "$previous" >>"$GRADLE_PROJECT/build.gradle"
+    fi
+    cat >>"$GRADLE_PROJECT/build.gradle" <<'EOF'
+        testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    }
+}
+
+EOF
+    generate_sources "$GRADLE_PROJECT" "$module" "$previous"
+  done
+}
+
+generate_fixtures() {
+  rm -rf "$PROJECTS_DIR"
+  mkdir -p "$PROJECTS_DIR"
+
+  local modules=()
+  local index
+  for index in $(seq 1 "$MODULE_COUNT"); do
+    modules+=("$(printf 'module%02d' "$index")")
+  done
+
+  generate_zolt_fixture "${modules[@]}"
+  generate_maven_fixture "${modules[@]}"
+  generate_gradle_fixture "${modules[@]}"
+
+  local source_files
+  local source_lines
+  source_files="$(find "$ZOLT_PROJECT" -name '*.java' | wc -l | tr -d ' ')"
+  source_lines="$(
+    find "$ZOLT_PROJECT" -name '*.java' -print0 \
+      | while IFS= read -r -d '' source_file; do
+          wc -l <"$source_file"
+        done \
+      | awk '{ total += $1 } END { print total + 0 }'
+  )"
+  if [[ -z "$source_lines" ]]; then
+    source_lines=0
+  fi
+  cat >"$ATTRIBUTE_FILE" <<EOF
+SOURCE_FILES=$source_files
+SOURCE_LINES=$source_lines
+MODULE_COUNT=$MODULE_COUNT
+CLASSES_PER_MODULE=$CLASSES_PER_MODULE
+METHODS_PER_CLASS=$METHODS_PER_CLASS
+EOF
+}
+
+source_attributes() {
+  # shellcheck disable=SC1090
+  source "$ATTRIBUTE_FILE"
+}
+
+json_attributes() {
+  jq -nc \
+    --arg sourceFiles "$SOURCE_FILES" \
+    --arg sourceLines "$SOURCE_LINES" \
+    --arg modules "$MODULE_COUNT" \
+    --arg classesPerModule "$CLASSES_PER_MODULE" \
+    --arg methodsPerClass "$METHODS_PER_CLASS" \
+    '{
+      sourceFiles: $sourceFiles,
+      sourceLines: $sourceLines,
+      modules: $modules,
+      classesPerModule: $classesPerModule,
+      methodsPerClass: $methodsPerClass
+    }'
+}
+
+measure_command() {
+  local tool="$1"
+  local project_dir="$2"
+  local mode="$3"
+  local command_name="$4"
+  shift 4
+
+  local output_dir="$WORK_DIR/logs/$tool/$mode/$command_name/iteration-$CURRENT_ITERATION"
+  mkdir -p "$output_dir"
+  local stdout_file="$output_dir/stdout"
+  local stderr_file="$output_dir/stderr"
+  local attrs
+  attrs="$(json_attributes)"
+
+  local status
+  local duration_nanos
+  local duration_millis
+  local timing
+  timing="$(python3 - "$project_dir" "$stdout_file" "$stderr_file" "$@" <<'PY'
+import pathlib
+import subprocess
+import sys
+import time
+
+project_dir = pathlib.Path(sys.argv[1])
+stdout_file = pathlib.Path(sys.argv[2])
+stderr_file = pathlib.Path(sys.argv[3])
+command = sys.argv[4:]
+started = time.perf_counter_ns()
+with stdout_file.open("w", encoding="utf-8") as stdout, stderr_file.open("w", encoding="utf-8") as stderr:
+    completed = subprocess.run(command, cwd=project_dir, stdout=stdout, stderr=stderr)
+duration_nanos = time.perf_counter_ns() - started
+print(completed.returncode, duration_nanos, duration_nanos // 1_000_000)
+PY
+)"
+  read -r status duration_nanos duration_millis <<<"$timing"
+
+  jq -nc \
+    --arg tool "$tool" \
+    --arg mode "$mode" \
+    --argjson iteration "$CURRENT_ITERATION" \
+    --argjson exitCode "$status" \
+    --arg command "$command_name" \
+    --arg projectRoot "$(cd "$project_dir" && pwd)" \
+    --argjson durationMillis "$duration_millis" \
+    --argjson durationNanos "$duration_nanos" \
+    --argjson attributes "$attrs" \
+    '{
+      tool: $tool,
+      scenario: "large-source",
+      mode: $mode,
+      iteration: $iteration,
+      exitCode: $exitCode,
+      command: $command,
+      projectRoot: $projectRoot,
+      phase: "wall clock",
+      durationMillis: $durationMillis,
+      durationNanos: $durationNanos,
+      depth: 0,
+      attributes: $attributes
+    }' >>"$OUTPUT_FILE"
+
+  if [[ "$status" -ne 0 ]]; then
+    cat "$stdout_file" >&2 || true
+    cat "$stderr_file" >&2 || true
+    fail "$tool $command_name failed in $mode with exit code $status"
+  fi
+}
+
+run_untimed() {
+  local project_dir="$1"
+  shift
+  (cd "$project_dir" && "$@") >/dev/null 2>&1 || fail "setup command failed: $*"
+}
+
+find_generated_source() {
+  local project_dir="$1"
+  local class_file="$2"
+  local source
+  source="$(find "$project_dir/$LAST_MODULE/src/main/java" -name "$class_file" | sort | head -n 1)"
+  [[ -n "$source" ]] || fail "could not find generated source to change under $project_dir"
+  printf '%s\n' "$source"
+}
+
+rewrite_source() {
+  local source="$1"
+  local description="$2"
+  local awk_script="$3"
+  shift 3
+  local tmp
+  tmp="$(mktemp "$WORK_DIR/source-rewrite.XXXXXX")"
+  if ! awk "$@" "$awk_script" "$source" >"$tmp"; then
+    rm -f "$tmp"
+    fail "could not apply $description edit to $source"
+  fi
+  mv "$tmp" "$source"
+}
+
+touch_body_changed_source() {
+  local project_dir="$1"
+  local source
+  local method_name
+  MUTATION_SEQUENCE=$((MUTATION_SEQUENCE + 1))
+  method_name="zoltBodySample${CURRENT_ITERATION}_${MUTATION_SEQUENCE}"
+  source="$(find_generated_source "$project_dir" 'Generated0001.java')"
+  rewrite_source "$source" "body-change" '
+    !inserted && /^}$/ {
+      print "    private int " method_name "() {"
+      print "        return seed + " mutation_sequence ";"
+      print "    }"
+      print ""
+      inserted = 1
+    }
+    { print }
+    END {
+      if (!inserted) {
+        exit 42
+      }
+    }
+  ' -v "method_name=$method_name" -v "mutation_sequence=$MUTATION_SEQUENCE"
+}
+
+touch_abi_changed_source() {
+  local project_dir="$1"
+  local source
+  local method_name
+  MUTATION_SEQUENCE=$((MUTATION_SEQUENCE + 1))
+  method_name="zoltAbiSample${CURRENT_ITERATION}_${MUTATION_SEQUENCE}"
+  source="$(find_generated_source "$project_dir" 'Generated0002.java')"
+  rewrite_source "$source" "abi-change" '
+    !inserted && /^}$/ {
+      print "    public int " method_name "() {"
+      print "        return seed + " mutation_sequence ";"
+      print "    }"
+      print ""
+      inserted = 1
+    }
+    { print }
+    END {
+      if (!inserted) {
+        exit 42
+      }
+    }
+  ' -v "method_name=$method_name" -v "mutation_sequence=$MUTATION_SEQUENCE"
+}
+
+measure_zolt() {
+  local cache="$WORK_DIR/caches/zolt-warm"
+  local cold_cache="$WORK_DIR/caches/zolt-cold-$CURRENT_ITERATION"
+  mkdir -p "$cache"
+  rm -rf "$cold_cache"
+  mkdir -p "$cold_cache"
+
+  measure_command "zolt-native" "$ZOLT_PROJECT" "cold-dependencies" "resolve" \
+    "$ZOLT_BIN" resolve --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cold_cache"
+  run_untimed "$ZOLT_PROJECT" "$ZOLT_BIN" resolve --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  run_untimed "$ZOLT_PROJECT" "$ZOLT_BIN" build --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "no-op" "build" \
+    "$ZOLT_BIN" build --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  touch_body_changed_source "$ZOLT_PROJECT"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "body-change" "build" \
+    "$ZOLT_BIN" build --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  touch_abi_changed_source "$ZOLT_PROJECT"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "abi-change" "build" \
+    "$ZOLT_BIN" build --workspace --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "full-test" "test" \
+    "$ZOLT_BIN" test --workspace --all --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+  measure_command "zolt-native" "$ZOLT_PROJECT" "selected-test" "test" \
+    "$ZOLT_BIN" test --workspace --member "$LAST_MODULE" --cwd "$ZOLT_PROJECT" --cache-root "$cache"
+}
+
+measure_maven() {
+  if [[ -z "$MAVEN_BIN" || ! -x "$MAVEN_BIN" ]]; then
+    printf 'skip: Maven executable is not available\n' >&2
+    return
+  fi
+  local repo="$WORK_DIR/caches/maven-warm"
+  local cold_repo="$WORK_DIR/caches/maven-cold-$CURRENT_ITERATION"
+  mkdir -p "$repo"
+  rm -rf "$cold_repo"
+  mkdir -p "$cold_repo"
+
+  measure_command "maven" "$MAVEN_PROJECT" "cold-dependencies" "resolve" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$cold_repo" -q dependency:go-offline
+  run_untimed "$MAVEN_PROJECT" "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q dependency:go-offline
+  run_untimed "$MAVEN_PROJECT" "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  measure_command "maven" "$MAVEN_PROJECT" "no-op" "build" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  touch_body_changed_source "$MAVEN_PROJECT"
+  measure_command "maven" "$MAVEN_PROJECT" "body-change" "build" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  touch_abi_changed_source "$MAVEN_PROJECT"
+  measure_command "maven" "$MAVEN_PROJECT" "abi-change" "build" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -DskipTests compile
+  measure_command "maven" "$MAVEN_PROJECT" "full-test" "test" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q test
+  measure_command "maven" "$MAVEN_PROJECT" "selected-test" "test" \
+    "$MAVEN_BIN" -Dmaven.repo.local="$repo" -q -pl "$LAST_MODULE" -am test
+}
+
+measure_gradle_tool() {
+  local tool="$1"
+  local daemon_flag="$2"
+  if [[ -z "$GRADLE_BIN" || ! -x "$GRADLE_BIN" ]]; then
+    printf 'skip: Gradle executable is not available\n' >&2
+    return
+  fi
+  local user_home="$WORK_DIR/caches/$tool-warm"
+  local cold_home="$WORK_DIR/caches/$tool-cold-$CURRENT_ITERATION"
+  mkdir -p "$user_home"
+  rm -rf "$cold_home"
+  mkdir -p "$cold_home"
+
+  measure_command "$tool" "$GRADLE_PROJECT" "cold-dependencies" "resolve" \
+    env GRADLE_USER_HOME="$cold_home" "$GRADLE_BIN" "$daemon_flag" -q ":$LAST_MODULE:dependencies" --configuration runtimeClasspath
+  run_untimed "$GRADLE_PROJECT" env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q ":$LAST_MODULE:dependencies" --configuration runtimeClasspath
+  run_untimed "$GRADLE_PROJECT" env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q classes
+  measure_command "$tool" "$GRADLE_PROJECT" "no-op" "build" \
+    env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q classes
+  touch_body_changed_source "$GRADLE_PROJECT"
+  measure_command "$tool" "$GRADLE_PROJECT" "body-change" "build" \
+    env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q classes
+  touch_abi_changed_source "$GRADLE_PROJECT"
+  measure_command "$tool" "$GRADLE_PROJECT" "abi-change" "build" \
+    env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q classes
+  measure_command "$tool" "$GRADLE_PROJECT" "full-test" "test" \
+    env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q test
+  measure_command "$tool" "$GRADLE_PROJECT" "selected-test" "test" \
+    env GRADLE_USER_HOME="$user_home" "$GRADLE_BIN" "$daemon_flag" -q ":$LAST_MODULE:test"
+}
+
+write_summary() {
+  jq -s -c '
+    def median:
+      sort as $values
+      | ($values | length) as $count
+      | if $count == 0 then null
+        elif ($count % 2) == 1 then $values[($count / 2 | floor)]
+        else (($values[($count / 2 - 1)] + $values[($count / 2)]) / 2 | floor)
+        end;
+    def tool_medians:
+      reduce (group_by(.tool)[] | select(length > 0)) as $events ({};
+        . + {($events[0].tool): ($events | map(.durationMillis) | median)}
+      );
+    def tool_samples:
+      reduce (group_by(.tool)[] | select(length > 0)) as $events ({};
+        . + {($events[0].tool): ($events | length)}
+      );
+    def ratios($medians):
+      ($medians["zolt-native"] // 0) as $baseline
+      | if $baseline > 0 then
+          reduce ($medians | keys_unsorted[] | select(. != "zolt-native")) as $tool ({};
+            . + {($tool): ((($medians[$tool] / $baseline) * 100 | round) / 100)}
+          )
+        else {}
+        end;
+    group_by([.scenario, .mode, .command, .phase])[]
+    | sort_by(.tool, .durationMillis) as $group
+    | ($group | tool_medians) as $medians
+    | {
+        scenario: $group[0].scenario,
+        mode: $group[0].mode,
+        command: $group[0].command,
+        phase: $group[0].phase,
+        mediansMillis: $medians,
+        samples: ($group | tool_samples),
+        baselineTool: "zolt-native",
+        competitorSlowerRatio: ratios($medians)
+      }
+  ' "$OUTPUT_FILE" >"$SUMMARY_FILE"
+}
+
+generate_fixtures
+source_attributes
+LAST_MODULE="$(printf 'module%02d' "$MODULE_COUNT")"
+
+for CURRENT_ITERATION in $(seq 1 "$REPEAT_COUNT"); do
+measure_zolt
+measure_maven
+measure_gradle_tool "gradle" "--no-daemon"
+if [[ "$INCLUDE_GRADLE_DAEMON" -eq 1 ]]; then
+    measure_gradle_tool "gradle-daemon" "--daemon"
+fi
+done
+
+if [[ "$INCLUDE_GRADLE_DAEMON" -eq 1 && -n "$GRADLE_BIN" && -x "$GRADLE_BIN" ]]; then
+  env GRADLE_USER_HOME="$WORK_DIR/caches/gradle-daemon-warm" "$GRADLE_BIN" --stop >/dev/null 2>&1 || true
+fi
+
+write_summary
+
+printf 'large-source comparison metrics: %s\n' "$OUTPUT_FILE"
+printf 'large-source comparison summary: %s\n' "$SUMMARY_FILE"
