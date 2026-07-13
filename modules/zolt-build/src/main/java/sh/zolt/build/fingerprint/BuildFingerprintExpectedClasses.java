@@ -1,6 +1,8 @@
 package sh.zolt.build.fingerprint;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -12,22 +14,31 @@ final class BuildFingerprintExpectedClasses {
             List<Path> sources,
             Path outputDirectory) {
         return files(projectRoot, sourceRoots, sources, outputDirectory).stream()
+                .filter(path -> !isPackageInfo(path) || Files.isRegularFile(path))
                 .sorted()
                 .map(path -> relative(projectRoot, path))
                 .toList();
     }
 
-    boolean present(
-            Path projectRoot,
-            List<String> sourceRoots,
-            List<Path> sources,
-            Path outputDirectory) {
-        for (Path expectedClass : files(projectRoot, sourceRoots, sources, outputDirectory)) {
-            if (!java.nio.file.Files.isRegularFile(expectedClass)) {
-                return false;
+    List<Path> missing(Path projectRoot, String fingerprint) {
+        List<Path> missing = new ArrayList<>();
+        boolean expectedClassesSection = false;
+        for (String line : fingerprint.lines().toList()) {
+            if (line.startsWith("[") && line.endsWith("]")) {
+                expectedClassesSection = "[expectedClasses]".equals(line);
+                continue;
+            }
+            if (expectedClassesSection && !line.isBlank()) {
+                Path recorded = Path.of(line);
+                Path expectedClass = recorded.isAbsolute()
+                        ? recorded.normalize()
+                        : projectRoot.resolve(recorded).normalize();
+                if (!Files.isRegularFile(expectedClass)) {
+                    missing.add(expectedClass);
+                }
             }
         }
-        return true;
+        return List.copyOf(missing);
     }
 
     List<Path> files(
@@ -64,6 +75,11 @@ final class BuildFingerprintExpectedClasses {
                 ? Path.of(fileName.substring(0, fileName.length() - extension.length()) + ".class")
                 : relative.getParent().resolve(fileName.substring(0, fileName.length() - extension.length()) + ".class");
         return Optional.of(outputDirectory.resolve(classRelative).normalize());
+    }
+
+    private static boolean isPackageInfo(Path classFile) {
+        Path fileName = classFile.getFileName();
+        return fileName != null && "package-info.class".equals(fileName.toString());
     }
 
     private static Optional<Path> sourceRootFor(List<Path> sourceRoots, Path source) {

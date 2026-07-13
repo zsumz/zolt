@@ -34,6 +34,8 @@ final class BuildFingerprintContentTest {
         Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
         Path alpha = write("src/main/java/com/example/Alpha.java", "class Alpha {}\n");
         Path beta = write("src/main/java/com/example/Beta.java", "class Beta {}\n");
+        write("target/classes/com/example/Alpha.class", "compiled");
+        write("target/classes/com/example/Beta.class", "compiled");
         write("src/main/resources/application.properties", "name=demo\n");
         write("src/main/resources/Ignored.java", "class Ignored {}\n");
         write("src/main/resources/target/generated.txt", "ignored\n");

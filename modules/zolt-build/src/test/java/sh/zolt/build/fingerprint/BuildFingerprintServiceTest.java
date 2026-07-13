@@ -1,5 +1,6 @@
 package sh.zolt.build.fingerprint;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -147,6 +148,39 @@ final class BuildFingerprintServiceTest {
                 new Classpath(List.of()),
                 output,
                 projectDir.resolve("target/generated/test-sources/annotations")));
+    }
+
+    @Test
+    void reportsTheFingerprintComponentThatChanged() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.toml"), "[project]\nname = \"demo\"\n");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Path source = write("src/main/java/com/example/Main.java", "package com.example; final class Main {}\n");
+        write("target/classes/com/example/Main.class", "class");
+        SourceDiscoveryResult sources = new SourceDiscoveryResult(List.of(source), List.of());
+        ProjectConfig config = config();
+        Path output = projectDir.resolve("target/classes");
+
+        service.writeMainCompileFingerprint(
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                sources,
+                emptyClasspaths(),
+                output,
+                projectDir.resolve("target/generated/sources/annotations"));
+        Files.writeString(source, "package com.example; final class Main { int changed; }\n");
+
+        BuildFingerprintCheck check = service.checkMainCompileCurrent(
+                projectDir,
+                config,
+                projectDir.resolve("zolt.lock"),
+                sources,
+                emptyClasspaths(),
+                output,
+                projectDir.resolve("target/generated/sources/annotations"));
+
+        assertFalse(check.current());
+        assertEquals("fingerprint-mismatch:sources", check.reason());
     }
 
     private static ProjectConfig config() {

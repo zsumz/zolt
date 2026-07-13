@@ -45,6 +45,7 @@ final class BuildServiceFingerprintInvalidationTest {
         BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(result.mainCompilationSkipped());
+        assertEquals("fingerprint-mismatch:zoltToml", result.mainIncrementalFallbackReason());
     }
 
     @Test
@@ -65,6 +66,7 @@ final class BuildServiceFingerprintInvalidationTest {
         BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(result.mainCompilationSkipped());
+        assertEquals("fingerprint-mismatch:lockfile", result.mainIncrementalFallbackReason());
     }
 
     @Test
@@ -136,6 +138,9 @@ final class BuildServiceFingerprintInvalidationTest {
         BuildResult result = buildService.build(projectDir, config(), projectDir.resolve("cache"));
 
         assertFalse(result.mainCompilationSkipped());
+        assertEquals(
+                "missing-expected-class:target/classes/com/example/Main.class",
+                result.mainIncrementalFallbackReason());
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
     }
 

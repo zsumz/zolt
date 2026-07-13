@@ -49,6 +49,27 @@ final class BuildServiceIncrementalMainStateTest {
     }
 
     @Test
+    void repeatedMainBuildSkipsWhenPackageInfoDoesNotEmitAClass() throws IOException {
+        writeLockfile(projectDir, "version = 1\n");
+        source(projectDir, "src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {}
+                """);
+        source(projectDir, "src/main/java/com/example/package-info.java", """
+                /** Package documentation only. */
+                package com.example;
+                """);
+
+        BuildResult first = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+        BuildResult second = buildService.build(projectDir, config(), projectDir.resolve("cache"));
+
+        assertFalse(first.mainCompilationSkipped());
+        assertFalse(Files.exists(projectDir.resolve("target/classes/com/example/package-info.class")));
+        assertTrue(second.mainCompilationSkipped());
+    }
+
+    @Test
     void failedMainCompileDeletesIncrementalOwnershipState() throws IOException {
         writeLockfile(projectDir, "version = 1\n");
         Path mainSource = source(projectDir, "src/main/java/com/example/Main.java", """

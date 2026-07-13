@@ -21,6 +21,7 @@ public final class BuildFingerprintService {
     private static final String MAIN_FILE_NAME = ".zolt-build-main.fingerprint";
     private static final String TEST_FILE_NAME = ".zolt-build-test.fingerprint";
     private final BuildFingerprintContent content = new BuildFingerprintContent();
+    private final BuildFingerprintComparison comparison = new BuildFingerprintComparison();
     private final BuildFingerprintExpectedClasses expectedClasses = new BuildFingerprintExpectedClasses();
     private final BuildFingerprintStateStore stateStore = new BuildFingerprintStateStore();
 
@@ -32,7 +33,25 @@ public final class BuildFingerprintService {
             ClasspathSet classpaths,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
-        return isCompileCurrent(
+        return checkMainCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                classpaths,
+                outputDirectory,
+                generatedSourcesDirectory).current();
+    }
+
+    public BuildFingerprintCheck checkMainCompileCurrent(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        return checkCompileCurrent(
                 projectDirectory,
                 config,
                 lockfilePath,
@@ -83,7 +102,27 @@ public final class BuildFingerprintService {
             Classpath processorClasspath,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
-        return isCompileCurrent(
+        return checkTestCompileCurrent(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                generatedSourcesDirectory).current();
+    }
+
+    public BuildFingerprintCheck checkTestCompileCurrent(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        return checkCompileCurrent(
                 projectDirectory,
                 config,
                 lockfilePath,
@@ -145,7 +184,7 @@ public final class BuildFingerprintService {
         return List.copyOf(roots);
     }
 
-    private boolean isCompileCurrent(
+    private BuildFingerprintCheck checkCompileCurrent(
             Path projectDirectory,
             ProjectConfig config,
             Path lockfilePath,
@@ -162,27 +201,28 @@ public final class BuildFingerprintService {
             String fileName) {
         Path fingerprintPath = stateStore.fingerprintPath(outputDirectory, fileName);
         if (!Files.isRegularFile(fingerprintPath)) {
-            return false;
+            return BuildFingerprintCheck.miss("missing-fingerprint");
         }
         if (!Files.isDirectory(outputDirectory)) {
-            return false;
-        }
-        if (!expectedClasses.present(
-                projectDirectory.toAbsolutePath().normalize(),
-                sourceRoots,
-                sources,
-                outputDirectory)) {
-            return false;
+            return BuildFingerprintCheck.miss("missing-output-directory");
         }
         if (!processorClasspath.entries().isEmpty() && !Files.isDirectory(generatedSourcesDirectory)) {
-            return false;
+            return BuildFingerprintCheck.miss("missing-generated-sources-directory");
         }
         try {
             String existing = Files.readString(fingerprintPath);
+            List<Path> missingExpectedClasses = expectedClasses.missing(
+                    projectDirectory.toAbsolutePath().normalize(),
+                    existing);
+            if (!missingExpectedClasses.isEmpty()) {
+                return BuildFingerprintCheck.miss("missing-expected-class:" + relative(
+                        projectDirectory,
+                        missingExpectedClasses.getFirst()));
+            }
             Optional<BuildFingerprintState> state = stateStore.readState(fingerprintPath);
             if (state.isPresent() && state.orElseThrow().matchesFingerprint(existing)) {
                 try {
-                    return existing.equals(content.fingerprint(
+                    String current = content.fingerprint(
                             projectDirectory,
                             config,
                             lockfilePath,
@@ -197,12 +237,13 @@ public final class BuildFingerprintService {
                             outputDirectoryName,
                             generatedSourcesDirectory,
                             state.orElseThrow(),
-                            null));
+                            null);
+                    return comparison.compare(existing, current);
                 } catch (BuildFingerprintStateMiss ignored) {
                     // Fall back to the full content-hash path below.
                 }
             }
-            return existing.equals(content.fingerprint(
+            String current = content.fingerprint(
                     projectDirectory,
                     config,
                     lockfilePath,
@@ -217,7 +258,8 @@ public final class BuildFingerprintService {
                     outputDirectoryName,
                     generatedSourcesDirectory,
                     null,
-                    null));
+                    null);
+            return comparison.compare(existing, current);
         } catch (IOException exception) {
             throw new BuildException(
                     "Could not read build fingerprint at "
@@ -225,6 +267,14 @@ public final class BuildFingerprintService {
                             + ". Delete the file or rerun `zolt build` to refresh it.",
                     exception);
         }
+    }
+
+    private static String relative(Path projectDirectory, Path path) {
+        Path projectRoot = projectDirectory.toAbsolutePath().normalize();
+        Path normalized = path.toAbsolutePath().normalize();
+        return normalized.startsWith(projectRoot)
+                ? projectRoot.relativize(normalized).toString().replace('\\', '/')
+                : normalized.toString().replace('\\', '/');
     }
 
     private void writeCompileFingerprint(

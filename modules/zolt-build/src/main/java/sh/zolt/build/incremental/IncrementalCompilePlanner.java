@@ -41,6 +41,26 @@ public final class IncrementalCompilePlanner {
             Classpath processorClasspath,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
+        return planMain(
+                projectDirectory,
+                config,
+                sources,
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                generatedSourcesDirectory,
+                "non-source-input-changed");
+    }
+
+    public IncrementalCompilePlan planMain(
+            Path projectDirectory,
+            ProjectConfig config,
+            List<Path> sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            String noSourceFallbackReason) {
         return plan(
                 "main",
                 projectDirectory,
@@ -53,7 +73,8 @@ public final class IncrementalCompilePlanner {
                 outputDirectory,
                 generatedSourcesDirectory,
                 IncrementalCompileState.mainStatePath(outputDirectory),
-                List.of());
+                List.of(),
+                noSourceFallbackReason);
     }
 
     public IncrementalCompilePlan planTest(
@@ -80,7 +101,8 @@ public final class IncrementalCompilePlanner {
                 outputDirectory,
                 generatedSourcesDirectory,
                 IncrementalCompileState.testStatePath(outputDirectory),
-                fallbackReasons);
+                fallbackReasons,
+                "non-source-input-changed");
     }
 
     private IncrementalCompilePlan plan(
@@ -95,7 +117,8 @@ public final class IncrementalCompilePlanner {
             Path outputDirectory,
             Path generatedSourcesDirectory,
             Path statePath,
-            List<String> additionalFallbackReasons) {
+            List<String> additionalFallbackReasons,
+            String noSourceFallbackReason) {
         if (!processorClasspath.entries().isEmpty()) {
             return IncrementalCompilePlan.full("processor-classpath");
         }
@@ -158,7 +181,7 @@ public final class IncrementalCompilePlanner {
             }
         }
         if (dirtySources.isEmpty()) {
-            return IncrementalCompilePlan.full("non-source-input-changed");
+            return IncrementalCompilePlan.full(normalizeNoSourceFallbackReason(noSourceFallbackReason));
         }
         return IncrementalCompilePlan.incremental(
                 dirtySources,
@@ -167,6 +190,10 @@ public final class IncrementalCompilePlanner {
                 state.sources(),
                 state.classes(),
                 state.reverseDependencies());
+    }
+
+    private static String normalizeNoSourceFallbackReason(String reason) {
+        return reason == null || reason.isBlank() ? "non-source-input-changed" : reason;
     }
 
     public IncrementalCompileValidation validateAfterIncrementalCompile(IncrementalCompilePlan plan) {

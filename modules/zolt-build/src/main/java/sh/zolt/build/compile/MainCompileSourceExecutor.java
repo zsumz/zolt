@@ -42,6 +42,28 @@ public final class MainCompileSourceExecutor {
             Path outputDirectory,
             Path generatedSourcesDirectory,
             JdkStatus jdkStatus) {
+        return compile(
+                compileSkipped,
+                "non-source-input-changed",
+                projectDirectory,
+                config,
+                sources,
+                classpaths,
+                outputDirectory,
+                generatedSourcesDirectory,
+                jdkStatus);
+    }
+
+    public Attempt compile(
+            boolean compileSkipped,
+            String fingerprintMissReason,
+            Path projectDirectory,
+            ProjectConfig config,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            JdkStatus jdkStatus) {
         if (compileSkipped) {
             return new Attempt(
                     new JavacResult(sources.mainSources().size(), outputDirectory, ""),
@@ -61,7 +83,8 @@ public final class MainCompileSourceExecutor {
                 classpaths.compile(),
                 classpaths.processor(),
                 outputDirectory,
-                generatedSourcesDirectory);
+                generatedSourcesDirectory,
+                fingerprintMissReason);
         if (plan.incremental()) {
             return withPlatformApiWarning(
                     incrementalCompile(

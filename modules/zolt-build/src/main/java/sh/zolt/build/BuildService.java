@@ -8,6 +8,7 @@ import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.build.compile.MainCompileSourceExecutor;
 import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
+import sh.zolt.build.fingerprint.BuildFingerprintCheck;
 import sh.zolt.build.fingerprint.BuildFingerprintService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
@@ -208,7 +209,7 @@ public final class BuildService {
         Path generatedSourcesDirectory = generatedSourcesDirectory(projectDirectory, config.compilerSettings().generatedSources());
         Path lockfilePath = projectDirectory.resolve("zolt.lock");
         long fingerprintCheckStarted = System.nanoTime();
-        boolean compileSkipped = buildFingerprintService.isMainCompileCurrent(
+        BuildFingerprintCheck fingerprintCheck = buildFingerprintService.checkMainCompileCurrent(
                 projectDirectory,
                 config,
                 lockfilePath,
@@ -216,9 +217,11 @@ public final class BuildService {
                 classpaths,
                 outputDirectory,
                 generatedSourcesDirectory);
+        boolean compileSkipped = fingerprintCheck.current();
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
         MainCompileSourceExecutor.Attempt javacResult = sourceExecutor.compile(
                 compileSkipped,
+                fingerprintCheck.reason(),
                 projectDirectory,
                 config,
                 sources,

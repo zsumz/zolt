@@ -1,7 +1,6 @@
 package sh.zolt.build.fingerprint;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -18,7 +17,7 @@ final class BuildFingerprintExpectedClassesTest {
     private final BuildFingerprintExpectedClasses expectedClasses = new BuildFingerprintExpectedClasses();
 
     @Test
-    void mapsJavaAndGroovySourcesToClassFiles() {
+    void mapsJavaAndGroovySourcesToClassFiles() throws IOException {
         Path output = projectDir.resolve("target/test-classes");
         List<Path> files = expectedClasses.files(
                 projectDir,
@@ -28,6 +27,9 @@ final class BuildFingerprintExpectedClassesTest {
                         projectDir.resolve("src/test/groovy/com/example/ExampleSpec.groovy")),
                 output);
 
+        Files.createDirectories(output.resolve("com/example"));
+        Files.writeString(output.resolve("com/example/ExampleSpec.class"), "compiled");
+        Files.writeString(output.resolve("com/example/ExampleTest.class"), "compiled");
         assertEquals(List.of(
                 output.resolve("com/example/ExampleSpec.class"),
                 output.resolve("com/example/ExampleTest.class")), files);
@@ -59,16 +61,41 @@ final class BuildFingerprintExpectedClassesTest {
     }
 
     @Test
-    void reportsWhetherExpectedClassFilesExist() throws IOException {
+    void reportsMissingClassesRecordedInFingerprint() throws IOException {
         Path output = projectDir.resolve("target/classes");
         Path expectedClass = output.resolve("com/example/Main.class");
-        List<Path> sources = List.of(projectDir.resolve("src/main/java/com/example/Main.java"));
+        String fingerprint = "[expectedClasses]\ntarget/classes/com/example/Main.class\n";
 
-        assertFalse(expectedClasses.present(projectDir, List.of("src/main/java"), sources, output));
+        assertEquals(List.of(expectedClass), expectedClasses.missing(projectDir, fingerprint));
 
         Files.createDirectories(expectedClass.getParent());
         Files.writeString(expectedClass, "compiled");
 
-        assertTrue(expectedClasses.present(projectDir, List.of("src/main/java"), sources, output));
+        assertTrue(expectedClasses.missing(projectDir, fingerprint).isEmpty());
+    }
+
+    @Test
+    void recordsOnlyClassFilesThatJavacActuallyEmitted() throws IOException {
+        Path output = projectDir.resolve("target/classes");
+        Path regularSource = projectDir.resolve("src/main/java/com/example/Main.java");
+        Path packageInfo = projectDir.resolve("src/main/java/com/example/package-info.java");
+        Files.createDirectories(output.resolve("com/example"));
+        Files.writeString(output.resolve("com/example/Main.class"), "compiled");
+
+        assertEquals(List.of("target/classes/com/example/Main.class"), expectedClasses.entries(
+                projectDir,
+                List.of("src/main/java"),
+                List.of(regularSource, packageInfo),
+                output));
+
+        Files.writeString(output.resolve("com/example/package-info.class"), "compiled");
+
+        assertEquals(List.of(
+                "target/classes/com/example/Main.class",
+                "target/classes/com/example/package-info.class"), expectedClasses.entries(
+                        projectDir,
+                        List.of("src/main/java"),
+                        List.of(regularSource, packageInfo),
+                        output));
     }
 }
