@@ -479,12 +479,13 @@ def gradle_quote(value):
 
 
 def write_gradle_config(destination):
+    modular_source = (destination / "src/main/java/module-info.java").is_file()
     lines = [
         "plugins { id 'java-library' }",
         f"group = '{gradle_quote(adapter['group'])}'",
         f"version = '{gradle_quote(adapter['version'])}'",
         "repositories { mavenCentral() }",
-        "java { modularity.inferModulePath = true }",
+        f"java {{ modularity.inferModulePath = {'false' if modular_source else 'true'} }}",
         "dependencies {",
     ]
     for coordinate, version in sorted((adapter.get("platforms") or {}).items()):
@@ -499,8 +500,16 @@ def write_gradle_config(destination):
         "tasks.withType(JavaCompile).configureEach {",
         f"    options.release = {int(adapter['compilerRelease'])}",
         "    options.encoding = 'UTF-8'",
-        "}",
     ])
+    if modular_source:
+        lines.extend([
+            "    // Keep automatic modules without manifest names visible to module-info.java.",
+            "    doFirst {",
+            "        options.compilerArgs += ['--module-path', classpath.asPath]",
+            "        classpath = files()",
+            "    }",
+        ])
+    lines.append("}")
     (destination / "build.gradle").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (destination / "settings.gradle").write_text(
         f"rootProject.name = '{gradle_quote(adapter['name'])}'\n", encoding="utf-8"

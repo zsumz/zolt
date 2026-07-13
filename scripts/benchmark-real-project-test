@@ -20,6 +20,12 @@ fail() {
 rm -rf "$WORK_DIR"
 mkdir -p "$UPSTREAM/src/main/java/example" "$UPSTREAM/src/main/resources"
 
+cat >"$UPSTREAM/src/main/java/module-info.java" <<'EOF'
+module example.fixture {
+    exports example;
+}
+EOF
+
 cat >"$UPSTREAM/src/main/java/example/Sample.java" <<'EOF'
 package example;
 
@@ -155,6 +161,16 @@ EOF
       "$WORK_DIR/run-$tool/projects/zolt/src/main" \
       "$WORK_DIR/run-$tool/projects/$competitor/src/main" \
       >/dev/null || fail "$competitor overlay did not contain the same source and resource trees"
+  done
+
+  for gradle_mode in gradle-no-daemon gradle-daemon; do
+    generated_gradle="$WORK_DIR/run-$tool/projects/$gradle_mode/build.gradle"
+    rg -F "java { modularity.inferModulePath = false }" "$generated_gradle" >/dev/null \
+      || fail "$gradle_mode overlay did not disable incomplete Gradle module-path inference"
+    rg -F "options.compilerArgs += ['--module-path', classpath.asPath]" "$generated_gradle" >/dev/null \
+      || fail "$gradle_mode overlay did not put the full compile classpath on the module path"
+    rg -F "classpath = files()" "$generated_gradle" >/dev/null \
+      || fail "$gradle_mode overlay did not clear the duplicate compile classpath"
   done
 done
 
