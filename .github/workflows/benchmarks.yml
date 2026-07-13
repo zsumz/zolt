@@ -165,17 +165,25 @@ jobs:
           printf 'ZOLT_BENCH_ZOLT=%s/bin/zolt\n' "$ZOLT_INSTALL_ROOT" >> "$GITHUB_ENV"
           "$ZOLT_INSTALL_ROOT/bin/zolt" --version
 
-      - name: Build native Zolt
+      - name: Build and install native Zolt
         if: env.BENCHMARK_ZOLT_SOURCE == 'build'
         run: |
           export PATH="$JAVA_HOME/bin:$PATH"
           scripts/zap-distribution --target linux-x64
-
-      - name: Select built native Zolt
-        if: env.BENCHMARK_ZOLT_SOURCE == 'build'
-        run: |
-          printf 'ZOLT_BENCH_ZOLT=%s/apps/zolt/target/native/zolt\n' "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
-          apps/zolt/target/native/zolt --version
+          shopt -s nullglob
+          archives=(apps/zolt/target/release/zap/*/zolt-*-linux-x64.tar.gz)
+          shopt -u nullglob
+          if [[ "${#archives[@]}" -ne 1 ]]; then
+            printf 'error: expected exactly one built Zolt archive, found %s\n' "${#archives[@]}" >&2
+            exit 1
+          fi
+          install_root="$GITHUB_WORKSPACE/target/benchmarks/zolt-build-install"
+          mkdir -p "$install_root"
+          tar -xzf "${archives[0]}" --strip-components=1 -C "$install_root"
+          test -x "$install_root/bin/zolt"
+          test -f "$install_root/libexec/zolt-javac-worker.jar"
+          printf 'ZOLT_BENCH_ZOLT=%s/bin/zolt\n' "$install_root" >> "$GITHUB_ENV"
+          "$install_root/bin/zolt" --version
 
       - name: Run benchmark
         run: |
