@@ -42,7 +42,7 @@ final class BuildFingerprintContent {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
         line(content, "version", VERSION);
-        line(content, "projectConfig", fileHasher.hashText(config.toString()));
+        line(content, "projectJava", config.project().java());
         line(content, "zoltToml", fileHasher.fileHash(projectRoot.resolve("zolt.toml"), cachedState, collectedState));
         line(content, "lockfile", fileHasher.fileHash(lockfilePath, cachedState, collectedState));
         section(content, "sourceRoots", sourceRoots.stream().map(BuildFingerprintContent::normalize).toList());

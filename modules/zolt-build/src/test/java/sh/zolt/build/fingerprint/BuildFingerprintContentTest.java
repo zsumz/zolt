@@ -2,6 +2,7 @@ package sh.zolt.build.fingerprint;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,6 +17,7 @@ import sh.zolt.project.ProjectMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,6 +96,25 @@ final class BuildFingerprintContentTest {
         assertTrue(exception.getMessage().contains("../resources"));
     }
 
+    @Test
+    void fingerprintIgnoresDependencyDeclarationOrderButTracksProjectJava() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.toml"), "[project]\nname = \"demo\"\n");
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        Map<String, String> firstDependencies = new LinkedHashMap<>();
+        firstDependencies.put("com.example:first", "1.0.0");
+        firstDependencies.put("com.example:second", "2.0.0");
+        Map<String, String> reversedDependencies = new LinkedHashMap<>();
+        reversedDependencies.put("com.example:second", "2.0.0");
+        reversedDependencies.put("com.example:first", "1.0.0");
+
+        String first = fingerprint(config("21", firstDependencies), List.of());
+        String reversed = fingerprint(config("21", reversedDependencies), List.of());
+        String differentJava = fingerprint(config("17", firstDependencies), List.of());
+
+        assertEquals(first, reversed);
+        assertNotEquals(first, differentJava);
+    }
+
     private String fingerprint(ProjectConfig config, List<Path> sources) {
         return content.fingerprint(
                 projectDir,
@@ -138,5 +159,14 @@ final class BuildFingerprintContentTest {
                 Map.of(),
                 Map.of(),
                 BuildSettings.defaults().withGeneratedSources(generatedMainSources, List.of()));
+    }
+
+    private static ProjectConfig config(String java, Map<String, String> dependencies) {
+        return ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "0.1.0", "com.example", java, Optional.empty()),
+                ProjectConfig.defaultRepositories(),
+                dependencies,
+                Map.of(),
+                BuildSettings.defaults());
     }
 }
