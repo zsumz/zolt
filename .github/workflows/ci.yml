@@ -289,6 +289,18 @@ jobs:
             zolt-cache-${{ runner.os }}-${{ runner.arch }}-
             zolt-cache-${{ runner.os }}-
 
+      - name: Cache Zolt managed toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
+      - name: Bootstrap sync Zolt-managed Java
+        run: scripts/bootstrap-zolt-jvm --no-progress toolchain sync
+
       - name: Build and verify zap distribution
         run: scripts/zap-distribution --target "${{ matrix.target }}"
 
