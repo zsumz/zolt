@@ -5,11 +5,13 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.ResolveOptions;
 import sh.zolt.resolve.ResolveService;
+import sh.zolt.resolve.fingerprint.ProjectResolutionFingerprint;
 import sh.zolt.cli.command.CommandServiceBundles.CommandResolveServices;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.resolve.WorkspaceResolveService;
 import sh.zolt.workspace.discovery.WorkspaceDiscoveryService;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -56,6 +58,9 @@ public final class CommandLockfiles {
             String retryCommand) {
         Path lockfilePath = workingDirectory.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath) || !looksGeneratedLockfile(lockfilePath)) {
+            return;
+        }
+        if (matchesProjectResolutionFingerprint(lockfilePath, config)) {
             return;
         }
         redirectWorkspaceMemberToWorkspacePath(workingDirectory, retryCommand);
@@ -122,11 +127,40 @@ public final class CommandLockfiles {
     }
 
     private static boolean looksGeneratedLockfile(Path lockfilePath) {
-        try {
-            String content = Files.readString(lockfilePath);
-            return content.contains("Sha256 = ")
-                    || content.contains("aliasFingerprint = ")
-                    || content.contains("projectResolutionFingerprint = ");
+        try (BufferedReader lines = Files.newBufferedReader(lockfilePath)) {
+            String line;
+            while ((line = lines.readLine()) != null) {
+                if (line.contains("Sha256 = ")
+                        || line.contains("aliasFingerprint = ")
+                        || line.contains("projectResolutionFingerprint = ")) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException exception) {
+            throw LockfileReadException.actionable(
+                    "Could not read zolt.lock at " + lockfilePath + " while checking lockfile freshness.",
+                    "Check that the file exists and is readable.",
+                    exception);
+        }
+    }
+
+    static boolean matchesProjectResolutionFingerprint(Path lockfilePath, ProjectConfig config) {
+        String expected = ProjectResolutionFingerprint.fingerprint(config);
+        try (BufferedReader lines = Files.newBufferedReader(lockfilePath)) {
+            String line;
+            while ((line = lines.readLine()) != null) {
+                if (line.startsWith("[[")) {
+                    return false;
+                }
+                if (line.startsWith("projectResolutionFingerprint = \"") && line.endsWith("\"")) {
+                    String recorded = line.substring(
+                            "projectResolutionFingerprint = \"".length(),
+                            line.length() - 1);
+                    return expected.equals(recorded);
+                }
+            }
+            return false;
         } catch (IOException exception) {
             throw LockfileReadException.actionable(
                     "Could not read zolt.lock at " + lockfilePath + " while checking lockfile freshness.",
