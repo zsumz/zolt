@@ -94,9 +94,13 @@ permissions:
 
 jobs:
   benchmark:
-    name: benchmark suite
+    name: benchmark suite (${{ matrix.zolt_source }})
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        zolt_source: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.zolt_source) || '["build","release"]') }}
 
     env:
       BENCHMARK_DIR: target/benchmarks/competitors
@@ -106,7 +110,7 @@ jobs:
       BENCHMARK_CLASSES_PER_MODULE: ${{ github.event_name == 'workflow_dispatch' && inputs.classes_per_module || '1' }}
       BENCHMARK_METHODS_PER_CLASS: ${{ github.event_name == 'workflow_dispatch' && inputs.methods_per_class || '1' }}
       BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
-      BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'build' }}
+      BENCHMARK_ZOLT_SOURCE: ${{ matrix.zolt_source }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
       BENCHMARK_INCLUDE_GRADLE_DAEMON: "true"
@@ -204,7 +208,9 @@ jobs:
           fi
           scripts/install-zolt
           printf 'ZOLT_BENCH_ZOLT=%s/bin/zolt\n' "$ZOLT_INSTALL_ROOT" >> "$GITHUB_ENV"
-          "$ZOLT_INSTALL_ROOT/bin/zolt" --version
+          zolt_version="$("$ZOLT_INSTALL_ROOT/bin/zolt" --version)"
+          printf 'ZOLT_BENCH_VERSION=%s\n' "$zolt_version" >> "$GITHUB_ENV"
+          printf '%s\n' "$zolt_version"
 
       - name: Build and install native Zolt
         if: env.BENCHMARK_ZOLT_SOURCE == 'build'
@@ -224,7 +230,9 @@ jobs:
           test -x "$install_root/bin/zolt"
           test -f "$install_root/libexec/zolt-javac-worker.jar"
           printf 'ZOLT_BENCH_ZOLT=%s/bin/zolt\n' "$install_root" >> "$GITHUB_ENV"
-          "$install_root/bin/zolt" --version
+          zolt_version="$("$install_root/bin/zolt" --version)"
+          printf 'ZOLT_BENCH_VERSION=%s\n' "$zolt_version" >> "$GITHUB_ENV"
+          printf '%s\n' "$zolt_version"
 
       - name: Run benchmark
         run: |
@@ -307,6 +315,8 @@ jobs:
               run_class="Production-grade generated evidence"
             fi
           fi
+          # Literal dollar signs and backticks below are Markdown output.
+          # shellcheck disable=SC2016
           {
             printf '# Zolt Native Benchmark\n\n'
             printf '## GitHub Run\n\n'
@@ -316,6 +326,7 @@ jobs:
             printf '| Ref | `%s` |\n' "${GITHUB_REF_NAME}"
             printf '| Commit | `%s` |\n' "${GITHUB_SHA}"
             printf '| Zolt source | `%s` |\n' "$BENCHMARK_ZOLT_SOURCE"
+            printf '| Zolt version | `%s` |\n' "${ZOLT_BENCH_VERSION:-unavailable}"
             if [[ "$BENCHMARK_ZOLT_SOURCE" == "release" ]]; then
               printf '| Release channel | `%s` |\n' "$BENCHMARK_RELEASE_CHANNEL"
               if [[ -n "$BENCHMARK_RELEASE_VERSION" ]]; then
