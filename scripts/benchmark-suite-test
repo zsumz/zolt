@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+WORK_DIR="target/benchmark-suite-test"
+FAKE_TOOL="$WORK_DIR/fake-tool"
+
+fail() {
+  printf 'error: %s\n' "$1" >&2
+  exit 1
+}
+
+rm -rf "$WORK_DIR"
+mkdir -p "$WORK_DIR"
+
+cat >"$FAKE_TOOL" <<'FAKE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'benchmark fake tool 1.0\n'
+fi
+FAKE
+chmod +x "$FAKE_TOOL"
+
+generate() {
+  local topology="$1"
+  scripts/benchmark-competitors \
+    --modules 6 \
+    --topology "$topology" \
+    --layer-width 2 \
+    --classes-per-module 3 \
+    --methods-per-class 2 \
+    --zolt "$FAKE_TOOL" \
+    --work-dir "$WORK_DIR/$topology" \
+    --generate-only >/dev/null
+}
+
+generate chain
+generate wide
+generate layered
+
+for topology in chain wide layered; do
+  fixture="$WORK_DIR/$topology/fixtures"
+  for tool in zolt maven gradle; do
+    source_count="$(find "$fixture/$tool" -name '*.java' | wc -l | tr -d ' ')"
+    [[ "$source_count" == "19" ]] || fail "$topology/$tool generated $source_count Java files, expected 19"
+  done
+  for index in $(seq 1 6); do
+    module="$(printf 'lib%03d' "$index")"
+    diff -qr \
+      "$fixture/zolt/modules/$module/src" \
+      "$fixture/maven/modules/$module/src" >/dev/null \
+      || fail "$topology Zolt and Maven sources differ for module $index"
+    diff -qr \
+      "$fixture/zolt/modules/$module/src" \
+      "$fixture/gradle/modules/$module/src" >/dev/null \
+      || fail "$topology Zolt and Gradle sources differ for module $index"
+  done
+  diff -qr "$fixture/zolt/app/src" "$fixture/maven/app/src" >/dev/null \
+    || fail "$topology Zolt and Maven app sources differ"
+  diff -qr "$fixture/zolt/app/src" "$fixture/gradle/app/src" >/dev/null \
+    || fail "$topology Zolt and Gradle app sources differ"
+done
+
+default_volume_dir="$WORK_DIR/default-volume"
+scripts/benchmark-competitors \
+  --modules 2 \
+  --repeat 1 \
+  --topology wide \
+  --classes-per-module 1 \
+  --methods-per-class 1 \
+  --zolt "$FAKE_TOOL" \
+  --maven "$FAKE_TOOL" \
+  --gradle "$FAKE_TOOL" \
+  --generate-only \
+  --work-dir "$default_volume_dir" \
+  >/dev/null
+default_source_count="$(find "$default_volume_dir/fixtures/zolt" -name '*.java' | wc -l | tr -d ' ')"
+[[ "$default_source_count" == "3" ]] \
+  || fail "one-class default generated $default_source_count Java files, expected 3"
+
+CHAIN="$WORK_DIR/chain/fixtures/zolt"
+WIDE="$WORK_DIR/wide/fixtures/zolt"
+LAYERED="$WORK_DIR/layered/fixtures/zolt"
+
+grep -F 'workspace = "modules/lib001"' "$CHAIN/modules/lib002/zolt.toml" >/dev/null \
+  || fail "chain topology did not link lib002 to lib001"
+grep -R -F 'workspace =' "$WIDE/modules" >/dev/null 2>&1 \
+  && fail "wide topology unexpectedly linked library modules"
+wide_app_edges="$(grep -c -F 'workspace =' "$WIDE/app/zolt.toml")"
+[[ "$wide_app_edges" == "6" ]] || fail "wide app expected 6 library edges, found $wide_app_edges"
+grep -F 'workspace = "modules/lib001"' "$LAYERED/modules/lib003/zolt.toml" >/dev/null \
+  || fail "layered topology did not link lib003 to lib001"
+grep -F 'workspace = "modules/lib004"' "$LAYERED/modules/lib006/zolt.toml" >/dev/null \
+  || fail "layered topology did not link lib006 to lib004"
+
+scripts/benchmark-suite \
+  --topologies wide,layered \
+  --layer-width 2 \
+  --modules 3 \
+  --repeat 1 \
+  --zolt "$FAKE_TOOL" \
+  --maven "$FAKE_TOOL" \
+  --gradle "$FAKE_TOOL" \
+  --work-dir "$WORK_DIR/suite" >/dev/null
+
+jq -e '
+  .run.laneCount == 2
+  and ([.lanes[].id] | sort == [
+    "generated-java-workspace-layered",
+    "generated-java-workspace-wide"
+  ])
+  and ([.lanes[].workload.topology] | sort == ["layered", "wide"])
+' "$WORK_DIR/suite/suite-summary.json" >/dev/null \
+  || fail "suite summary did not preserve both generated topologies"
+
+printf 'benchmark suite script test passed\n'

@@ -231,6 +231,13 @@ for row in source_workflows:
 caveats = [
     "First clean build is a single setup sample; steady-state claims should use repeated workflows.",
 ]
+topology = environment.get("topology") or "chain"
+topology_notes = {
+    "chain": "Serial-chain topology measures critical-path and compiler-process overhead; it does not demonstrate workspace parallelism.",
+    "wide": "Wide topology measures one large parallel compilation wave followed by the app.",
+    "layered": "Layered topology measures repeated dependency-ordered parallel compilation waves.",
+}
+caveats.append(topology_notes.get(topology, f"Generated workspace topology: {topology}."))
 if classification != "Production-grade generated evidence":
     article = "an" if classification[:1].lower() in {"a", "e", "i", "o", "u"} else "a"
     caveats.append(f"This is {article} {classification.lower()} run, not production-grade evidence.")
@@ -287,6 +294,12 @@ suite = {
                 "moduleCount": environment.get("moduleCount"),
                 "appModules": 1,
                 "repeatCount": environment.get("repeatCount"),
+                "topology": topology,
+                "layerWidth": environment.get("layerWidth"),
+                "classesPerModule": environment.get("classesPerModule"),
+                "methodsPerClass": environment.get("methodsPerClass"),
+                "sourceFiles": environment.get("sourceFiles"),
+                "sourceLines": environment.get("sourceLines"),
             },
             "environment": environment,
             "tools": {

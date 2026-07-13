@@ -7,6 +7,10 @@ cd "$ROOT"
 WORK_DIR="target/benchmarks/competitors"
 MODULE_COUNT=40
 REPEAT_COUNT=5
+TOPOLOGY="wide"
+LAYER_WIDTH=8
+CLASSES_PER_MODULE=1
+METHODS_PER_CLASS=1
 OUTPUT_FILE=""
 SUMMARY_FILE=""
 MARKDOWN_FILE=""
@@ -29,6 +33,10 @@ then measures wall-clock build workflows with repeated samples.
 Options:
   --modules COUNT           Number of library modules before the app. Default: 40.
   --repeat COUNT            Timed samples per workflow. Default: 5.
+  --topology SHAPE          Workspace graph: chain, wide, or layered. Default: wide.
+  --layer-width COUNT       Parallel members per layered wave. Default: 8.
+  --classes-per-module N    Generated Java classes per library module. Default: 1.
+  --methods-per-class N     Methods per generated payload class. Default: 1.
   --work-dir DIR            Generated benchmark directory. Default: target/benchmarks/competitors.
   --cache-root DIR          Zolt cache root. Default: WORK_DIR/zolt-cache.
   --zolt PATH               Zolt executable. Default: zolt on PATH, then scripts/run-zolt-built.
@@ -112,6 +120,32 @@ while [[ "$#" -gt 0 ]]; do
       [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
       positive_int "$2" || fail "--repeat requires a positive integer"
       REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --topology)
+      [[ "$#" -ge 2 ]] || fail "--topology requires a value"
+      case "$2" in
+        chain | wide | layered) TOPOLOGY="$2" ;;
+        *) fail "--topology must be chain, wide, or layered" ;;
+      esac
+      shift 2
+      ;;
+    --layer-width)
+      [[ "$#" -ge 2 ]] || fail "--layer-width requires a value"
+      positive_int "$2" || fail "--layer-width requires a positive integer"
+      LAYER_WIDTH="$2"
+      shift 2
+      ;;
+    --classes-per-module)
+      [[ "$#" -ge 2 ]] || fail "--classes-per-module requires a value"
+      positive_int "$2" || fail "--classes-per-module requires a positive integer"
+      CLASSES_PER_MODULE="$2"
+      shift 2
+      ;;
+    --methods-per-class)
+      [[ "$#" -ge 2 ]] || fail "--methods-per-class requires a value"
+      positive_int "$2" || fail "--methods-per-class requires a positive integer"
+      METHODS_PER_CLASS="$2"
       shift 2
       ;;
     --work-dir)
@@ -235,74 +269,109 @@ module_class() {
   printf 'Lib%03d\n' "$1"
 }
 
+module_dependency_indices() {
+  local index="$1"
+  case "$TOPOLOGY" in
+    chain)
+      if [[ "$index" -gt 1 ]]; then
+        printf '%s\n' "$((index - 1))"
+      fi
+      ;;
+    wide)
+      ;;
+    layered)
+      if [[ "$index" -gt "$LAYER_WIDTH" ]]; then
+        printf '%s\n' "$((index - LAYER_WIDTH))"
+      fi
+      ;;
+  esac
+}
+
+app_dependency_indices() {
+  local start
+  case "$TOPOLOGY" in
+    chain)
+      printf '%s\n' "$MODULE_COUNT"
+      ;;
+    wide)
+      seq 1 "$MODULE_COUNT"
+      ;;
+    layered)
+      start=$((MODULE_COUNT - LAYER_WIDTH + 1))
+      if [[ "$start" -lt 1 ]]; then
+        start=1
+      fi
+      seq "$start" "$MODULE_COUNT"
+      ;;
+  esac
+}
+
 write_java_module() {
   local root="$1"
   local index="$2"
-  local package_name class_name previous_package previous_class src_dir source_file
+  local package_name class_name src_dir source_file dependency_index
   package_name="$(module_package "$index")"
   class_name="$(module_class "$index")"
   src_dir="$root/modules/$(module_name "$index")/src/main/java/${package_name//.//}"
   source_file="$src_dir/$class_name.java"
   mkdir -p "$src_dir"
 
-  if [[ "$index" -eq 1 ]]; then
-    cat >"$source_file" <<JAVA
-package $package_name;
+  {
+    printf 'package %s;\n\n' "$package_name"
+    for dependency_index in $(module_dependency_indices "$index"); do
+      printf 'import %s.%s;\n' "$(module_package "$dependency_index")" "$(module_class "$dependency_index")"
+    done
+    printf '\npublic final class %s {\n' "$class_name"
+    printf '    private %s() {\n    }\n\n' "$class_name"
+    printf '    public static String value() {\n'
+    dependency_index="$(module_dependency_indices "$index")"
+    if [[ -z "$dependency_index" ]]; then
+      printf '        return "%s";\n' "$class_name"
+    else
+      printf '        return %s.value() + ">%s";\n' "$(module_class "$dependency_index")" "$class_name"
+    fi
+    printf '    }\n}\n'
+  } >"$source_file"
 
-public final class $class_name {
-    private $class_name() {
-    }
-
-    public static String value() {
-        return "$class_name";
-    }
-}
-JAVA
-  else
-    previous_package="$(module_package "$((index - 1))")"
-    previous_class="$(module_class "$((index - 1))")"
-    cat >"$source_file" <<JAVA
-package $package_name;
-
-import $previous_package.$previous_class;
-
-public final class $class_name {
-    private $class_name() {
-    }
-
-    public static String value() {
-        return $previous_class.value() + ">$class_name";
-    }
-}
-JAVA
-  fi
+  local class_index method_index payload_class payload_file
+  for ((class_index = 2; class_index <= CLASSES_PER_MODULE; class_index++)); do
+    payload_class="$(printf 'Lib%03dPayload%04d' "$index" "$class_index")"
+    payload_file="$src_dir/$payload_class.java"
+    {
+      printf 'package %s;\n\n' "$package_name"
+      printf 'public final class %s {\n' "$payload_class"
+      printf '    private %s() {\n    }\n\n' "$payload_class"
+      for method_index in $(seq 1 "$METHODS_PER_CLASS"); do
+        printf '    public static int value%04d() {\n' "$method_index"
+        printf '        return %d;\n' "$((index * 1000000 + class_index * 1000 + method_index))"
+        printf '    }\n\n'
+      done
+      printf '}\n'
+    } >"$payload_file"
+  done
 }
 
 write_app_source() {
   local root="$1"
-  local package_name class_name src_dir
-  package_name="$(module_package "$MODULE_COUNT")"
-  class_name="$(module_class "$MODULE_COUNT")"
+  local src_dir dependency_index
   src_dir="$root/app/src/main/java/bench/generated/app"
   mkdir -p "$src_dir"
-  cat >"$src_dir/App.java" <<JAVA
-package bench.generated.app;
-
-import $package_name.$class_name;
-
-public final class App {
-    private App() {
-    }
-
-    public static void main(String[] args) {
-        System.out.println(message());
-    }
-
-    public static String message() {
-        return $class_name.value();
-    }
-}
-JAVA
+  {
+    printf 'package bench.generated.app;\n\n'
+    for dependency_index in $(app_dependency_indices); do
+      printf 'import %s.%s;\n' "$(module_package "$dependency_index")" "$(module_class "$dependency_index")"
+    done
+    printf '\npublic final class App {\n'
+    printf '    private App() {\n    }\n\n'
+    printf '    public static void main(String[] args) {\n'
+    printf '        System.out.println(message());\n    }\n\n'
+    printf '    public static String message() {\n'
+    printf '        return String.join(">"'
+    for dependency_index in $(app_dependency_indices); do
+      printf ', %s.value()' "$(module_class "$dependency_index")"
+    done
+    printf ');\n    }\n}\n'
+  } >"$src_dir/App.java"
 }
 
 generate_zolt_fixture() {
@@ -312,7 +381,7 @@ generate_zolt_fixture() {
 
   {
     printf '[workspace]\n'
-    printf 'name = "bench-generated-%s"\n' "$MODULE_COUNT"
+    printf 'name = "bench-generated-%s-%s"\n' "$TOPOLOGY" "$MODULE_COUNT"
     printf 'members = [\n'
     for index in $(seq 1 "$MODULE_COUNT"); do
       printf '  "modules/%s",\n' "$(module_name "$index")"
@@ -335,9 +404,12 @@ generate_zolt_fixture() {
       printf 'version = "0.1.0"\n'
       printf 'group = "bench.generated"\n'
       printf 'java = "21"\n\n'
-      if [[ "$index" -gt 1 ]]; then
+      if [[ -n "$(module_dependency_indices "$index")" ]]; then
         printf '[dependencies]\n'
-        printf '"bench.generated:%s" = { workspace = "modules/%s" }\n\n' "$(module_name "$((index - 1))")" "$(module_name "$((index - 1))")"
+        for dependency_index in $(module_dependency_indices "$index"); do
+          printf '"bench.generated:%s" = { workspace = "modules/%s" }\n' "$(module_name "$dependency_index")" "$(module_name "$dependency_index")"
+        done
+        printf '\n'
       fi
       printf '[build]\n'
       printf 'source = "src/main/java"\n'
@@ -357,7 +429,10 @@ generate_zolt_fixture() {
     printf 'java = "21"\n'
     printf 'main = "bench.generated.app.App"\n\n'
     printf '[dependencies]\n'
-    printf '"bench.generated:%s" = { workspace = "modules/%s" }\n\n' "$(module_name "$MODULE_COUNT")" "$(module_name "$MODULE_COUNT")"
+    for dependency_index in $(app_dependency_indices); do
+      printf '"bench.generated:%s" = { workspace = "modules/%s" }\n' "$(module_name "$dependency_index")" "$(module_name "$dependency_index")"
+    done
+    printf '\n'
     printf '[build]\n'
     printf 'source = "src/main/java"\n'
     printf 'test = "src/test/java"\n'
@@ -417,16 +492,18 @@ XML
   </parent>
   <artifactId>$name</artifactId>
 XML
-      if [[ "$index" -gt 1 ]]; then
-        cat <<XML
-  <dependencies>
+      if [[ -n "$(module_dependency_indices "$index")" ]]; then
+        printf '  <dependencies>\n'
+        for dependency_index in $(module_dependency_indices "$index"); do
+          cat <<XML
     <dependency>
       <groupId>bench.generated</groupId>
-      <artifactId>$(module_name "$((index - 1))")</artifactId>
+      <artifactId>$(module_name "$dependency_index")</artifactId>
       <version>\${project.version}</version>
     </dependency>
-  </dependencies>
 XML
+        done
+        printf '  </dependencies>\n'
       fi
       printf '</project>\n'
     } >"$module_dir/pom.xml"
@@ -448,14 +525,17 @@ XML
   </parent>
   <artifactId>app</artifactId>
   <dependencies>
+XML
+    for dependency_index in $(app_dependency_indices); do
+      cat <<XML
     <dependency>
       <groupId>bench.generated</groupId>
-      <artifactId>$(module_name "$MODULE_COUNT")</artifactId>
+      <artifactId>$(module_name "$dependency_index")</artifactId>
       <version>\${project.version}</version>
     </dependency>
-  </dependencies>
-</project>
 XML
+    done
+    printf '  </dependencies>\n</project>\n'
   } >"$root/app/pom.xml"
   write_app_source "$root"
 }
@@ -501,13 +581,24 @@ subprojects {
 }
 
 GRADLE
-    for index in $(seq 2 "$MODULE_COUNT"); do
+    for index in $(seq 1 "$MODULE_COUNT"); do
+      if [[ -z "$(module_dependency_indices "$index")" ]]; then
+        continue
+      fi
       printf "project(':modules:%s') {\n" "$(module_name "$index")"
-      printf "    dependencies { api project(':modules:%s') }\n" "$(module_name "$((index - 1))")"
+      printf '    dependencies {\n'
+      for dependency_index in $(module_dependency_indices "$index"); do
+        printf "        api project(':modules:%s')\n" "$(module_name "$dependency_index")"
+      done
+      printf '    }\n'
       printf "}\n\n"
     done
     printf "project(':app') {\n"
-    printf "    dependencies { implementation project(':modules:%s') }\n" "$(module_name "$MODULE_COUNT")"
+    printf '    dependencies {\n'
+    for dependency_index in $(app_dependency_indices); do
+      printf "        implementation project(':modules:%s')\n" "$(module_name "$dependency_index")"
+    done
+    printf '    }\n'
     printf "}\n"
   } >"$root/build.gradle"
 
@@ -610,8 +701,24 @@ if completed.returncode != 0:
 PY
 }
 
+source_file_count() {
+  find "$(fixture_root zolt)" -name '*.java' | wc -l | tr -d ' '
+}
+
+source_line_count() {
+  find "$(fixture_root zolt)" -name '*.java' -print0 \
+    | while IFS= read -r -d '' source_file; do
+        wc -l <"$source_file"
+      done \
+    | awk '{ total += $1 } END { print total + 0 }'
+}
+
 record_environment() {
-  python3 - "$OUTPUT_FILE" "$MODULE_COUNT" "$REPEAT_COUNT" "$ZOLT_BIN" "$MAVEN_BIN" "$GRADLE_BIN" <<'PY'
+  local source_files source_lines
+  source_files="$(source_file_count)"
+  source_lines="$(source_line_count)"
+  python3 - "$OUTPUT_FILE" "$MODULE_COUNT" "$REPEAT_COUNT" "$ZOLT_BIN" "$MAVEN_BIN" "$GRADLE_BIN" \
+    "$TOPOLOGY" "$LAYER_WIDTH" "$CLASSES_PER_MODULE" "$METHODS_PER_CLASS" "$source_files" "$source_lines" <<'PY'
 import json
 import os
 import pathlib
@@ -629,6 +736,12 @@ tools = {
     "maven": sys.argv[5],
     "gradle": sys.argv[6],
 }
+topology = sys.argv[7]
+layer_width = int(sys.argv[8])
+classes_per_module = int(sys.argv[9])
+methods_per_class = int(sys.argv[10])
+source_files = int(sys.argv[11])
+source_lines = int(sys.argv[12])
 
 def version(command):
     if not command:
@@ -657,6 +770,12 @@ event = {
     "createdAt": datetime.now(timezone.utc).isoformat(),
     "moduleCount": module_count,
     "repeatCount": repeat_count,
+    "topology": topology,
+    "layerWidth": layer_width if topology == "layered" else None,
+    "classesPerModule": classes_per_module,
+    "methodsPerClass": methods_per_class,
+    "sourceFiles": source_files,
+    "sourceLines": source_lines,
     "platform": {
         "system": platform.system(),
         "release": platform.release(),
@@ -852,7 +971,11 @@ if environment:
         "| Field | Value |",
         "| --- | --- |",
         f"| Type | {classification} |",
+        f"| Topology | {environment.get('topology') or 'chain'} |",
         f"| Modules | {environment.get('moduleCount')} + app |",
+        f"| Generated source | {environment.get('sourceFiles')} files / {environment.get('sourceLines')} lines |",
+        f"| Classes per module | {environment.get('classesPerModule') or 1} |",
+        f"| Methods per payload class | {environment.get('methodsPerClass') or 1} |",
         f"| Repeated samples | {environment.get('repeatCount')} per repeated workflow |",
         "| First clean build samples | 1 setup sample |",
         f"| Machine | {environment.get('platform', {}).get('system')} {environment.get('platform', {}).get('release')} {environment.get('platform', {}).get('machine')} |",
@@ -912,6 +1035,7 @@ lines.extend([
     "",
     "- Times are wall-clock milliseconds; lower is better.",
     "- First clean build is a single setup sample; repeated lanes are the steady-state comparisons.",
+    f"- Workspace topology: `{(environment or {}).get('topology') or 'chain'}`.",
     "- Maven and Gradle repeated builds run offline after the first clean build.",
     "- Raw data: `summary.json`, `samples.jsonl`, `logs/`.",
     "",

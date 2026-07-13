@@ -10,11 +10,15 @@ SUMMARY_BRIEF=""
 PROJECT_MANIFEST="docs/benchmarks/projects.json"
 MODULE_COUNT=40
 REPEAT_COUNT=5
+LAYER_WIDTH=8
+CLASSES_PER_MODULE=1
+METHODS_PER_CLASS=1
 ZOLT_BIN="${ZOLT_BENCH_ZOLT:-}"
 MAVEN_BIN="${ZOLT_BENCH_MAVEN:-}"
 GRADLE_BIN="${ZOLT_BENCH_GRADLE:-}"
 INCLUDE_GRADLE_DAEMON=false
 GENERATED_SUMMARY=""
+GENERATED_TOPOLOGIES=()
 SKIP_GENERATED=false
 REAL_PROJECTS=()
 REAL_PROJECT_DRY_RUN=false
@@ -35,6 +39,11 @@ Options:
   --project-manifest FILE     Real-project manifest. Default: docs/benchmarks/projects.json.
   --modules COUNT             Generated workspace module count. Default: 40.
   --repeat COUNT              Generated workspace repeated samples. Default: 5.
+  --topology SHAPE            Generated graph: chain, wide, or layered. Repeatable.
+  --topologies SHAPES         Comma-separated generated graph shapes. Default: wide.
+  --layer-width COUNT         Parallel members per layered wave. Default: 8.
+  --classes-per-module N      Generated Java classes per library module. Default: 1.
+  --methods-per-class N       Methods per generated payload class. Default: 1.
   --zolt PATH                 Zolt executable passed to generated lane.
   --maven PATH                Maven executable passed to generated lane.
   --gradle PATH               Gradle executable passed to generated lane.
@@ -82,6 +91,22 @@ add_real_projects() {
   done
 }
 
+add_topologies() {
+  local value="$1"
+  local part
+  local -a parts
+  IFS=',' read -r -a parts <<<"$value"
+  for part in "${parts[@]}"; do
+    part="${part#"${part%%[![:space:]]*}"}"
+    part="${part%"${part##*[![:space:]]}"}"
+    case "$part" in
+      chain | wide | layered) GENERATED_TOPOLOGIES+=("$part") ;;
+      "") ;;
+      *) fail "generated topology must be chain, wide, or layered: $part" ;;
+    esac
+  done
+}
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --work-dir)
@@ -114,6 +139,34 @@ while [[ "$#" -gt 0 ]]; do
       [[ "$#" -ge 2 ]] || fail "--repeat requires a value"
       positive_int "$2" || fail "--repeat requires a positive integer"
       REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --topology)
+      [[ "$#" -ge 2 ]] || fail "--topology requires a value"
+      add_topologies "$2"
+      shift 2
+      ;;
+    --topologies)
+      [[ "$#" -ge 2 ]] || fail "--topologies requires a value"
+      add_topologies "$2"
+      shift 2
+      ;;
+    --layer-width)
+      [[ "$#" -ge 2 ]] || fail "--layer-width requires a value"
+      positive_int "$2" || fail "--layer-width requires a positive integer"
+      LAYER_WIDTH="$2"
+      shift 2
+      ;;
+    --classes-per-module)
+      [[ "$#" -ge 2 ]] || fail "--classes-per-module requires a value"
+      positive_int "$2" || fail "--classes-per-module requires a positive integer"
+      CLASSES_PER_MODULE="$2"
+      shift 2
+      ;;
+    --methods-per-class)
+      [[ "$#" -ge 2 ]] || fail "--methods-per-class requires a value"
+      positive_int "$2" || fail "--methods-per-class requires a positive integer"
+      METHODS_PER_CLASS="$2"
       shift 2
       ;;
     --zolt)
@@ -200,54 +253,72 @@ fi
 if [[ -n "$GENERATED_SUMMARY" ]]; then
   GENERATED_SUMMARY="$(abs_path "$GENERATED_SUMMARY")"
 fi
+if [[ "${#GENERATED_TOPOLOGIES[@]}" -eq 0 ]]; then
+  GENERATED_TOPOLOGIES=(wide)
+fi
+if [[ -n "$GENERATED_SUMMARY" && "${#GENERATED_TOPOLOGIES[@]}" -ne 1 ]]; then
+  fail "--generated-summary can only be used with one generated topology"
+fi
 
 mkdir -p "$WORK_DIR" "$(dirname "$OUTPUT_FILE")" "$(dirname "$SUMMARY_BRIEF")"
 
 lane_summaries=()
 if [[ "$SKIP_GENERATED" == false ]]; then
-  generated_dir="$WORK_DIR/generated-java-workspace"
-  mkdir -p "$generated_dir"
+  for topology in "${GENERATED_TOPOLOGIES[@]}"; do
+    generated_dir="$WORK_DIR/generated-java-workspace-$topology"
+    generated_summary="$GENERATED_SUMMARY"
+    mkdir -p "$generated_dir"
 
-  if [[ -z "$GENERATED_SUMMARY" ]]; then
-    generated_args=(
-      --modules "$MODULE_COUNT"
-      --repeat "$REPEAT_COUNT"
-      --work-dir "$generated_dir"
-    )
-    if [[ -n "$ZOLT_BIN" ]]; then
-      generated_args+=(--zolt "$ZOLT_BIN")
+    if [[ -z "$generated_summary" ]]; then
+      generated_args=(
+        --modules "$MODULE_COUNT"
+        --repeat "$REPEAT_COUNT"
+        --topology "$topology"
+        --layer-width "$LAYER_WIDTH"
+        --classes-per-module "$CLASSES_PER_MODULE"
+        --methods-per-class "$METHODS_PER_CLASS"
+        --work-dir "$generated_dir"
+      )
+      if [[ -n "$ZOLT_BIN" ]]; then
+        generated_args+=(--zolt "$ZOLT_BIN")
+      fi
+      if [[ -n "$MAVEN_BIN" ]]; then
+        generated_args+=(--maven "$MAVEN_BIN")
+      fi
+      if [[ -n "$GRADLE_BIN" ]]; then
+        generated_args+=(--gradle "$GRADLE_BIN")
+      fi
+      if [[ "$INCLUDE_GRADLE_DAEMON" == true ]]; then
+        generated_args+=(--include-gradle-daemon)
+      fi
+      scripts/benchmark-competitors "${generated_args[@]}"
+      generated_summary="$generated_dir/summary.json"
     fi
-    if [[ -n "$MAVEN_BIN" ]]; then
-      generated_args+=(--maven "$MAVEN_BIN")
+
+    scripts/benchmark-llm-summary \
+      --summary "$generated_summary" \
+      --output-dir "$generated_dir"
+
+    generated_artifact_name="$ARTIFACT_NAME"
+    if [[ -z "$generated_artifact_name" ]]; then
+      generated_artifact_name="zolt-benchmark-generated-${topology}-${MODULE_COUNT}-modules-${REPEAT_COUNT}-repeats"
     fi
-    if [[ -n "$GRADLE_BIN" ]]; then
-      generated_args+=(--gradle "$GRADLE_BIN")
-    fi
-    if [[ "$INCLUDE_GRADLE_DAEMON" == true ]]; then
-      generated_args+=(--include-gradle-daemon)
-    fi
-    scripts/benchmark-competitors "${generated_args[@]}"
-    GENERATED_SUMMARY="$generated_dir/summary.json"
-  fi
+    case "$topology" in
+      chain) topology_name="Serial chain" ;;
+      wide) topology_name="Wide fan-out" ;;
+      layered) topology_name="Layered DAG" ;;
+    esac
 
-  scripts/benchmark-llm-summary \
-    --summary "$GENERATED_SUMMARY" \
-    --output-dir "$generated_dir"
+    scripts/benchmark-suite-summary \
+      --summary "$generated_summary" \
+      --output "$generated_dir/suite-summary.json" \
+      --lane-id "generated-java-workspace-$topology" \
+      --lane-name "Generated Java workspace: $topology_name" \
+      --lane-kind generated \
+      --artifact-name "$generated_artifact_name"
 
-  generated_artifact_name="$ARTIFACT_NAME"
-  if [[ -z "$generated_artifact_name" ]]; then
-    generated_artifact_name="zolt-benchmark-generated-${MODULE_COUNT}-modules-${REPEAT_COUNT}-repeats"
-  fi
-
-  scripts/benchmark-suite-summary \
-    --summary "$GENERATED_SUMMARY" \
-    --output "$generated_dir/suite-summary.json" \
-    --lane-id generated-java-workspace \
-    --lane-name "Generated Java workspace" \
-    --lane-kind generated \
-    --artifact-name "$generated_artifact_name"
-
-  lane_summaries+=("$generated_dir/suite-summary.json")
+    lane_summaries+=("$generated_dir/suite-summary.json")
+  done
 fi
 
 if [[ "${#REAL_PROJECTS[@]}" -gt 0 ]]; then
