@@ -11,6 +11,26 @@ on:
         required: true
         default: "100"
         type: string
+      topologies:
+        description: "Comma-separated generated graph shapes: chain, wide, layered."
+        required: true
+        default: "wide,layered"
+        type: string
+      layer_width:
+        description: Parallel members per layered wave.
+        required: true
+        default: "8"
+        type: string
+      classes_per_module:
+        description: Generated Java classes per library module.
+        required: true
+        default: "1"
+        type: string
+      methods_per_class:
+        description: Methods per generated payload class.
+        required: true
+        default: "1"
+        type: string
       repeat:
         description: Timed samples per workflow.
         required: true
@@ -86,6 +106,10 @@ jobs:
     env:
       BENCHMARK_DIR: target/benchmarks/competitors
       BENCHMARK_MODULES: ${{ github.event_name == 'workflow_dispatch' && inputs.modules || '10' }}
+      BENCHMARK_TOPOLOGIES: ${{ github.event_name == 'workflow_dispatch' && inputs.topologies || 'wide' }}
+      BENCHMARK_LAYER_WIDTH: ${{ github.event_name == 'workflow_dispatch' && inputs.layer_width || '8' }}
+      BENCHMARK_CLASSES_PER_MODULE: ${{ github.event_name == 'workflow_dispatch' && inputs.classes_per_module || '1' }}
+      BENCHMARK_METHODS_PER_CLASS: ${{ github.event_name == 'workflow_dispatch' && inputs.methods_per_class || '1' }}
       BENCHMARK_REPEAT: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat || '1' }}
       BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'build' }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
@@ -166,6 +190,13 @@ jobs:
           mvn --version
           gradle --version
 
+      - name: Validate benchmark harnesses
+        run: |
+          scripts/benchmark-suite-test
+          scripts/benchmark-large-source-test
+          scripts/benchmark-large-source-report-test
+          scripts/benchmark-netty-compare-test
+
       - name: Install released native Zolt
         if: env.BENCHMARK_ZOLT_SOURCE == 'release'
         run: |
@@ -203,10 +234,15 @@ jobs:
       - name: Run benchmark
         run: |
           export PATH="$JAVA_HOME/bin:$PATH"
-          artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
+          topology_label="${BENCHMARK_TOPOLOGIES//,/+}"
+          artifact_name="zolt-benchmark-native-${BENCHMARK_ZOLT_SOURCE}-${topology_label}-${BENCHMARK_MODULES}-modules-${BENCHMARK_REPEAT}-repeats"
           args=(
             --modules "$BENCHMARK_MODULES"
             --repeat "$BENCHMARK_REPEAT"
+            --topologies "$BENCHMARK_TOPOLOGIES"
+            --layer-width "$BENCHMARK_LAYER_WIDTH"
+            --classes-per-module "$BENCHMARK_CLASSES_PER_MODULE"
+            --methods-per-class "$BENCHMARK_METHODS_PER_CLASS"
             --work-dir "$BENCHMARK_DIR"
             --zolt "$ZOLT_BENCH_ZOLT"
             --project-manifest docs/benchmarks/projects.json
@@ -293,7 +329,11 @@ jobs:
                 printf '| Release version | `channel latest` |\n'
               fi
             fi
+            printf '| Generated topologies | `%s` |\n' "$BENCHMARK_TOPOLOGIES"
+            printf '| Layer width | `%s` |\n' "$BENCHMARK_LAYER_WIDTH"
             printf '| Modules before app | `%s` |\n' "$BENCHMARK_MODULES"
+            printf '| Classes per module | `%s` |\n' "$BENCHMARK_CLASSES_PER_MODULE"
+            printf '| Methods per payload class | `%s` |\n' "$BENCHMARK_METHODS_PER_CLASS"
             printf '| Samples per repeated workflow | `%s` |\n' "$BENCHMARK_REPEAT"
             printf '| First clean build samples | `1` |\n'
             printf '| Gradle daemon included | `%s` |\n' "$BENCHMARK_INCLUDE_GRADLE_DAEMON"
@@ -323,7 +363,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: zolt-benchmark-native-${{ env.BENCHMARK_ZOLT_SOURCE }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
+          name: zolt-benchmark-native-${{ env.BENCHMARK_ZOLT_SOURCE }}-${{ env.BENCHMARK_TOPOLOGIES }}-${{ env.BENCHMARK_MODULES }}-modules-${{ env.BENCHMARK_REPEAT }}-repeats
           path: |
             target/benchmarks/competitors/summary-brief.md
             target/benchmarks/competitors/suite-summary.json
@@ -331,7 +371,7 @@ jobs:
             target/benchmarks/competitors/summary-ai.json
             target/benchmarks/competitors/summary-ai.md
             target/benchmarks/competitors/summary-ai-request.json
-            target/benchmarks/competitors/generated-java-workspace/**
+            target/benchmarks/competitors/generated-java-workspace-*/**
             target/benchmarks/competitors/real-projects/**
             !target/benchmarks/competitors/real-projects/*/checkout/**
             benchmarks/adapters/**
