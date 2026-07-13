@@ -8,10 +8,10 @@ checked in or included with the result.
 ## Rules
 
 - Pin every upstream project to a commit SHA.
-- Generate isolated Zolt and upstream-tool overlays from the same copied source
-  and resource trees.
+- Generate isolated Zolt, Maven, Gradle no-daemon, and Gradle daemon overlays
+  from the same copied source and resource trees.
 - Declare the same compiler release, dependencies, and provided dependencies in
-  both overlays.
+  every overlay.
 - Warm dependency caches outside timed samples.
 - Measure clean compile, warm no-op, and incremental source change separately.
 - Record exact tool versions, commands, raw samples, logs, and adapter coverage.
@@ -62,9 +62,12 @@ scripts/benchmark-real-project \
   --repeat 1
 ```
 
-The suite shares dependency caches across real-project lanes, but each tool's
-compiled outputs remain isolated per project. A dry run validates manifest,
-pin, adapter, tool, and reporting contracts without cloning or timing:
+The suite shares dependency caches across real-project lanes, but every tool
+mode has isolated compiled outputs per project. Each project always runs Zolt,
+Maven, Gradle no-daemon, and Gradle daemon; `nativeTool` records the upstream
+project's own build system rather than limiting comparison coverage. A dry run
+validates manifest, pin, adapter, tool, and reporting contracts without cloning
+or timing:
 
 ```sh
 scripts/benchmark-suite --skip-generated --real-projects spring-petclinic,apache-commons-cli,hikaricp,netty,junit-framework --real-project-dry-run

@@ -132,11 +132,11 @@ EOF
     --gradle "$FAKE_GRADLE" \
     >/dev/null
 
-  jq -e --arg tool "$tool" '
+  jq -e '
     .status == "complete"
     and (.workflows | length) == 3
     and all(.workflows[];
-      (.tools | keys | sort) == (["zolt", $tool] | sort)
+      (.tools | keys | sort) == (["zolt", "maven", "gradle-no-daemon", "gradle-daemon"] | sort)
       and all(.tools[]; .sampleCount == .successfulSampleCount)
     )
   ' "$WORK_DIR/run-$tool/summary.json" >/dev/null \
@@ -146,13 +146,16 @@ EOF
     .lanes[0].kind == "real-project-comparison"
     and .lanes[0].status == "complete"
     and .lanes[0].summary.completedWorkflowCount == 3
+    and (.lanes[0].tools | keys | sort) == (["zolt", "maven", "gradle-no-daemon", "gradle-daemon"] | sort)
   ' "$WORK_DIR/run-$tool/suite-summary.json" >/dev/null \
     || fail "$tool suite lane was not a completed real-project comparison"
 
-  diff -qr \
-    "$WORK_DIR/run-$tool/projects/zolt/src/main" \
-    "$WORK_DIR/run-$tool/projects/$tool/src/main" \
-    >/dev/null || fail "$tool overlays did not contain the same source and resource trees"
+  for competitor in maven gradle-no-daemon gradle-daemon; do
+    diff -qr \
+      "$WORK_DIR/run-$tool/projects/zolt/src/main" \
+      "$WORK_DIR/run-$tool/projects/$competitor/src/main" \
+      >/dev/null || fail "$competitor overlay did not contain the same source and resource trees"
+  done
 done
 
 jq -e '

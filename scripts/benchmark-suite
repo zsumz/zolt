@@ -407,11 +407,10 @@ workflow_labels = {
     "public-api-change-common": "Public API change in common",
     "package-or-install": "Package or install",
 }
-tool_order = ["zolt", "maven", "gradle", "gradle-no-daemon", "gradle-daemon"]
+tool_order = ["zolt", "maven", "gradle-no-daemon", "gradle-daemon"]
 tool_labels = {
     "zolt": "Zolt",
     "maven": "Maven",
-    "gradle": "Gradle",
     "gradle-no-daemon": "Gradle no-daemon",
     "gradle-daemon": "Gradle daemon",
 }
@@ -616,15 +615,15 @@ if lanes:
                 workflow_labels.get(workflow_id, workflow.get("label") or workflow_id or "unknown"),
                 tool_labels.get(workflow.get("winner"), workflow.get("winner") or "n/a"),
             ]
-            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in ["zolt", "maven", "gradle", "gradle-no-daemon", "gradle-daemon"])
+            row.extend(fmt_ms((tools.get(tool) or {}).get("medianMillis")) for tool in tool_order)
             comparison_rows.append(row)
 
     if comparison_rows:
         lines.extend([
             "## Comparison Results",
             "",
-            "| Workload | Workflow | Winner | Zolt | Maven | Gradle | Gradle no-daemon | Gradle daemon |",
-            "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+            "| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
+            "| --- | --- | --- | ---: | ---: | ---: | ---: |",
         ])
         for row in comparison_rows:
             lines.append("| " + " | ".join(row) + " |")

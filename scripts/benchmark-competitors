@@ -1119,7 +1119,7 @@ measure_gradle() {
   fi
   measure_gradle_variant gradle-no-daemon --no-daemon
   if [[ "$INCLUDE_GRADLE_DAEMON" == true ]]; then
-    measure_gradle_variant gradle-daemon ""
+    measure_gradle_variant gradle-daemon --daemon
     env GRADLE_USER_HOME="$WORK_DIR/gradle-daemon-user-home" "$GRADLE_BIN" --stop >/dev/null 2>&1 || true
   fi
 }

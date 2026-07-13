@@ -58,11 +58,6 @@ on:
         required: false
         default: ""
         type: string
-      include_gradle_daemon:
-        description: Also measure Gradle with its daemon enabled.
-        required: true
-        default: true
-        type: boolean
       skip_generated:
         description: Skip the generated Java workspace lane.
         required: true
@@ -114,7 +109,7 @@ jobs:
       BENCHMARK_ZOLT_SOURCE: ${{ github.event_name == 'workflow_dispatch' && inputs.zolt_source || 'build' }}
       BENCHMARK_RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.release_channel || 'zap' }}
       BENCHMARK_RELEASE_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.release_version || '' }}
-      BENCHMARK_INCLUDE_GRADLE_DAEMON: ${{ github.event_name == 'workflow_dispatch' && inputs.include_gradle_daemon }}
+      BENCHMARK_INCLUDE_GRADLE_DAEMON: "true"
       BENCHMARK_SKIP_GENERATED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_generated || false }}
       BENCHMARK_REAL_PROJECTS: ${{ github.event_name == 'workflow_dispatch' && inputs.real_projects || 'spring-petclinic,apache-commons-cli,hikaricp,netty,junit-framework' }}
       BENCHMARK_REAL_PROJECT_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.real_project_dry_run || false }}

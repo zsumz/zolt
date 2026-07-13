@@ -19,7 +19,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/benchmark-real-project [options]
 
-Runs a pinned same-source Zolt-versus-upstream-tool comparison.
+Runs a pinned same-source Zolt, Maven, and Gradle comparison.
 
 Options:
   --project ID             Project id from docs/benchmarks/projects.json.
@@ -35,9 +35,10 @@ Options:
   -h, --help               Show this help.
 
 Each checked-in adapter copies one explicit upstream source set into isolated
-Zolt and Maven/Gradle overlays. Dependency caches are warmed before timing. The
-measured workflows are a clean compile, a warm no-op compile, and an incremental
-source change. Adapter omissions remain part of every result artifact.
+Zolt, Maven, Gradle no-daemon, and Gradle daemon overlays. Dependency caches are
+warmed before timing. The measured workflows are a clean compile, a warm no-op
+compile, and an incremental source change. Adapter omissions remain part of
+every result artifact.
 USAGE
 }
 
@@ -205,7 +206,10 @@ checkout_dir = work_dir / "checkout"
 logs_dir = work_dir / "logs"
 projects_dir = work_dir / "projects"
 zolt_project = projects_dir / "zolt"
-native_project = projects_dir / native_tool
+maven_project = projects_dir / "maven"
+gradle_no_daemon_project = projects_dir / "gradle-no-daemon"
+gradle_daemon_project = projects_dir / "gradle-daemon"
+tool_ids = ("zolt", "maven", "gradle-no-daemon", "gradle-daemon")
 logs_dir.mkdir(parents=True, exist_ok=True)
 samples_path = work_dir / "samples.jsonl"
 summary_path = work_dir / "summary.json"
@@ -331,7 +335,8 @@ def copy_root(row, destination):
 def prepare_overlays():
     if projects_dir.exists():
         shutil.rmtree(projects_dir)
-    for destination in (zolt_project, native_project):
+    destinations = (zolt_project, maven_project, gradle_no_daemon_project, gradle_daemon_project)
+    for destination in destinations:
         destination.mkdir(parents=True)
         for row in source_roots:
             copy_root(row, destination)
@@ -350,10 +355,9 @@ def prepare_overlays():
     if source_count == 0:
         raise RuntimeError(f"adapter {project_id} copied no Java sources")
     write_zolt_config()
-    if native_tool == "maven":
-        write_maven_config()
-    else:
-        write_gradle_config()
+    write_maven_config(maven_project)
+    write_gradle_config(gradle_no_daemon_project)
+    write_gradle_config(gradle_daemon_project)
     return source_count, sum(
         len(path.read_text(encoding="utf-8", errors="replace").splitlines())
         for path in zolt_project.glob("**/*.java")
@@ -421,7 +425,7 @@ def maven_dependency(coordinate, version, scope=None):
     return values
 
 
-def write_maven_config():
+def write_maven_config(destination):
     lines = [
         '<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
         '         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">',
@@ -467,14 +471,14 @@ def write_maven_config():
         "  </build>",
         "</project>",
     ])
-    (native_project / "pom.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (destination / "pom.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def gradle_quote(value):
     return str(value).replace("\\", "\\\\").replace("'", "\\'")
 
 
-def write_gradle_config():
+def write_gradle_config(destination):
     lines = [
         "plugins { id 'java-library' }",
         f"group = '{gradle_quote(adapter['group'])}'",
@@ -497,45 +501,64 @@ def write_gradle_config():
         "    options.encoding = 'UTF-8'",
         "}",
     ])
-    (native_project / "build.gradle").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (native_project / "settings.gradle").write_text(
+    (destination / "build.gradle").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (destination / "settings.gradle").write_text(
         f"rootProject.name = '{gradle_quote(adapter['name'])}'\n", encoding="utf-8"
     )
 
 
 zolt_cache = cache_dir / "zolt"
 maven_cache = cache_dir / "maven"
-gradle_cache = cache_dir / "gradle"
+gradle_no_daemon_cache = cache_dir / "gradle-no-daemon"
+gradle_daemon_cache = cache_dir / "gradle-daemon"
 
 
 def tool_commands():
     zolt = tool_paths["zolt"]
+    mvn = tool_paths["maven"]
+    gradle = tool_paths["gradle"]
+    maven_prefix = [mvn, f"-Dmaven.repo.local={maven_cache}", "-q"]
+    gradle_no_daemon_prefix = [
+        gradle,
+        "--gradle-user-home",
+        str(gradle_no_daemon_cache),
+        "--no-daemon",
+        "--console=plain",
+        "--quiet",
+    ]
+    gradle_daemon_prefix = [
+        gradle,
+        "--gradle-user-home",
+        str(gradle_daemon_cache),
+        "--console=plain",
+        "--quiet",
+    ]
     commands = {
         "zolt": {
             "cwd": zolt_project,
             "resolve": [zolt, "resolve", "--cwd", str(zolt_project), "--cache-root", str(zolt_cache)],
             "build": [zolt, "build", "--cwd", str(zolt_project), "--cache-root", str(zolt_cache)],
             "clean": [zolt, "clean", "--cwd", str(zolt_project)],
-        }
+        },
+        "maven": {
+            "cwd": maven_project,
+            "resolve": [*maven_prefix, "-DskipTests", "compile"],
+            "build": [*maven_prefix, "-DskipTests", "compile"],
+            "clean": [*maven_prefix, "clean"],
+        },
+        "gradle-no-daemon": {
+            "cwd": gradle_no_daemon_project,
+            "resolve": [*gradle_no_daemon_prefix, "dependencies", "--configuration", "compileClasspath"],
+            "build": [*gradle_no_daemon_prefix, "classes"],
+            "clean": [*gradle_no_daemon_prefix, "clean"],
+        },
+        "gradle-daemon": {
+            "cwd": gradle_daemon_project,
+            "resolve": [*gradle_daemon_prefix, "dependencies", "--configuration", "compileClasspath"],
+            "build": [*gradle_daemon_prefix, "classes"],
+            "clean": [*gradle_daemon_prefix, "clean"],
+        },
     }
-    if native_tool == "maven":
-        mvn = tool_paths["maven"]
-        prefix = [mvn, f"-Dmaven.repo.local={maven_cache}", "-q"]
-        commands["maven"] = {
-            "cwd": native_project,
-            "resolve": [*prefix, "-DskipTests", "compile"],
-            "build": [*prefix, "-DskipTests", "compile"],
-            "clean": [*prefix, "clean"],
-        }
-    else:
-        gradle = tool_paths["gradle"]
-        prefix = [gradle, "--gradle-user-home", str(gradle_cache), "--console=plain", "--quiet"]
-        commands["gradle"] = {
-            "cwd": native_project,
-            "resolve": [*prefix, "dependencies", "--configuration", "compileClasspath"],
-            "build": [*prefix, "classes"],
-            "clean": [*prefix, "clean"],
-        }
     return commands
 
 
@@ -582,14 +605,16 @@ environment = {
     "tools": {
         "git": capture_tool(["git", "--version"]),
         "zolt": capture_tool([tool_paths["zolt"], "--version"]),
-        native_tool: capture_tool([tool_paths[native_tool], "--version"]),
+        "maven": capture_tool([tool_paths["maven"], "--version"]),
+        "gradle-no-daemon": capture_tool([tool_paths["gradle"], "--version"]),
+        "gradle-daemon": capture_tool([tool_paths["gradle"], "--version"]),
     },
 }
 
 if dry_run:
     for workflow_id, label, sample_count in workflow_specs:
         tools = {}
-        for tool in ("zolt", native_tool):
+        for tool in tool_ids:
             tools[tool] = {
                 "command": commands[tool]["build"],
                 "samples": [],
@@ -606,7 +631,7 @@ else:
     try:
         prepare_checkout()
         source_files, source_lines = prepare_overlays()
-        for tool in ("zolt", native_tool):
+        for tool in tool_ids:
             checked(commands[tool]["resolve"], commands[tool]["cwd"], f"setup/{tool}-resolve.log")
             checked(commands[tool]["build"], commands[tool]["cwd"], f"setup/{tool}-build.log")
             checked(commands[tool]["clean"], commands[tool]["cwd"], f"setup/{tool}-clean.log")
@@ -614,7 +639,7 @@ else:
         with samples_path.open("w", encoding="utf-8") as sample_stream:
             for workflow_id, label, sample_count in workflow_specs:
                 tools = {}
-                for tool in ("zolt", native_tool):
+                for tool in tool_ids:
                     rows = []
                     changed_path = commands[tool]["cwd"] / source_change_target
                     baseline = changed_path.read_text(encoding="utf-8")
@@ -664,7 +689,7 @@ else:
                     for tool, values in tools.items()
                     if values.get("medianMillis") is not None
                 }
-                winner = min(successful_medians, key=successful_medians.get) if len(successful_medians) == 2 else None
+                winner = min(successful_medians, key=successful_medians.get) if len(successful_medians) == len(tool_ids) else None
                 workflow_records.append({
                     "id": workflow_id,
                     "label": label,
@@ -677,9 +702,16 @@ else:
     except Exception as exc:
         status = "failed"
         failure = {"error": str(exc)}
+    finally:
+        run_process(
+            [tool_paths["gradle"], "--gradle-user-home", str(gradle_daemon_cache), "--stop"],
+            work_dir,
+            "setup/gradle-daemon-stop.log",
+            60,
+        )
 
 caveats = [
-    "The Zolt and upstream-tool overlays compile the same copied source and resource trees with the same declared release level and dependencies.",
+    "The Zolt, Maven, and Gradle overlays compile the same copied source and resource trees with the same declared release level and dependencies.",
     "Dependency caches are warmed before timed builds; dependency download speed is not measured.",
     "Generated overlay builds do not reproduce every upstream plugin or packaging behavior.",
 ]
@@ -692,7 +724,7 @@ if failure:
 completed_workflows = sum(
     1
     for row in workflow_records
-    if len(row.get("tools") or {}) == 2
+    if len(row.get("tools") or {}) == len(tool_ids)
     and all((values.get("successfulSampleCount") or 0) == (values.get("sampleCount") or 0) for values in row["tools"].values())
 )
 
@@ -724,9 +756,14 @@ lane = {
     },
     "tools": {
         "zolt": {"label": "Zolt", "version": environment["tools"]["zolt"]},
-        native_tool: {
-            "label": "Maven" if native_tool == "maven" else "Gradle",
-            "version": environment["tools"][native_tool],
+        "maven": {"label": "Maven", "version": environment["tools"]["maven"]},
+        "gradle-no-daemon": {
+            "label": "Gradle no-daemon",
+            "version": environment["tools"]["gradle-no-daemon"],
+        },
+        "gradle-daemon": {
+            "label": "Gradle daemon",
+            "version": environment["tools"]["gradle-daemon"],
         },
     },
     "summary": {
@@ -776,7 +813,7 @@ summary = {
 suite = {
     "schemaVersion": 2,
     "createdAt": now_iso(),
-    "suite": {"name": "zolt-real-project-benchmark", "mode": "single-lane"},
+    "suite": {"name": "zolt-real-project-benchmark", "mode": "four-way-comparison"},
     "repository": repository,
     "run": {
         "classification": lane["summary"]["classification"],
@@ -797,16 +834,18 @@ lines = [
     f"- Adapter: `{project.get('adapterPath')}`",
     f"- Status: `{status}`",
     "",
-    "| Workflow | Winner | Zolt | Upstream tool |",
-    "| --- | --- | ---: | ---: |",
+    "| Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |",
+    "| --- | --- | ---: | ---: | ---: | ---: |",
 ]
 for workflow in workflow_records:
     tools = workflow.get("tools") or {}
     zolt_ms = (tools.get("zolt") or {}).get("medianMillis")
-    native_ms = (tools.get(native_tool) or {}).get("medianMillis")
+    maven_ms = (tools.get("maven") or {}).get("medianMillis")
+    gradle_no_daemon_ms = (tools.get("gradle-no-daemon") or {}).get("medianMillis")
+    gradle_daemon_ms = (tools.get("gradle-daemon") or {}).get("medianMillis")
     fmt = lambda value: f"{value:,} ms" if isinstance(value, (int, float)) else "n/a"
     lines.append(
-        f"| {workflow.get('label')} | {workflow.get('winner') or 'n/a'} | {fmt(zolt_ms)} | {fmt(native_ms)} |"
+        f"| {workflow.get('label')} | {workflow.get('winner') or 'n/a'} | {fmt(zolt_ms)} | {fmt(maven_ms)} | {fmt(gradle_no_daemon_ms)} | {fmt(gradle_daemon_ms)} |"
     )
 if failure:
     lines.extend(["", f"Failure: `{json.dumps(failure, sort_keys=True)}`"])

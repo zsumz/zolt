@@ -105,6 +105,7 @@ scripts/benchmark-suite \
   --zolt "$FAKE_TOOL" \
   --maven "$FAKE_TOOL" \
   --gradle "$FAKE_TOOL" \
+  --include-gradle-daemon \
   --work-dir "$WORK_DIR/suite" >/dev/null
 
 jq -e '
@@ -116,6 +117,12 @@ jq -e '
   and ([.lanes[].workload.topology] | sort == ["layered", "wide"])
 ' "$WORK_DIR/suite/suite-summary.json" >/dev/null \
   || fail "suite summary did not preserve both generated topologies"
+
+grep -F '| Workload | Workflow | Winner | Zolt | Maven | Gradle no-daemon | Gradle daemon |' \
+  "$WORK_DIR/suite/summary-brief.md" >/dev/null \
+  || fail "suite summary did not report the four comparison modes"
+grep -F '| Gradle |' "$WORK_DIR/suite/summary-brief.md" >/dev/null \
+  && fail "suite summary retained the obsolete generic Gradle column"
 
 scripts/benchmark-suite \
   --skip-generated \
@@ -135,7 +142,9 @@ jq -e '
     .kind == "real-project-comparison"
     and .status == "dry-run"
     and (.workflows | length) == 3
-    and all(.workflows[]; (.tools | length) == 2)
+    and all(.workflows[];
+      (.tools | keys | sort) == (["zolt", "maven", "gradle-no-daemon", "gradle-daemon"] | sort)
+    )
   )
 ' "$WORK_DIR/real-project-suite/suite-summary.json" >/dev/null \
   || fail "suite summary did not preserve all five real-project comparisons"
