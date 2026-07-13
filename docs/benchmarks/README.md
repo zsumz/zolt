@@ -3,47 +3,61 @@
 Zolt benchmark claims should be backed by repeatable evidence, not a single
 headline number.
 
-The target suite is larger than the current harness: a generated enterprise-like
-Java workload, pinned real-project lanes, and optional OpenAI summaries over the
-structured result. See [plan.md](./plan.md) for the benchmark architecture.
+The suite combines controlled generated Java workspaces, pinned real-project
+lanes, specialist large-source comparisons, and optional OpenAI summaries over
+the structured result. See [plan.md](./plan.md) for the benchmark architecture.
 The real-project lane manifest lives in [projects.json](./projects.json).
 
 The public entrypoint is `scripts/benchmark-suite`. It runs selected benchmark
 lanes, writes one suite-level summary, and keeps each lane's raw evidence under
 the suite artifact. The generated Java workspace lane uses
-`scripts/benchmark-competitors` underneath. It generates the same multi-module
-Java workspace shape for Zolt, Maven, and Gradle, then records wall-clock samples
-for workflows that matter on larger projects:
+`scripts/benchmark-competitors` underneath. It generates byte-for-byte identical
+Java sources and equivalent dependency graphs for Zolt, Maven, and Gradle, then
+records wall-clock samples for workflows that matter on larger projects:
 
 - first clean build as a single setup lane;
 - warm no-op build;
 - leaf source change build;
-- root library source change build.
+- root or shared library source change build.
+
+Generated workspaces support three graph shapes:
+
+- `wide` (the default): independent libraries feed one app, exposing one large
+  parallel compilation wave;
+- `layered`: fixed-width dependency waves expose scheduling across a DAG;
+- `chain`: a serial dependency chain retained as a control, not as parallelism
+  evidence.
+
+`--classes-per-module` and `--methods-per-class` scale source volume independently
+from module count. Every report records topology, layer width, source-file count,
+and source-line count so unlike workloads are not silently compared.
 
 The script writes raw JSON-lines samples, command logs, a JSON summary, and a
 Markdown report under `target/benchmarks/competitors` by default.
 
 ```sh
-scripts/benchmark-suite --modules 40 --repeat 5 --include-gradle-daemon
+scripts/benchmark-suite --topologies wide,layered --modules 40 --repeat 5 --include-gradle-daemon
 ```
 
 Useful variants:
 
 ```sh
-scripts/benchmark-suite --modules 100 --repeat 7 --include-gradle-daemon
+scripts/benchmark-suite --topology wide --modules 100 --repeat 7 --include-gradle-daemon
+scripts/benchmark-suite --topology layered --layer-width 8 --modules 100 --repeat 7
+scripts/benchmark-suite --topology chain --modules 40 --repeat 5
 scripts/benchmark-suite --zolt ~/.zolt/bin/zolt
-scripts/benchmark-suite --generated-summary target/benchmarks/competitors/generated-java-workspace/summary.json
+scripts/benchmark-suite --topology wide --generated-summary target/benchmarks/competitors/generated-java-workspace-wide/summary.json
 scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --repeat 5
 scripts/benchmark-suite --skip-generated --real-project netty --repeat 1 --real-project-sample-timeout 3600
 scripts/benchmark-suite --skip-generated --real-project netty --repeat 3 --real-project-sample-timeout 3600
 scripts/benchmark-suite --skip-generated --real-projects spring-petclinic,netty --real-project-dry-run
-scripts/benchmark-competitors --modules 200 --skip-maven --skip-gradle
+scripts/benchmark-competitors --topology wide --modules 200 --skip-maven --skip-gradle
 ```
 
 The generated-lane script can still be used directly while debugging:
 
 ```sh
-scripts/benchmark-competitors --modules 40 --repeat 5 --include-gradle-daemon
+scripts/benchmark-competitors --topology wide --modules 40 --repeat 5 --include-gradle-daemon
 ```
 
 After a direct generated-lane run, generate a suite-level summary:
@@ -59,7 +73,7 @@ That writes:
 - `summary-brief.md` for a deterministic suite summary;
 - `suite-summary.json` as the stable contract for CI, artifacts, and model
   summarization;
-- lane detail files under `generated-java-workspace/`;
+- topology-specific lane detail files such as `generated-java-workspace-wide/`;
 - `llm-summary.md` as a compatibility alias for the deterministic summary.
 
 To generate a model summary locally:
@@ -93,13 +107,13 @@ secret named `OPENAI_API_KEY`. Optional repository variables:
 Use `zolt_source=release` for publishable comparisons. It installs the selected
 release channel and avoids mixing Zolt build time into the benchmark setup. Use
 `zolt_source=build` only when measuring the checked-out branch's native binary.
-While this work is on the `benchmarks` branch, pushes to that branch run a
-10-module, 1-repeat, released native-Zolt generated smoke benchmark without the
-Gradle daemon, real-project lanes, or model summary. This keeps branch
-validation quick while still exercising every generated workflow and
-competitor. Production-grade
-generated evidence and real-project baselines remain explicit manual runs.
-Manual runs default to 100 modules, 7 repeats, and Gradle daemon coverage.
+While this work is on the `benchmarks` branch, pushes to that branch build the
+branch's native binary and run a 10-module, 1-repeat `wide` smoke benchmark
+without the Gradle daemon, real-project lanes, or model summary. This keeps
+branch validation quick while still exercising every generated workflow and
+competitor. Production-grade generated evidence and real-project baselines
+remain explicit manual runs. Manual runs default to 100 modules, 7 repeats,
+`wide,layered` topologies, and Gradle daemon coverage.
 For a Netty-only validation run, dispatch the workflow with
 `skip_generated=true`, `real_projects=netty`, `repeat=1`, and
 `real_project_sample_timeout=3600`.
@@ -112,8 +126,45 @@ The workflow installs a pinned Gradle distribution directly instead of using
 benchmark report and avoids unrelated Gradle action cache/build-scan summaries.
 Uploaded real-project artifacts keep summaries, samples, and command logs, but
 exclude the checked-out upstream source trees.
-Adapter groundwork under `benchmarks/adapters/` is included so future
-real-project comparisons carry their coverage notes with the data.
+Adapter coverage under `benchmarks/adapters/` is included so real-project
+comparisons carry their scope and omissions with the data.
+
+## Specialist Lanes
+
+The suite also preserves two focused manual comparisons that answer questions
+the module-count lane cannot.
+
+The large-source lane defaults to eight modules, 500 classes per module, and 30
+methods per class: roughly half a million generated Java lines. It measures cold
+dependency setup, warm no-op builds, implementation-only changes, public ABI
+changes, full tests, and a selected downstream test for Zolt, Maven, and Gradle.
+
+```sh
+scripts/benchmark-large-source --zolt ~/.zolt/bin/zolt --repeat 3 --include-gradle-daemon
+scripts/benchmark-large-source-report \
+  target/benchmarks/large-source/large-source-compare-summary.jsonl
+```
+
+The Netty lane generates Zolt and Maven overlays from the same filtered pinned
+Netty `common` Java sources, dependencies, and Java level. It is a controlled
+source-subset comparison, not a full-reactor comparison. Package rows stay
+separate because the two thin jars are not asserted to be byte-identical.
+
+```sh
+scripts/benchmark-netty-compare \
+  --netty-dir /path/to/netty-at-bb2ff68 \
+  --zolt ~/.zolt/bin/zolt \
+  --repeat 3
+```
+
+Validate all benchmark contracts without doing a production-sized run:
+
+```sh
+scripts/benchmark-suite-test
+scripts/benchmark-large-source-test
+scripts/benchmark-large-source-report-test
+scripts/benchmark-netty-compare-test
+```
 
 ## Real Projects
 
@@ -134,8 +185,9 @@ scripts/benchmark-real-project --project netty --repeat 3 --sample-timeout 3600
 
 Those runs clone the pinned upstream commit into the benchmark output directory,
 record upstream Maven or Gradle timings, and write a suite-compatible lane summary.
-They are not Zolt comparisons until an adapter is checked in and included with
-the artifact.
+They are not Zolt comparisons. The separate `benchmark-netty-compare` runner is
+the first honest Zolt comparison for the smaller `common` source subset; it does
+not replace the upstream core-reactor baseline.
 
 ## Publishing Results
 
@@ -145,8 +197,8 @@ When publishing benchmark evidence:
   `samples.jsonl`;
 - include `summary-brief.md` and, when generated, `summary-ai.json` plus
   `summary-ai.md`;
-- include tool versions, JDK version, OS, CPU architecture, module count, and
-  repeat count;
+- include tool versions, JDK version, OS, CPU architecture, module count,
+  topology, source volume, and repeat count;
 - keep the first clean build separate from repeated no-op, leaf-change, and
   root-change workflows;
 - compare medians and keep raw samples available;

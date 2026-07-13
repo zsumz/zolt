@@ -31,7 +31,7 @@ lanes.
 | Spring PetClinic | `https://github.com/spring-projects/spring-petclinic` | Maven | Real Spring Boot web/data app with resources and tests | Upstream Maven baseline ready; adapter planned |
 | Apache Commons CLI | `https://github.com/apache/commons-cli` | Maven | Small Java library with classic release metadata | Upstream Maven baseline ready; adapter planned |
 | HikariCP | `https://github.com/brettwooldridge/HikariCP` | Gradle | Popular Java library with optional dependencies | Needs pinned adapter |
-| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Core Java upstream Maven baseline ready; adapter groundwork |
+| Netty | `https://github.com/netty/netty` | Maven | Large Maven reactor used by Mill for public build-tool benchmarks | Core Java upstream baseline ready; `common` subset comparison ready |
 | JUnit 5 | `https://github.com/junit-team/junit-framework` | Gradle | Large multi-module test framework | Later; likely post-beta |
 
 Current pinned upstream baselines:
@@ -76,9 +76,9 @@ scripts/benchmark-suite --real-projects spring-petclinic,apache-commons-cli --re
 scripts/benchmark-suite --skip-generated --real-project netty --repeat 3
 ```
 
-Those commands produce timing evidence for the upstream Maven build only. The
-summary must continue to describe them as upstream baselines until the matching
-Zolt adapter ships with the result.
+Those commands produce timing evidence for the upstream Maven build only. They
+remain upstream baselines even though a separate, smaller Netty `common` subset
+comparison now exists.
 
 ## Large Baselines
 
@@ -88,7 +88,17 @@ current lane measures Netty's core Java reactor and intentionally excludes
 native platform modules and testsuites. That upstream Maven run shows the scale
 of the comparison target before Zolt can build the same source set.
 
-Do not present those as Zolt comparisons until the adapter is reviewable and the
-summary names exactly which modules, tests, and packaging work are covered.
+For a scoped Zolt comparison, run:
+
+```sh
+scripts/benchmark-netty-compare \
+  --netty-dir /path/to/pinned/netty \
+  --zolt ~/.zolt/bin/zolt \
+  --repeat 3
+```
+
+That runner covers `common` main sources and records its omissions. Do not use
+its timings as evidence for the full core reactor, tests, native transports,
+generated native sources, or equivalent release packaging.
 
 See [netty.md](./netty.md) for the dedicated Netty lane plan.

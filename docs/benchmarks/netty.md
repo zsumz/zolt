@@ -41,8 +41,23 @@ Use that as the standard for Zolt:
 
 ## Status
 
-Netty starts as `upstream-baseline`. It becomes `comparison-ready` only after
-the Zolt adapter is checked in and proves the covered source set.
+Netty now has two deliberately separate lanes:
+
+- `scripts/benchmark-real-project --project netty` is the large upstream Maven
+  baseline for the selected core Java reactor. It is not a Zolt comparison.
+- `scripts/benchmark-netty-compare` is a Zolt-versus-Maven comparison for the
+  pinned `common` main-source subset. It is not a full Netty comparison.
+
+The `common` runner copies upstream Java sources into generated Zolt and Maven
+overlays, removes Graal substitution sources that require native-image
+processing, and writes the exact dependency set and coverage attributes into
+the artifact. Both overlays use the same filtered sources, dependencies, and
+Java 21 level. Their compiler outputs and thin jars are not asserted to be
+byte-identical, so package rows remain separate.
+
+The generated overlays intentionally avoid Netty's unreleased optional test
+tooling and upstream Maven plugin lifecycle. Those remain part of the separate
+upstream baseline/full-adapter problem, not hidden setup in this subset.
 
 Current upstream Maven baseline:
 
@@ -65,6 +80,18 @@ Required pinned metadata:
 - exact commands for each workflow;
 - adapter coverage notes.
 
+Run the subset comparison against a checkout at the pinned commit:
+
+```sh
+scripts/benchmark-netty-compare \
+  --netty-dir /path/to/netty \
+  --zolt ~/.zolt/bin/zolt \
+  --repeat 3
+```
+
+Tests are not copied into either overlay. Add a separate test lane only after its
+dependency model and lifecycle are meaningfully equivalent.
+
 ## Adapter Policy
 
 The Zolt adapter should be an overlay, not a fork of Netty:
@@ -80,8 +107,9 @@ The Zolt adapter should be an overlay, not a fork of Netty:
 - never call the result a full Netty comparison if any major Maven work is
   omitted.
 
-The first adapter does not need to be 100% complete. It does need to be honest:
-if it covers Java compile for the core modules only, the summary must say that.
+The adapter does not need to be 100% complete. It does need to be honest: the
+current coverage record says `common` main sources only and lists the omitted
+reactor, native, generated-source, test, and package behavior.
 
 ## Workflows
 
@@ -92,11 +120,11 @@ Mirror the shape of the Mill comparison, then add Zolt-specific evidence:
 - clean compile `common`;
 - no-op compile `common`;
 - implementation-only edit in `common`;
-- public API edit in `common`, once the adapter exists;
+- public API edit in `common`, once that mutation lane is added;
 - optional test compile and focused test run after compile parity is stable.
 
-Do not mix these lanes. A clean-all win, single-module win, and no-op win should
-be reported as separate claims with separate samples.
+Do not mix these lanes. A clean-all baseline, single-module comparison, no-op
+comparison, and non-equivalent package row should be reported separately.
 
 ## Maven Baseline
 

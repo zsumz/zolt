@@ -20,8 +20,11 @@ meaningful source set as the native build.
 
 ## Enterprise Workload
 
-The current generated fixture is too simple: a chain of library modules plus one
-app. The target fixture should look more like a large internal Java platform:
+The generated fixture now supports `wide`, `layered`, and `chain` graphs plus
+configurable classes and methods per module. That fixes the old serial-chain
+benchmark as the only generated shape, but it is still only the foundation of
+an enterprise-like workload. The target fixture should eventually look more
+like a large internal Java platform:
 
 - 200 to 500 modules plus multiple apps;
 - layered modules instead of a single chain;
@@ -75,6 +78,12 @@ The suite runner sits on top of the generated-workspace
 
 - `scripts/benchmark-suite` runs selected lanes and writes the overall suite
   summary;
+- `scripts/benchmark-competitors` generates identical `wide`, `layered`, or
+  `chain` source trees for Zolt, Maven, and Gradle;
+- `scripts/benchmark-large-source` preserves the roughly 500,000-line source
+  volume and ABI-change comparison as a specialist manual lane;
+- `scripts/benchmark-netty-compare` creates an explicitly scoped Netty `common`
+  overlay comparison while the full core-reactor adapter remains incomplete;
 - `docs/benchmarks/projects.json` records planned pinned real-project lanes;
 - `scripts/benchmark-enterprise-fixture` generates Zolt, Maven, and Gradle
   versions of the enterprise workload;
@@ -168,13 +177,15 @@ fixture. The generated enterprise workload is the controllable centerpiece.
 
 1. Add the suite runner and suite-level JSON contract for generated-workspace
    runs. Done for the first generated lane.
-2. Add the enterprise fixture generator and make `smoke`/`enterprise` modes use
-   it.
+2. Add topology and source-volume controls to the generated lane. Done for
+   `wide`, `layered`, and `chain`; the full enterprise fixture features listed
+   above remain future work.
 3. Add OpenAI summary script and wire it into CI behind `OPENAI_API_KEY`. Done
    for the current suite summary.
 4. Add real-project checkout/adapters for Spring PetClinic and Commons CLI.
-5. Add Netty as the large upstream-baseline project, then work toward a Zolt
-   adapter.
+5. Add Netty as the large upstream-baseline project and a conservative Zolt
+   `common` subset comparison. Done; full core-reactor parity remains future
+   work.
 6. Publish a dated benchmark result under `docs/benchmarks/results/`.
 
 Done means a manual GitHub run produces one clean artifact with raw samples,
