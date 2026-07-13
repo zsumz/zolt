@@ -165,11 +165,11 @@ EOF
 
   for gradle_mode in gradle-no-daemon gradle-daemon; do
     generated_gradle="$WORK_DIR/run-$tool/projects/$gradle_mode/build.gradle"
-    rg -F "java { modularity.inferModulePath = false }" "$generated_gradle" >/dev/null \
+    grep -F "java { modularity.inferModulePath = false }" "$generated_gradle" >/dev/null \
       || fail "$gradle_mode overlay did not disable incomplete Gradle module-path inference"
-    rg -F "options.compilerArgs += ['--module-path', classpath.asPath]" "$generated_gradle" >/dev/null \
+    grep -F "options.compilerArgs += ['--module-path', classpath.asPath]" "$generated_gradle" >/dev/null \
       || fail "$gradle_mode overlay did not put the full compile classpath on the module path"
-    rg -F "classpath = files()" "$generated_gradle" >/dev/null \
+    grep -F "classpath = files()" "$generated_gradle" >/dev/null \
       || fail "$gradle_mode overlay did not clear the duplicate compile classpath"
   done
 done
