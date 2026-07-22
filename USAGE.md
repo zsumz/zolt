@@ -212,6 +212,21 @@ jars, GPG signatures, and checksums, printing an actionable next step for each
 unmet requirement. The check is opt-in, so it never blocks publishing to internal
 repositories.
 
+Enable `[publish.signing]` to attach a detached GPG signature (`.asc`) to every
+uploaded artifact and to the POM. Publish shells out to the `gpg` binary
+(`--batch --detach-sign --armor`); `keyId` selects the signing key and, when a key
+requires a passphrase, `passphraseEnv` names an environment variable holding it —
+the passphrase is fed to gpg over stdin, never the command line. Without
+`passphraseEnv`, signing relies on `gpg-agent`. Secrets are referenced by
+environment-variable name only:
+
+```toml
+[publish.signing]
+enabled = true
+keyId = "3AB1C2D3E4F5A6B7"
+passphraseEnv = "ZOLT_SIGNING_PASSPHRASE"
+```
+
 Migration and integration commands:
 
 ```sh

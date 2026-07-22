@@ -61,6 +61,9 @@ public final class PublishUploadService {
         Coordinate coordinate = coordinate(config);
         Optional<RepositoryAuthentication> authentication = authentication(repository, config);
         URI repositoryUri = repositoryUri(repository);
+        PublishSigner signer = settings.signing().enabled()
+                ? new PublishSigner(settings.signing(), environment)
+                : null;
         try {
             Path artifactFile = root.resolve(plan.artifactPath()).normalize();
             repositoryClient.uploadArtifact(
@@ -68,7 +71,7 @@ public final class PublishUploadService {
                     new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
                     artifactFile,
                     authentication);
-            uploadChecksumSidecars(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication);
+            uploadIntegrity(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication, signer);
             for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
                 Path supplementalFile = root.resolve(artifact.path()).normalize();
                 repositoryClient.uploadArtifact(
@@ -76,7 +79,7 @@ public final class PublishUploadService {
                         new ArtifactDescriptor(coordinate, artifact.classifier(), extension(artifact.path())),
                         supplementalFile,
                         authentication);
-                uploadChecksumSidecars(repositoryUri, artifact.uploadPath(), supplementalFile, authentication);
+                uploadIntegrity(repositoryUri, artifact.uploadPath(), supplementalFile, authentication, signer);
             }
             Path pomFile = root.resolve(plan.pomPath()).normalize();
             repositoryClient.uploadPom(
@@ -84,7 +87,7 @@ public final class PublishUploadService {
                     coordinate,
                     pomFile,
                     authentication);
-            uploadChecksumSidecars(repositoryUri, plan.pomUploadPath(), pomFile, authentication);
+            uploadIntegrity(repositoryUri, plan.pomUploadPath(), pomFile, authentication, signer);
         } catch (IllegalArgumentException exception) {
             throw new PublishException(
                     "Publish repository `" + repository.id() + "` has an invalid URL. Use a Maven-compatible repository URL.",
@@ -93,6 +96,21 @@ public final class PublishUploadService {
             throw new PublishException(exception.getMessage(), exception);
         }
         return new PublishUploadResult(plan);
+    }
+
+    private void uploadIntegrity(
+            URI repositoryUri,
+            String uploadPath,
+            Path source,
+            Optional<RepositoryAuthentication> authentication,
+            PublishSigner signer) {
+        uploadChecksumSidecars(repositoryUri, uploadPath, source, authentication);
+        if (signer == null) {
+            return;
+        }
+        Path signature = signer.sign(source);
+        repositoryClient.uploadFile(repositoryUri, uploadPath + ".asc", signature, authentication);
+        uploadChecksumSidecars(repositoryUri, uploadPath + ".asc", signature, authentication);
     }
 
     private void uploadChecksumSidecars(

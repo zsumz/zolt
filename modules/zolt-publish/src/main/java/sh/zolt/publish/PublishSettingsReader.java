@@ -20,8 +20,10 @@ public final class PublishSettingsReader {
             "releaseRepository",
             "snapshotRepository",
             "artifacts",
-            "repositories");
+            "repositories",
+            "signing");
     private static final Set<String> PUBLISH_REPOSITORY_KEYS = Set.of("url", "credentials");
+    private static final Set<String> PUBLISH_SIGNING_KEYS = Set.of("enabled", "keyId", "passphraseEnv");
 
     public PublishSettings read(Path zoltToml, Map<String, RepositoryCredentialSettings> credentialSettings) {
         try {
@@ -51,11 +53,35 @@ public final class PublishSettingsReader {
                 optionalString(publishTable, "publish", "releaseRepository"),
                 optionalString(publishTable, "publish", "snapshotRepository"),
                 stringListOrDefault(publishTable, "publish", "artifacts", List.of("main")),
-                publishRepositories(optionalTable(publishTable, "repositories")));
+                publishRepositories(optionalTable(publishTable, "repositories")),
+                parseSigning(optionalTable(publishTable, "signing")));
         validatePublishRepositoryReference("releaseRepository", settings.releaseRepository(), settings);
         validatePublishRepositoryReference("snapshotRepository", settings.snapshotRepository(), settings);
         validatePublishCredentialReferences(settings, credentialSettings);
         return settings;
+    }
+
+    private static PublishSigningSettings parseSigning(TomlTable table) {
+        if (table == null) {
+            return PublishSigningSettings.disabled();
+        }
+        validateKeys("publish.signing", table, PUBLISH_SIGNING_KEYS);
+        return new PublishSigningSettings(
+                booleanOrDefault(table, "publish.signing", "enabled", false),
+                optionalStringValue(table, "publish.signing", "keyId"),
+                optionalStringValue(table, "publish.signing", "passphraseEnv"));
+    }
+
+    private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof Boolean value)) {
+            throw new ZoltConfigException(
+                    "Invalid value for [" + section + "]." + key + " in zolt.toml. Use true or false.");
+        }
+        return value;
     }
 
     private static Map<String, PublishRepositorySettings> publishRepositories(TomlTable table) {

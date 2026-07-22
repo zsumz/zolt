@@ -8,7 +8,8 @@ public record PublishSettings(
         String releaseRepository,
         String snapshotRepository,
         List<String> artifacts,
-        Map<String, PublishRepositorySettings> repositories) {
+        Map<String, PublishRepositorySettings> repositories,
+        PublishSigningSettings signing) {
     public PublishSettings {
         releaseRepository = normalize(releaseRepository);
         snapshotRepository = normalize(snapshotRepository);
@@ -16,6 +17,15 @@ public record PublishSettings(
                 ? List.of("main")
                 : List.copyOf(artifacts.stream().map(PublishSettings::normalizeArtifact).toList());
         repositories = repositories == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(repositories));
+        signing = signing == null ? PublishSigningSettings.disabled() : signing;
+    }
+
+    public PublishSettings(
+            String releaseRepository,
+            String snapshotRepository,
+            List<String> artifacts,
+            Map<String, PublishRepositorySettings> repositories) {
+        this(releaseRepository, snapshotRepository, artifacts, repositories, PublishSigningSettings.disabled());
     }
 
     public boolean configured() {

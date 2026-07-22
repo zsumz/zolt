@@ -13,30 +13,28 @@ import java.util.List;
  */
 public final class PublishCentralReadinessService {
     private final ZoltTomlParser projectParser;
+    private final PublishSettingsReader publishSettingsReader;
 
     public PublishCentralReadinessService() {
-        this(new ZoltTomlParser());
+        this(new ZoltTomlParser(), new PublishSettingsReader());
     }
 
-    PublishCentralReadinessService(ZoltTomlParser projectParser) {
+    PublishCentralReadinessService(ZoltTomlParser projectParser, PublishSettingsReader publishSettingsReader) {
         this.projectParser = projectParser;
+        this.publishSettingsReader = publishSettingsReader;
     }
 
     public List<PublishCentralRequirement> evaluate(Path projectRoot, PublishDryRunPlan plan) {
         Path root = projectRoot.toAbsolutePath().normalize();
         ProjectConfig config = projectParser.parse(root.resolve("zolt.toml"));
+        PublishSettings publish = publishSettingsReader.read(root.resolve("zolt.toml"), config.repositoryCredentials());
         PublicationMetadata metadata = config.packageSettings().metadata();
         return PublishCentralReadiness.evaluate(
                 plan.versionKind(),
                 metadata,
                 hasClassifier(plan, "sources"),
                 hasClassifier(plan, "javadoc"),
-                signaturesConfigured(config));
-    }
-
-    private static boolean signaturesConfigured(ProjectConfig config) {
-        // Wired to real signing configuration when GPG signing is available.
-        return false;
+                publish.signing().enabled());
     }
 
     private static boolean hasClassifier(PublishDryRunPlan plan, String classifier) {

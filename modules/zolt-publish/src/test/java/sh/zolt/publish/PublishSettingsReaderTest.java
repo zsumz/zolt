@@ -30,6 +30,38 @@ final class PublishSettingsReaderTest {
         assertEquals("", settings.snapshotRepository());
         assertEquals(List.of("main"), settings.artifacts());
         assertEquals(Map.of(), settings.repositories());
+        assertFalse(settings.signing().enabled());
+    }
+
+    @Test
+    void parsesSigningSettings() {
+        PublishSettings settings = reader.read("""
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+
+                [publish.signing]
+                enabled = true
+                keyId = "ABCDEF0123456789"
+                passphraseEnv = "ZOLT_SIGNING_PASSPHRASE"
+                """, Map.of());
+
+        assertTrue(settings.signing().enabled());
+        assertEquals(Optional.of("ABCDEF0123456789"), settings.signing().keyId());
+        assertEquals(Optional.of("ZOLT_SIGNING_PASSPHRASE"), settings.signing().passphraseEnv());
+    }
+
+    @Test
+    void rejectsUnknownSigningKeys() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> reader.read("""
+                [publish.signing]
+                enabled = true
+                secret = "leak"
+                """, Map.of()));
+
+        assertTrue(exception.getMessage().contains("Unknown key `secret` in [publish.signing] in zolt.toml."));
     }
 
     @Test
