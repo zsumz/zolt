@@ -153,17 +153,33 @@ final class ProjectValueObjectsTest {
 
     @Test
     void repositoryCredentialsRequireActionableEnvironmentFields() {
-        RepositoryCredentialSettings settings = new RepositoryCredentialSettings(
+        RepositoryCredentialSettings settings = RepositoryCredentialSettings.basic(
                 "internal", "INTERNAL_USER", "INTERNAL_PASSWORD");
 
         assertEquals("internal", settings.id());
-        assertEquals("INTERNAL_USER", settings.usernameEnv());
-        assertEquals("INTERNAL_PASSWORD", settings.passwordEnv());
+        assertEquals("INTERNAL_USER", settings.usernameEnv().orElseThrow());
+        assertEquals("INTERNAL_PASSWORD", settings.passwordEnv().orElseThrow());
 
-        IllegalArgumentException exception = assertThrows(
+        RepositoryCredentialSettings tokenSettings = RepositoryCredentialSettings.token("internal", "INTERNAL_TOKEN");
+        assertEquals("INTERNAL_TOKEN", tokenSettings.tokenEnv().orElseThrow());
+
+        IllegalArgumentException missing = assertThrows(
                 IllegalArgumentException.class,
-                () -> new RepositoryCredentialSettings("internal", " ", "INTERNAL_PASSWORD"));
-        assertEquals("Repository credential usernameEnv must be non-empty.", exception.getMessage());
+                () -> RepositoryCredentialSettings.basic("internal", " ", "INTERNAL_PASSWORD"));
+        assertEquals(
+                "Repository credential `internal` must set either tokenEnv or both usernameEnv and passwordEnv.",
+                missing.getMessage());
+
+        IllegalArgumentException conflict = assertThrows(
+                IllegalArgumentException.class,
+                () -> new RepositoryCredentialSettings(
+                        "internal",
+                        Optional.of("INTERNAL_USER"),
+                        Optional.of("INTERNAL_PASSWORD"),
+                        Optional.of("INTERNAL_TOKEN")));
+        assertEquals(
+                "Repository credential `internal` cannot combine tokenEnv with usernameEnv or passwordEnv.",
+                conflict.getMessage());
     }
 
     @Test
