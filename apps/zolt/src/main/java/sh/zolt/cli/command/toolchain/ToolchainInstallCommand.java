@@ -2,6 +2,7 @@ package sh.zolt.cli.command.toolchain;
 
 import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.command.CommandFailures;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.config.UserGlobalConfigException;
 import sh.zolt.error.ActionableException;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
@@ -63,11 +64,15 @@ public final class ToolchainInstallCommand implements Runnable {
         private CommandSpec spec;
 
         public JavaCommand() {
-            this(new ToolchainSyncService());
+            this(null);
         }
 
         JavaCommand(ToolchainSyncService syncService) {
             this.syncService = syncService;
+        }
+
+        private ToolchainSyncService syncService() {
+            return syncService != null ? syncService : CommandNetwork.toolchainSyncService(configPath);
         }
 
         @Override
@@ -81,7 +86,7 @@ public final class ToolchainInstallCommand implements Runnable {
                         policy,
                         "the Java toolchain",
                         "Java toolchain");
-                ToolchainSyncResult result = syncService.sync(
+                ToolchainSyncResult result = syncService().sync(
                         request,
                         GlobalToolchainPaths.lockfile(configPath),
                         HostPlatform.parse(target),

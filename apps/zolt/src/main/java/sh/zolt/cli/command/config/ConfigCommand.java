@@ -97,6 +97,14 @@ public final class ConfigCommand implements Runnable {
                     javaToolchain(config) + " (source: " + config.sources().javaToolchainDefault() + ")");
             output.context("ui.color", config.ui().color() + " (source: " + config.sources().uiColor() + ")");
             output.context("ui.progress", config.ui().progress() + " (source: " + config.sources().uiProgress() + ")");
+            output.context(
+                    "network.caBundle",
+                    config.network().caBundle().map(Path::toString).orElse("none")
+                            + " (source: " + config.sources().networkCaBundle() + ")");
+            output.context(
+                    "network.toolchainMirror",
+                    config.network().toolchainMirror().orElse("none")
+                            + " (source: " + config.sources().networkToolchainMirror() + ")");
             output.context("local overlay CI policy", "reject with --no-local-overlays or zolt check --context ci");
             output.context(
                     "redaction",

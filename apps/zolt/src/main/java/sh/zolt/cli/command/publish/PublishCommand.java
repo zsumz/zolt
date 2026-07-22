@@ -6,6 +6,7 @@ import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.console.ProgressWriter;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.publish.PublishContext;
 import sh.zolt.publish.PublishDryRunFormatter;
 import sh.zolt.publish.PublishDryRunPlan;
@@ -45,7 +46,10 @@ public final class PublishCommand implements Callable<Integer> {
     private CommandSpec spec;
 
     public PublishCommand() {
-        this(new PublishDryRunService(), new PublishReleasePolicyService(), new PublishUploadService());
+        this(
+                new PublishDryRunService(),
+                new PublishReleasePolicyService(),
+                new PublishUploadService(CommandNetwork.repositoryClient()));
     }
 
     PublishCommand(

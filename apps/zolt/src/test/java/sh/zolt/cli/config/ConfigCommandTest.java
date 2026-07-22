@@ -89,6 +89,28 @@ final class ConfigCommandTest {
     }
 
     @Test
+    void configShowPrintsNetworkSettings() throws IOException {
+        Path configPath = tempDir.resolve("config.toml");
+        Files.writeString(configPath, """
+                version = 1
+
+                [network]
+                caBundle = "corp-ca.pem"
+                toolchainMirror = "https://nexus.example.com/github"
+                """);
+
+        CommandResult result = execute("config", "show", "--config", configPath.toString());
+
+        assertEquals(0, result.exitCode());
+        assertTrue(result.stdout().contains(
+                "network.caBundle: "
+                        + tempDir.resolve("corp-ca.pem").toAbsolutePath().normalize()
+                        + " (source: user global config)"));
+        assertTrue(result.stdout().contains(
+                "network.toolchainMirror: https://nexus.example.com/github (source: user global config)"));
+    }
+
+    @Test
     void configShowRejectsSemanticSectionsWithoutLeakingRepositoryUrl() throws IOException {
         Path configPath = tempDir.resolve("bad-config.toml");
         Files.writeString(configPath, """

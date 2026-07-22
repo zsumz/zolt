@@ -11,6 +11,7 @@ import sh.zolt.build.testruntime.TestRunService;
 import sh.zolt.doctor.JdkChecker;
 import sh.zolt.cli.command.CommandServiceBundles.*;
 import sh.zolt.cli.command.CommandServiceClusters.*;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.framework.FrameworkBuildAugmenter;
 import sh.zolt.framework.FrameworkPackageAugmenter;
 import sh.zolt.framework.FrameworkRunAugmenter;
@@ -40,7 +41,7 @@ public final class CommandFrameworkServices {
     private CommandFrameworkServices() {}
 
     static ResolveService resolveService() {
-        return new ResolveService(new QuarkusDependencyRequestPlanner());
+        return new ResolveService(new QuarkusDependencyRequestPlanner(), CommandNetwork.repositoryClient());
     }
 
     static BuildProvenanceSource provenanceSource() {

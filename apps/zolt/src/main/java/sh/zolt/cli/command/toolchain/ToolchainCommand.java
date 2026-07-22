@@ -4,6 +4,7 @@ import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.config.UserGlobalConfigException;
 import sh.zolt.config.UserGlobalConfigParser;
 import sh.zolt.project.ProjectConfig;
@@ -179,7 +180,7 @@ public final class ToolchainCommand implements Runnable {
         private CommandSpec spec;
 
         public SyncCommand() {
-            this(new ToolchainConfigReader(), new UserGlobalConfigParser(), new ToolchainSyncService());
+            this(new ToolchainConfigReader(), new UserGlobalConfigParser(), null);
         }
 
         SyncCommand(
@@ -189,6 +190,10 @@ public final class ToolchainCommand implements Runnable {
             this.toolchainConfigReader = toolchainConfigReader;
             this.globalConfigParser = globalConfigParser;
             this.syncService = syncService;
+        }
+
+        private ToolchainSyncService syncService() {
+            return syncService != null ? syncService : CommandNetwork.toolchainSyncService(globalConfigPath);
         }
 
         @Override
@@ -211,7 +216,7 @@ public final class ToolchainCommand implements Runnable {
                     .orElseThrow(() -> new ActionableException(
                             "Toolchain sync needs an explicit [toolchain.java] table.",
                             "Add [toolchain.java] with version, distribution, and features, then rerun `zolt toolchain sync`."));
-            return syncService.sync(
+            return syncService().sync(
                     request,
                     projectRoot.resolve("zolt.lock"),
                     HostPlatform.parse(target),
@@ -221,7 +226,7 @@ public final class ToolchainCommand implements Runnable {
         private ToolchainSyncResult syncGlobal() {
             JavaToolchainRequest request = GlobalToolchainCommand.globalRequest(
                     globalConfigParser.read(globalConfigPath));
-            return syncService.sync(
+            return syncService().sync(
                     request,
                     GlobalToolchainPaths.lockfile(globalConfigPath),
                     HostPlatform.parse(target),
