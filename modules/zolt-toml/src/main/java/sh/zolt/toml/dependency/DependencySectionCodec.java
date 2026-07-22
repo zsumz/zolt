@@ -149,7 +149,11 @@ public final class DependencySectionCodec {
                     throw new ZoltConfigException(
                             invalidDependencyDeclarationMessage(section, key, allowWorkspace));
                 }
-                TomlVersions.validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, section + "." + key, value);
+                // SNAPSHOT dependency versions parse here and are decided by the resolve-time
+                // SnapshotAllowance; ranges, dynamic selectors, interpolation, and incomplete
+                // literals stay rejected at parse time in every dependency section.
+                TomlVersions.validateVersion(
+                        VersionPolicy.Context.EXTERNAL_DEPENDENCY, section + "." + key, value, true);
                 versioned.put(key, value);
                 continue;
             }
@@ -200,7 +204,8 @@ public final class DependencySectionCodec {
                             dependencyTable,
                             section + "." + key,
                             VersionPolicy.Context.EXTERNAL_DEPENDENCY,
-                            versionAliases)
+                            versionAliases,
+                            true)
                             .orElseThrow();
                     if (rawVersionRef instanceof String alias) {
                         versionRef = alias;

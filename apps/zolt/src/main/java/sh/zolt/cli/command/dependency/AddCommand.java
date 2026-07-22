@@ -143,10 +143,14 @@ public final class AddCommand implements Runnable {
         }
         String version = coordinate.version().orElseThrow(() -> new AddCommandException(
                 "Dependency coordinate must include a version. Use `group:artifact:version` or add `--managed` when a declared platform should provide the version."));
+        // A SNAPSHOT dependency is written to zolt.toml and left for the resolve-time SnapshotAllowance
+        // to accept (workspace member or maven-local overlay) or reject; ranges, dynamic selectors,
+        // interpolation, and incomplete literals stay rejected here.
         DependencyEditCommands.validateCommandVersion(
                 VersionPolicy.Context.EXTERNAL_DEPENDENCY,
                 "dependency",
                 version,
+                true,
                 AddCommandException::new);
         return new AddRequest(section, coordinate.groupId() + ":" + coordinate.artifactId(), version, false, null);
     }

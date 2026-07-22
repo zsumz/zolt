@@ -217,7 +217,16 @@ final class DependencyEditCommands {
             String subject,
             String version,
             Function<String, T> exceptionFactory) {
-        VersionPolicy.violation(context, version).ifPresent(violation -> {
+        validateCommandVersion(context, subject, version, false, exceptionFactory);
+    }
+
+    static <T extends RuntimeException> void validateCommandVersion(
+            VersionPolicy.Context context,
+            String subject,
+            String version,
+            boolean snapshotPermitted,
+            Function<String, T> exceptionFactory) {
+        VersionPolicy.violation(context, version, snapshotPermitted).ifPresent(violation -> {
             throw exceptionFactory.apply(
                     "Invalid "
                             + context.description()

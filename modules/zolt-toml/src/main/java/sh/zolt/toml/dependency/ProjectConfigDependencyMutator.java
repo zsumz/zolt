@@ -17,7 +17,7 @@ public final class ProjectConfigDependencyMutator {
             DependencySection section,
             String coordinate,
             String version) {
-        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version);
+        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version, true);
         ProjectConfigDependencyState state = ProjectConfigDependencyState.from(config);
         state = productionSection(section)
                 ? state.removeProductionDependency(coordinate)
@@ -31,7 +31,7 @@ public final class ProjectConfigDependencyMutator {
             String coordinate,
             String versionRef,
             String version) {
-        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version);
+        validateVersion(VersionPolicy.Context.EXTERNAL_DEPENDENCY, coordinate, version, true);
         ProjectConfig updated = addDependency(config, section, coordinate, version);
         String sectionName = sectionName(section);
         DependencyMetadata existing = config.dependencyMetadata()
@@ -127,7 +127,15 @@ public final class ProjectConfigDependencyMutator {
             VersionPolicy.Context context,
             String coordinate,
             String version) {
-        VersionPolicy.violation(context, version).ifPresent(violation -> {
+        validateVersion(context, coordinate, version, false);
+    }
+
+    private static void validateVersion(
+            VersionPolicy.Context context,
+            String coordinate,
+            String version,
+            boolean snapshotPermitted) {
+        VersionPolicy.violation(context, version, snapshotPermitted).ifPresent(violation -> {
             throw new IllegalArgumentException(
                     "Invalid "
                             + context.description()

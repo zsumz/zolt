@@ -38,15 +38,17 @@ final class AddCommandValidationTest {
         Path projectDir = tempDir.resolve("demo");
         writeProjectConfig(projectDir);
 
+        // A SNAPSHOT now writes and defers to resolve (see AddCommandSnapshotTest); a version range is
+        // still rejected up front at the add command.
         CommandResult result = execute(
                 "add",
                 "--cwd", projectDir.toString(),
                 "--no-resolve",
-                "com.example:legacy-api:1.0-SNAPSHOT");
+                "com.example:legacy-api:[1.0,2.0)");
 
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains(
-                "Invalid external dependency version `1.0-SNAPSHOT` for dependency. SNAPSHOT versions are not supported in this context"));
+                "Invalid external dependency version `[1.0,2.0)` for dependency. Version ranges are not supported"));
         String config = Files.readString(projectDir.resolve("zolt.toml"));
         assertFalse(config.contains("legacy-api"));
     }

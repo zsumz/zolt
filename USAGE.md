@@ -279,18 +279,27 @@ ambient or historically shaped:
 
 ### SNAPSHOT dependencies
 
-`-SNAPSHOT` dependency versions are rejected by default because a moving
-version breaks the reproducibility that `zolt.lock` promises. Two narrow
-exceptions are allowed because they name artifacts that already exist on this
-machine rather than a remote moving target: workspace-member coordinates a
-sibling depends on with `{ workspace = "path" }` (built from source and locked
-with `source = "workspace"`), and artifacts present in an enabled maven-local
-repository overlay (`zolt resolve --repository-overlay maven-local`), which are
-SHA-256 pinned in `zolt.lock` with `source = "local-overlay:maven-local"` just
-like any materialized artifact. Everything else — remote SNAPSHOT feeds,
+A directly declared `-SNAPSHOT` dependency version — in `[dependencies]` and
+every other dependency section, including `runtime`/`provided`/`dev`/`test`
+dependencies and `annotationProcessors` — parses in `zolt.toml` and is decided
+at resolve time rather than rejected while parsing, so the resolve layer is the
+single authority on whether a SNAPSHOT is supported (`zolt add
+group:artifact:1.0-SNAPSHOT` writes the declaration and lets resolve decide).
+SNAPSHOTs are rejected by default because a moving version breaks the
+reproducibility that `zolt.lock` promises. Two narrow exceptions are allowed
+because they name artifacts that already exist on this machine rather than a
+remote moving target: workspace-member coordinates a sibling depends on with
+`{ workspace = "path" }` (built from source and locked with `source =
+"workspace"`), and artifacts present in an enabled maven-local repository
+overlay (`zolt resolve --repository-overlay maven-local`), which are SHA-256
+pinned in `zolt.lock` with `source = "local-overlay:maven-local"` just like any
+materialized artifact. Everything else — remote SNAPSHOT feeds,
 `maven-metadata.xml`, and timestamped-snapshot resolution — stays unsupported by
 design; a SNAPSHOT that is neither a workspace member nor present in an enabled
-overlay is rejected with guidance rather than fetched from the network.
+overlay is rejected at resolve time with guidance (from `zolt resolve`, `zolt
+resolve --locked`, and `zolt explain verify`) rather than fetched from the
+network. `[platforms]` and `[dependencyConstraints]` continue to reject
+SNAPSHOTs while parsing.
 
 ## Java Toolchains
 
@@ -665,6 +674,13 @@ zolt explain verify --zolt-dir target/zolt-draft --format json
 - `--zolt-dir <path>` selects the Zolt project/workspace to resolve (default: the Maven
   project root when it has a `zolt.toml`). `--offline` resolves the Zolt side from the
   local cache only.
+- `--repository-overlay maven-local` resolves the Zolt side through a user-local maven
+  repository overlay, mirroring `zolt resolve --repository-overlay` — needed to verify
+  overlay-backed projects, including directly declared `-SNAPSHOT` dependencies that
+  resolve only from the overlay.
+- Workspace members resolve with the workspace-root `[repositories]` and `[platforms]`
+  merged in, matching `zolt resolve --workspace`, so shared root configuration is not
+  reported as drift.
 - Exit code is `0` when the resolved sets are identical across every module and scope,
   and non-zero when any module is one-sided or any scope shows drift or a one-sided
   artifact — so it can gate a migration in CI. `--format json` emits a stable schema

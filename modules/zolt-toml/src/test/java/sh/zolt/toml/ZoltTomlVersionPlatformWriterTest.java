@@ -22,18 +22,23 @@ final class ZoltTomlVersionPlatformWriterTest {
     void mutationHelpersRejectUnsupportedLiteralVersions() {
         ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main");
 
+        // A SNAPSHOT dependency version is written and left for the resolve-time SnapshotAllowance.
+        ProjectConfig withSnapshot = writer.addDependency(
+                config, DependencySection.MAIN, "com.example:legacy-api", "1.0-SNAPSHOT");
+        assertEquals("1.0-SNAPSHOT", withSnapshot.dependencies().get("com.example:legacy-api"));
+
         IllegalArgumentException dependency = assertThrows(
                 IllegalArgumentException.class,
                 () -> writer.addDependency(
                         config,
                         DependencySection.MAIN,
                         "com.example:legacy-api",
-                        "1.0-SNAPSHOT"));
+                        "[1.0,2.0)"));
         IllegalArgumentException platform = assertThrows(
                 IllegalArgumentException.class,
                 () -> writer.addPlatform(config, "com.example:platform", "LATEST"));
 
-        assertTrue(dependency.getMessage().contains("Invalid external dependency version `1.0-SNAPSHOT`"));
+        assertTrue(dependency.getMessage().contains("Invalid external dependency version `[1.0,2.0)`"));
         assertTrue(platform.getMessage().contains("Invalid platform version `LATEST`"));
     }
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.project.ProjectConfig;
 import org.junit.jupiter.api.Test;
 
 final class ZoltTomlPlatformsVersionsParserValidationTest {
@@ -73,7 +74,7 @@ final class ZoltTomlPlatformsVersionsParserValidationTest {
 
     @Test
     void rejectsUnsupportedLiteralDependencyVersions() {
-        for (String version : java.util.List.of("[1.0,2.0)", "1.+", "LATEST", "RELEASE", "1.0-SNAPSHOT", "1.0.", "$libVersion")) {
+        for (String version : java.util.List.of("[1.0,2.0)", "1.+", "LATEST", "RELEASE", "1.0.", "$libVersion")) {
             ZoltConfigException exception = assertThrows(
                     ZoltConfigException.class,
                     () -> parser.parse("""
@@ -89,6 +90,54 @@ final class ZoltTomlPlatformsVersionsParserValidationTest {
 
             assertTrue(exception.getMessage().contains("Invalid external dependency version `" + version + "`"));
             assertTrue(exception.getMessage().contains("[dependencies.com.example:lib]"));
+        }
+    }
+
+    @Test
+    void parsesSnapshotDependencyVersionsAndDefersDecisionToResolve() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "versions"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:lib" = "1.0.0-SNAPSHOT"
+                "com.example:inline" = { version = "2.0.0-SNAPSHOT" }
+
+                [test.dependencies]
+                "com.example:test-lib" = "3.0.0-SNAPSHOT"
+
+                [annotationProcessors]
+                "com.example:proc" = "4.0.0-SNAPSHOT"
+                """);
+
+        assertEquals("1.0.0-SNAPSHOT", config.dependencies().get("com.example:lib"));
+        assertEquals("2.0.0-SNAPSHOT", config.dependencies().get("com.example:inline"));
+        assertEquals("3.0.0-SNAPSHOT", config.testDependencies().get("com.example:test-lib"));
+        assertEquals("4.0.0-SNAPSHOT", config.annotationProcessors().get("com.example:proc"));
+    }
+
+    @Test
+    void snapshotPermissionDoesNotBypassInterpolationOrIncompleteRulesAtParseTime() {
+        // A SNAPSHOT that is also interpolated or incomplete must still fail at parse time; only the
+        // plain SNAPSHOT rule is deferred to resolve.
+        for (String version : java.util.List.of("${guava}-SNAPSHOT", "1.0-SNAPSHOT.")) {
+            ZoltConfigException exception = assertThrows(
+                    ZoltConfigException.class,
+                    () -> parser.parse("""
+                            [project]
+                            name = "versions"
+                            version = "0.1.0"
+                            group = "com.example"
+                            java = "21"
+
+                            [dependencies]
+                            "com.example:lib" = "%s"
+                            """.formatted(version)));
+
+            assertTrue(exception.getMessage().contains("Invalid external dependency version `" + version + "`"));
         }
     }
 

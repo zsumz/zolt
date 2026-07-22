@@ -17,6 +17,15 @@ public final class TomlVersions {
             String section,
             VersionPolicy.Context versionContext,
             Map<String, String> versionAliases) {
+        return optionalVersionOrRef(table, section, versionContext, versionAliases, false);
+    }
+
+    public static Optional<String> optionalVersionOrRef(
+            TomlTable table,
+            String section,
+            VersionPolicy.Context versionContext,
+            Map<String, String> versionAliases,
+            boolean snapshotPermitted) {
         Object rawVersion = table.get(List.of("version"));
         Object rawVersionRef = table.get(List.of("versionRef"));
         if (rawVersion != null && rawVersionRef != null) {
@@ -27,7 +36,7 @@ public final class TomlVersions {
             return Optional.empty();
         }
         if (rawVersion instanceof String version && !version.isBlank()) {
-            validateVersion(versionContext, section, version);
+            validateVersion(versionContext, section, version, snapshotPermitted);
             return Optional.of(version);
         }
         if (rawVersion != null) {
@@ -77,7 +86,22 @@ public final class TomlVersions {
             VersionPolicy.Context context,
             String subject,
             String version) {
-        VersionPolicy.violation(context, version).ifPresent(violation -> {
+        validateVersion(context, subject, version, false);
+    }
+
+    /**
+     * Same as {@link #validateVersion(VersionPolicy.Context, String, String)}, but when
+     * {@code snapshotPermitted} is {@code true} a {@code -SNAPSHOT} version parses and is left for the
+     * resolve layer to accept or reject; every other version rule (ranges, dynamic selectors,
+     * interpolation, incomplete literals) still applies. Dependency sections pass {@code true} so a
+     * directly declared SNAPSHOT reaches {@code SnapshotAllowance}, the single resolve-time decider.
+     */
+    public static void validateVersion(
+            VersionPolicy.Context context,
+            String subject,
+            String version,
+            boolean snapshotPermitted) {
+        VersionPolicy.violation(context, version, snapshotPermitted).ifPresent(violation -> {
             throw new ZoltConfigException(sh.zolt.error.ActionableError.of(
                     "Invalid "
                             + context.description()
