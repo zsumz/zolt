@@ -173,7 +173,7 @@ final class PublishCommandCentralReadinessTest {
     }
 
     @Test
-    void centralFlagWithoutDryRunIsRejected() throws IOException {
+    void centralUploadWithoutPublishConfigurationReportsActionableError() throws IOException {
         Path projectDir = tempDir.resolve("central-guard");
         Files.createDirectories(projectDir);
         Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("central-guard"));
@@ -181,8 +181,6 @@ final class PublishCommandCentralReadinessTest {
         CommandResult result = execute("publish", "--central", "--cwd", projectDir.toString());
 
         assertEquals(1, result.exitCode());
-        assertTrue(
-                result.stderr().contains("error: Maven Central readiness check is currently supported only with --dry-run."),
-                result.stderr());
+        assertTrue(result.stderr().contains("error: No [publish] configuration found."), result.stderr());
     }
 }

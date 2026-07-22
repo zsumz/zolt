@@ -109,6 +109,15 @@ public final class PublishDryRunService {
     }
 
     public PublishDryRunPlan plan(Path projectRoot) {
+        return plan(projectRoot, true);
+    }
+
+    /**
+     * Plans a publish. When {@code requireRepository} is false (used for Maven Central publishing,
+     * where the Portal is the target rather than a Maven repository), a repository need not be
+     * configured; if none is, the plan reports {@code maven-central} as the routing target.
+     */
+    public PublishDryRunPlan plan(Path projectRoot, boolean requireRepository) {
         Path root = projectRoot.toAbsolutePath().normalize();
         ProjectConfig config = projectParser.parse(root.resolve("zolt.toml"));
         PublishSettings publish = publishSettingsReader.read(root.resolve("zolt.toml"), config.repositoryCredentials());
@@ -120,24 +129,31 @@ public final class PublishDryRunService {
         String repositoryId = versionKind.equals("snapshot")
                 ? publish.snapshotRepository()
                 : publish.releaseRepository();
-        if (repositoryId.isBlank()) {
-            throw new PublishException("Project version `"
-                    + config.project().version()
-                    + "` requires [publish]."
-                    + (versionKind.equals("snapshot") ? "snapshotRepository" : "releaseRepository")
-                    + " for `zolt publish --dry-run`.");
-        }
-        PublishRepositorySettings repository = publish.repositories().get(repositoryId);
-        if (repository == null) {
-            throw new PublishException("Publish repository `" + repositoryId + "` is not defined.");
-        }
         List<String> blockers = new ArrayList<>();
-        if (hasEmbeddedCredentials(repository.url())) {
-            blockers.add("publish repository `"
-                    + repository.id()
-                    + "` URL contains embedded credentials. Move credentials to [repositoryCredentials] environment references.");
+        PublishRepositorySettings repository = null;
+        if (requireRepository || !repositoryId.isBlank()) {
+            if (repositoryId.isBlank()) {
+                throw new PublishException("Project version `"
+                        + config.project().version()
+                        + "` requires [publish]."
+                        + (versionKind.equals("snapshot") ? "snapshotRepository" : "releaseRepository")
+                        + " for `zolt publish --dry-run`.");
+            }
+            repository = publish.repositories().get(repositoryId);
+            if (repository == null) {
+                throw new PublishException("Publish repository `" + repositoryId + "` is not defined.");
+            }
+            if (hasEmbeddedCredentials(repository.url())) {
+                blockers.add("publish repository `"
+                        + repository.id()
+                        + "` URL contains embedded credentials. Move credentials to [repositoryCredentials] environment references.");
+            }
+            blockers.addAll(credentialBlockers(repository, config.repositoryCredentials()));
         }
-        blockers.addAll(credentialBlockers(repository, config.repositoryCredentials()));
+        String displayRepositoryId = repository != null ? repository.id() : "maven-central";
+        String displayRepositoryUrl = repository != null
+                ? redactedRepositoryUrl(repository.url())
+                : PublishCentralSettings.DEFAULT_BASE_URL;
 
         ZoltLockfile lockfile = lockfile(root);
         PackagePlan packagePlan = packagePlan(root, config);
@@ -160,7 +176,7 @@ public final class PublishDryRunService {
                 artifactPath,
                 evidencePath,
                 blockers);
-        List<PublishChecksumSidecar> checksumSidecars = checksumSidecars(
+        List<PublishChecksumSidecar> checksumSidecars = PublishChecksumSidecarPlanner.plan(
                 root,
                 artifactPath,
                 artifactUploadPath,
@@ -171,8 +187,8 @@ public final class PublishDryRunService {
         return new PublishDryRunPlan(
                 config.project().group() + ":" + config.project().name() + ":" + config.project().version(),
                 versionKind,
-                repository.id(),
-                redactedRepositoryUrl(repository.url()),
+                displayRepositoryId,
+                displayRepositoryUrl,
                 artifactId,
                 PublishDryRunArtifactEvidencePlanner.display(root, artifactPath),
                 artifactEvidence.artifactSha256(),
@@ -185,43 +201,6 @@ public final class PublishDryRunService {
                 checksumSidecars,
                 "",
                 blockers);
-    }
-
-    private static List<PublishChecksumSidecar> checksumSidecars(
-            Path root,
-            Path artifactPath,
-            String artifactUploadPath,
-            List<PublishArtifactPlan> supplementalArtifacts,
-            Path pomPath,
-            String pomUploadPath) {
-        List<PublishChecksumSidecar> sidecars = new ArrayList<>();
-        addSidecars(sidecars, "artifact", artifactPath, artifactUploadPath);
-        for (PublishArtifactPlan supplemental : supplementalArtifacts) {
-            addSidecars(
-                    sidecars,
-                    supplemental.id(),
-                    root.resolve(supplemental.path()).normalize(),
-                    supplemental.uploadPath());
-        }
-        addSidecars(sidecars, "pom", pomPath, pomUploadPath);
-        return List.copyOf(sidecars);
-    }
-
-    private static void addSidecars(
-            List<PublishChecksumSidecar> sidecars,
-            String subject,
-            Path file,
-            String uploadPath) {
-        if (!Files.isRegularFile(file)) {
-            return;
-        }
-        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(file)) {
-            sidecars.add(new PublishChecksumSidecar(
-                    subject,
-                    sidecar.extension(),
-                    uploadPath + "." + sidecar.extension(),
-                    sidecar.value()));
-        }
     }
 
     private static Coordinate coordinate(ProjectConfig config) {

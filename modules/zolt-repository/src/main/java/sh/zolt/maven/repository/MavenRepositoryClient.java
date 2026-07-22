@@ -163,7 +163,7 @@ public final class MavenRepositoryClient {
             } catch (IOException exception) {
                 lastIoException = exception;
                 if (!hasAttemptsRemaining(attempt)) {
-                    throw downloadException(coordinate.toString(), artifactUri, attempt, exception);
+                    throw RepositoryTransferErrors.download(coordinate.toString(), artifactUri, attempt, exception);
                 }
                 sleepBeforeRetry(coordinate.toString(), artifactUri, attempt);
                 continue;
@@ -186,12 +186,12 @@ public final class MavenRepositoryClient {
                 return new RepositoryArtifact(coordinate, path, artifactUri, response.body());
             }
             if (!transientStatus(response.statusCode()) || !hasAttemptsRemaining(attempt)) {
-                throw statusException(coordinate.toString(), artifactUri, response.statusCode(), attempt);
+                throw RepositoryTransferErrors.status(coordinate.toString(), artifactUri, response.statusCode(), attempt);
             }
             sleepBeforeRetry(coordinate.toString(), artifactUri, attempt);
         }
 
-        throw downloadException(coordinate.toString(), artifactUri, httpPolicy.maxAttempts(), lastIoException);
+        throw RepositoryTransferErrors.download(coordinate.toString(), artifactUri, httpPolicy.maxAttempts(), lastIoException);
     }
 
     private void upload(
@@ -232,7 +232,7 @@ public final class MavenRepositoryClient {
             } catch (IOException exception) {
                 lastIoException = exception;
                 if (!hasAttemptsRemaining(attempt)) {
-                    throw uploadException(subject, artifactUri, attempt, exception);
+                    throw RepositoryTransferErrors.upload(subject, artifactUri, attempt, exception);
                 }
                 sleepBeforeRetry("uploading", subject, artifactUri, attempt);
                 continue;
@@ -251,12 +251,12 @@ public final class MavenRepositoryClient {
                 return;
             }
             if (!transientStatus(response.statusCode()) || !hasAttemptsRemaining(attempt)) {
-                throw statusException("uploading", subject, artifactUri, response.statusCode(), attempt);
+                throw RepositoryTransferErrors.status("uploading", subject, artifactUri, response.statusCode(), attempt);
             }
             sleepBeforeRetry("uploading", subject, artifactUri, attempt);
         }
 
-        throw uploadException(subject, artifactUri, httpPolicy.maxAttempts(), lastIoException);
+        throw RepositoryTransferErrors.upload(subject, artifactUri, httpPolicy.maxAttempts(), lastIoException);
     }
 
     private boolean hasAttemptsRemaining(int attempt) {
@@ -265,70 +265,6 @@ public final class MavenRepositoryClient {
 
     private static boolean transientStatus(int statusCode) {
         return statusCode == 429 || (statusCode >= 500 && statusCode <= 599);
-    }
-
-    private RepositoryClientException statusException(
-            String subject,
-            URI artifactUri,
-            int statusCode,
-            int attempts) {
-        return statusException("fetching", subject, artifactUri, statusCode, attempts);
-    }
-
-    private RepositoryClientException statusException(
-            String operation,
-            String subject,
-            URI artifactUri,
-            int statusCode,
-            int attempts) {
-        return new RepositoryClientException(
-                "Repository returned HTTP "
-                        + statusCode
-                        + " while "
-                        + operation
-                        + " "
-                        + subject
-                        + " at "
-                        + diagnosticUri(artifactUri)
-                        + attemptsMessage(attempts)
-                        + ". Try again or check the repository URL.");
-    }
-
-    private static RepositoryClientException downloadException(
-            String subject,
-            URI artifactUri,
-            int attempts,
-            IOException cause) {
-        return new RepositoryClientException(
-                "Could not download "
-                        + subject
-                        + " from "
-                        + diagnosticUri(artifactUri)
-                        + attemptsMessage(attempts)
-                        + ". Check your network, proxy, or repository URL and try again.",
-                        cause);
-    }
-
-    private static RepositoryClientException uploadException(
-            String subject,
-            URI artifactUri,
-            int attempts,
-            IOException cause) {
-        return new RepositoryClientException(
-                "Could not upload "
-                        + subject
-                        + " to "
-                        + diagnosticUri(artifactUri)
-                        + attemptsMessage(attempts)
-                        + ". Check your network, proxy, repository URL, and publish permissions, then try again.",
-                cause);
-    }
-
-    private static String attemptsMessage(int attempts) {
-        if (attempts <= 1) {
-            return "";
-        }
-        return " after " + attempts + " attempts";
     }
 
     private void sleepBeforeRetry(String subject, URI artifactUri, int attempt) {

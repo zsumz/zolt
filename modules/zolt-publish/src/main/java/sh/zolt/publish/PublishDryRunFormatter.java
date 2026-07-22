@@ -6,6 +6,16 @@ public final class PublishDryRunFormatter {
     private PublishDryRunFormatter() {
     }
 
+    /** Renders the assembled Central bundle summary for {@code publish --dry-run --central}. */
+    public static String centralBundle(String bundlePath, List<String> entries) {
+        StringBuilder output = new StringBuilder("Central bundle: ").append(bundlePath).append('\n');
+        output.append("Bundle entries: ").append(entries.size()).append('\n');
+        for (String entry : entries) {
+            output.append("- ").append(entry).append('\n');
+        }
+        return output.toString();
+    }
+
     /** Renders the Maven Central readiness checklist appended to {@code publish --dry-run --central}. */
     public static String centralReadiness(List<PublishCentralRequirement> requirements) {
         StringBuilder output = new StringBuilder("Maven Central readiness:\n");

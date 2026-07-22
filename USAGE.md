@@ -227,6 +227,25 @@ keyId = "3AB1C2D3E4F5A6B7"
 passphraseEnv = "ZOLT_SIGNING_PASSPHRASE"
 ```
 
+To publish to Maven Central through the Sonatype Central Portal, configure
+`[publish.central]`. `tokenEnv` names an environment variable holding the base64
+`user:password` Portal user token (sent as `Authorization: Bearer <token>`);
+`publishingType` is `user-managed` (validate and wait for a manual publish) or
+`automatic` (publish once validated); `baseUrl` may point at an enterprise mirror:
+
+```toml
+[publish.central]
+tokenEnv = "ZOLT_CENTRAL_TOKEN"
+publishingType = "automatic"
+```
+
+`zolt publish --central` assembles a bundle in Maven repository layout — every
+artifact and the POM with checksums and GPG signatures — uploads it to the
+Portal, and reports the deployment id and status. It blocks unless every Maven
+Central readiness requirement is satisfied. `zolt publish --dry-run --central`
+assembles and lists the bundle locally and runs the readiness check without any
+network access.
+
 Migration and integration commands:
 
 ```sh

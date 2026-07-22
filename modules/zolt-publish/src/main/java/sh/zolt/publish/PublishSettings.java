@@ -9,7 +9,8 @@ public record PublishSettings(
         String snapshotRepository,
         List<String> artifacts,
         Map<String, PublishRepositorySettings> repositories,
-        PublishSigningSettings signing) {
+        PublishSigningSettings signing,
+        PublishCentralSettings central) {
     public PublishSettings {
         releaseRepository = normalize(releaseRepository);
         snapshotRepository = normalize(snapshotRepository);
@@ -18,6 +19,7 @@ public record PublishSettings(
                 : List.copyOf(artifacts.stream().map(PublishSettings::normalizeArtifact).toList());
         repositories = repositories == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(repositories));
         signing = signing == null ? PublishSigningSettings.disabled() : signing;
+        central = central == null ? PublishCentralSettings.none() : central;
     }
 
     public PublishSettings(
@@ -25,11 +27,29 @@ public record PublishSettings(
             String snapshotRepository,
             List<String> artifacts,
             Map<String, PublishRepositorySettings> repositories) {
-        this(releaseRepository, snapshotRepository, artifacts, repositories, PublishSigningSettings.disabled());
+        this(
+                releaseRepository,
+                snapshotRepository,
+                artifacts,
+                repositories,
+                PublishSigningSettings.disabled(),
+                PublishCentralSettings.none());
+    }
+
+    public PublishSettings(
+            String releaseRepository,
+            String snapshotRepository,
+            List<String> artifacts,
+            Map<String, PublishRepositorySettings> repositories,
+            PublishSigningSettings signing) {
+        this(releaseRepository, snapshotRepository, artifacts, repositories, signing, PublishCentralSettings.none());
     }
 
     public boolean configured() {
-        return !releaseRepository.isBlank() || !snapshotRepository.isBlank() || !repositories.isEmpty();
+        return !releaseRepository.isBlank()
+                || !snapshotRepository.isBlank()
+                || !repositories.isEmpty()
+                || central.configured();
     }
 
     private static String normalize(String value) {

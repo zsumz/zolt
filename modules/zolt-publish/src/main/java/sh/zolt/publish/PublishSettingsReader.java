@@ -21,9 +21,12 @@ public final class PublishSettingsReader {
             "snapshotRepository",
             "artifacts",
             "repositories",
-            "signing");
+            "signing",
+            "central");
     private static final Set<String> PUBLISH_REPOSITORY_KEYS = Set.of("url", "credentials");
     private static final Set<String> PUBLISH_SIGNING_KEYS = Set.of("enabled", "keyId", "passphraseEnv");
+    private static final Set<String> PUBLISH_CENTRAL_KEYS =
+            Set.of("tokenEnv", "publishingType", "name", "baseUrl");
 
     public PublishSettings read(Path zoltToml, Map<String, RepositoryCredentialSettings> credentialSettings) {
         try {
@@ -54,7 +57,8 @@ public final class PublishSettingsReader {
                 optionalString(publishTable, "publish", "snapshotRepository"),
                 stringListOrDefault(publishTable, "publish", "artifacts", List.of("main")),
                 publishRepositories(optionalTable(publishTable, "repositories")),
-                parseSigning(optionalTable(publishTable, "signing")));
+                parseSigning(optionalTable(publishTable, "signing")),
+                parseCentral(optionalTable(publishTable, "central")));
         validatePublishRepositoryReference("releaseRepository", settings.releaseRepository(), settings);
         validatePublishRepositoryReference("snapshotRepository", settings.snapshotRepository(), settings);
         validatePublishCredentialReferences(settings, credentialSettings);
@@ -70,6 +74,25 @@ public final class PublishSettingsReader {
                 booleanOrDefault(table, "publish.signing", "enabled", false),
                 optionalStringValue(table, "publish.signing", "keyId"),
                 optionalStringValue(table, "publish.signing", "passphraseEnv"));
+    }
+
+    private static PublishCentralSettings parseCentral(TomlTable table) {
+        if (table == null) {
+            return PublishCentralSettings.none();
+        }
+        validateKeys("publish.central", table, PUBLISH_CENTRAL_KEYS);
+        String publishingType = optionalString(table, "publish.central", "publishingType");
+        CentralPublishingType type = publishingType.isBlank()
+                ? CentralPublishingType.USER_MANAGED
+                : CentralPublishingType.fromConfigValue(publishingType).orElseThrow(() -> new ZoltConfigException(
+                        "Invalid value for [publish.central].publishingType in zolt.toml. Use one of: "
+                                + CentralPublishingType.supportedValues() + "."));
+        return new PublishCentralSettings(
+                true,
+                optionalStringValue(table, "publish.central", "tokenEnv"),
+                type,
+                optionalStringValue(table, "publish.central", "name"),
+                optionalString(table, "publish.central", "baseUrl"));
     }
 
     private static boolean booleanOrDefault(TomlTable table, String section, String key, boolean defaultValue) {
