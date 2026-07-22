@@ -347,6 +347,112 @@ The shims are small wrapper scripts for `java`, `javac`, `jar`, `javadoc`,
 project toolchain still wins inside a Zolt project and the global default is
 used outside one. Zolt does not edit shell profiles automatically.
 
+## Enterprise Networks
+
+Zolt runs behind corporate proxies, TLS-intercepting firewalls, and internal
+mirrors. All of this is *transport* configuration: it changes how bytes are
+fetched, never what is resolved, so it never affects `zolt.lock` or build
+fingerprints. Machine-level settings live in `~/.zolt/config.toml` and
+environment variables, never in the committed `zolt.toml`.
+
+### HTTP(S) proxies
+
+Zolt honors the standard proxy environment variables for both artifact
+downloads and Java toolchain downloads:
+
+```sh
+export HTTPS_PROXY=http://proxy.corp.example:8080
+export HTTP_PROXY=http://proxy.corp.example:8080
+export NO_PROXY=.internal.example,localhost,127.0.0.1
+```
+
+Lowercase names (`https_proxy`, `http_proxy`, `no_proxy`) are also read and take
+precedence over the uppercase forms. Java's built-in HTTP client ignores these
+variables, so Zolt bridges them itself. The conventional Java system properties
+are honored as a fallback when the matching environment variable is unset:
+
+```sh
+zolt resolve -Dhttps.proxyHost=proxy.corp.example -Dhttps.proxyPort=8080 \
+  -Dhttp.nonProxyHosts='*.internal.example|localhost'
+```
+
+Precedence, per setting: environment variable first, then the Java system
+property. `NO_PROXY`/`no_proxy` (falling back to `http.nonProxyHosts`) supports
+exact hosts and domain-suffix matches — `example.com` and `.example.com` both
+match `example.com` and `repo.example.com` — and `*` bypasses the proxy for
+every host.
+
+### Custom CA trust
+
+To trust a corporate TLS-interception root (or any private CA), point Zolt at a
+PEM bundle of one or more certificates. Zolt *augments* the JDK default trust
+store with these anchors, so public TLS keeps working alongside the corporate
+root. Configure it in user-global config:
+
+```toml
+# ~/.zolt/config.toml
+version = 1
+
+[network]
+caBundle = "~/.zolt/corp-ca.pem"
+```
+
+or override per invocation with an environment variable, which wins over the
+config file:
+
+```sh
+export ZOLT_CA_BUNDLE=/etc/pki/tls/certs/corp-ca.pem
+```
+
+Machine-level trust belongs in user-global config or the environment, not in a
+project's `zolt.toml`.
+
+### Bearer / personal access token authentication
+
+Repository credentials are referenced by environment-variable *name* only;
+secret values are never stored in or read from config, and never written to
+`zolt.lock` or command output. Alongside HTTP Basic (`usernameEnv` +
+`passwordEnv`), a credential may use a bearer token / PAT via `tokenEnv`, which
+sends `Authorization: Bearer <token>` on both downloads and publish uploads:
+
+```toml
+# zolt.toml
+[repositories]
+company = { url = "https://nexus.example.com/repository/maven", credentials = "company" }
+
+[repositoryCredentials.company]
+tokenEnv = "COMPANY_ARTIFACT_TOKEN"
+```
+
+`tokenEnv` is mutually exclusive with `usernameEnv`/`passwordEnv`; setting both
+is a configuration error. Credentialed remote repositories must use HTTPS.
+
+### Java toolchain mirrors
+
+Zolt's bundled JDK catalog downloads from `github.com`. To route those downloads
+through an internal mirror, set a mirror base that replaces the `github.com`
+prefix. Configure it in user-global config:
+
+```toml
+# ~/.zolt/config.toml
+[network]
+toolchainMirror = "https://nexus.example.com/github"
+```
+
+or override with an environment variable, which wins over the config file:
+
+```sh
+export ZOLT_TOOLCHAIN_MIRROR=https://nexus.example.com/github
+```
+
+A GraalVM archive normally fetched from
+`https://github.com/graalvm/graalvm-ce-builds/releases/download/...` is then
+fetched from `https://nexus.example.com/github/graalvm/graalvm-ce-builds/...`.
+The pinned SHA-256 from the toolchain lock is still verified against the
+mirrored bytes, and the lock keeps the canonical upstream URL, so mirroring is
+transparent to reproducibility. When a toolchain download fails with a network
+error, the remediation names the proxy, CA, and mirror options above.
+
 ## Workspaces
 
 Workspace roots describe member projects and default selections:
