@@ -16,11 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.jar.JarFile;
+import java.util.regex.Pattern;
 
 public final class UberJarLayoutAssembler {
     private static final Set<String> LOCAL_BUILD_FINGERPRINTS = Set.of(
@@ -30,6 +30,7 @@ public final class UberJarLayoutAssembler {
             ".zolt-build-test.fingerprint.state",
             ".zolt-incremental-main.state",
             ".zolt-incremental-test.state");
+    private static final Pattern VERSIONED_ENTRY = Pattern.compile("META-INF/versions/[0-9]+/.+");
 
     private final ManifestGenerator manifestGenerator;
 
@@ -44,21 +45,19 @@ public final class UberJarLayoutAssembler {
             Path outputDirectory,
             Path jarPath,
             List<PackageRuntimeJar> runtimeJars) {
-        GeneratedManifest manifest = manifestGenerator.generate(projectDirectory, config);
-        Set<String> entries = new HashSet<>();
         int entryCount = 0;
         try {
+            boolean multiRelease = detectMultiReleaseContent(outputDirectory, runtimeJars);
+            GeneratedManifest manifest = manifestGenerator.generate(projectDirectory, config, multiRelease);
             Files.createDirectories(jarPath.getParent());
             List<PackageMergeDecision> mergeDecisions = new ArrayList<>();
             try (PackageArchiveWriter archive = PackageArchiveWriter.open(jarPath)) {
-                UberJarMergeAccumulator merges = new UberJarMergeAccumulator();
-                writeEntry(archive, entries, manifest.path(), manifest.content(), "generated manifest");
+                UberJarEntryWriter writer = new UberJarEntryWriter(
+                        archive, new UberJarMergeAccumulator(), config.packageSettings().uberDuplicates());
+                writer.writeEntry(manifest.path(), manifest.content(), "generated manifest");
                 entryCount++;
                 for (Path file : compiledFiles(outputDirectory)) {
-                    if (writeOrCollectEntry(
-                            archive,
-                            entries,
-                            merges,
+                    if (writer.writeOrCollectEntry(
                             entryName(outputDirectory, file),
                             Files.readAllBytes(file),
                             "application output")) {
@@ -66,10 +65,10 @@ public final class UberJarLayoutAssembler {
                     }
                 }
                 for (PackageRuntimeJar runtimeJar : runtimeJars) {
-                    entryCount += mergeRuntimeInput(archive, entries, merges, mergeDecisions, runtimeJar);
+                    entryCount += mergeRuntimeInput(writer, mergeDecisions, runtimeJar);
                 }
-                entryCount += merges.writeEntries(archive, entries);
-                mergeDecisions.addAll(merges.decisions());
+                entryCount += writer.writeMergedEntries();
+                mergeDecisions.addAll(writer.decisions());
             }
             return new PackageResult(
                     buildResult,
@@ -89,29 +88,22 @@ public final class UberJarLayoutAssembler {
     }
 
     private static int mergeRuntimeInput(
-            PackageArchiveWriter archive,
-            Set<String> entries,
-            UberJarMergeAccumulator merges,
+            UberJarEntryWriter writer,
             List<PackageMergeDecision> mergeDecisions,
             PackageRuntimeJar runtimeJar) throws IOException {
         if (Files.isDirectory(runtimeJar.jarPath())) {
-            return mergeRuntimeDirectory(archive, entries, merges, runtimeJar);
+            return mergeRuntimeDirectory(writer, runtimeJar);
         }
-        return mergeRuntimeJar(archive, entries, merges, mergeDecisions, runtimeJar);
+        return mergeRuntimeJar(writer, mergeDecisions, runtimeJar);
     }
 
     private static int mergeRuntimeDirectory(
-            PackageArchiveWriter archive,
-            Set<String> entries,
-            UberJarMergeAccumulator merges,
+            UberJarEntryWriter writer,
             PackageRuntimeJar runtimeJar) throws IOException {
         Path directory = runtimeJar.jarPath();
         int merged = 0;
         for (Path file : compiledFiles(directory)) {
-            if (writeOrCollectEntry(
-                    archive,
-                    entries,
-                    merges,
+            if (writer.writeOrCollectEntry(
                     entryName(directory, file),
                     Files.readAllBytes(file),
                     runtimeJar.packageId().toString())) {
@@ -122,9 +114,7 @@ public final class UberJarLayoutAssembler {
     }
 
     private static int mergeRuntimeJar(
-            PackageArchiveWriter archive,
-            Set<String> entries,
-            UberJarMergeAccumulator merges,
+            UberJarEntryWriter writer,
             List<PackageMergeDecision> mergeDecisions,
             PackageRuntimeJar runtimeJar) throws IOException {
         int merged = 0;
@@ -157,13 +147,7 @@ public final class UberJarLayoutAssembler {
                             java.util.Optional.of(entryName),
                             List.of(runtimeJar.packageId().toString())));
                 }
-                if (writeOrCollectEntry(
-                        archive,
-                        entries,
-                        merges,
-                        entryName,
-                        content,
-                        runtimeJar.packageId().toString())) {
+                if (writer.writeOrCollectEntry(entryName, content, runtimeJar.packageId().toString())) {
                     merged++;
                 }
             }
@@ -171,44 +155,44 @@ public final class UberJarLayoutAssembler {
         return merged;
     }
 
-    private static boolean writeOrCollectEntry(
-            PackageArchiveWriter archive,
-            Set<String> entries,
-            UberJarMergeAccumulator merges,
-            String name,
-            byte[] content,
-            String source) throws IOException {
-        if (merges.accepts(name)) {
-            if (entries.contains(name)) {
-                throw duplicateEntry(name, source);
+    private static boolean detectMultiReleaseContent(
+            Path outputDirectory,
+            List<PackageRuntimeJar> runtimeJars) throws IOException {
+        if (directoryHasVersionedEntry(outputDirectory)) {
+            return true;
+        }
+        for (PackageRuntimeJar runtimeJar : runtimeJars) {
+            if (Files.isDirectory(runtimeJar.jarPath())) {
+                if (directoryHasVersionedEntry(runtimeJar.jarPath())) {
+                    return true;
+                }
+            } else if (jarHasVersionedEntry(runtimeJar.jarPath())) {
+                return true;
             }
-            merges.add(name, content, source);
-            return false;
         }
-        writeEntry(archive, entries, name, content, source);
-        return true;
+        return false;
     }
 
-    private static void writeEntry(
-            PackageArchiveWriter archive,
-            Set<String> entries,
-            String name,
-            byte[] content,
-            String source) throws IOException {
-        if (!entries.add(name)) {
-            throw duplicateEntry(name, source);
+    private static boolean directoryHasVersionedEntry(Path directory) throws IOException {
+        for (Path file : compiledFiles(directory)) {
+            if (isMultiReleaseEntry(entryName(directory, file))) {
+                return true;
+            }
         }
-        archive.writeParentDirectories(name);
-        archive.writeEntry(name, content);
+        return false;
     }
 
-    private static PackageException duplicateEntry(String name, String source) {
-        return new PackageException(
-                "Duplicate uber jar entry `"
-                        + name
-                        + "` while merging "
-                        + source
-                        + ". Move one dependency out of the runtime classpath or use `thin` package mode.");
+    private static boolean jarHasVersionedEntry(Path jarPath) throws IOException {
+        try (JarFile jar = new JarFile(jarPath.toFile())) {
+            return jar.stream()
+                    .filter(entry -> !entry.isDirectory())
+                    .map(java.util.jar.JarEntry::getName)
+                    .anyMatch(UberJarLayoutAssembler::isMultiReleaseEntry);
+        }
+    }
+
+    private static boolean isMultiReleaseEntry(String name) {
+        return VERSIONED_ENTRY.matcher(name).matches() && !ignoredDependencyEntry(name);
     }
 
     private static boolean ignoredDependencyEntry(String name) {

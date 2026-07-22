@@ -2,11 +2,13 @@ package sh.zolt.toml;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.QuarkusPackageMode;
+import sh.zolt.project.UberDuplicatePolicy;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -57,6 +59,57 @@ final class ZoltTomlPackageFrameworkParserTest {
         assertEquals(Map.of(
                 "Automatic-Module-Name", "com.example.boot",
                 "Bundle-SymbolicName", "com.example.boot"), config.packageSettings().manifestAttributes());
+    }
+
+    @Test
+    void parsesUberDuplicatesPolicy() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "uber"
+                uberDuplicates = "first-wins"
+                """);
+
+        assertEquals(UberDuplicatePolicy.FIRST_WINS, config.packageSettings().uberDuplicates());
+    }
+
+    @Test
+    void defaultsUberDuplicatesToFail() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "uber"
+                """);
+
+        assertEquals(UberDuplicatePolicy.FAIL, config.packageSettings().uberDuplicates());
+    }
+
+    @Test
+    void rejectsUnsupportedUberDuplicatesPolicy() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "app"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [package]
+                mode = "uber"
+                uberDuplicates = "last-wins"
+                """));
+
+        assertTrue(exception.getMessage().contains("Unsupported uber duplicate policy `last-wins`"));
+        assertTrue(exception.getMessage().contains("fail, first-wins"));
     }
 
     @Test

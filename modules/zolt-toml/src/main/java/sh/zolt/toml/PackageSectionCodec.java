@@ -5,6 +5,7 @@ import sh.zolt.toml.support.TomlScalars;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.PublicationMetadata;
+import sh.zolt.project.UberDuplicatePolicy;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,7 +13,8 @@ import java.util.TreeMap;
 import org.tomlj.TomlTable;
 
 final class PackageSectionCodec {
-    private static final Set<String> PACKAGE_KEYS = Set.of("mode", "sources", "javadoc", "tests", "metadata", "manifest");
+    private static final Set<String> PACKAGE_KEYS =
+            Set.of("mode", "sources", "javadoc", "tests", "metadata", "manifest", "uberDuplicates");
     private static final Set<String> PACKAGE_METADATA_KEYS = Set.of(
             "name",
             "description",
@@ -57,7 +59,27 @@ final class PackageSectionCodec {
                 TomlScalars.booleanOrDefault(table, "package", "javadoc", defaults.javadoc()),
                 TomlScalars.booleanOrDefault(table, "package", "tests", defaults.tests()),
                 metadata,
-                manifestAttributes);
+                manifestAttributes,
+                parseUberDuplicates(table, defaults.uberDuplicates()));
+    }
+
+    private static UberDuplicatePolicy parseUberDuplicates(TomlTable table, UberDuplicatePolicy defaultValue) {
+        Object rawValue = table.get(List.of("uberDuplicates"));
+        if (rawValue == null) {
+            return defaultValue;
+        }
+        if (!(rawValue instanceof String value) || value.isBlank()) {
+            throw new ZoltConfigException(
+                    "Invalid value for [package].uberDuplicates in zolt.toml. Use one of: "
+                            + UberDuplicatePolicy.supportedValues()
+                            + ".");
+        }
+        return UberDuplicatePolicy.fromConfigValue(value).orElseThrow(() -> new ZoltConfigException(
+                "Unsupported uber duplicate policy `"
+                        + value
+                        + "` in zolt.toml. Supported values are: "
+                        + UberDuplicatePolicy.supportedValues()
+                        + "."));
     }
 
     static void write(StringBuilder toml, PackageSettings settings) {
@@ -76,6 +98,9 @@ final class PackageSectionCodec {
         }
         if (settings.tests()) {
             writeAssignment(toml, "tests", true);
+        }
+        if (settings.uberDuplicates() != UberDuplicatePolicy.FAIL) {
+            writeAssignment(toml, "uberDuplicates", settings.uberDuplicates().configValue());
         }
         writePublicationMetadata(toml, settings.metadata());
         writeManifestAttributes(toml, settings.manifestAttributes());

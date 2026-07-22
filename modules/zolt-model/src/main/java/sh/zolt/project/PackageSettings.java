@@ -10,13 +10,25 @@ public record PackageSettings(
         boolean javadoc,
         boolean tests,
         PublicationMetadata metadata,
-        Map<String, String> manifestAttributes) {
+        Map<String, String> manifestAttributes,
+        UberDuplicatePolicy uberDuplicates) {
     public PackageSettings {
         mode = mode == null ? PackageMode.THIN : mode;
         metadata = metadata == null ? PublicationMetadata.empty() : metadata;
         manifestAttributes = manifestAttributes == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(manifestAttributes));
+        uberDuplicates = uberDuplicates == null ? UberDuplicatePolicy.FAIL : uberDuplicates;
+    }
+
+    public PackageSettings(
+            PackageMode mode,
+            boolean sources,
+            boolean javadoc,
+            boolean tests,
+            PublicationMetadata metadata,
+            Map<String, String> manifestAttributes) {
+        this(mode, sources, javadoc, tests, metadata, manifestAttributes, UberDuplicatePolicy.FAIL);
     }
 
     public PackageSettings(

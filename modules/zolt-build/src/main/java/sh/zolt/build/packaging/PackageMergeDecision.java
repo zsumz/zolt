@@ -14,7 +14,8 @@ public record PackageMergeDecision(
             "service-descriptor",
             "netty-version-metadata",
             "relocated-metadata",
-            "omitted-module-descriptor");
+            "omitted-module-descriptor",
+            "overridden-duplicate");
 
     public PackageMergeDecision {
         if (kind == null || kind.isBlank()) {

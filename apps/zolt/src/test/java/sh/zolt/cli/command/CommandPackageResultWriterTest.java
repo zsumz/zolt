@@ -1,9 +1,12 @@
 package sh.zolt.cli.command;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.build.BuildResult;
 import sh.zolt.build.packaging.PackageArtifact;
+import sh.zolt.build.packaging.PackageMergeDecision;
 import sh.zolt.build.packaging.PackageResult;
 import sh.zolt.cli.command.packaging.CommandPackageResultWriter;
 import sh.zolt.project.PackageMode;
@@ -79,6 +82,49 @@ final class CommandPackageResultWriterTest {
                 POINTER wrote target/demo.war
                 """,
                 print(result, ""));
+    }
+
+    @Test
+    void printsUberDuplicateOverrideSummaryGroupedPerJar() {
+        PackageResult result = new PackageResult(
+                buildResult(),
+                PackageMode.UBER,
+                Path.of("target/demo.jar"),
+                Optional.empty(),
+                5,
+                true)
+                .withMergeDecisions(List.of(
+                        new PackageMergeDecision(
+                                "overridden-duplicate", "com/example/A.class", Optional.empty(), List.of("com.example:b")),
+                        new PackageMergeDecision(
+                                "overridden-duplicate", "com/example/C.class", Optional.empty(), List.of("com.example:b")),
+                        new PackageMergeDecision(
+                                "overridden-duplicate", "com/example/D.class", Optional.empty(), List.of("com.example:a")),
+                        new PackageMergeDecision(
+                                "service-descriptor", "META-INF/services/x", Optional.empty(), List.of("com.example:b"))));
+
+        String output = print(result, "");
+
+        assertTrue(
+                output.contains(
+                        "DETAIL Skipped 1 duplicate entry from com.example:a\n"
+                                + "DETAIL Skipped 2 duplicate entries from com.example:b\n"),
+                output);
+    }
+
+    @Test
+    void omitsUberDuplicateOverrideSummaryForNonUberMode() {
+        PackageResult result = new PackageResult(
+                buildResult(),
+                PackageMode.THIN,
+                Path.of("target/demo.jar"),
+                Optional.empty(),
+                2,
+                true)
+                .withMergeDecisions(List.of(new PackageMergeDecision(
+                        "overridden-duplicate", "com/example/A.class", Optional.empty(), List.of("com.example:b"))));
+
+        assertFalse(print(result, "").contains("Skipped"));
     }
 
     private String print(PackageResult result, String suffix) {

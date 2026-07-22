@@ -17,6 +17,7 @@ import sh.zolt.project.PublicationMetadata;
 import sh.zolt.project.QuarkusPackageMode;
 import sh.zolt.project.QuarkusSettings;
 import sh.zolt.project.SpringBootSettings;
+import sh.zolt.project.UberDuplicatePolicy;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,36 @@ final class ZoltTomlPackageFrameworkWriterTest {
         assertTrue(toml.contains("mode = \"spring-boot\""));
         assertFalse(toml.contains("[package.metadata]"));
         assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void writesUberDuplicatesPolicyWhenNotDefault() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withPackageSettings(new PackageSettings(
+                        PackageMode.UBER,
+                        false,
+                        false,
+                        false,
+                        PublicationMetadata.empty(),
+                        Map.of(),
+                        UberDuplicatePolicy.FIRST_WINS));
+
+        String toml = writer.write(original);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("mode = \"uber\""));
+        assertTrue(toml.contains("uberDuplicates = \"first-wins\""));
+        assertEquals(original.packageSettings(), parsed.packageSettings());
+    }
+
+    @Test
+    void omitsUberDuplicatesPolicyWhenDefault() {
+        ProjectConfig original = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withPackageSettings(new PackageSettings(PackageMode.UBER));
+
+        String toml = writer.write(original);
+
+        assertFalse(toml.contains("uberDuplicates"));
     }
 
     @Test

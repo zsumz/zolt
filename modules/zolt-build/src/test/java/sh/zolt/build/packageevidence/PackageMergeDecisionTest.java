@@ -16,6 +16,7 @@ final class PackageMergeDecisionTest {
         assertEquals("service-descriptor", decision("service-descriptor").kind());
         assertEquals("netty-version-metadata", decision("netty-version-metadata").kind());
         assertEquals("omitted-module-descriptor", decision("omitted-module-descriptor").kind());
+        assertEquals("overridden-duplicate", decision("overridden-duplicate").kind());
         assertEquals(
                 Optional.of("META-INF/zolt-uber/com/example/lib/1.0.0/LICENSE.txt"),
                 new PackageMergeDecision(

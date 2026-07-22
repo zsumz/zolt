@@ -3,9 +3,13 @@ package sh.zolt.cli.command.packaging;
 import sh.zolt.build.packaging.PackageArtifact;
 import sh.zolt.build.packaging.PackageResult;
 import sh.zolt.cli.CommandHumanOutput;
+import sh.zolt.project.PackageMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public final class CommandPackageResultWriter {
     public CommandPackageResultWriter() {
@@ -29,6 +33,7 @@ public final class CommandPackageResultWriter {
         if (suffix.isBlank()) {
             appendPackageModeDetail(lines, result);
         }
+        appendUberOverrideDetails(lines, result);
         lines.add(OutputLine.pointer("wrote", result.jarPath().toString()));
         result.runtimeClasspathPath().ifPresent(path ->
                 lines.add(OutputLine.pointer("wrote", path.toString())));
@@ -60,6 +65,18 @@ public final class CommandPackageResultWriter {
     private static void appendPackageModeDetail(List<OutputLine> lines, PackageResult result) {
         PackageCommandModes.PackageModeDetail detail = PackageCommandModes.packageModeDetail(result);
         lines.add(OutputLine.detail(detail.message()));
+    }
+
+    private static void appendUberOverrideDetails(List<OutputLine> lines, PackageResult result) {
+        if (result.mode() != PackageMode.UBER) {
+            return;
+        }
+        Map<String, Long> overridesByJar = result.mergeDecisions().stream()
+                .filter(decision -> "overridden-duplicate".equals(decision.kind()))
+                .flatMap(decision -> decision.sources().stream())
+                .collect(Collectors.groupingBy(source -> source, TreeMap::new, Collectors.counting()));
+        overridesByJar.forEach((jar, count) -> lines.add(OutputLine.detail(
+                "Skipped " + count + " duplicate " + (count == 1 ? "entry" : "entries") + " from " + jar)));
     }
 
     public record OutputLine(OutputLineKind kind, String verb, String message, List<String> facts) {

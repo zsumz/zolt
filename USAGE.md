@@ -128,6 +128,20 @@ zolt release-index --channel-manifest channels/zap.json --output index.json
 zolt release-verify dist/zolt-0.1.0-linux-x64.tar.gz
 ```
 
+Uber-jar packaging merges runtime dependency classes into one archive. Duplicate
+class entries fail the build by default; set `[package] uberDuplicates =
+"first-wins"` to keep the first occurrence in the deterministic classpath order
+instead (application output wins, then earlier dependencies) and report a per-jar
+count of overridden entries. Uber jars that contain `META-INF/versions/` entries
+are stamped `Multi-Release: true` automatically unless a `[package.manifest]`
+entry sets that attribute explicitly.
+
+```toml
+[package]
+mode = "uber"
+uberDuplicates = "first-wins"
+```
+
 Migration and integration commands:
 
 ```sh

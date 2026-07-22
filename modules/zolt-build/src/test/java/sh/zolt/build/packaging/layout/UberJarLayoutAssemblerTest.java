@@ -20,6 +20,8 @@ import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
+import sh.zolt.project.PublicationMetadata;
+import sh.zolt.project.UberDuplicatePolicy;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -142,6 +144,119 @@ final class UberJarLayoutAssemblerTest {
     }
 
     @Test
+    void firstWinsResolvesDuplicateEntriesDeterministically() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        PackageServiceTestSupport.source(outputDirectory, "shared/app.properties", "from-app\n");
+        Path first = projectDir.resolve("cache/com/example/first/1.0.0/first-1.0.0.jar");
+        Path second = projectDir.resolve("cache/com/example/second/1.0.0/second-1.0.0.jar");
+        createJarWithEntries(first, Map.of(
+                "shared/app.properties", "from-first\n",
+                "com/example/Dup.class", "first"));
+        createJarWithEntries(second, Map.of("com/example/Dup.class", "second"));
+
+        PackageResult result = assembler.assemble(
+                projectDir,
+                PackageServiceTestSupport.config(Optional.empty())
+                        .withPackageSettings(uberSettings(UberDuplicatePolicy.FIRST_WINS)),
+                new BuildResult(Optional.empty(), 0, 0, outputDirectory, ""),
+                outputDirectory,
+                projectDir.resolve("target/demo-0.1.0.jar"),
+                List.of(
+                        runtimeDependency("com.example", "first", "1.0.0", first),
+                        runtimeDependency("com.example", "second", "1.0.0", second)));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("from-app\n", readEntry(jar, "shared/app.properties"));
+            assertEquals("first", readEntry(jar, "com/example/Dup.class"));
+        }
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "overridden-duplicate",
+                "shared/app.properties",
+                Optional.empty(),
+                List.of("com.example:first"))));
+        assertTrue(result.mergeDecisions().contains(new PackageMergeDecision(
+                "overridden-duplicate",
+                "com/example/Dup.class",
+                Optional.empty(),
+                List.of("com.example:second"))));
+    }
+
+    @Test
+    void setsMultiReleaseManifestWhenVersionedClassesArePresent() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        PackageServiceTestSupport.source(outputDirectory, "com/example/Main.class", "main");
+        Path runtimeJar = projectDir.resolve("cache/com/example/mr/1.0.0/mr-1.0.0.jar");
+        createJarWithEntries(runtimeJar, Map.of(
+                "com/example/mr/Base.class", "base",
+                "META-INF/versions/11/com/example/mr/Base.class", "versioned"));
+
+        PackageResult result = assembler.assemble(
+                projectDir,
+                PackageServiceTestSupport.config(Optional.of("com.example.Main"))
+                        .withPackageSettings(new PackageSettings(PackageMode.UBER)),
+                new BuildResult(Optional.empty(), 1, 1, outputDirectory, ""),
+                outputDirectory,
+                projectDir.resolve("target/demo-0.1.0.jar"),
+                List.of(runtimeDependency("com.example", "mr", "1.0.0", runtimeJar)));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("true", jar.getManifest().getMainAttributes().getValue("Multi-Release"));
+            assertEquals("versioned", readEntry(jar, "META-INF/versions/11/com/example/mr/Base.class"));
+        }
+    }
+
+    @Test
+    void omitsMultiReleaseManifestForVersionedModuleDescriptorOnly() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        PackageServiceTestSupport.source(outputDirectory, "com/example/Main.class", "main");
+        Path runtimeJar = projectDir.resolve("cache/com/example/plain/1.0.0/plain-1.0.0.jar");
+        createJarWithEntries(runtimeJar, Map.of(
+                "com/example/plain/Base.class", "base",
+                "META-INF/versions/9/module-info.class", "ignored"));
+
+        PackageResult result = assembler.assemble(
+                projectDir,
+                PackageServiceTestSupport.config(Optional.of("com.example.Main"))
+                        .withPackageSettings(new PackageSettings(PackageMode.UBER)),
+                new BuildResult(Optional.empty(), 1, 1, outputDirectory, ""),
+                outputDirectory,
+                projectDir.resolve("target/demo-0.1.0.jar"),
+                List.of(runtimeDependency("com.example", "plain", "1.0.0", runtimeJar)));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals(null, jar.getManifest().getMainAttributes().getValue("Multi-Release"));
+        }
+    }
+
+    @Test
+    void userMultiReleaseManifestAttributeWins() throws IOException {
+        Path outputDirectory = projectDir.resolve("target/classes");
+        PackageServiceTestSupport.source(outputDirectory, "com/example/Main.class", "main");
+        Path runtimeJar = projectDir.resolve("cache/com/example/mr/1.0.0/mr-1.0.0.jar");
+        createJarWithEntries(runtimeJar, Map.of(
+                "META-INF/versions/17/com/example/mr/Base.class", "versioned"));
+
+        PackageResult result = assembler.assemble(
+                projectDir,
+                PackageServiceTestSupport.config(Optional.of("com.example.Main"))
+                        .withPackageSettings(new PackageSettings(
+                                PackageMode.UBER,
+                                false,
+                                false,
+                                false,
+                                PublicationMetadata.empty(),
+                                Map.of("Multi-Release", "false"))),
+                new BuildResult(Optional.empty(), 1, 1, outputDirectory, ""),
+                outputDirectory,
+                projectDir.resolve("target/demo-0.1.0.jar"),
+                List.of(runtimeDependency("com.example", "mr", "1.0.0", runtimeJar)));
+
+        try (JarFile jar = new JarFile(result.jarPath().toFile())) {
+            assertEquals("false", jar.getManifest().getMainAttributes().getValue("Multi-Release"));
+        }
+    }
+
+    @Test
     void mergesServiceDescriptorsAndNettyVersionMetadataDeterministically() throws IOException {
         Path outputDirectory = projectDir.resolve("target/classes");
         PackageServiceTestSupport.source(
@@ -201,6 +316,11 @@ final class UberJarLayoutAssemblerTest {
                 "META-INF/io.netty.versions.properties",
                 Optional.empty(),
                 List.of("com.example:first", "com.example:second"))));
+    }
+
+    private static PackageSettings uberSettings(UberDuplicatePolicy policy) {
+        return new PackageSettings(
+                PackageMode.UBER, false, false, false, PublicationMetadata.empty(), Map.of(), policy);
     }
 
     private static PackageRuntimeJar runtimeDependency(String group, String artifact, String version, Path jar) {

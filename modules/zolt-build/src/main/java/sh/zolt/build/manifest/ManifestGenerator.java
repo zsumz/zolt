@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -26,6 +27,7 @@ public final class ManifestGenerator {
     private static final String CREATED_BY = "Created-By";
     private static final String ZOLT_VERSION = "Zolt-Version";
     private static final String ZOLT_RESOLUTION_FINGERPRINT = "Zolt-Resolution-Fingerprint";
+    private static final String MULTI_RELEASE = "Multi-Release";
 
     private final Clock clock;
     private final BuildProvenanceSource provenanceSource;
@@ -57,11 +59,24 @@ public final class ManifestGenerator {
     }
 
     public GeneratedManifest generate(Path projectDirectory, ProjectConfig config) {
+        return generate(projectDirectory, config, false);
+    }
+
+    public GeneratedManifest generate(Path projectDirectory, ProjectConfig config, boolean multiRelease) {
         return generate(
                 config.project(),
-                config.packageSettings().manifestAttributes(),
+                multiReleaseAttributes(config.packageSettings().manifestAttributes(), multiRelease),
                 true,
                 Optional.of(readProvenance(projectDirectory, config)));
+    }
+
+    private static Map<String, String> multiReleaseAttributes(Map<String, String> attributes, boolean multiRelease) {
+        if (!multiRelease || attributes.keySet().stream().anyMatch(name -> name.equalsIgnoreCase(MULTI_RELEASE))) {
+            return attributes;
+        }
+        Map<String, String> augmented = new LinkedHashMap<>(attributes);
+        augmented.put(MULTI_RELEASE, "true");
+        return augmented;
     }
 
     public GeneratedManifest generateWithoutMain(ProjectConfig config) {
