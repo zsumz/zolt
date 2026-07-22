@@ -23,6 +23,103 @@ public final class AnnotationProcessorFixture {
         return processorJar(workDirectory, true);
     }
 
+    /**
+     * An isolating processor that generates a {@code <Name>Meta} source for each {@code @com.example.Tracked}
+     * class, passing the annotated type as the originating element so its outputs can be attributed.
+     */
+    public static Path attributingProcessorJar(Path workDirectory) throws IOException {
+        return trackingProcessorJar(workDirectory, true, "isolating");
+    }
+
+    /**
+     * The same isolating processor as {@link #attributingProcessorJar} but omitting originating elements,
+     * so its generated outputs cannot be attributed and the build must fall back to a full recompile.
+     */
+    public static Path nonOriginatingProcessorJar(Path workDirectory) throws IOException {
+        return trackingProcessorJar(workDirectory, false, "isolating");
+    }
+
+    /** The same per-class processor declared as aggregating, which is never eligible for the fast path. */
+    public static Path aggregatingProcessorJar(Path workDirectory) throws IOException {
+        return trackingProcessorJar(workDirectory, true, "aggregating");
+    }
+
+    private static Path trackingProcessorJar(
+            Path workDirectory, boolean withOriginating, String category) throws IOException {
+        String createCall = withOriginating
+                ? "processingEnv.getFiler().createSourceFile(generatedName, type)"
+                : "processingEnv.getFiler().createSourceFile(generatedName)";
+        Path processorSource = source(
+                workDirectory,
+                "tracking-src/com/example/processor/TrackingProcessor.java",
+                TRACKING_PROCESSOR_SOURCE.replace("__CREATE_CALL__", createCall));
+        Path classes = workDirectory.resolve("tracking-classes");
+        new JavacRunner().compile(
+                currentJavac(),
+                List.of(processorSource),
+                new Classpath(List.of()),
+                classes);
+        Path serviceFile = classes.resolve("META-INF/services/javax.annotation.processing.Processor");
+        Files.createDirectories(serviceFile.getParent());
+        Files.writeString(serviceFile, "com.example.processor.TrackingProcessor\n");
+        Path incrementalFile = classes.resolve("META-INF/gradle/incremental.annotation.processors");
+        Files.createDirectories(incrementalFile.getParent());
+        Files.writeString(incrementalFile, "com.example.processor.TrackingProcessor," + category + "\n");
+        Path jar = workDirectory.resolve("tracking-processor.jar");
+        writeJar(classes, jar);
+        return jar;
+    }
+
+    private static final String TRACKING_PROCESSOR_SOURCE = """
+            package com.example.processor;
+
+            import java.io.Writer;
+            import java.util.Set;
+            import javax.annotation.processing.AbstractProcessor;
+            import javax.annotation.processing.RoundEnvironment;
+            import javax.annotation.processing.SupportedAnnotationTypes;
+            import javax.lang.model.SourceVersion;
+            import javax.lang.model.element.Element;
+            import javax.lang.model.element.ElementKind;
+            import javax.lang.model.element.TypeElement;
+            import javax.tools.JavaFileObject;
+
+            @SupportedAnnotationTypes("com.example.Tracked")
+            public final class TrackingProcessor extends AbstractProcessor {
+                @Override
+                public SourceVersion getSupportedSourceVersion() {
+                    return SourceVersion.latestSupported();
+                }
+
+                @Override
+                public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+                    TypeElement tracked = processingEnv.getElementUtils().getTypeElement("com.example.Tracked");
+                    if (tracked == null) {
+                        return false;
+                    }
+                    for (Element element : roundEnv.getElementsAnnotatedWith(tracked)) {
+                        if (element.getKind() != ElementKind.CLASS) {
+                            continue;
+                        }
+                        TypeElement type = (TypeElement) element;
+                        String pkg = processingEnv.getElementUtils().getPackageOf(type).getQualifiedName().toString();
+                        String simple = type.getSimpleName().toString();
+                        String generatedName = (pkg.isEmpty() ? "" : pkg + ".") + simple + "Meta";
+                        try {
+                            JavaFileObject file = __CREATE_CALL__;
+                            try (Writer writer = file.openWriter()) {
+                                writer.write("package " + pkg + "; public final class " + simple + "Meta { "
+                                        + "public static String owner() { return \\"" + simple + "\\"; } }");
+                            }
+                        } catch (Exception exception) {
+                            throw new RuntimeException(exception);
+                        }
+                    }
+                    return false;
+                }
+            }
+            """;
+
     private static Path processorJar(Path workDirectory, boolean isolating) throws IOException {
         Path processorSource = source(workDirectory, "processor-src/com/example/processor/GeneratingProcessor.java", """
                 package com.example.processor;
