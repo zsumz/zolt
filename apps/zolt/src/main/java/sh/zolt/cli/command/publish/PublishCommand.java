@@ -7,6 +7,8 @@ import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.console.ProgressWriter;
 import sh.zolt.cli.net.CommandNetwork;
+import sh.zolt.publish.PublishCentralReadinessService;
+import sh.zolt.publish.PublishCentralRequirement;
 import sh.zolt.publish.PublishContext;
 import sh.zolt.publish.PublishDryRunFormatter;
 import sh.zolt.publish.PublishDryRunPlan;
@@ -18,6 +20,7 @@ import sh.zolt.publish.PublishUploadResult;
 import sh.zolt.publish.PublishUploadService;
 import sh.zolt.toml.ZoltConfigException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -32,9 +35,13 @@ public final class PublishCommand implements Callable<Integer> {
     private final PublishDryRunService dryRunService;
     private final PublishReleasePolicyService releasePolicyService;
     private final PublishUploadService uploadService;
+    private final PublishCentralReadinessService centralReadinessService;
 
     @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
     private boolean dryRun;
+
+    @Option(names = "--central", description = "Report Maven Central publishing readiness. Use with --dry-run.")
+    private boolean central;
 
     @Option(names = "--context", description = "Apply a publish context policy. Supported values: release.")
     private PublishContext context;
@@ -49,16 +56,19 @@ public final class PublishCommand implements Callable<Integer> {
         this(
                 new PublishDryRunService(),
                 new PublishReleasePolicyService(),
-                new PublishUploadService(CommandNetwork.repositoryClient()));
+                new PublishUploadService(CommandNetwork.repositoryClient()),
+                new PublishCentralReadinessService());
     }
 
     PublishCommand(
             PublishDryRunService dryRunService,
             PublishReleasePolicyService releasePolicyService,
-            PublishUploadService uploadService) {
+            PublishUploadService uploadService,
+            PublishCentralReadinessService centralReadinessService) {
         this.dryRunService = dryRunService;
         this.releasePolicyService = releasePolicyService;
         this.uploadService = uploadService;
+        this.centralReadinessService = centralReadinessService;
     }
 
     @Override
@@ -70,15 +80,26 @@ public final class PublishCommand implements Callable<Integer> {
                 CommandFailures.printUser(spec, "Publish context policy is currently supported only with --dry-run.");
                 return 1;
             }
+            if (central && !dryRun) {
+                CommandFailures.printUser(spec, "Maven Central readiness check is currently supported only with --dry-run.");
+                return 1;
+            }
             if (dryRun) {
                 progress.start("Preparing publish dry run");
                 PublishDryRunPlan plan = dryRunService.plan(projectRoot);
                 if (context == PublishContext.RELEASE) {
                     plan = releasePolicyService.apply(projectRoot, plan);
                 }
-                CommandOutput.printAndFlush(spec, PublishDryRunFormatter.text(plan));
+                StringBuilder output = new StringBuilder(PublishDryRunFormatter.text(plan));
+                boolean centralReady = true;
+                if (central) {
+                    List<PublishCentralRequirement> readiness = centralReadinessService.evaluate(projectRoot, plan);
+                    output.append(PublishDryRunFormatter.centralReadiness(readiness));
+                    centralReady = readiness.stream().allMatch(PublishCentralRequirement::satisfied);
+                }
+                CommandOutput.printAndFlush(spec, output.toString());
                 progress.result("Prepared publish dry run");
-                return plan.ok() ? 0 : 1;
+                return plan.ok() && centralReady ? 0 : 1;
             }
             progress.start("Publishing artifacts");
             PublishUploadResult result = uploadService.upload(projectRoot);

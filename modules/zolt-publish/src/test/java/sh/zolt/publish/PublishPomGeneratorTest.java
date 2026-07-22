@@ -11,6 +11,7 @@ import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.DependencyExclusionSpec;
 import sh.zolt.project.DependencyMetadata;
+import sh.zolt.project.DeveloperEntry;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
@@ -58,6 +59,8 @@ final class PublishPomGeneratorTest {
         assertTrue(pom.contains("<name>Ada Lovelace</name>"));
         // Blank description is omitted entirely.
         assertTrue(!pom.contains("<description>"));
+        // Default jar packaging is left implicit.
+        assertTrue(!pom.contains("<packaging>"));
 
         // Compile scope is implicit (no <scope> element); runtime/provided are emitted.
         // Indentation is load-bearing, so these fragments keep the literal POM spacing.
@@ -79,6 +82,50 @@ final class PublishPomGeneratorTest {
         int servlet = pom.indexOf("jakarta.servlet-api");
         int slf4j = pom.indexOf("slf4j-api");
         assertTrue(hikari < servlet && servlet < slf4j);
+    }
+
+    @Test
+    void emitsPackagingLicenseUrlStructuredDevelopersAndScmDetails() {
+        PublicationMetadata metadata = new PublicationMetadata(
+                "App Library",
+                "A test library.",
+                "https://example.test/app",
+                "Apache-2.0",
+                "https://www.apache.org/licenses/LICENSE-2.0.txt",
+                List.of(),
+                List.of(new DeveloperEntry(
+                        "ada",
+                        "Ada Lovelace",
+                        "ada@example.test",
+                        "Analytical Engines",
+                        "https://example.test/ada")),
+                "https://github.com/example/app",
+                "scm:git:https://github.com/example/app.git",
+                "scm:git:ssh://git@github.com/example/app.git",
+                "v1.0.0",
+                "https://github.com/example/app/issues");
+        ProjectConfig config = config(PackageMode.WAR, metadata, Map.of());
+
+        String pom = generator.generate(config, new ZoltLockfile(1, List.of(), List.of()));
+
+        // WAR packaging is explicit; jar stays implicit.
+        assertTrue(pom.contains("<packaging>war</packaging>"));
+        // License carries name and url.
+        assertTrue(pom.contains("<name>Apache-2.0</name>"));
+        assertTrue(pom.contains("<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>"));
+        // Structured developer emits id/name/email/organization/url.
+        assertTrue(pom.contains("      <id>ada</id>\n"
+                + "      <name>Ada Lovelace</name>\n"
+                + "      <email>ada@example.test</email>\n"
+                + "      <organization>Analytical Engines</organization>\n"
+                + "      <url>https://example.test/ada</url>\n"));
+        // SCM carries connection, developerConnection, tag and url in Maven order.
+        assertTrue(pom.contains("  <scm>\n"
+                + "    <connection>scm:git:https://github.com/example/app.git</connection>\n"
+                + "    <developerConnection>scm:git:ssh://git@github.com/example/app.git</developerConnection>\n"
+                + "    <tag>v1.0.0</tag>\n"
+                + "    <url>https://github.com/example/app</url>\n"
+                + "  </scm>\n"));
     }
 
     @Test
@@ -165,6 +212,13 @@ final class PublishPomGeneratorTest {
     private static ProjectConfig config(
             PublicationMetadata metadata,
             Map<String, DependencyMetadata> dependencyMetadata) {
+        return config(PackageMode.THIN, metadata, dependencyMetadata);
+    }
+
+    private static ProjectConfig config(
+            PackageMode mode,
+            PublicationMetadata metadata,
+            Map<String, DependencyMetadata> dependencyMetadata) {
         ProjectConfig base = ProjectConfigs.withDirectDependencies(
                 new ProjectMetadata("app", "1.0.0", "com.example", "21", Optional.empty()),
                 Map.of("central", ProjectConfig.MAVEN_CENTRAL),
@@ -172,7 +226,7 @@ final class PublishPomGeneratorTest {
                 Map.of(),
                 BuildSettings.defaults());
         return base
-                .withPackageSettings(new PackageSettings(PackageMode.THIN, false, false, false, metadata))
+                .withPackageSettings(new PackageSettings(mode, false, false, false, metadata))
                 .withDependencyMetadata(dependencyMetadata);
     }
 

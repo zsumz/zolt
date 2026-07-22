@@ -2,10 +2,13 @@ package sh.zolt.toml;
 
 import sh.zolt.toml.support.TomlValidation;
 import sh.zolt.toml.support.TomlScalars;
+import sh.zolt.project.DeveloperEntry;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.PublicationMetadata;
 import sh.zolt.project.UberDuplicatePolicy;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,9 +23,15 @@ final class PackageSectionCodec {
             "description",
             "url",
             "license",
+            "licenseUrl",
             "developers",
+            "developer",
             "scm",
+            "scmConnection",
+            "scmDeveloperConnection",
+            "scmTag",
             "issues");
+    private static final Set<String> PACKAGE_DEVELOPER_KEYS = Set.of("name", "email", "organization", "url");
 
     private PackageSectionCodec() {
     }
@@ -117,9 +126,40 @@ final class PackageSectionCodec {
                 TomlScalars.stringOrDefault(table, "package.metadata", "description", defaults.description()),
                 TomlScalars.stringOrDefault(table, "package.metadata", "url", defaults.url()),
                 TomlScalars.stringOrDefault(table, "package.metadata", "license", defaults.license()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "licenseUrl", defaults.licenseUrl()),
                 TomlScalars.stringListOrDefault(table, "package.metadata", "developers", defaults.developers()),
+                parseDevelopers(table.getTable(List.of("developer"))),
                 TomlScalars.stringOrDefault(table, "package.metadata", "scm", defaults.scm()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "scmConnection", defaults.scmConnection()),
+                TomlScalars.stringOrDefault(
+                        table, "package.metadata", "scmDeveloperConnection", defaults.scmDeveloperConnection()),
+                TomlScalars.stringOrDefault(table, "package.metadata", "scmTag", defaults.scmTag()),
                 TomlScalars.stringOrDefault(table, "package.metadata", "issues", defaults.issues()));
+    }
+
+    private static List<DeveloperEntry> parseDevelopers(TomlTable table) {
+        if (table == null) {
+            return List.of();
+        }
+        List<DeveloperEntry> entries = new ArrayList<>();
+        for (String id : table.keySet()) {
+            TomlTable entry = table.getTable(List.of(id));
+            if (entry == null) {
+                throw new ZoltConfigException(
+                        "Invalid value for [package.metadata.developer]." + id
+                                + " in zolt.toml. Use a table: { name = \"...\", email = \"...\" }.");
+            }
+            String section = "package.metadata.developer." + id;
+            TomlValidation.validateKeys(section, entry, PACKAGE_DEVELOPER_KEYS);
+            entries.add(new DeveloperEntry(
+                    id,
+                    TomlScalars.stringOrDefault(entry, section, "name", ""),
+                    TomlScalars.stringOrDefault(entry, section, "email", ""),
+                    TomlScalars.stringOrDefault(entry, section, "organization", ""),
+                    TomlScalars.stringOrDefault(entry, section, "url", "")));
+        }
+        entries.sort(Comparator.comparing(DeveloperEntry::id));
+        return List.copyOf(entries);
     }
 
     private static void writePublicationMetadata(StringBuilder toml, PublicationMetadata metadata) {
@@ -139,14 +179,45 @@ final class PackageSectionCodec {
         if (!metadata.license().isBlank()) {
             writeAssignment(toml, "license", metadata.license());
         }
+        if (!metadata.licenseUrl().isBlank()) {
+            writeAssignment(toml, "licenseUrl", metadata.licenseUrl());
+        }
         if (!metadata.developers().isEmpty()) {
             writeStringArray(toml, "developers", metadata.developers());
         }
         if (!metadata.scm().isBlank()) {
             writeAssignment(toml, "scm", metadata.scm());
         }
+        if (!metadata.scmConnection().isBlank()) {
+            writeAssignment(toml, "scmConnection", metadata.scmConnection());
+        }
+        if (!metadata.scmDeveloperConnection().isBlank()) {
+            writeAssignment(toml, "scmDeveloperConnection", metadata.scmDeveloperConnection());
+        }
+        if (!metadata.scmTag().isBlank()) {
+            writeAssignment(toml, "scmTag", metadata.scmTag());
+        }
         if (!metadata.issues().isBlank()) {
             writeAssignment(toml, "issues", metadata.issues());
+        }
+        writeDevelopers(toml, metadata.developerEntries());
+    }
+
+    private static void writeDevelopers(StringBuilder toml, List<DeveloperEntry> developers) {
+        for (DeveloperEntry developer : developers) {
+            toml.append("\n[package.metadata.developer.").append(developer.id()).append("]\n");
+            if (!developer.name().isBlank()) {
+                writeAssignment(toml, "name", developer.name());
+            }
+            if (!developer.email().isBlank()) {
+                writeAssignment(toml, "email", developer.email());
+            }
+            if (!developer.organization().isBlank()) {
+                writeAssignment(toml, "organization", developer.organization());
+            }
+            if (!developer.url().isBlank()) {
+                writeAssignment(toml, "url", developer.url());
+            }
         }
     }
 

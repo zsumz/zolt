@@ -4,7 +4,10 @@ import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.DependencyExclusionSpec;
 import sh.zolt.project.DependencyMetadata;
+import sh.zolt.project.DeveloperEntry;
+import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.PublicationMetadata;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import java.util.ArrayList;
@@ -20,43 +23,68 @@ public final class PublishPomGenerator {
         xml.append("<project xmlns=\"http://maven.apache.org/POM/4.0.0\" ")
                 .append("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ")
                 .append("xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd\">\n");
+        PublicationMetadata metadata = config.packageSettings().metadata();
         element(xml, 1, "modelVersion", "4.0.0");
         element(xml, 1, "groupId", config.project().group());
         element(xml, 1, "artifactId", config.project().name());
         element(xml, 1, "version", config.project().version());
-        if (!config.packageSettings().metadata().name().isBlank()) {
-            element(xml, 1, "name", config.packageSettings().metadata().name());
+        String packaging = packaging(config.packageSettings().mode());
+        if (!packaging.equals("jar")) {
+            element(xml, 1, "packaging", packaging);
         }
-        if (!config.packageSettings().metadata().description().isBlank()) {
-            element(xml, 1, "description", config.packageSettings().metadata().description());
+        if (!metadata.name().isBlank()) {
+            element(xml, 1, "name", metadata.name());
         }
-        if (!config.packageSettings().metadata().url().isBlank()) {
-            element(xml, 1, "url", config.packageSettings().metadata().url());
+        if (!metadata.description().isBlank()) {
+            element(xml, 1, "description", metadata.description());
         }
-        if (!config.packageSettings().metadata().license().isBlank()) {
+        if (!metadata.url().isBlank()) {
+            element(xml, 1, "url", metadata.url());
+        }
+        if (!metadata.license().isBlank()) {
             indent(xml, 1).append("<licenses>\n");
             indent(xml, 2).append("<license>\n");
-            element(xml, 3, "name", config.packageSettings().metadata().license());
+            element(xml, 3, "name", metadata.license());
+            if (!metadata.licenseUrl().isBlank()) {
+                element(xml, 3, "url", metadata.licenseUrl());
+            }
             indent(xml, 2).append("</license>\n");
             indent(xml, 1).append("</licenses>\n");
         }
-        if (!config.packageSettings().metadata().developers().isEmpty()) {
+        if (!metadata.developers().isEmpty() || !metadata.developerEntries().isEmpty()) {
             indent(xml, 1).append("<developers>\n");
-            for (String developer : config.packageSettings().metadata().developers()) {
+            for (DeveloperEntry developer : metadata.developerEntries()) {
+                developer(xml, developer);
+            }
+            for (String developer : metadata.developers()) {
                 indent(xml, 2).append("<developer>\n");
                 element(xml, 3, "name", developer);
                 indent(xml, 2).append("</developer>\n");
             }
             indent(xml, 1).append("</developers>\n");
         }
-        if (!config.packageSettings().metadata().scm().isBlank()) {
+        if (!metadata.scm().isBlank()
+                || !metadata.scmConnection().isBlank()
+                || !metadata.scmDeveloperConnection().isBlank()
+                || !metadata.scmTag().isBlank()) {
             indent(xml, 1).append("<scm>\n");
-            element(xml, 2, "url", config.packageSettings().metadata().scm());
+            if (!metadata.scmConnection().isBlank()) {
+                element(xml, 2, "connection", metadata.scmConnection());
+            }
+            if (!metadata.scmDeveloperConnection().isBlank()) {
+                element(xml, 2, "developerConnection", metadata.scmDeveloperConnection());
+            }
+            if (!metadata.scmTag().isBlank()) {
+                element(xml, 2, "tag", metadata.scmTag());
+            }
+            if (!metadata.scm().isBlank()) {
+                element(xml, 2, "url", metadata.scm());
+            }
             indent(xml, 1).append("</scm>\n");
         }
-        if (!config.packageSettings().metadata().issues().isBlank()) {
+        if (!metadata.issues().isBlank()) {
             indent(xml, 1).append("<issueManagement>\n");
-            element(xml, 2, "url", config.packageSettings().metadata().issues());
+            element(xml, 2, "url", metadata.issues());
             indent(xml, 1).append("</issueManagement>\n");
         }
 
@@ -144,6 +172,33 @@ public final class PublishPomGenerator {
             throw new PublishException("Invalid dependency coordinate `" + coordinate + "` in publication metadata.");
         }
         return new PackageId(parts[0], parts[1]);
+    }
+
+    private static String packaging(PackageMode mode) {
+        return switch (mode) {
+            case WAR, SPRING_BOOT_WAR -> "war";
+            default -> "jar";
+        };
+    }
+
+    private static void developer(StringBuilder xml, DeveloperEntry developer) {
+        indent(xml, 2).append("<developer>\n");
+        if (!developer.id().isBlank()) {
+            element(xml, 3, "id", developer.id());
+        }
+        if (!developer.name().isBlank()) {
+            element(xml, 3, "name", developer.name());
+        }
+        if (!developer.email().isBlank()) {
+            element(xml, 3, "email", developer.email());
+        }
+        if (!developer.organization().isBlank()) {
+            element(xml, 3, "organization", developer.organization());
+        }
+        if (!developer.url().isBlank()) {
+            element(xml, 3, "url", developer.url());
+        }
+        indent(xml, 2).append("</developer>\n");
     }
 
     private static void dependency(StringBuilder xml, PublishPomDependency dependency) {

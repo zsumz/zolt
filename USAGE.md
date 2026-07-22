@@ -181,6 +181,37 @@ sources = true
 javadoc = true
 ```
 
+The generated POM is enriched from `[package.metadata]`. Alongside `name`,
+`description`, `url`, `license`, `developers`, `scm`, and `issues`, publish emits
+`<packaging>` (derived from the package mode), a license `<url>`, richer SCM
+elements, and structured developers with `<id>`, `<email>`, and `<organization>`:
+
+```toml
+[package.metadata]
+name = "Example Library"
+description = "A reusable Java library."
+url = "https://example.com/library"
+license = "Apache-2.0"
+licenseUrl = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+scm = "https://github.com/example/library"
+scmConnection = "scm:git:https://github.com/example/library.git"
+scmDeveloperConnection = "scm:git:ssh://git@github.com/example/library.git"
+scmTag = "v1.0.0"
+
+[package.metadata.developer.ada]
+name = "Ada Lovelace"
+email = "ada@example.com"
+organization = "Example Inc"
+url = "https://example.com/ada"
+```
+
+`zolt publish --dry-run --central` reports Maven Central readiness: it checks the
+release version, the required POM metadata (name, description, url, license
+name+url, an identifiable developer, scm url+connection), the sources and Javadoc
+jars, GPG signatures, and checksums, printing an actionable next step for each
+unmet requirement. The check is opt-in, so it never blocks publishing to internal
+repositories.
+
 Migration and integration commands:
 
 ```sh

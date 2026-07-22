@@ -190,6 +190,34 @@ final class ZoltTomlWriterRoundTripTest {
                         "Automatic-Module-Name" = "com.example.library"
                         """),
                 new RoundTripCase(
+                        "central-ready package metadata",
+                        """
+                        [project]
+                        name = "library"
+                        version = "1.0.0"
+                        group = "com.example"
+                        java = "21"
+
+                        [package.metadata]
+                        name = "Example Library"
+                        description = "A reusable Java library."
+                        url = "https://example.com/library"
+                        license = "Apache-2.0"
+                        licenseUrl = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        developers = ["Zolt maintainers"]
+                        scm = "https://example.com/library.git"
+                        scmConnection = "scm:git:https://example.com/library.git"
+                        scmDeveloperConnection = "scm:git:ssh://git@example.com/library.git"
+                        scmTag = "v1.0.0"
+                        issues = "https://example.com/library/issues"
+
+                        [package.metadata.developer.ada]
+                        name = "Ada Lovelace"
+                        email = "ada@example.com"
+                        organization = "Analytical Engines"
+                        url = "https://example.com/ada"
+                        """),
+                new RoundTripCase(
                         "publish-only metadata",
                         """
                         [project]

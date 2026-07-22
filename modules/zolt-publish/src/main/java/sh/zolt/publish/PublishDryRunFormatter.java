@@ -1,7 +1,26 @@
 package sh.zolt.publish;
 
+import java.util.List;
+
 public final class PublishDryRunFormatter {
     private PublishDryRunFormatter() {
+    }
+
+    /** Renders the Maven Central readiness checklist appended to {@code publish --dry-run --central}. */
+    public static String centralReadiness(List<PublishCentralRequirement> requirements) {
+        StringBuilder output = new StringBuilder("Maven Central readiness:\n");
+        boolean ready = true;
+        for (PublishCentralRequirement requirement : requirements) {
+            if (requirement.satisfied()) {
+                output.append("- [x] ").append(requirement.name()).append('\n');
+            } else {
+                ready = false;
+                output.append("- [ ] ").append(requirement.name()).append('\n');
+                output.append("      Next: ").append(requirement.remediation()).append('\n');
+            }
+        }
+        output.append(ready ? "Central status: ready\n" : "Central status: not ready\n");
+        return output.toString();
     }
 
     public static String text(PublishDryRunPlan plan) {
