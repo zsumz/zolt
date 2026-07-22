@@ -39,6 +39,17 @@ public final class VersionPolicy {
     }
 
     public static Optional<Violation> violation(Context context, String version) {
+        return violation(context, version, false);
+    }
+
+    /**
+     * Same as {@link #violation(Context, String)}, but when {@code snapshotPermitted} is {@code true}
+     * the SNAPSHOT rule is skipped. Callers pass {@code true} only when a SNAPSHOT version is backed by
+     * an artifact already present on this machine (a workspace member or a maven-local overlay artifact);
+     * every other version rule (ranges, dynamic selectors, interpolation, incomplete literals) still
+     * applies. This never relaxes {@code requireSnapshot} contexts such as publish-snapshot.
+     */
+    public static Optional<Violation> violation(Context context, String version, boolean snapshotPermitted) {
         if (version == null || version.isBlank() || !version.equals(version.trim())) {
             return Optional.of(new Violation(
                     "non-empty-literal",
@@ -64,7 +75,7 @@ public final class VersionPolicy {
                     "incomplete-version",
                     "Incomplete versions are not supported; use a complete fixed version."));
         }
-        if (!context.allowSnapshot && isSnapshot(version)) {
+        if (!context.allowSnapshot && !snapshotPermitted && isSnapshot(version)) {
             return Optional.of(new Violation(
                     "snapshot-version",
                     "SNAPSHOT versions are not supported in this context; use a fixed released version."));

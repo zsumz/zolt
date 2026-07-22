@@ -48,6 +48,23 @@ final class VersionPolicyTest {
         assertEquals("release", VersionPolicy.classifyPublishVersion("1.0.0"));
     }
 
+    @Test
+    void snapshotPermittedFlagRelaxesOnlyTheSnapshotRuleForExternalDependencies() {
+        // Permitting a SNAPSHOT (backed by a workspace member or local overlay artifact) bypasses the rule.
+        assertTrue(VersionPolicy.violation(
+                VersionPolicy.Context.EXTERNAL_DEPENDENCY, "1.0-SNAPSHOT", true).isEmpty());
+        // A SNAPSHOT that is not permitted is still rejected.
+        assertRule(VersionPolicy.Context.EXTERNAL_DEPENDENCY, "1.0-SNAPSHOT", "snapshot-version");
+        // Permitting a SNAPSHOT never relaxes the other determinism rules.
+        assertEquals("version-range", VersionPolicy.violation(
+                VersionPolicy.Context.EXTERNAL_DEPENDENCY, "[1.0,2.0)", true).orElseThrow().rule());
+        assertEquals("dynamic-version", VersionPolicy.violation(
+                VersionPolicy.Context.EXTERNAL_DEPENDENCY, "1.+", true).orElseThrow().rule());
+        // Publish-snapshot still requires a SNAPSHOT even when snapshotPermitted is true.
+        assertEquals("snapshot-required", VersionPolicy.violation(
+                VersionPolicy.Context.PUBLISH_SNAPSHOT, "1.0.0", true).orElseThrow().rule());
+    }
+
     private static void assertRule(VersionPolicy.Context context, String version, String rule) {
         assertEquals(rule, VersionPolicy.violation(context, version).orElseThrow().rule());
     }
