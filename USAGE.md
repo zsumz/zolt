@@ -246,6 +246,16 @@ Central readiness requirement is satisfied. `zolt publish --dry-run --central`
 assembles and lists the bundle locally and runs the readiness check without any
 network access.
 
+By default the upload returns as soon as the bundle is accepted. Add `--wait` to
+poll the deployment until it reaches a terminal state and fail the command if it
+does not publish. For `publishingType = "automatic"`, `--wait` returns once the
+deployment is `PUBLISHED` (live on Maven Central) and errors on `FAILED`, quoting
+the Portal's reported detail. For `publishingType = "user-managed"`, validation is
+terminal: `--wait` returns once the deployment is `VALIDATED` and reminds you to
+release it from the Portal. `--wait-timeout <seconds>` bounds the wait (default
+`300`); on timeout the command errors with the deployment id so you can check its
+progress later in the Central Portal.
+
 Migration and integration commands:
 
 ```sh

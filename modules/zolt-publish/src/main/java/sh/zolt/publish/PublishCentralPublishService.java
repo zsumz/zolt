@@ -3,6 +3,9 @@ package sh.zolt.publish;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -15,6 +18,7 @@ public final class PublishCentralPublishService {
     private final ZoltTomlParser projectParser;
     private final PublishSettingsReader publishSettingsReader;
     private final CentralPortalClient portalClient;
+    private final CentralDeploymentWaiter waiter;
     private final Function<String, String> environment;
 
     public PublishCentralPublishService() {
@@ -33,6 +37,7 @@ public final class PublishCentralPublishService {
         this.projectParser = projectParser;
         this.publishSettingsReader = publishSettingsReader;
         this.portalClient = portalClient;
+        this.waiter = new CentralDeploymentWaiter(portalClient);
         this.environment = environment;
     }
 
@@ -48,6 +53,17 @@ public final class PublishCentralPublishService {
 
     /** Assembles the bundle, uploads it to the Central Portal, and returns the deployment status. */
     public PublishCentralUploadResult publish(Path projectRoot, PublishDryRunPlan plan) {
+        return publish(projectRoot, plan, Optional.empty());
+    }
+
+    /**
+     * Assembles the bundle, uploads it, and reports the deployment status. When {@code waitTimeout}
+     * is present the deployment is polled until it reaches a terminal state (published, failed, or —
+     * for user-managed deployments — validated) or the timeout elapses; when it is empty the status
+     * is checked once and returned as {@link PublishCentralPublishOutcome#UPLOADED}.
+     */
+    public PublishCentralUploadResult publish(
+            Path projectRoot, PublishDryRunPlan plan, Optional<Duration> waitTimeout) {
         Path root = projectRoot.toAbsolutePath().normalize();
         PublishSettings publish = read(root);
         PublishCentralSettings central = publish.central();
@@ -68,8 +84,22 @@ public final class PublishCentralPublishService {
                 .assemble(root, plan);
         String deploymentId = portalClient.upload(
                 central.baseUrl(), bundle.bundlePath(), token, central.publishingType(), central.deploymentName());
-        CentralDeploymentStatus status = portalClient.status(central.baseUrl(), deploymentId, token);
-        return new PublishCentralUploadResult(bundle, deploymentId, central.publishingType(), status);
+        if (waitTimeout.isEmpty()) {
+            CentralDeploymentStatus status = portalClient.status(central.baseUrl(), deploymentId, token);
+            return new PublishCentralUploadResult(
+                    bundle, deploymentId, central.publishingType(), status, PublishCentralPublishOutcome.UPLOADED);
+        }
+        CentralDeploymentStatus status = waiter.awaitTerminal(
+                central.baseUrl(), deploymentId, token, central.publishingType(), waitTimeout.get());
+        return new PublishCentralUploadResult(
+                bundle, deploymentId, central.publishingType(), status, terminalOutcome(status));
+    }
+
+    private static PublishCentralPublishOutcome terminalOutcome(CentralDeploymentStatus status) {
+        String state = status.state() == null ? "" : status.state().strip().toUpperCase(Locale.ROOT);
+        return state.equals("PUBLISHED")
+                ? PublishCentralPublishOutcome.PUBLISHED
+                : PublishCentralPublishOutcome.AWAITING_MANUAL_RELEASE;
     }
 
     private PublishSettings read(Path root) {

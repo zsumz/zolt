@@ -5,5 +5,6 @@ public record PublishCentralUploadResult(
         PublishCentralBundleResult bundle,
         String deploymentId,
         CentralPublishingType publishingType,
-        CentralDeploymentStatus status) {
+        CentralDeploymentStatus status,
+        PublishCentralPublishOutcome outcome) {
 }

@@ -9,6 +9,7 @@ import sh.zolt.cli.console.ProgressWriter;
 import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.publish.CentralPortalClient;
 import sh.zolt.publish.PublishCentralBundleResult;
+import sh.zolt.publish.PublishCentralPublishOutcome;
 import sh.zolt.publish.PublishCentralPublishService;
 import sh.zolt.publish.PublishCentralReadinessService;
 import sh.zolt.publish.PublishCentralRequirement;
@@ -25,7 +26,9 @@ import sh.zolt.publish.PublishUploadResult;
 import sh.zolt.publish.PublishUploadService;
 import sh.zolt.toml.ZoltConfigException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -51,6 +54,13 @@ public final class PublishCommand implements Callable<Integer> {
 
     @Option(names = "--context", description = "Apply a publish context policy. Supported values: release.")
     private PublishContext context;
+
+    @Option(names = "--wait", description = "After a --central upload, poll the deployment until it reaches a terminal state (published, failed, or — for user-managed — validated).")
+    private boolean wait;
+
+    @Option(names = "--wait-timeout", paramLabel = "<seconds>", defaultValue = "300",
+            description = "Maximum seconds to wait for a terminal state when --wait is set (default: 300).")
+    private long waitTimeoutSeconds;
 
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
@@ -89,6 +99,15 @@ public final class PublishCommand implements Callable<Integer> {
                 CommandFailures.printUser(spec, "Publish context policy is currently supported only with --dry-run.");
                 return 1;
             }
+            if (wait && (dryRun || !central)) {
+                CommandFailures.printUser(spec,
+                        "The --wait flag applies only to a live Maven Central publish; use it with --central and without --dry-run.");
+                return 1;
+            }
+            if (wait && waitTimeoutSeconds <= 0) {
+                CommandFailures.printUser(spec, "--wait-timeout must be a positive number of seconds.");
+                return 1;
+            }
             if (central && !dryRun) {
                 progress.start("Publishing to Maven Central");
                 PublishDryRunPlan plan = dryRunService.plan(projectRoot, false);
@@ -101,9 +120,12 @@ public final class PublishCommand implements Callable<Integer> {
                     CommandOutput.printAndFlush(spec, PublishDryRunFormatter.centralReadiness(readiness));
                     return 1;
                 }
-                PublishCentralUploadResult centralResult = centralPublishService.publish(projectRoot, plan);
+                Optional<Duration> waitTimeout = wait
+                        ? Optional.of(Duration.ofSeconds(waitTimeoutSeconds))
+                        : Optional.empty();
+                PublishCentralUploadResult centralResult = centralPublishService.publish(projectRoot, plan, waitTimeout);
                 CommandOutput.printAndFlush(spec, PublishCentralUploadFormatter.text(centralResult));
-                progress.result("Published to Maven Central");
+                progress.result(centralProgressResult(centralResult.outcome()));
                 return 0;
             }
             if (dryRun) {
@@ -137,6 +159,13 @@ public final class PublishCommand implements Callable<Integer> {
             CommandFailures.printUser(spec, exception);
             return 1;
         }
+    }
+
+    private static String centralProgressResult(PublishCentralPublishOutcome outcome) {
+        return switch (outcome) {
+            case UPLOADED, PUBLISHED -> "Published to Maven Central";
+            case AWAITING_MANUAL_RELEASE -> "Validated on the Central Portal — release it to finish publishing";
+        };
     }
 
     private static String displayPath(Path root, Path path) {

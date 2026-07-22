@@ -15,9 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -82,6 +84,49 @@ final class PublishCentralPublishServiceTest {
             assertTrue(new String(uploadBody.get(), StandardCharsets.UTF_8).contains("name=\"bundle\""));
             assertTrue(result.bundle().entries().stream().anyMatch(entry -> entry.endsWith(".asc")),
                     result.bundle().entries().toString());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void waitPollsDeploymentToPublishedTerminalStateAndReportsOutcome() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        assumeTrue(generateSigningKey(gnupgHome), "gpg could not generate a throwaway signing key");
+
+        HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        } catch (IOException exception) {
+            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+            return;
+        }
+        server.createContext("/api/v1/publisher/upload", exchange -> respond(exchange, 201, "deployment-99"));
+        // Terminal on the first poll, so the wait returns immediately without sleeping between polls.
+        server.createContext("/api/v1/publisher/status", exchange ->
+                respond(exchange, 200, "{\"deploymentId\":\"deployment-99\",\"deploymentState\":\"PUBLISHED\"}"));
+        server.start();
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+
+        try {
+            Path root = writeProject(baseUrl);
+            Function<String, String> environment = Map.of(
+                    "ZOLT_CENTRAL_TOKEN", "dG9rZW4=",
+                    "ZOLT_SIGNING_PASS", PASSPHRASE,
+                    "GNUPGHOME", gnupgHome.toString())::get;
+            PublishDryRunPlan plan = new PublishDryRunService(environment).plan(root, false);
+            PublishCentralPublishService service = new PublishCentralPublishService(
+                    new ZoltTomlParser(),
+                    new PublishSettingsReader(),
+                    new CentralPortalClient(NetworkTransport.direct()),
+                    environment);
+
+            PublishCentralUploadResult result = service.publish(root, plan, Optional.of(Duration.ofSeconds(300)));
+
+            assertEquals("deployment-99", result.deploymentId());
+            assertEquals("PUBLISHED", result.status().state());
+            assertEquals(PublishCentralPublishOutcome.PUBLISHED, result.outcome());
         } finally {
             server.stop(0);
         }
