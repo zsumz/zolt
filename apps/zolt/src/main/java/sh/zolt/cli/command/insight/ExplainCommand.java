@@ -4,9 +4,11 @@ import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.explain.maven.MavenExplainFormatter;
 import sh.zolt.explain.maven.MavenInspectionResult;
 import sh.zolt.explain.maven.MavenStaticProjectInspector;
+import sh.zolt.explain.maven.NetworkMavenExternalParentResolver;
 import sh.zolt.explain.MigrationBlockerReportFormatter;
 import sh.zolt.explain.MigrationBlockerReports;
 import sh.zolt.explain.MigrationExplainException;
@@ -69,6 +71,11 @@ public final class ExplainCommand implements Callable<Integer> {
 
     @Option(names = "--emit-toml", description = "Print a draft zolt.toml synthesized from the migration audit instead of the raw explain report.")
     private boolean emitToml;
+
+    @Option(
+            names = "--resolve-external-parents",
+            description = "Fetch external Maven parent POMs/BOMs (opt-in network use) so inherited dependency versions resolve; offline stays the default.")
+    private boolean resolveExternalParents;
 
     @Option(
             names = "--emit-toml-output",
@@ -162,7 +169,11 @@ public final class ExplainCommand implements Callable<Integer> {
 
     private Integer explainMaven(Path root) {
         try {
-            MavenInspectionResult result = mavenInspector.inspect(root);
+            MavenStaticProjectInspector inspector = resolveExternalParents
+                    ? new MavenStaticProjectInspector(NetworkMavenExternalParentResolver.usingSharedNetwork(
+                            CommandNetwork.repositoryClient()))
+                    : mavenInspector;
+            MavenInspectionResult result = inspector.inspect(root);
             if (emitToml) {
                 if (emitTomlOutput != null) {
                     new ExplainEmitFileWriter(spec, emitTomlOutput, emitTomlOverwrite)
