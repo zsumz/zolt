@@ -20,7 +20,7 @@ final class RepositoryHttpContractsTest {
 
         assertEquals(
                 "Basic " + Base64.getEncoder().encodeToString("zolt-user:zolt-secret".getBytes(StandardCharsets.UTF_8)),
-                authentication.basicAuthorizationHeader());
+                authentication.authorizationHeaderValue());
         assertTrue(RepositoryAuthentication.none().isEmpty());
     }
 
@@ -37,7 +37,7 @@ final class RepositoryHttpContractsTest {
         assertEquals("GET", request.method());
         assertEquals(Duration.ofSeconds(7), request.timeout().orElseThrow());
         assertEquals(
-                authentication.basicAuthorizationHeader(),
+                authentication.authorizationHeaderValue(),
                 request.headers().firstValue("Authorization").orElseThrow());
     }
 
@@ -55,7 +55,7 @@ final class RepositoryHttpContractsTest {
         assertEquals("PUT", request.method());
         assertEquals(Duration.ofSeconds(9), request.timeout().orElseThrow());
         assertEquals(
-                authentication.basicAuthorizationHeader(),
+                authentication.authorizationHeaderValue(),
                 request.headers().firstValue("Authorization").orElseThrow());
     }
 
@@ -83,6 +83,37 @@ final class RepositoryHttpContractsTest {
 
         assertEquals("Repository authentication username must be non-empty.", usernameException.getMessage());
         assertEquals("Repository authentication password must be non-empty.", passwordException.getMessage());
+    }
+
+    @Test
+    void bearerAuthenticationHeaderUsesTheToken() {
+        RepositoryAuthentication authentication = RepositoryAuthentication.bearer("pat-abc123");
+
+        assertEquals("Bearer pat-abc123", authentication.authorizationHeaderValue());
+    }
+
+    @Test
+    void bearerTokenRequestSendsBearerAuthorizationHeaderOnFetchAndUpload() {
+        RepositoryAuthentication authentication = RepositoryAuthentication.bearer("pat-abc123");
+        URI uri = URI.create("https://repo.example.test/maven2/com/example/app/1.0.0/app-1.0.0.pom");
+
+        HttpRequest fetch = RepositoryHttpRequests.fetchRequest(
+                uri, Optional.of(authentication), RepositoryHttpPolicy.defaults());
+        HttpRequest upload = RepositoryHttpRequests.uploadRequest(
+                uri, HttpRequest.BodyPublishers.ofString("<project/>"),
+                Optional.of(authentication), RepositoryHttpPolicy.defaults());
+
+        assertEquals("Bearer pat-abc123", fetch.headers().firstValue("Authorization").orElseThrow());
+        assertEquals("Bearer pat-abc123", upload.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void bearerRejectsBlankToken() {
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> RepositoryAuthentication.bearer(" "));
+
+        assertEquals("Repository authentication token must be non-empty.", exception.getMessage());
     }
 
     @Test

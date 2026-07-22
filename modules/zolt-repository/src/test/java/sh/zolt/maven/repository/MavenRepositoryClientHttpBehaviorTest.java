@@ -163,6 +163,29 @@ final class MavenRepositoryClientHttpBehaviorTest extends MavenRepositoryClientT
     }
 
     @Test
+    void sendsBearerAuthorizationHeaderWhenConfigured() {
+        Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
+        AtomicInteger attempts = new AtomicInteger();
+        server.createContext("/bearer/", exchange -> {
+            attempts.incrementAndGet();
+            if (!"Bearer pat-token".equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                respond(exchange, 401, "unauthorized".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            respond(exchange, 200, "<project/>".getBytes(StandardCharsets.UTF_8));
+        });
+        URI bearerBaseUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/bearer/");
+
+        RepositoryArtifact artifact = client.fetchPom(
+                bearerBaseUri,
+                coordinate,
+                Optional.of(RepositoryAuthentication.bearer("pat-token")));
+
+        assertEquals(1, attempts.get());
+        assertTrue(new String(artifact.bytes(), StandardCharsets.UTF_8).contains("<project/>"));
+    }
+
+    @Test
     void authenticationFailureMessageIsActionableAndDoesNotLeakCredentials() {
         Coordinate coordinate = parser.parse("com.google.guava:guava:33.4.0-jre");
         AtomicInteger attempts = new AtomicInteger();

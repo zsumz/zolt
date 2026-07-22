@@ -16,7 +16,7 @@ final class RepositoryHttpRequests {
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
                     .timeout(httpPolicy.requestTimeout())
                     .GET();
-            authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
+            authentication.ifPresent(value -> requestBuilder.header("Authorization", value.authorizationHeaderValue()));
             return requestBuilder.build();
         } catch (IllegalArgumentException exception) {
             throw invalidRepositoryUri("download from", artifactUri, exception);
@@ -32,7 +32,7 @@ final class RepositoryHttpRequests {
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(artifactUri)
                     .timeout(httpPolicy.requestTimeout())
                     .PUT(bodyPublisher);
-            authentication.ifPresent(value -> requestBuilder.header("Authorization", value.basicAuthorizationHeader()));
+            authentication.ifPresent(value -> requestBuilder.header("Authorization", value.authorizationHeaderValue()));
             return requestBuilder.build();
         } catch (IllegalArgumentException exception) {
             throw invalidRepositoryUri("upload to", artifactUri, exception);
