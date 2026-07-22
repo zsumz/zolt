@@ -28,39 +28,6 @@ public record IncrementalCompileState(
     static final String MAIN_FILE_NAME = ".zolt-incremental-main.state";
     static final String TEST_FILE_NAME = ".zolt-incremental-test.state";
 
-    public IncrementalCompileState(
-            String scope,
-            Path projectDirectory,
-            Path outputDirectory,
-            Path generatedSourcesDirectory,
-            String compilerSettingsHash,
-            String buildFingerprintSha256,
-            List<String> fallbackReasons,
-            List<String> sourceRoots,
-            List<String> generatedSourceRoots,
-            List<ClasspathEntry> compileClasspath,
-            List<ClasspathEntry> processorClasspath,
-            List<SourceRecord> sources,
-            List<ClassRecord> classes,
-            Map<String, List<Path>> reverseDependencies) {
-        this(
-                scope,
-                projectDirectory,
-                outputDirectory,
-                generatedSourcesDirectory,
-                compilerSettingsHash,
-                buildFingerprintSha256,
-                fallbackReasons,
-                sourceRoots,
-                generatedSourceRoots,
-                compileClasspath,
-                processorClasspath,
-                sources,
-                classes,
-                reverseDependencies,
-                false);
-    }
-
     public IncrementalCompileState {
         scope = requireText(scope, "Incremental compile state scope is required.");
         projectDirectory = normalize(projectDirectory, "Incremental compile state project directory is required.");

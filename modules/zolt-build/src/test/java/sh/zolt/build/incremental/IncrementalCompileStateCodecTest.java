@@ -49,7 +49,8 @@ final class IncrementalCompileStateCodecTest {
                         "com.example.Zeta",
                         List.of(project.resolve("src/main/java/com/example/App.java")),
                         "com.example.Alpha",
-                        List.of(project.resolve("src/main/java/com/example/App.java"))));
+                        List.of(project.resolve("src/main/java/com/example/App.java"))),
+                false);
 
         String formatted = codec.format(state);
         IncrementalCompileState parsed = codec.parse(formatted).orElseThrow();
