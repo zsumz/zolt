@@ -7,9 +7,12 @@ import static sh.zolt.build.incremental.IncrementalCompileInputHasher.relative;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.ProjectConfig;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 final class IncrementalCompileStateValidator {
     String validate(
@@ -42,7 +45,39 @@ final class IncrementalCompileStateValidator {
         if (!state.compileClasspath().equals(classpathEntries(compileClasspath))) {
             return "compile-classpath-changed";
         }
-        return "";
+        return validateOutputClasses(state, projectRoot, outputDirectory);
+    }
+
+    private static String validateOutputClasses(IncrementalCompileState state, Path projectRoot, Path outputDirectory) {
+        List<Path> recorded = state.classes().stream()
+                .map(IncrementalCompileState.ClassRecord::outputPath)
+                .sorted()
+                .toList();
+        List<Path> actual;
+        if (!Files.isDirectory(outputDirectory)) {
+            actual = List.of();
+        } else {
+            try (Stream<Path> paths = Files.walk(outputDirectory)) {
+                actual = paths.filter(Files::isRegularFile)
+                        .filter(path -> path.getFileName().toString().endsWith(".class"))
+                        .map(path -> path.toAbsolutePath().normalize())
+                        .sorted()
+                        .toList();
+            } catch (IOException e) {
+                return "output-classes-unreadable";
+            }
+        }
+        if (recorded.equals(actual)) {
+            return "";
+        }
+        List<Path> missing = new ArrayList<>(recorded);
+        missing.removeAll(actual);
+        if (!missing.isEmpty()) {
+            return "missing-expected-class:" + relative(projectRoot, missing.getFirst());
+        }
+        List<Path> untracked = new ArrayList<>(actual);
+        untracked.removeAll(recorded);
+        return "untracked-class:" + relative(projectRoot, untracked.getFirst());
     }
 
     private static List<String> sourceRoots(
