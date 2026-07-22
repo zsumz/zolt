@@ -277,6 +277,21 @@ ambient or historically shaped:
   and uploads, and can reference `[repositoryCredentials]` entries for
   authenticated repositories.
 
+### SNAPSHOT dependencies
+
+`-SNAPSHOT` dependency versions are rejected by default because a moving
+version breaks the reproducibility that `zolt.lock` promises. Two narrow
+exceptions are allowed because they name artifacts that already exist on this
+machine rather than a remote moving target: workspace-member coordinates a
+sibling depends on with `{ workspace = "path" }` (built from source and locked
+with `source = "workspace"`), and artifacts present in an enabled maven-local
+repository overlay (`zolt resolve --repository-overlay maven-local`), which are
+SHA-256 pinned in `zolt.lock` with `source = "local-overlay:maven-local"` just
+like any materialized artifact. Everything else — remote SNAPSHOT feeds,
+`maven-metadata.xml`, and timestamped-snapshot resolution — stays unsupported by
+design; a SNAPSHOT that is neither a workspace member nor present in an enabled
+overlay is rejected with guidance rather than fetched from the network.
+
 ## Java Toolchains
 
 Zolt can run `java`, `javac`, `jar`, and GraalVM `native-image` from a concrete
