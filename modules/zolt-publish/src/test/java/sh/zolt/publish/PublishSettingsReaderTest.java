@@ -48,7 +48,7 @@ final class PublishSettingsReaderTest {
                 url = "https://repo.example.test/snapshots"
                 """, Map.of(
                 "publish-creds",
-                new RepositoryCredentialSettings("publish-creds", "PUBLISH_USERNAME", "PUBLISH_TOKEN")));
+                RepositoryCredentialSettings.basic("publish-creds", "PUBLISH_USERNAME", "PUBLISH_TOKEN")));
 
         assertTrue(settings.configured());
         assertEquals("company-releases", settings.releaseRepository());

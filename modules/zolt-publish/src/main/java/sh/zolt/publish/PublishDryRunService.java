@@ -266,11 +266,20 @@ public final class PublishDryRunService {
             return List.of("missing credential metadata for publish repository `" + repository.id() + "`");
         }
         List<String> missing = new ArrayList<>();
-        if (missingEnvironment(credential.usernameEnv())) {
-            missing.add(credential.usernameEnv());
-        }
-        if (missingEnvironment(credential.passwordEnv())) {
-            missing.add(credential.passwordEnv());
+        if (credential.usesToken()) {
+            String tokenEnv = credential.tokenEnv().orElseThrow();
+            if (missingEnvironment(tokenEnv)) {
+                missing.add(tokenEnv);
+            }
+        } else {
+            String usernameEnv = credential.usernameEnv().orElseThrow();
+            String passwordEnv = credential.passwordEnv().orElseThrow();
+            if (missingEnvironment(usernameEnv)) {
+                missing.add(usernameEnv);
+            }
+            if (missingEnvironment(passwordEnv)) {
+                missing.add(passwordEnv);
+            }
         }
         if (missing.isEmpty()) {
             return List.of();

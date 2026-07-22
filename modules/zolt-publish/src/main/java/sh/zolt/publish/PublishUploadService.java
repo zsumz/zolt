@@ -114,8 +114,15 @@ public final class PublishUploadService {
         if (credential == null) {
             throw new PublishException("missing credential metadata for publish repository `" + repository.id() + "`");
         }
-        String username = environment.apply(credential.usernameEnv());
-        String password = environment.apply(credential.passwordEnv());
+        if (credential.usesToken()) {
+            String token = environment.apply(credential.tokenEnv().orElseThrow());
+            if (token == null || token.isBlank()) {
+                throw new PublishException("missing credential environment variables for publish repository `" + repository.id() + "`");
+            }
+            return Optional.of(RepositoryAuthentication.bearer(token));
+        }
+        String username = environment.apply(credential.usernameEnv().orElseThrow());
+        String password = environment.apply(credential.passwordEnv().orElseThrow());
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
             throw new PublishException("missing credential environment variables for publish repository `" + repository.id() + "`");
         }
