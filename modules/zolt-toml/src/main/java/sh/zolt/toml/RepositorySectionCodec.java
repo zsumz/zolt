@@ -2,6 +2,7 @@ package sh.zolt.toml;
 
 import sh.zolt.toml.support.TomlValidation;
 import sh.zolt.toml.support.TomlScalars;
+import sh.zolt.error.ActionableError;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.RepositorySettings;
 import java.util.LinkedHashMap;
@@ -14,7 +15,7 @@ import org.tomlj.TomlTable;
 
 final class RepositorySectionCodec {
     private static final Set<String> REPOSITORY_KEYS = Set.of("url", "credentials");
-    private static final Set<String> REPOSITORY_CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv");
+    private static final Set<String> REPOSITORY_CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv", "tokenEnv");
 
     private RepositorySectionCodec() {
     }
@@ -65,15 +66,33 @@ final class RepositorySectionCodec {
             TomlTable credentialTable = table.getTable(List.of(key));
             if (credentialTable == null) {
                 throw new ZoltConfigException(
-                        "Invalid value for [repositoryCredentials]." + key + " in zolt.toml. Use a table with usernameEnv and passwordEnv.");
+                        "Invalid value for [repositoryCredentials]." + key + " in zolt.toml. Use a table with usernameEnv and passwordEnv, or tokenEnv.");
             }
             TomlValidation.validateKeys("repositoryCredentials." + key, credentialTable, REPOSITORY_CREDENTIAL_KEYS);
-            values.put(key, new RepositoryCredentialSettings(
-                    key,
-                    TomlScalars.requiredString(credentialTable, "repositoryCredentials." + key, "usernameEnv"),
-                    TomlScalars.requiredString(credentialTable, "repositoryCredentials." + key, "passwordEnv")));
+            values.put(key, credential(key, credentialTable));
         }
         return values;
+    }
+
+    private static RepositoryCredentialSettings credential(String key, TomlTable table) {
+        String section = "repositoryCredentials." + key;
+        Optional<String> tokenEnv = TomlScalars.optionalString(table, section, "tokenEnv");
+        Optional<String> usernameEnv = TomlScalars.optionalString(table, section, "usernameEnv");
+        Optional<String> passwordEnv = TomlScalars.optionalString(table, section, "passwordEnv");
+        if (tokenEnv.isPresent()) {
+            if (usernameEnv.isPresent() || passwordEnv.isPresent()) {
+                throw new ZoltConfigException(ActionableError.of(
+                        "Repository credential `" + key + "` sets tokenEnv together with usernameEnv or passwordEnv in zolt.toml.",
+                        "Use tokenEnv for bearer/PAT authentication or usernameEnv with passwordEnv for basic authentication, not both."));
+            }
+            return RepositoryCredentialSettings.token(key, tokenEnv.orElseThrow());
+        }
+        if (usernameEnv.isEmpty() || passwordEnv.isEmpty()) {
+            throw new ZoltConfigException(ActionableError.of(
+                    "Repository credential `" + key + "` is missing credential fields in zolt.toml.",
+                    "Set tokenEnv for bearer/PAT authentication, or both usernameEnv and passwordEnv for basic authentication."));
+        }
+        return RepositoryCredentialSettings.basic(key, usernameEnv.orElseThrow(), passwordEnv.orElseThrow());
     }
 
     static void validateRepositoryCredentialReferences(
@@ -119,8 +138,12 @@ final class RepositorySectionCodec {
             toml.append("[repositoryCredentials.")
                     .append(quote(credential.id()))
                     .append("]\n");
-            writeAssignment(toml, "usernameEnv", credential.usernameEnv());
-            writeAssignment(toml, "passwordEnv", credential.passwordEnv());
+            if (credential.usesToken()) {
+                writeAssignment(toml, "tokenEnv", credential.tokenEnv().orElseThrow());
+            } else {
+                writeAssignment(toml, "usernameEnv", credential.usernameEnv().orElseThrow());
+                writeAssignment(toml, "passwordEnv", credential.passwordEnv().orElseThrow());
+            }
             toml.append('\n');
         }
     }

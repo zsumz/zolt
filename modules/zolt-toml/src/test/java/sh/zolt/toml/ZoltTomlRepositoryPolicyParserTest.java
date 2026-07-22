@@ -34,10 +34,50 @@ final class ZoltTomlRepositoryPolicyParserTest {
                 config.repositorySettings().get("company").credentials().orElseThrow());
         assertEquals(
                 "ARTIFACTORY_USERNAME",
-                config.repositoryCredentials().get("company-artifactory").usernameEnv());
+                config.repositoryCredentials().get("company-artifactory").usernameEnv().orElseThrow());
         assertEquals(
                 "ARTIFACTORY_ACCESS_TOKEN",
-                config.repositoryCredentials().get("company-artifactory").passwordEnv());
+                config.repositoryCredentials().get("company-artifactory").passwordEnv().orElseThrow());
+    }
+
+    @Test
+    void parsesBearerTokenCredential() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [repositories]
+                "company" = { url = "https://repo.acme.example/maven", credentials = "company-artifactory" }
+
+                [repositoryCredentials.company-artifactory]
+                tokenEnv = "ARTIFACTORY_TOKEN"
+                """);
+
+        assertTrue(config.repositoryCredentials().get("company-artifactory").usesToken());
+        assertEquals(
+                "ARTIFACTORY_TOKEN",
+                config.repositoryCredentials().get("company-artifactory").tokenEnv().orElseThrow());
+    }
+
+    @Test
+    void rejectsCredentialCombiningTokenWithBasicFields() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "17"
+
+                [repositoryCredentials.company-artifactory]
+                usernameEnv = "ARTIFACTORY_USERNAME"
+                tokenEnv = "ARTIFACTORY_TOKEN"
+                """));
+
+        assertTrue(exception.getMessage().contains(
+                "Repository credential `company-artifactory` sets tokenEnv together with usernameEnv or passwordEnv"));
     }
 
     @Test

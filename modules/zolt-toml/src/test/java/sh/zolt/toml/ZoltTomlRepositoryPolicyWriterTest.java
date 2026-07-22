@@ -33,7 +33,7 @@ final class ZoltTomlRepositoryPolicyWriterTest {
                                 Optional.of("company-artifactory"))))
                 .repositoryCredentials(Map.of(
                         "company-artifactory",
-                        new RepositoryCredentialSettings(
+                        RepositoryCredentialSettings.basic(
                                 "company-artifactory",
                                 "ARTIFACTORY_USERNAME",
                                 "ARTIFACTORY_ACCESS_TOKEN")))
@@ -50,7 +50,7 @@ final class ZoltTomlRepositoryPolicyWriterTest {
                 parsed.repositorySettings().get("company").credentials().orElseThrow());
         assertEquals(
                 "ARTIFACTORY_ACCESS_TOKEN",
-                parsed.repositoryCredentials().get("company-artifactory").passwordEnv());
+                parsed.repositoryCredentials().get("company-artifactory").passwordEnv().orElseThrow());
     }
 
     @Test
