@@ -37,7 +37,18 @@ public final class PomDependencyManager {
                 interpolated.type().or(managedDependency::type),
                 interpolated.classifier(),
                 interpolated.optional(),
-                interpolated.exclusions());
+                unionExclusions(interpolated.exclusions(), managedDependency.exclusions()));
+    }
+
+    private static java.util.List<RawPomExclusion> unionExclusions(
+            java.util.List<RawPomExclusion> requested,
+            java.util.List<RawPomExclusion> managed) {
+        if (managed.isEmpty()) {
+            return requested;
+        }
+        java.util.LinkedHashSet<RawPomExclusion> union = new java.util.LinkedHashSet<>(requested);
+        union.addAll(managed);
+        return java.util.List.copyOf(union);
     }
 
     public java.util.List<RawPomDependency> applyManagedVersions(EffectiveRawPom pom) {

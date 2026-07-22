@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class PomDependencyManagerTest {
@@ -203,6 +204,172 @@ final class PomDependencyManagerTest {
         assertEquals("4.13.2", dependency.version().orElseThrow());
         assertEquals("test", dependency.scope().orElseThrow());
         assertTrue(manager.applyManagedVersions(pom).isEmpty());
+    }
+
+    @Test
+    void managedEntryExclusionsApplyWhenDependencyDeclaresNone() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.16</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>commons-logging</groupId>
+                            <artifactId>commons-logging</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals("2.0.16", dependency.version().orElseThrow());
+        assertEquals(
+                List.of(new RawPomExclusion("commons-logging", "commons-logging")),
+                dependency.exclusions());
+    }
+
+    @Test
+    void managedAndRequestingExclusionsAreUnionedDeterministically() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.16</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>managed</groupId>
+                            <artifactId>excluded</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>requested</groupId>
+                          <artifactId>excluded</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals("2.0.16", dependency.version().orElseThrow());
+        assertEquals(
+                List.of(
+                        new RawPomExclusion("requested", "excluded"),
+                        new RawPomExclusion("managed", "excluded")),
+                dependency.exclusions());
+    }
+
+    @Test
+    void managedWildcardExclusionsAreApplied() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.16</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>*</groupId>
+                            <artifactId>*</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals(List.of(new RawPomExclusion("*", "*")), dependency.exclusions());
+    }
+
+    @Test
+    void duplicateExclusionsAcrossManagedAndRequestingAreDeduplicated() {
+        EffectiveRawPom pom = effective(parser, """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencyManagement>
+                    <dependencies>
+                      <dependency>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                        <version>2.0.16</version>
+                        <exclusions>
+                          <exclusion>
+                            <groupId>commons-logging</groupId>
+                            <artifactId>commons-logging</artifactId>
+                          </exclusion>
+                        </exclusions>
+                      </dependency>
+                    </dependencies>
+                  </dependencyManagement>
+                  <dependencies>
+                    <dependency>
+                      <groupId>org.slf4j</groupId>
+                      <artifactId>slf4j-api</artifactId>
+                      <exclusions>
+                        <exclusion>
+                          <groupId>commons-logging</groupId>
+                          <artifactId>commons-logging</artifactId>
+                        </exclusion>
+                      </exclusions>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+
+        RawPomDependency dependency = manager.applyManagedVersions(pom).getFirst();
+
+        assertEquals(
+                List.of(new RawPomExclusion("commons-logging", "commons-logging")),
+                dependency.exclusions());
     }
 
     @Test
