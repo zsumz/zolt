@@ -26,6 +26,9 @@ final class DependencyTransitiveScopeSelector {
         if (parentScope == DependencyScope.TOOL_PROTOBUF) {
             return Optional.of(DependencyScope.TOOL_PROTOBUF);
         }
+        if (parentScope == DependencyScope.TOOL_EXEC) {
+            return Optional.of(DependencyScope.TOOL_EXEC);
+        }
         if (parentScope == DependencyScope.TOOL_COVERAGE) {
             return Optional.of(DependencyScope.TOOL_COVERAGE);
         }

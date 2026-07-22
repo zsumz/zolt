@@ -7,7 +7,8 @@ import java.util.stream.Collectors;
 public enum GeneratedSourceKind {
     DECLARED_ROOT("declared-root"),
     OPENAPI("openapi"),
-    PROTOBUF("protobuf");
+    PROTOBUF("protobuf"),
+    EXEC("exec");
 
     private final String configValue;
 

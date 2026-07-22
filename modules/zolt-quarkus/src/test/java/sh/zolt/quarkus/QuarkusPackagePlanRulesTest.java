@@ -81,6 +81,7 @@ final class QuarkusPackagePlanRulesTest {
         expectedRules.put(DependencyScope.TOOL_SPRING_AOT, "spring-aot-tool-omitted");
         expectedRules.put(DependencyScope.TOOL_OPENAPI, "openapi-tool-omitted");
         expectedRules.put(DependencyScope.TOOL_PROTOBUF, "protobuf-tool-omitted");
+        expectedRules.put(DependencyScope.TOOL_EXEC, "exec-tool-omitted");
         expectedRules.put(DependencyScope.TOOL_COVERAGE, "coverage-tool-omitted");
 
         for (Map.Entry<DependencyScope, String> entry : expectedRules.entrySet()) {

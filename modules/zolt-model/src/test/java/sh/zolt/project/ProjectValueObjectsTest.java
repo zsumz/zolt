@@ -321,7 +321,7 @@ final class ProjectValueObjectsTest {
     void enumConfigValuesStayStable() {
         assertEquals(Optional.of(GeneratedSourceKind.OPENAPI), GeneratedSourceKind.fromConfigValue("openapi"));
         assertEquals(Optional.empty(), GeneratedSourceKind.fromConfigValue("OpenAPI"));
-        assertEquals("declared-root, openapi, protobuf", GeneratedSourceKind.supportedValues());
+        assertEquals("declared-root, openapi, protobuf, exec", GeneratedSourceKind.supportedValues());
 
         assertEquals(Optional.of(PackageMode.SPRING_BOOT_WAR), PackageMode.fromConfigValue("spring-boot-war"));
         assertEquals(Optional.empty(), PackageMode.fromConfigValue(null));

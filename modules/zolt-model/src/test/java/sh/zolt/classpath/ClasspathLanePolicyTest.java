@@ -34,6 +34,7 @@ final class ClasspathLanePolicyTest {
         assertEquals(List.of("tool-spring-aot"), ClasspathLanePolicy.lanes(DependencyScope.TOOL_SPRING_AOT));
         assertEquals(List.of("tool-openapi"), ClasspathLanePolicy.lanes(DependencyScope.TOOL_OPENAPI));
         assertEquals(List.of("tool-protobuf"), ClasspathLanePolicy.lanes(DependencyScope.TOOL_PROTOBUF));
+        assertEquals(List.of("tool-exec"), ClasspathLanePolicy.lanes(DependencyScope.TOOL_EXEC));
         assertEquals(List.of("tool-coverage"), ClasspathLanePolicy.lanes(DependencyScope.TOOL_COVERAGE));
 
         assertEquals("package-default", ClasspathLanePolicy.disposition(DependencyScope.COMPILE));
@@ -46,6 +47,7 @@ final class ClasspathLanePolicyTest {
         assertEquals("spring-aot-tooling-only", ClasspathLanePolicy.disposition(DependencyScope.TOOL_SPRING_AOT));
         assertEquals("openapi-generator-tooling-only", ClasspathLanePolicy.disposition(DependencyScope.TOOL_OPENAPI));
         assertEquals("protobuf-generator-tooling-only", ClasspathLanePolicy.disposition(DependencyScope.TOOL_PROTOBUF));
+        assertEquals("exec-tooling-only", ClasspathLanePolicy.disposition(DependencyScope.TOOL_EXEC));
         assertEquals("coverage-tooling-only", ClasspathLanePolicy.disposition(DependencyScope.TOOL_COVERAGE));
     }
 }

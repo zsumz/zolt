@@ -26,6 +26,7 @@ final class DependencyScopeTest {
         assertEquals("tool-spring-aot", names.get(DependencyScope.TOOL_SPRING_AOT));
         assertEquals("tool-openapi", names.get(DependencyScope.TOOL_OPENAPI));
         assertEquals("tool-protobuf", names.get(DependencyScope.TOOL_PROTOBUF));
+        assertEquals("tool-exec", names.get(DependencyScope.TOOL_EXEC));
         assertEquals("tool-coverage", names.get(DependencyScope.TOOL_COVERAGE));
     }
 

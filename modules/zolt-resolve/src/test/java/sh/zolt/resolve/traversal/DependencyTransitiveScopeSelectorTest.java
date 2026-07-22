@@ -59,6 +59,9 @@ final class DependencyTransitiveScopeSelectorTest {
                 Optional.of(DependencyScope.TOOL_PROTOBUF),
                 selector.select(DependencyScope.TOOL_PROTOBUF, DependencyScope.COMPILE));
         assertEquals(
+                Optional.of(DependencyScope.TOOL_EXEC),
+                selector.select(DependencyScope.TOOL_EXEC, DependencyScope.COMPILE));
+        assertEquals(
                 Optional.of(DependencyScope.TOOL_COVERAGE),
                 selector.select(DependencyScope.TOOL_COVERAGE, DependencyScope.COMPILE));
     }

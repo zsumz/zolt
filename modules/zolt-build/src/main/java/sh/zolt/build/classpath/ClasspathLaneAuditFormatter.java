@@ -13,9 +13,9 @@ public final class ClasspathLaneAuditFormatter {
         StringBuilder output = new StringBuilder();
         output.append("Classpath lane audit\n\n");
         output.append("Lane policy:\n");
-        output.append("scope               compile runtime test processor test-processor tool-spring-aot tool-openapi tool-protobuf tool-coverage package-default disposition\n");
+        output.append("scope               compile runtime test processor test-processor tool-spring-aot tool-openapi tool-protobuf tool-exec tool-coverage package-default disposition\n");
         for (DependencyScope scope : scopes()) {
-            output.append("%-19s %-7s %-7s %-4s %-9s %-14s %-15s %-12s %-13s %-13s %-15s %s%n".formatted(
+            output.append("%-19s %-7s %-7s %-4s %-9s %-14s %-15s %-12s %-13s %-9s %-13s %-15s %s%n".formatted(
                     scope.lockfileName(),
                     yesNo(scope.entersMainCompileClasspath()),
                     yesNo(scope.entersMainRuntimeClasspath()),
@@ -25,6 +25,7 @@ public final class ClasspathLaneAuditFormatter {
                     yesNo(scope == DependencyScope.TOOL_SPRING_AOT),
                     yesNo(scope == DependencyScope.TOOL_OPENAPI),
                     yesNo(scope == DependencyScope.TOOL_PROTOBUF),
+                    yesNo(scope == DependencyScope.TOOL_EXEC),
                     yesNo(scope == DependencyScope.TOOL_COVERAGE),
                     yesNo(scope.packagedByDefault()),
                     ClasspathLanePolicy.disposition(scope)));
@@ -77,6 +78,7 @@ public final class ClasspathLaneAuditFormatter {
             field(json, 3, "toolSpringAot", scope == DependencyScope.TOOL_SPRING_AOT, true);
             field(json, 3, "toolOpenapi", scope == DependencyScope.TOOL_OPENAPI, true);
             field(json, 3, "toolProtobuf", scope == DependencyScope.TOOL_PROTOBUF, true);
+            field(json, 3, "toolExec", scope == DependencyScope.TOOL_EXEC, true);
             field(json, 3, "toolCoverage", scope == DependencyScope.TOOL_COVERAGE, true);
             field(json, 3, "packageDefault", scope.packagedByDefault(), true);
             stringField(json, 3, "disposition", ClasspathLanePolicy.disposition(scope), false);

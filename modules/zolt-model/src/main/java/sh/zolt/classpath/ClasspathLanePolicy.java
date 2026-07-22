@@ -37,6 +37,9 @@ public final class ClasspathLanePolicy {
         if (scope == DependencyScope.TOOL_PROTOBUF) {
             lanes.add("tool-protobuf");
         }
+        if (scope == DependencyScope.TOOL_EXEC) {
+            lanes.add("tool-exec");
+        }
         if (scope == DependencyScope.TOOL_COVERAGE) {
             lanes.add("tool-coverage");
         }
@@ -58,6 +61,7 @@ public final class ClasspathLanePolicy {
             case TOOL_SPRING_AOT -> "spring-aot-tooling-only";
             case TOOL_OPENAPI -> "openapi-generator-tooling-only";
             case TOOL_PROTOBUF -> "protobuf-generator-tooling-only";
+            case TOOL_EXEC -> "exec-tooling-only";
             case TOOL_COVERAGE -> "coverage-tooling-only";
         };
     }

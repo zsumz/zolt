@@ -12,6 +12,7 @@ public enum DependencyScope {
     TOOL_SPRING_AOT(false, false, false, false, false, false, "tool-spring-aot"),
     TOOL_OPENAPI(false, false, false, false, false, false, "tool-openapi"),
     TOOL_PROTOBUF(false, false, false, false, false, false, "tool-protobuf"),
+    TOOL_EXEC(false, false, false, false, false, false, "tool-exec"),
     TOOL_COVERAGE(false, false, false, false, false, false, "tool-coverage");
 
     private final boolean mainCompileClasspath;

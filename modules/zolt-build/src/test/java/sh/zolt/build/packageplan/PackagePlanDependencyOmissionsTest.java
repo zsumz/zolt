@@ -12,6 +12,7 @@ final class PackagePlanDependencyOmissionsTest {
         assertEquals("dev-only-omitted", PackagePlanDependencyOmissions.rule(DependencyScope.DEV, false));
         assertEquals("processor-omitted", PackagePlanDependencyOmissions.rule(DependencyScope.PROCESSOR, false));
         assertEquals("spring-aot-tool-omitted", PackagePlanDependencyOmissions.rule(DependencyScope.TOOL_SPRING_AOT, false));
+        assertEquals("exec-tool-omitted", PackagePlanDependencyOmissions.rule(DependencyScope.TOOL_EXEC, false));
         assertEquals("coverage-tool-omitted", PackagePlanDependencyOmissions.rule(DependencyScope.TOOL_COVERAGE, false));
     }
 
