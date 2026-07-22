@@ -14,7 +14,7 @@ final class JavacWorkerPool {
     private JavacWorkerPool() {
     }
 
-    static Optional<JavacRunner.ProcessResult> compile(Path javac, List<String> arguments) {
+    static Optional<JavacRunner.ProcessResult> compile(Path javac, int kind, List<String> arguments) {
         Optional<Path> workerJar = JavacWorkerClasspath.discover();
         if (workerJar.isEmpty()) {
             return Optional.empty();
@@ -25,11 +25,12 @@ final class JavacWorkerPool {
         Optional<JavacRunner.ProcessResult> persistentResult = JavacWorkerDaemon.compile(
                 key.javac(),
                 key.workerJar(),
+                kind,
                 arguments);
         if (persistentResult.isPresent()) {
             return persistentResult;
         }
-        return POOLS.computeIfAbsent(key, WorkerPool::new).compile(arguments);
+        return POOLS.computeIfAbsent(key, WorkerPool::new).compile(kind, arguments);
     }
 
     private record PoolKey(Path javac, Path workerJar) {
@@ -46,7 +47,7 @@ final class JavacWorkerPool {
             this.key = key;
         }
 
-        private Optional<JavacRunner.ProcessResult> compile(List<String> arguments) {
+        private Optional<JavacRunner.ProcessResult> compile(int kind, List<String> arguments) {
             JavacWorkerProcess worker;
             try {
                 worker = acquire();
@@ -61,7 +62,7 @@ final class JavacWorkerPool {
                 return Optional.empty();
             }
             try {
-                JavacRunner.ProcessResult result = worker.compile(arguments);
+                JavacRunner.ProcessResult result = worker.compile(kind, arguments);
                 release(worker);
                 return Optional.of(result);
             } catch (IOException exception) {

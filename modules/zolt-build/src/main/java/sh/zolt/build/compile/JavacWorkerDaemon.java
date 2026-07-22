@@ -27,9 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 final class JavacWorkerDaemon {
     private static final String MAIN_CLASS = "sh.zolt.javac.JavacWorkerMain";
-    private static final int MAGIC = 0x5a4f4c54;
-    private static final int PROTOCOL_VERSION = 1;
-    private static final int MAX_RESPONSE_BYTES = 64 * 1024 * 1024;
     private static final int CONNECT_TIMEOUT_MILLIS = 500;
     private static final int REQUEST_TIMEOUT_MILLIS = (int) Duration.ofMinutes(30).toMillis();
     private static final long START_TIMEOUT_NANOS = Duration.ofSeconds(5).toNanos();
@@ -41,6 +38,7 @@ final class JavacWorkerDaemon {
     static Optional<JavacRunner.ProcessResult> compile(
             Path javac,
             Path workerJar,
+            int kind,
             List<String> arguments) {
         if ("false".equalsIgnoreCase(System.getProperty("zolt.javac.worker.persistent", "true"))) {
             return Optional.empty();
@@ -54,7 +52,7 @@ final class JavacWorkerDaemon {
         Optional<ServerMetadata> existing = readMetadata(statePath);
         if (existing.isPresent()) {
             try {
-                return Optional.of(request(existing.orElseThrow(), arguments));
+                return Optional.of(request(existing.orElseThrow(), kind, arguments));
             } catch (IOException ignored) {
                 // Replace stale server state under the cross-process startup lock.
             }
@@ -65,7 +63,7 @@ final class JavacWorkerDaemon {
                     workerJar,
                     statePath,
                     existing.orElse(null));
-            return Optional.of(request(server, arguments));
+            return Optional.of(request(server, kind, arguments));
         } catch (IOException | InterruptedException exception) {
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -149,6 +147,7 @@ final class JavacWorkerDaemon {
 
     private static JavacRunner.ProcessResult request(
             ServerMetadata server,
+            int kind,
             List<String> arguments) throws IOException {
         try (Socket socket = new Socket()) {
             socket.connect(
@@ -156,27 +155,12 @@ final class JavacWorkerDaemon {
                     CONNECT_TIMEOUT_MILLIS);
             socket.setSoTimeout(REQUEST_TIMEOUT_MILLIS);
             DataOutputStream request = new DataOutputStream(socket.getOutputStream());
-            request.writeInt(MAGIC);
-            request.writeInt(PROTOCOL_VERSION);
-            writeString(request, server.token());
-            request.writeInt(arguments.size());
-            for (String argument : arguments) {
-                writeString(request, argument);
-            }
+            request.writeInt(JavacWorkerWire.MAGIC);
+            request.writeInt(JavacWorkerWire.PROTOCOL_VERSION);
+            JavacWorkerWire.writeString(request, server.token());
+            JavacWorkerWire.writeRequest(request, kind, arguments);
             request.flush();
-            DataInputStream response = new DataInputStream(socket.getInputStream());
-            int exitCode = response.readInt();
-            int outputLength = response.readInt();
-            if (outputLength < 0 || outputLength > MAX_RESPONSE_BYTES) {
-                throw new IOException("invalid javac worker response length " + outputLength);
-            }
-            byte[] outputBytes = response.readNBytes(outputLength);
-            if (outputBytes.length != outputLength) {
-                throw new IOException("incomplete javac worker response");
-            }
-            return new JavacRunner.ProcessResult(
-                    exitCode,
-                    new String(outputBytes, StandardCharsets.UTF_8));
+            return JavacWorkerWire.readResponse(new DataInputStream(socket.getInputStream()));
         }
     }
 
@@ -192,7 +176,7 @@ final class JavacWorkerDaemon {
                     values.put(line.substring(0, separator), line.substring(separator + 1));
                 }
             }
-            if (Integer.parseInt(values.getOrDefault("version", "-1")) != PROTOCOL_VERSION) {
+            if (Integer.parseInt(values.getOrDefault("version", "-1")) != JavacWorkerWire.PROTOCOL_VERSION) {
                 return Optional.empty();
             }
             int port = Integer.parseInt(values.getOrDefault("port", "-1"));
@@ -204,12 +188,6 @@ final class JavacWorkerDaemon {
         } catch (IOException | NumberFormatException exception) {
             return Optional.empty();
         }
-    }
-
-    private static void writeString(DataOutputStream output, String value) throws IOException {
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-        output.writeInt(bytes.length);
-        output.write(bytes);
     }
 
     private static Path runtimeDirectory() {

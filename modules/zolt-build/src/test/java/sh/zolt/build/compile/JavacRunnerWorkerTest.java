@@ -20,7 +20,7 @@ final class JavacRunnerWorkerTest {
     void usesWorkerForExternalCompilerWithoutProcessorsOrJvmArguments() throws Exception {
         List<List<String>> externalCommands = new ArrayList<>();
         List<List<String>> workerArguments = new ArrayList<>();
-        JavacRunner runner = runner(externalCommands, (javac, arguments) -> {
+        JavacRunner runner = runner(externalCommands, (javac, kind, arguments) -> {
             workerArguments.add(arguments);
             return Optional.of(new JavacRunner.ProcessResult(0, "worker output"));
         });
@@ -40,7 +40,7 @@ final class JavacRunnerWorkerTest {
     @Test
     void fallsBackToExternalCompilerWhenWorkerIsUnavailable() throws Exception {
         List<List<String>> externalCommands = new ArrayList<>();
-        JavacRunner runner = runner(externalCommands, (javac, arguments) -> Optional.empty());
+        JavacRunner runner = runner(externalCommands, (javac, kind, arguments) -> Optional.empty());
 
         runner.compile(
                 Path.of("/jdk/bin/javac"),
@@ -56,7 +56,7 @@ final class JavacRunnerWorkerTest {
     void keepsJvmArgumentsOnDirectJavacInvocation() throws Exception {
         List<List<String>> externalCommands = new ArrayList<>();
         List<List<String>> workerArguments = new ArrayList<>();
-        JavacRunner runner = runner(externalCommands, (javac, arguments) -> {
+        JavacRunner runner = runner(externalCommands, (javac, kind, arguments) -> {
             workerArguments.add(arguments);
             return Optional.of(new JavacRunner.ProcessResult(0, ""));
         });

@@ -1,6 +1,7 @@
 package sh.zolt.build.compile;
 
 import sh.zolt.build.JavacException;
+import sh.zolt.build.incremental.GeneratedOutputAttribution;
 import sh.zolt.classpath.Classpath;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -91,6 +92,26 @@ public final class JavacRunner {
             Classpath processorClasspath,
             Path generatedSourcesDirectory,
             JavacOptions options) {
+        return compile(
+                javac,
+                sources,
+                classpath,
+                outputDirectory,
+                processorClasspath,
+                generatedSourcesDirectory,
+                options,
+                false);
+    }
+
+    public JavacResult compile(
+            Path javac,
+            List<Path> sources,
+            Classpath classpath,
+            Path outputDirectory,
+            Classpath processorClasspath,
+            Path generatedSourcesDirectory,
+            JavacOptions options,
+            boolean captureAttribution) {
         JavacOptions effectiveOptions = options == null ? JavacOptions.empty() : options;
         List<Path> sortedSources = sources.stream().map(Path::normalize).sorted().toList();
         Path effectiveGeneratedSourcesDirectory = JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
@@ -121,36 +142,48 @@ public final class JavacRunner {
                 effectiveGeneratedSourcesDirectory,
                 effectiveOptions);
         List<String> arguments = command.subList(1, command.size());
-        ProcessResult result;
-        if (canRunInProcess(javac, processorClasspath, effectiveOptions)) {
-            result = inProcessRunner.run(arguments);
-        } else {
-            Optional<ProcessResult> workerResult = canRunInWorker(processorClasspath, effectiveOptions)
-                    ? workerRunner.run(javac, arguments)
-                    : Optional.empty();
-            result = workerResult.orElseGet(() -> processRunner.run(command));
-        }
+        ProcessResult result = dispatch(
+                javac, command, arguments, processorClasspath, effectiveOptions, captureAttribution);
         if (result.exitCode() != 0) {
             String diagnostics = result.output().stripTrailing();
             String summary = "javac failed with exit code " + result.exitCode() + "."
                     + (diagnostics.isEmpty() ? "" : "\n" + diagnostics);
             throw new JavacException(sh.zolt.error.ActionableError.of(summary, remediation(diagnostics)));
         }
-        return new JavacResult(sortedSources.size(), outputDirectory, result.output());
+        return new JavacResult(sortedSources.size(), outputDirectory, result.output(), result.attribution());
     }
 
-    private boolean canRunInProcess(Path javac, Classpath processorClasspath, JavacOptions options) {
-        return inProcessRunner != null
-                && runtimeJavac != null
-                && sameExecutable(javac, runtimeJavac)
-                && JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
-                && options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
+    private ProcessResult dispatch(
+            Path javac,
+            List<String> command,
+            List<String> arguments,
+            Classpath processorClasspath,
+            JavacOptions options,
+            boolean captureAttribution) {
+        boolean noJvmArgs = options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
+        if (JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()) {
+            if (canRunInProcess(javac) && noJvmArgs) {
+                return inProcessRunner.run(arguments);
+            }
+            return worker(javac, JavacWorkerWire.KIND_COMPILE, arguments, noJvmArgs)
+                    .orElseGet(() -> processRunner.run(command));
+        }
+        if (captureAttribution && noJvmArgs) {
+            return worker(javac, JavacWorkerWire.KIND_COMPILE_ATTRIBUTED, arguments, true)
+                    .orElseGet(() -> processRunner.run(command));
+        }
+        return processRunner.run(command);
     }
 
-    private boolean canRunInWorker(Classpath processorClasspath, JavacOptions options) {
-        return workerRunner != null
-                && JavacCommandBuilder.sortedEntries(processorClasspath).isEmpty()
-                && options.arguments().stream().noneMatch(argument -> argument.startsWith("-J"));
+    private Optional<ProcessResult> worker(Path javac, int kind, List<String> arguments, boolean allowed) {
+        if (workerRunner == null || !allowed) {
+            return Optional.empty();
+        }
+        return workerRunner.run(javac, kind, arguments);
+    }
+
+    private boolean canRunInProcess(Path javac) {
+        return inProcessRunner != null && runtimeJavac != null && sameExecutable(javac, runtimeJavac);
     }
 
     private static String remediation(String diagnostics) {
@@ -257,9 +290,12 @@ public final class JavacRunner {
 
     @FunctionalInterface
     interface WorkerRunner {
-        Optional<ProcessResult> run(Path javac, List<String> arguments);
+        Optional<ProcessResult> run(Path javac, int kind, List<String> arguments);
     }
 
-    record ProcessResult(int exitCode, String output) {
+    record ProcessResult(int exitCode, String output, GeneratedOutputAttribution attribution) {
+        ProcessResult(int exitCode, String output) {
+            this(exitCode, output, GeneratedOutputAttribution.absent());
+        }
     }
 }
