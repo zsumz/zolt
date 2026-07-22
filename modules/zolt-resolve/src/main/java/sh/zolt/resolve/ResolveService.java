@@ -52,12 +52,25 @@ public final class ResolveService {
         this(new CoordinateParser(), frameworkDependencyRequestPlanner);
     }
 
+    public ResolveService(
+            FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner,
+            MavenRepositoryClient repositoryClient) {
+        this(new CoordinateParser(), repositoryClient, frameworkDependencyRequestPlanner);
+    }
+
     private ResolveService(
             CoordinateParser coordinateParser,
             FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner) {
+        this(coordinateParser, new MavenRepositoryClient(), frameworkDependencyRequestPlanner);
+    }
+
+    private ResolveService(
+            CoordinateParser coordinateParser,
+            MavenRepositoryClient repositoryClient,
+            FrameworkDependencyRequestPlanner frameworkDependencyRequestPlanner) {
         this(
                 coordinateParser,
-                new MavenRepositoryClient(),
+                repositoryClient,
                 new RawPomParser(),
                 DependencyGraphTraverser::new,
                 new VersionSelector(),
