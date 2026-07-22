@@ -82,7 +82,8 @@ final class ResolverModelTest {
                 false,
                 false,
                 "  zolt resolve --workspace  ",
-                listener);
+                listener,
+                java.util.Set.of(new sh.zolt.dependency.PackageId("com.example", "member")));
         overlays.clear();
 
         assertTrue(options.offline());
@@ -91,10 +92,15 @@ final class ResolverModelTest {
         assertEquals(1, options.repositoryOverlays().size());
         assertEquals("local-overlay:maven-local", options.repositoryOverlays().getFirst().lockfileSource());
         assertThrows(UnsupportedOperationException.class, () -> options.repositoryOverlays().clear());
+        assertEquals(
+                java.util.Set.of(new sh.zolt.dependency.PackageId("com.example", "member")),
+                options.workspaceMemberCoordinates());
+        assertThrows(UnsupportedOperationException.class, () -> options.workspaceMemberCoordinates().clear());
 
-        ResolveOptions defaults = new ResolveOptions(false, null, false, false, " ", null);
+        ResolveOptions defaults = new ResolveOptions(false, null, false, false, " ", null, null);
         assertEquals("zolt resolve", defaults.retryCommand());
         assertEquals(List.of(), defaults.repositoryOverlays());
+        assertEquals(java.util.Set.of(), defaults.workspaceMemberCoordinates());
         assertEquals(ArtifactProgressListener.NOOP, defaults.artifactProgressListener());
         assertTrue(defaults.withCoverageTooling().includeCoverageTooling());
         assertEquals("zolt resolve --locked", defaults.withRetryCommand("zolt resolve --locked").retryCommand());

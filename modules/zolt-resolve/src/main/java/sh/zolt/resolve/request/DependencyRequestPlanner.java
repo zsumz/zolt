@@ -5,6 +5,7 @@ import sh.zolt.maven.CoordinateParser;
 import sh.zolt.project.DependencyPolicyExclusion;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.SnapshotAllowance;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ public final class DependencyRequestPlanner {
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions,
             boolean includeCoverageTooling) {
-        return plan(config, projectManagedVersions, includeCoverageTooling, "zolt resolve");
+        return plan(config, projectManagedVersions, includeCoverageTooling, "zolt resolve", SnapshotAllowance.none());
     }
 
     public List<DependencyRequest> plan(
@@ -47,10 +48,20 @@ public final class DependencyRequestPlanner {
             Map<PackageId, String> projectManagedVersions,
             boolean includeCoverageTooling,
             String retryCommand) {
+        return plan(config, projectManagedVersions, includeCoverageTooling, retryCommand, SnapshotAllowance.none());
+    }
+
+    public List<DependencyRequest> plan(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            boolean includeCoverageTooling,
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         List<DependencyRequest> requests = directDependencyRequestPlanner.plan(
                 config,
                 projectManagedVersions,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         toolingDependencyContributor.contribute(config, projectManagedVersions, requests, includeCoverageTooling);
         validateDirectRequestsAllowed(config, requests, retryCommand);
         return List.copyOf(requests);

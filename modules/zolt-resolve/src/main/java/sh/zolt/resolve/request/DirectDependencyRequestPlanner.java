@@ -10,6 +10,7 @@ import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.VersionPolicy;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.SnapshotAllowance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,13 +26,21 @@ final class DirectDependencyRequestPlanner {
     List<DependencyRequest> plan(
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions) {
-        return plan(config, projectManagedVersions, "zolt resolve");
+        return plan(config, projectManagedVersions, "zolt resolve", SnapshotAllowance.none());
     }
 
     List<DependencyRequest> plan(
             ProjectConfig config,
             Map<PackageId, String> projectManagedVersions,
             String retryCommand) {
+        return plan(config, projectManagedVersions, retryCommand, SnapshotAllowance.none());
+    }
+
+    List<DependencyRequest> plan(
+            ProjectConfig config,
+            Map<PackageId, String> projectManagedVersions,
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         List<DependencyRequest> requests = new ArrayList<>();
         addDirectRequests(
                 requests,
@@ -41,7 +50,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedApiDependencies(),
                 projectManagedVersions,
                 DependencyScope.COMPILE,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -50,7 +60,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedDependencies(),
                 projectManagedVersions,
                 DependencyScope.COMPILE,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -59,7 +70,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedRuntimeDependencies(),
                 projectManagedVersions,
                 DependencyScope.RUNTIME,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -68,7 +80,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedProvidedDependencies(),
                 projectManagedVersions,
                 DependencyScope.PROVIDED,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -77,7 +90,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedDevDependencies(),
                 projectManagedVersions,
                 DependencyScope.DEV,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -86,7 +100,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedTestDependencies(),
                 projectManagedVersions,
                 DependencyScope.TEST,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -95,7 +110,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedAnnotationProcessors(),
                 projectManagedVersions,
                 DependencyScope.PROCESSOR,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         addDirectRequests(
                 requests,
                 config,
@@ -104,7 +120,8 @@ final class DirectDependencyRequestPlanner {
                 config.managedTestAnnotationProcessors(),
                 projectManagedVersions,
                 DependencyScope.TEST_PROCESSOR,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
         return requests;
     }
 
@@ -116,7 +133,8 @@ final class DirectDependencyRequestPlanner {
             Iterable<String> managedDependencies,
             Map<PackageId, String> projectManagedVersions,
             DependencyScope scope,
-            String retryCommand) {
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         for (Map.Entry<String, String> dependency : dependencies.entrySet()) {
             Coordinate coordinate = coordinateParser.parse(dependency.getKey() + ":" + dependency.getValue());
             requests.add(directDependencyRequest(
@@ -125,7 +143,8 @@ final class DirectDependencyRequestPlanner {
                     PackageId.from(coordinate),
                     coordinate.version().orElseThrow(),
                     scope,
-                    retryCommand));
+                    retryCommand,
+                    snapshotAllowance));
         }
         for (String dependency : managedDependencies) {
             Coordinate coordinate = coordinateParser.parse(dependency);
@@ -136,7 +155,8 @@ final class DirectDependencyRequestPlanner {
                     packageId,
                     managedVersion(section, packageId, projectManagedVersions),
                     scope,
-                    retryCommand));
+                    retryCommand,
+                    snapshotAllowance));
         }
     }
 
@@ -146,8 +166,9 @@ final class DirectDependencyRequestPlanner {
             PackageId packageId,
             String version,
             DependencyScope scope,
-            String retryCommand) {
-        validateSupportedVersion(section, packageId, version, retryCommand);
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
+        validateSupportedVersion(section, packageId, version, retryCommand, snapshotAllowance);
         DependencyMetadata metadata = config.dependencyMetadata()
                 .get(DependencyMetadata.key(section, packageId.toString()));
         Optional<ArtifactDescriptor> artifactDescriptor = directArtifactDescriptor(packageId, version, metadata);
@@ -184,20 +205,35 @@ final class DirectDependencyRequestPlanner {
             String section,
             PackageId packageId,
             String version,
-            String retryCommand) {
-        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version).ifPresent(violation -> {
-            throw ResolveException.actionable(
-                    "Unsupported external dependency version `"
-                            + version
-                            + "` for `"
-                            + packageId
-                            + "` in ["
-                            + section
-                            + "].",
-                    violation.guidance() + " Use a fixed released version, then run `"
-                            + retryCommand
-                            + "` again.");
-        });
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
+        boolean snapshotPermitted = snapshotAllowance.permitsSnapshot(packageId, version);
+        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version, snapshotPermitted)
+                .ifPresent(violation -> {
+                    if (VersionPolicy.isSnapshot(version)) {
+                        throw ResolveException.actionable(
+                                "Unsupported SNAPSHOT dependency version `"
+                                        + version
+                                        + "` for `"
+                                        + packageId
+                                        + "` in ["
+                                        + section
+                                        + "]. "
+                                        + SnapshotAllowance.SUPPORTED_SUBSET,
+                                snapshotAllowance.snapshotRemediation(packageId + ":" + version, retryCommand));
+                    }
+                    throw ResolveException.actionable(
+                            "Unsupported external dependency version `"
+                                    + version
+                                    + "` for `"
+                                    + packageId
+                                    + "` in ["
+                                    + section
+                                    + "].",
+                            violation.guidance() + " Use a fixed released version, then run `"
+                                    + retryCommand
+                                    + "` again.");
+                });
     }
 
     private static DependencyExclusion directExclusion(DependencyExclusionSpec exclusion, String retryCommand) {

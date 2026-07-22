@@ -4,9 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.dependency.PackageId;
+import sh.zolt.project.DependencyPolicySettings;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.SnapshotAllowance;
 import sh.zolt.resolve.graph.ResolutionGraph;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class DependencyGraphTraverserFailureTest extends DependencyGraphTraverserTestSupport {
@@ -54,6 +59,27 @@ final class DependencyGraphTraverserFailureTest extends DependencyGraphTraverser
         assertTrue(exception.getMessage().contains("com.example:snap"), exception.getMessage());
         assertTrue(exception.getMessage().contains("1.0.0-SNAPSHOT"), exception.getMessage());
         assertTrue(exception.getMessage().contains("com.example:root:1.0.0"), exception.getMessage());
+    }
+
+    @Test
+    void snapshotTransitiveVersionResolvesWhenPermittedByAllowance() {
+        MapBackedMetadataSource source = new MapBackedMetadataSource();
+        source.put(
+                "com.example:root:1.0.0",
+                pom("com.example", "root", "1.0.0", List.of(dependency("com.example", "snap", "1.0.0-SNAPSHOT"))));
+        source.put("com.example:snap:1.0.0-SNAPSHOT", pom("com.example", "snap", "1.0.0-SNAPSHOT", List.of()));
+
+        SnapshotAllowance allowance =
+                new SnapshotAllowance(Set.of(new PackageId("com.example", "snap")), List.of());
+        ResolutionGraph graph = new DependencyGraphTraverser(
+                source,
+                DependencyPolicySettings.defaults(),
+                Map.of(),
+                "zolt resolve",
+                allowance)
+                .traverse(List.of(direct("com.example", "root", "1.0.0")));
+
+        assertTrue(nodeStrings(graph).contains("com.example:snap:1.0.0-SNAPSHOT"), nodeStrings(graph).toString());
     }
 
     @Test

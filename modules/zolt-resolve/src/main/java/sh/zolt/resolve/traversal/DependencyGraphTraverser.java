@@ -9,6 +9,7 @@ import sh.zolt.project.DependencyPolicySettings;
 import sh.zolt.resolve.request.DependencyExclusion;
 import sh.zolt.resolve.DependencyPolicyEffect;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.SnapshotAllowance;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.graph.ResolutionEdge;
@@ -55,6 +56,15 @@ public final class DependencyGraphTraverser {
             DependencyPolicySettings dependencyPolicy,
             Map<PackageId, ManagedVersion> rootManagedVersions,
             String retryCommand) {
+        this(metadataSource, dependencyPolicy, rootManagedVersions, retryCommand, SnapshotAllowance.none());
+    }
+
+    public DependencyGraphTraverser(
+            DependencyMetadataSource metadataSource,
+            DependencyPolicySettings dependencyPolicy,
+            Map<PackageId, ManagedVersion> rootManagedVersions,
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         this(
                 metadataSource,
                 new PomDependencyManager(),
@@ -62,7 +72,8 @@ public final class DependencyGraphTraverser {
                 new DependencyTraversalPolicy(),
                 dependencyPolicy,
                 rootManagedVersions,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
     }
 
     DependencyGraphTraverser(
@@ -72,7 +83,8 @@ public final class DependencyGraphTraverser {
             DependencyTraversalPolicy traversalPolicy,
             DependencyPolicySettings dependencyPolicy,
             Map<PackageId, ManagedVersion> rootManagedVersions,
-            String retryCommand) {
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         this.metadataSource = metadataSource;
         this.dependencyManager = dependencyManager;
         this.normalizer = normalizer;
@@ -83,7 +95,8 @@ public final class DependencyGraphTraverser {
                 globalExclusions(dependencyPolicy, retryCommand),
                 strictConstraints(dependencyPolicy),
                 rootManagedVersions,
-                retryCommand);
+                retryCommand,
+                snapshotAllowance);
     }
 
     public ResolutionGraph traverse(List<DependencyRequest> directRequests) {

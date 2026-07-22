@@ -316,7 +316,8 @@ final class DependencyTraversalCandidateSelectorTest {
                 exclusions,
                 constraints,
                 managedVersions,
-                "zolt resolve");
+                "zolt resolve",
+                sh.zolt.resolve.SnapshotAllowance.none());
     }
 
     private static DependencyTraversalCandidate candidate(

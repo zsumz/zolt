@@ -9,6 +9,7 @@ import sh.zolt.project.DependencyConstraint;
 import sh.zolt.project.VersionPolicy;
 import sh.zolt.resolve.DependencyPolicyEffect;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.SnapshotAllowance;
 import sh.zolt.resolve.metadata.platform.ManagedVersion;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.graph.PackageNode;
@@ -25,6 +26,7 @@ final class DependencyTraversalCandidateSelector {
     private final Map<PackageId, DependencyConstraint> strictConstraints;
     private final Map<PackageId, ManagedVersion> rootManagedVersions;
     private final String retryCommand;
+    private final SnapshotAllowance snapshotAllowance;
 
     DependencyTraversalCandidateSelector(
             DependencyTraversalPolicy traversalPolicy,
@@ -32,13 +34,15 @@ final class DependencyTraversalCandidateSelector {
             List<DependencyGlobalExclusion> globalExclusions,
             Map<PackageId, DependencyConstraint> strictConstraints,
             Map<PackageId, ManagedVersion> rootManagedVersions,
-            String retryCommand) {
+            String retryCommand,
+            SnapshotAllowance snapshotAllowance) {
         this.traversalPolicy = traversalPolicy;
         this.transitiveScopeSelector = transitiveScopeSelector;
         this.globalExclusions = List.copyOf(globalExclusions);
         this.strictConstraints = Map.copyOf(strictConstraints);
         this.rootManagedVersions = Map.copyOf(rootManagedVersions);
         this.retryCommand = retryCommand == null || retryCommand.isBlank() ? "zolt resolve" : retryCommand.trim();
+        this.snapshotAllowance = snapshotAllowance == null ? SnapshotAllowance.none() : snapshotAllowance;
     }
 
     DependencyTraversalSelection select(DependencyTraversalCandidate candidate) {
@@ -74,7 +78,7 @@ final class DependencyTraversalCandidateSelector {
                 packageId,
                 constraint,
                 managedVersion);
-        validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source(), retryCommand);
+        validateSupportedTransitiveVersion(packageId, requestedVersion, candidate.source());
         List<DependencyPolicyEffect> policyEffects = new ArrayList<>();
         if (constraint != null) {
             policyEffects.add(strictVersionEffect(
@@ -242,29 +246,43 @@ final class DependencyTraversalCandidateSelector {
                 .orElse(true);
     }
 
-    private static void validateSupportedTransitiveVersion(
+    private void validateSupportedTransitiveVersion(
             PackageId packageId,
             String requestedVersion,
-            PackageNode source,
-            String retryCommand) {
-        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, requestedVersion).ifPresent(violation -> {
-            throw ResolveException.actionable(
-                    "Unsupported transitive dependency version `"
-                            + requestedVersion
-                            + "` for `"
-                            + packageId
-                            + "` required by `"
-                            + sourceCoordinate(source)
-                            + "`.",
-                    violation.guidance()
-                            + " Add [dependencyConstraints] entry `\""
-                            + packageId
-                            + "\" = { version = \""
-                            + fixedVersionExample(requestedVersion)
-                            + "\", kind = \"strict\" }`, then run `"
-                            + retryCommand
-                            + "` again.");
-        });
+            PackageNode source) {
+        boolean snapshotPermitted = snapshotAllowance.permitsSnapshot(packageId, requestedVersion);
+        VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, requestedVersion, snapshotPermitted)
+                .ifPresent(violation -> {
+                    if (VersionPolicy.isSnapshot(requestedVersion)) {
+                        throw ResolveException.actionable(
+                                "Unsupported SNAPSHOT dependency version `"
+                                        + requestedVersion
+                                        + "` for `"
+                                        + packageId
+                                        + "` required by `"
+                                        + sourceCoordinate(source)
+                                        + "`. "
+                                        + SnapshotAllowance.SUPPORTED_SUBSET,
+                                snapshotAllowance.snapshotRemediation(
+                                        packageId + ":" + requestedVersion, retryCommand));
+                    }
+                    throw ResolveException.actionable(
+                            "Unsupported transitive dependency version `"
+                                    + requestedVersion
+                                    + "` for `"
+                                    + packageId
+                                    + "` required by `"
+                                    + sourceCoordinate(source)
+                                    + "`.",
+                            violation.guidance()
+                                    + " Add [dependencyConstraints] entry `\""
+                                    + packageId
+                                    + "\" = { version = \""
+                                    + fixedVersionExample(requestedVersion)
+                                    + "\", kind = \"strict\" }`, then run `"
+                                    + retryCommand
+                                    + "` again.");
+                });
     }
 
     private static String fixedVersionExample(String requestedVersion) {

@@ -161,11 +161,14 @@ public final class ResolveService {
                 new RepositorySession(config, cacheRoot, options, coordinateParser, repositoryClient, rawPomParser);
         Map<PackageId, ManagedVersion> managedVersionDetails = context.projectManagedVersionDetails();
         Map<PackageId, String> managedVersions = context.projectManagedVersions();
+        SnapshotAllowance snapshotAllowance =
+                new SnapshotAllowance(options.workspaceMemberCoordinates(), options.repositoryOverlays());
         List<DependencyRequest> directRequests = dependencyRequestPlanner.plan(
                 config,
                 managedVersions,
                 options.includeCoverageTooling(),
-                options.retryCommand());
+                options.retryCommand(),
+                snapshotAllowance);
         directRequests = relocateDirectRequests(context, directRequests);
         DependencyGraphResolution initial = graphResolver.resolve(
                 context,
@@ -173,7 +176,8 @@ public final class ResolveService {
                 managedVersionDetails,
                 directRequests,
                 context,
-                options.retryCommand());
+                options.retryCommand(),
+                snapshotAllowance);
         List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
         allRequests.addAll(frameworkDependencyRequestPlanner.plan(frameworkPlanRequestAssembler.assemble(
                 context.config(),
@@ -191,7 +195,8 @@ public final class ResolveService {
                         managedVersionDetails,
                         allRequests,
                         context,
-                        options.retryCommand());
+                        options.retryCommand(),
+                        snapshotAllowance);
         enforceVersionConflictPolicy(context.config().dependencyPolicy(), resolved.selection(), options.retryCommand());
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
@@ -272,7 +277,8 @@ public final class ResolveService {
                 DependencyMetadataSource source,
                 DependencyPolicySettings dependencyPolicy,
                 Map<PackageId, ManagedVersion> managedVersions,
-                String retryCommand);
+                String retryCommand,
+                SnapshotAllowance snapshotAllowance);
     }
 
 }
