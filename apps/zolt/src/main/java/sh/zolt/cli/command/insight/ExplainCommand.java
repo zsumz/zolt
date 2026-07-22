@@ -33,7 +33,8 @@ import picocli.CommandLine;
 
 @Command(
         name = "explain",
-        description = "Audit a Maven or Gradle project for future Zolt migration.")
+        description = "Audit a Maven or Gradle project for future Zolt migration.",
+        subcommands = ExplainVerifyCommand.class)
 public final class ExplainCommand implements Callable<Integer> {
     enum Format {
         TEXT,

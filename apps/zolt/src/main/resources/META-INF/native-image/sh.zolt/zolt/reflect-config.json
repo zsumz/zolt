@@ -336,6 +336,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "sh.zolt.cli.command.insight.ExplainVerifyCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.insight.ExplainVerifyCommand$Format",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "sh.zolt.cli.command.build.PlanCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

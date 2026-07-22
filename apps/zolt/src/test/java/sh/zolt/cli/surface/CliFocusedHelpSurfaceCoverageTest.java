@@ -26,6 +26,7 @@ final class CliFocusedHelpSurfaceCoverageTest {
             "zolt doctor",
             "zolt exec",
             "zolt explain",
+            "zolt explain verify",
             "zolt help",
             "zolt ide",
             "zolt ide model",
