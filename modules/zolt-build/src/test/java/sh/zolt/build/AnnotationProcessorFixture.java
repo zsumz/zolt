@@ -16,6 +16,14 @@ public final class AnnotationProcessorFixture {
     }
 
     public static Path processorJar(Path workDirectory) throws IOException {
+        return processorJar(workDirectory, false);
+    }
+
+    public static Path isolatingProcessorJar(Path workDirectory) throws IOException {
+        return processorJar(workDirectory, true);
+    }
+
+    private static Path processorJar(Path workDirectory, boolean isolating) throws IOException {
         Path processorSource = source(workDirectory, "processor-src/com/example/processor/GeneratingProcessor.java", """
                 package com.example.processor;
 
@@ -69,6 +77,11 @@ public final class AnnotationProcessorFixture {
         Path serviceFile = classes.resolve("META-INF/services/javax.annotation.processing.Processor");
         Files.createDirectories(serviceFile.getParent());
         Files.writeString(serviceFile, "com.example.processor.GeneratingProcessor\n");
+        if (isolating) {
+            Path incrementalFile = classes.resolve("META-INF/gradle/incremental.annotation.processors");
+            Files.createDirectories(incrementalFile.getParent());
+            Files.writeString(incrementalFile, "com.example.processor.GeneratingProcessor,isolating\n");
+        }
         Path jar = workDirectory.resolve("processor.jar");
         writeJar(classes, jar);
         return jar;

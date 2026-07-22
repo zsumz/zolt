@@ -30,6 +30,8 @@ public final class IncrementalCompileStateRecorder {
     private final IncrementalCompileStateCodec codec;
     private final ClassFileAbiReader abiReader;
     private final IncrementalCompileSourceRecordBuilder sourceRecordBuilder;
+    private final IncrementalAnnotationProcessorClassifier processorClassifier =
+            new IncrementalAnnotationProcessorClassifier();
 
     public IncrementalCompileStateRecorder() {
         this(
@@ -81,7 +83,12 @@ public final class IncrementalCompileStateRecorder {
                 generatedSourcesDirectory,
                 IncrementalCompileState.mainStatePath(outputDirectory),
                 outputDirectory.resolve(MAIN_FINGERPRINT_FILE),
-                classpaths.processor().entries().isEmpty() ? List.of() : List.of("processor-classpath"));
+                processorFallbackReasons(classpaths.processor()));
+    }
+
+    private List<String> processorFallbackReasons(Classpath processorClasspath) {
+        String reason = processorClassifier.fallbackReason(processorClasspath);
+        return reason.isEmpty() ? List.of() : List.of(reason);
     }
 
     public void recordTest(
@@ -92,10 +99,7 @@ public final class IncrementalCompileStateRecorder {
             Classpath processorClasspath,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
-        List<String> fallbackReasons = new ArrayList<>();
-        if (!processorClasspath.entries().isEmpty()) {
-            fallbackReasons.add("processor-classpath");
-        }
+        List<String> fallbackReasons = new ArrayList<>(processorFallbackReasons(processorClasspath));
         if (!sources.groovyTestSources().isEmpty()) {
             fallbackReasons.add("groovy-test-sources");
         }

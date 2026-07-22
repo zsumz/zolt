@@ -20,6 +20,7 @@ public final class IncrementalCompilePlanner {
     private final IncrementalCompileStateCodec codec;
     private final IncrementalCompileStateValidator stateValidator;
     private final IncrementalCompileAbiValidator abiValidator;
+    private final IncrementalAnnotationProcessorClassifier processorClassifier;
 
     public IncrementalCompilePlanner() {
         this(new IncrementalCompileStateCodec(), new ClassFileAbiReader());
@@ -31,6 +32,7 @@ public final class IncrementalCompilePlanner {
         this.codec = codec;
         this.stateValidator = new IncrementalCompileStateValidator();
         this.abiValidator = new IncrementalCompileAbiValidator(abiReader);
+        this.processorClassifier = new IncrementalAnnotationProcessorClassifier();
     }
 
     public IncrementalCompilePlan planMain(
@@ -119,8 +121,9 @@ public final class IncrementalCompilePlanner {
             Path statePath,
             List<String> additionalFallbackReasons,
             String noSourceFallbackReason) {
-        if (!processorClasspath.entries().isEmpty()) {
-            return IncrementalCompilePlan.full("processor-classpath");
+        String processorFallback = processorClassifier.fallbackReason(processorClasspath);
+        if (!processorFallback.isEmpty()) {
+            return IncrementalCompilePlan.full(processorFallback);
         }
         if (!additionalFallbackReasons.isEmpty()) {
             return IncrementalCompilePlan.full(additionalFallbackReasons.getFirst());

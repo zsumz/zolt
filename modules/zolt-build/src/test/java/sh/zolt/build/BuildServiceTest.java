@@ -67,7 +67,7 @@ final class BuildServiceTest {
 
         assertEquals(1, result.sourceCount());
         assertEquals("full", result.mainCompilationMode());
-        assertEquals("processor-classpath", result.mainIncrementalFallbackReason());
+        assertEquals("processor-metadata-missing", result.mainIncrementalFallbackReason());
         assertTrue(Files.exists(projectDir.resolve(
                 "target/generated/sources/annotations/com/example/GeneratedMessage.java")));
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/Main.class")));
@@ -75,7 +75,45 @@ final class BuildServiceTest {
         IncrementalCompileState state = new IncrementalCompileStateCodec()
                 .read(projectDir.resolve("target/classes/.zolt-incremental-main.state"))
                 .orElseThrow();
-        assertTrue(state.fallbackReasons().contains("processor-classpath"));
+        assertTrue(state.fallbackReasons().contains("processor-metadata-missing"));
+    }
+
+    @Test
+    void isolatingProcessorClasspathRecordsGeneratedOutputsUntrackedReason() throws IOException {
+        Path cacheRoot = projectDir.resolve("cache");
+        Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
+        Files.createDirectories(processorJar.getParent());
+        Files.copy(
+                AnnotationProcessorFixture.isolatingProcessorJar(projectDir.resolve("processor-work")),
+                processorJar,
+                StandardCopyOption.REPLACE_EXISTING);
+        writeLockfile("""
+                version = 1
+
+                [[package]]
+                id = "com.example:processor"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "processor"
+                direct = true
+                jar = "com/example/processor/1.0.0/processor-1.0.0.jar"
+                dependencies = []
+                """);
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return GeneratedMessage.value();
+                    }
+                }
+                """);
+
+        BuildResult result = buildService.build(projectDir, config(), cacheRoot);
+
+        assertEquals("full", result.mainCompilationMode());
+        assertEquals("processor-generated-outputs-untracked", result.mainIncrementalFallbackReason());
+        assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
     }
 
     @Test
