@@ -623,6 +623,43 @@ zolt explain --emit-toml
 zolt explain --emit-toml-output target/zolt-draft
 ```
 
+### Verify a migration
+
+`zolt explain verify` gives a factual, per-module comparison between what Maven
+resolves and what Zolt resolves, so a migration can be verified instead of trusted.
+It runs the project's Maven (`./mvnw` when present, else `mvn` on `PATH`) once as
+`dependency:tree` to extract the resolved dependencies of every reactor module, then
+resolves the Zolt project/workspace with Zolt's own resolver, and reports — per module
+and per scope — what matched, what drifted in version, and what appears on only one
+side.
+
+```sh
+# Compare the Maven project and a Zolt project rooted in the same directory.
+zolt explain verify
+
+# Point at a draft emitted by --emit-toml-output, and emit machine-readable JSON.
+zolt explain verify --zolt-dir target/zolt-draft --format json
+```
+
+- Scopes compared: `compile`, `runtime`, `test`, `provided`. Maven and Zolt scope
+  names map one to one. Scopes with no counterpart (Maven `system`; Zolt `dev`,
+  `processor`, `test-processor`, `quarkus-deployment`, `tool-*`) are reported as
+  per-module notes rather than counted as differences.
+- Categories per module × scope: matched (same `group:artifact[:classifier]` and
+  version), version drift (same coordinate, different version — both reported),
+  only-in-Maven, and only-in-Zolt. Zolt uses highest-version-wins mediation and Maven
+  uses nearest-wins, so some drift is expected; the report states facts and counts and
+  does not editorialize about equivalence.
+- `--zolt-dir <path>` selects the Zolt project/workspace to resolve (default: the Maven
+  project root when it has a `zolt.toml`). `--offline` resolves the Zolt side from the
+  local cache only.
+- Exit code is `0` when the resolved sets are identical across every module and scope,
+  and non-zero when any module is one-sided or any scope shows drift or a one-sided
+  artifact — so it can gate a migration in CI. `--format json` emits a stable schema
+  (`schemaVersion` 1).
+
+Gradle project verification is a planned follow-up; this first version compares Maven.
+
 ## Examples in This Repository
 
 The `examples/` directory is deliberately broad. It includes:
