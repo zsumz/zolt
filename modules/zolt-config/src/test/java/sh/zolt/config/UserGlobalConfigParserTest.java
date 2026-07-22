@@ -97,6 +97,38 @@ final class UserGlobalConfigParserTest {
     }
 
     @Test
+    void parsesNetworkSection() throws IOException {
+        Path configPath = tempDir.resolve("zolt/config.toml");
+        Files.createDirectories(configPath.getParent());
+        Files.writeString(configPath, """
+                version = 1
+
+                [network]
+                caBundle = "corp-ca.pem"
+                toolchainMirror = "https://nexus.example.com/github"
+                """);
+
+        UserGlobalConfig config = new UserGlobalConfigParser().read(configPath);
+
+        assertEquals(
+                configPath.getParent().resolve("corp-ca.pem").toAbsolutePath().normalize(),
+                config.network().caBundle().orElseThrow());
+        assertEquals("https://nexus.example.com/github", config.network().toolchainMirror().orElseThrow());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().networkCaBundle());
+        assertEquals(UserGlobalConfigSources.USER_GLOBAL_CONFIG, config.sources().networkToolchainMirror());
+    }
+
+    @Test
+    void networkSectionDefaultsToBuiltInSources() {
+        UserGlobalConfig config = new UserGlobalConfigParser().read(tempDir.resolve("absent.toml"));
+
+        assertTrue(config.network().caBundle().isEmpty());
+        assertTrue(config.network().toolchainMirror().isEmpty());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().networkCaBundle());
+        assertEquals(UserGlobalConfigSources.BUILT_IN_DEFAULT, config.sources().networkToolchainMirror());
+    }
+
+    @Test
     void tracksBuiltInSourcesForOmittedKeysInExistingConfig() {
         UserGlobalConfig config = new UserGlobalConfigParser().parse("""
                 version = 1

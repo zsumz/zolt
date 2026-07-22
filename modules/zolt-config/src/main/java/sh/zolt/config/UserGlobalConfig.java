@@ -11,6 +11,7 @@ public record UserGlobalConfig(
         Map<String, RepositoryOverlayConfig> repositoryOverlays,
         UserGlobalToolchainDefaults toolchainDefaults,
         UiConfig ui,
+        NetworkConfig network,
         UserGlobalConfigSources sources) {
     public UserGlobalConfig {
         repositoryOverlays = Map.copyOf(repositoryOverlays);
@@ -25,6 +26,7 @@ public record UserGlobalConfig(
                 Map.of("mavenLocal", new RepositoryOverlayConfig("mavenLocal", "maven-local", false)),
                 UserGlobalToolchainDefaults.none(),
                 new UiConfig("auto", "auto"),
+                NetworkConfig.none(),
                 UserGlobalConfigSources.defaults());
     }
 }

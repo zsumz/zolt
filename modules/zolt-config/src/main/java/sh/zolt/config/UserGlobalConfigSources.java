@@ -10,7 +10,9 @@ public record UserGlobalConfigSources(
         Map<String, RepositoryOverlayConfigSource> repositoryOverlays,
         String javaToolchainDefault,
         String uiColor,
-        String uiProgress) {
+        String uiProgress,
+        String networkCaBundle,
+        String networkToolchainMirror) {
     public static final String BUILT_IN_DEFAULT = "built-in default";
     public static final String USER_GLOBAL_CONFIG = "user global config";
 
@@ -25,6 +27,8 @@ public record UserGlobalConfigSources(
                 BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT,
                 Map.of("mavenLocal", RepositoryOverlayConfigSource.defaults()),
+                BUILT_IN_DEFAULT,
+                BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT,
                 BUILT_IN_DEFAULT);

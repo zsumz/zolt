@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.tomlj.Toml;
 import org.tomlj.TomlParseError;
@@ -19,7 +20,8 @@ public final class UserGlobalConfigParser {
             "repository",
             "repositoryOverlays",
             "defaults",
-            "ui");
+            "ui",
+            "network");
     private static final Set<String> REJECTED_TOP_LEVEL_KEYS = Set.of(
             "repositories",
             "repositoryCredentials",
@@ -39,6 +41,7 @@ public final class UserGlobalConfigParser {
     private static final Set<String> REPOSITORY_KEYS = Set.of("downloadConcurrency", "executionLane");
     private static final Set<String> OVERLAY_KEYS = Set.of("kind", "enabled");
     private static final Set<String> UI_KEYS = Set.of("color", "progress");
+    private static final Set<String> NETWORK_KEYS = Set.of("caBundle", "toolchainMirror");
     private static final Set<String> EXECUTION_LANES = Set.of("platform", "serial");
     private static final Set<String> UI_MODES = Set.of("auto", "always", "never");
 
@@ -76,8 +79,42 @@ public final class UserGlobalConfigParser {
         UserGlobalToolchainDefaults toolchainDefaults =
                 UserGlobalToolchainDefaultsParser.parse(optionalTable(result, "defaults"));
         UiConfig ui = ui(optionalTable(result, "ui"), defaults.ui());
+        NetworkConfig network = network(optionalTable(result, "network"), normalizedPath, defaults.network());
         UserGlobalConfigSources sources = sources(result, defaults.sources());
-        return new UserGlobalConfig(version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, sources);
+        return new UserGlobalConfig(
+                version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, network, sources);
+    }
+
+    private static NetworkConfig network(TomlTable table, Path configPath, NetworkConfig defaultValue) {
+        if (table == null) {
+            return defaultValue;
+        }
+        validateKeys("network", table, NETWORK_KEYS);
+        Optional<Path> caBundle = Optional.ofNullable(stringOrNull(table, "network", "caBundle"))
+                .map(raw -> resolveConfigRelativePath(raw, configPath));
+        Optional<String> toolchainMirror = Optional.ofNullable(stringOrNull(table, "network", "toolchainMirror"));
+        return new NetworkConfig(caBundle, toolchainMirror);
+    }
+
+    private static Path resolveConfigRelativePath(String raw, Path configPath) {
+        Path path = expandUserHome(Path.of(raw));
+        if (!path.isAbsolute()) {
+            Path parent = configPath.getParent();
+            path = (parent == null ? path : parent.resolve(path));
+        }
+        return path.toAbsolutePath().normalize();
+    }
+
+    private static String stringOrNull(TomlTable table, String section, String key) {
+        Object raw = table.get(List.of(key));
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof String value) || value.isBlank()) {
+            throw new UserGlobalConfigException(
+                    "Invalid value for [" + section + "]." + key + " in user global config. Use a non-empty string.");
+        }
+        return value.trim();
     }
 
     static Path expandUserHome(Path path) {
@@ -167,6 +204,7 @@ public final class UserGlobalConfigParser {
         TomlTable overlaysTable = optionalTable(result, "repositoryOverlays");
         TomlTable defaultsTable = optionalTable(result, "defaults");
         TomlTable uiTable = optionalTable(result, "ui");
+        TomlTable networkTable = optionalTable(result, "network");
         return new UserGlobalConfigSources(
                 UserGlobalConfigSources.USER_GLOBAL_CONFIG,
                 source(cacheTable, "root"),
@@ -175,7 +213,9 @@ public final class UserGlobalConfigParser {
                 overlaySources(overlaysTable, defaults.repositoryOverlays()),
                 UserGlobalToolchainDefaultsParser.source(defaultsTable),
                 source(uiTable, "color"),
-                source(uiTable, "progress"));
+                source(uiTable, "progress"),
+                source(networkTable, "caBundle"),
+                source(networkTable, "toolchainMirror"));
     }
 
     private static Map<String, RepositoryOverlayConfigSource> overlaySources(
