@@ -22,11 +22,15 @@ public final class PublishUploadService {
     private final Function<String, String> environment;
 
     public PublishUploadService() {
+        this(new MavenRepositoryClient());
+    }
+
+    public PublishUploadService(MavenRepositoryClient repositoryClient) {
         this(
                 new PublishDryRunService(),
                 new ZoltTomlParser(),
                 new PublishSettingsReader(),
-                new MavenRepositoryClient(),
+                repositoryClient,
                 System::getenv);
     }
 
