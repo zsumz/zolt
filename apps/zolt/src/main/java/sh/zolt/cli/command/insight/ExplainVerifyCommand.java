@@ -14,10 +14,13 @@ import sh.zolt.explain.verify.VerifyReport;
 import sh.zolt.explain.verify.VerifyReportFormatter;
 import sh.zolt.explain.verify.VerifyReportJsonWriter;
 import sh.zolt.resolve.ResolveException;
+import sh.zolt.resolve.materialization.RepositoryOverlay;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.workspace.WorkspaceConfigException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
@@ -68,11 +71,20 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
             description = "Resolve Zolt dependencies from the local cache only (no downloads).")
     private boolean offline;
 
+    @Option(
+            names = "--repository-overlay",
+            description = "Opt into a user-local repository overlay for the Zolt resolution. "
+                    + "Supported values: maven-local, local-maven.")
+    private List<String> repositoryOverlays = List.of();
+
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
+
+    @Option(names = "--maven-local-root", hidden = true)
+    private Path mavenLocalRoot = Path.of(System.getProperty("user.home"), ".m2", "repository");
 
     @Spec
     private CommandSpec spec;
@@ -113,7 +125,7 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
             String treeText = mavenRunner.run(mavenRoot);
             List<ResolvedModule> mavenModules = treeParser.parse(treeText);
             Map<String, String> mavenDirectories = mavenModuleDirectories.resolve(mavenRoot);
-            ZoltResolution zolt = zoltLoader.load(resolvedZoltDir, cacheRoot, offline);
+            ZoltResolution zolt = zoltLoader.load(resolvedZoltDir, cacheRoot, offline, configuredOverlays());
             VerifyReport report = comparator.compare(
                     mavenRoot.toString(),
                     zolt.root(),
@@ -133,5 +145,23 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
                 | WorkspaceConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private List<RepositoryOverlay> configuredOverlays() {
+        List<RepositoryOverlay> overlays = new ArrayList<>();
+        for (String overlay : repositoryOverlays) {
+            overlays.add(repositoryOverlay(overlay));
+        }
+        return overlays;
+    }
+
+    private RepositoryOverlay repositoryOverlay(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "maven-local", "local-maven" -> RepositoryOverlay.mavenLocal(mavenLocalRoot);
+            default -> throw ResolveException.actionable(
+                    "Unsupported repository overlay `" + value + "`.",
+                    "Supported overlays: maven-local.");
+        };
     }
 }

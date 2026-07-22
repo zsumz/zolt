@@ -8,8 +8,10 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.resolve.ResolveOptions;
 import sh.zolt.resolve.ResolveService;
+import sh.zolt.resolve.materialization.RepositoryOverlay;
 import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.workspace.discovery.WorkspaceDiscoveryService;
+import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceMember;
 import java.io.IOException;
@@ -25,10 +27,12 @@ import java.util.Map;
  * each via {@link ResolveService#resolveLockfile} (the same resolver {@code zolt resolve} uses), then
  * maps the resolved {@link LockPackage}s into per-module {@link ResolvedModule}s.
  *
- * <p>Workspace mode resolves each member from its own {@code zolt.toml}. Workspace-root shared
- * {@code [repositories]}/{@code [platforms]} are not folded into members in this first version; a
- * workspace that relies on them may need those inlined into members (an emitted draft can carry them)
- * for Zolt-side resolution here to match {@code zolt resolve --workspace}.
+ * <p>Workspace mode resolves each member with the same workspace-root policy merge that
+ * {@code zolt resolve --workspace} applies (root {@code [repositories]}/{@code [platforms]} folded in
+ * via {@link WorkspaceMemberPolicyResolver}), so member resolution matches the workspace resolver
+ * instead of reporting drift on shared root configuration. Repository overlays passed through from
+ * {@code --repository-overlay} let overlay-backed dependencies (including directly declared SNAPSHOTs)
+ * resolve for the comparison.
  */
 final class ZoltResolutionLoader {
 
@@ -39,24 +43,32 @@ final class ZoltResolutionLoader {
     private final ResolveService resolveService;
     private final ZoltTomlParser tomlParser;
     private final WorkspaceDiscoveryService discoveryService;
+    private final WorkspaceMemberPolicyResolver policyResolver;
     private final ZoltModuleMapper moduleMapper;
 
     ZoltResolutionLoader(ResolveService resolveService) {
-        this(resolveService, new ZoltTomlParser(), new WorkspaceDiscoveryService(), new ZoltModuleMapper());
+        this(
+                resolveService,
+                new ZoltTomlParser(),
+                new WorkspaceDiscoveryService(),
+                new WorkspaceMemberPolicyResolver(),
+                new ZoltModuleMapper());
     }
 
     ZoltResolutionLoader(
             ResolveService resolveService,
             ZoltTomlParser tomlParser,
             WorkspaceDiscoveryService discoveryService,
+            WorkspaceMemberPolicyResolver policyResolver,
             ZoltModuleMapper moduleMapper) {
         this.resolveService = resolveService;
         this.tomlParser = tomlParser;
         this.discoveryService = discoveryService;
+        this.policyResolver = policyResolver;
         this.moduleMapper = moduleMapper;
     }
 
-    ZoltResolution load(Path zoltDir, Path cacheRoot, boolean offline) {
+    ZoltResolution load(Path zoltDir, Path cacheRoot, boolean offline, List<RepositoryOverlay> repositoryOverlays) {
         Path zoltToml = zoltDir.resolve("zolt.toml");
         if (!Files.isRegularFile(zoltToml)) {
             throw new ActionableException(
@@ -64,13 +76,14 @@ final class ZoltResolutionLoader {
                     "Run `zolt explain --emit-toml-output <dir>` to synthesize a draft, then pass "
                             + "--zolt-dir <dir> (or add a zolt.toml at the project root).");
         }
-        ResolveOptions options = ResolveOptions.offline(offline);
+        ResolveOptions options = new ResolveOptions(offline, repositoryOverlays, false)
+                .withRetryCommand("zolt explain verify");
         List<ResolvedModule> modules = new ArrayList<>();
         Map<String, String> memberPaths = new LinkedHashMap<>();
         if (isWorkspace(zoltToml)) {
             Workspace workspace = discoveryService.load(zoltDir);
             for (WorkspaceMember member : workspace.members()) {
-                ResolvedModule module = resolveMember(member.config(), cacheRoot, options);
+                ResolvedModule module = resolveMember(policyResolver.merge(workspace, member), cacheRoot, options);
                 modules.add(module);
                 memberPaths.put(module.moduleKey(), member.path());
             }
