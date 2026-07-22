@@ -62,9 +62,10 @@ final class JavacWorkerServerTest {
                     InetAddress.getLoopbackAddress(),
                     Integer.parseInt(metadata.get("port"))));
             DataOutputStream request = new DataOutputStream(socket.getOutputStream());
-            request.writeInt(JavacWorkerServer.MAGIC);
-            request.writeInt(JavacWorkerServer.PROTOCOL_VERSION);
+            request.writeInt(WorkerCompileProtocol.MAGIC);
+            request.writeInt(WorkerCompileProtocol.PROTOCOL_VERSION);
             writeString(request, metadata.get("token"));
+            request.writeInt(WorkerCompileProtocol.KIND_COMPILE);
             request.writeInt(arguments.size());
             for (String argument : arguments) {
                 writeString(request, argument);
@@ -73,9 +74,9 @@ final class JavacWorkerServerTest {
             DataInputStream response = new DataInputStream(socket.getInputStream());
             int exitCode = response.readInt();
             int outputLength = response.readInt();
-            return new Response(
-                    exitCode,
-                    new String(response.readNBytes(outputLength), StandardCharsets.UTF_8));
+            String output = new String(response.readNBytes(outputLength), StandardCharsets.UTF_8);
+            response.readInt(); // attributionPresent (0 for a legacy compile request)
+            return new Response(exitCode, output);
         }
     }
 

@@ -1,9 +1,7 @@
 package sh.zolt.javac;
 
-import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetAddress;
@@ -11,14 +9,12 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.SecureRandom;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
@@ -28,14 +24,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 
 final class JavacWorkerServer {
-    static final int MAGIC = 0x5a4f4c54;
-    static final int PROTOCOL_VERSION = 1;
-    private static final int MAX_ARGUMENTS = 100_000;
-    private static final int MAX_STRING_BYTES = 64 * 1024 * 1024;
     private static final long DEFAULT_IDLE_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(5);
 
     private JavacWorkerServer() {
@@ -108,29 +99,16 @@ final class JavacWorkerServer {
         try (socket;
                 DataInputStream request = new DataInputStream(socket.getInputStream());
                 DataOutputStream response = new DataOutputStream(socket.getOutputStream())) {
-            if (request.readInt() != MAGIC || request.readInt() != PROTOCOL_VERSION) {
+            if (request.readInt() != WorkerCompileProtocol.MAGIC
+                    || request.readInt() != WorkerCompileProtocol.PROTOCOL_VERSION) {
                 throw new IOException("invalid protocol header");
             }
-            if (!token.equals(readString(request))) {
+            if (!token.equals(WorkerCompileProtocol.readString(request))) {
                 throw new IOException("invalid authentication token");
             }
-            List<String> arguments = readArguments(request);
-            ByteArrayOutputStream diagnostics = new ByteArrayOutputStream();
-            int exitCode;
-            try {
-                JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-                exitCode = compiler.run(
-                        null,
-                        diagnostics,
-                        diagnostics,
-                        arguments.toArray(String[]::new));
-            } catch (RuntimeException | LinkageError exception) {
-                exitCode = 1;
-                diagnostics.writeBytes(("javac worker failed: " + exception + System.lineSeparator())
-                        .getBytes(StandardCharsets.UTF_8));
-            }
-            response.writeInt(exitCode);
-            writeBytes(response, diagnostics.toByteArray());
+            int kind = WorkerCompileProtocol.readKind(request);
+            List<String> arguments = WorkerCompileProtocol.readArguments(request);
+            WorkerCompile.run(kind, arguments, response);
             response.flush();
         } catch (IOException exception) {
             error.println("error: Zolt javac worker request failed: " + exception.getMessage());
@@ -138,35 +116,6 @@ final class JavacWorkerServer {
             lastActivity.set(System.nanoTime());
             activeRequests.decrementAndGet();
         }
-    }
-
-    private static List<String> readArguments(DataInputStream input) throws IOException {
-        int argumentCount = input.readInt();
-        if (argumentCount < 0 || argumentCount > MAX_ARGUMENTS) {
-            throw new IOException("invalid argument count " + argumentCount);
-        }
-        List<String> arguments = new ArrayList<>(argumentCount);
-        for (int index = 0; index < argumentCount; index++) {
-            arguments.add(readString(input));
-        }
-        return arguments;
-    }
-
-    private static String readString(DataInputStream input) throws IOException {
-        int length = input.readInt();
-        if (length < 0 || length > MAX_STRING_BYTES) {
-            throw new IOException("invalid string length " + length);
-        }
-        byte[] bytes = input.readNBytes(length);
-        if (bytes.length != length) {
-            throw new EOFException("incomplete string payload");
-        }
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
-    private static void writeBytes(DataOutputStream output, byte[] bytes) throws IOException {
-        output.writeInt(bytes.length);
-        output.write(bytes);
     }
 
     private static boolean idle(
@@ -191,7 +140,7 @@ final class JavacWorkerServer {
                 port=%d
                 token=%s
                 pid=%d
-                """.formatted(PROTOCOL_VERSION, port, token, ProcessHandle.current().pid()));
+                """.formatted(WorkerCompileProtocol.PROTOCOL_VERSION, port, token, ProcessHandle.current().pid()));
         restrictPermissions(temporary, EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
         try {
             Files.move(temporary, statePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);

@@ -56,6 +56,7 @@ final class JavacWorkerMainTest {
     }
 
     private static void writeRequest(DataOutputStream output, List<String> arguments) throws Exception {
+        output.writeInt(WorkerCompileProtocol.KIND_COMPILE);
         output.writeInt(arguments.size());
         for (String argument : arguments) {
             byte[] bytes = argument.getBytes(StandardCharsets.UTF_8);
@@ -68,6 +69,7 @@ final class JavacWorkerMainTest {
         assertEquals(0, input.readInt());
         int outputLength = input.readInt();
         String output = new String(input.readNBytes(outputLength), StandardCharsets.UTF_8);
+        assertEquals(0, input.readInt(), "attributionPresent should be 0 for a legacy compile request");
         assertTrue(output.isBlank(), output);
     }
 }
