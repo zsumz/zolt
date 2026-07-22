@@ -79,7 +79,7 @@ final class BuildServiceTest {
     }
 
     @Test
-    void isolatingProcessorClasspathRecordsGeneratedOutputsUntrackedReason() throws IOException {
+    void isolatingProcessorWithoutWorkerAttributionStaysOnFullRecompile() throws IOException {
         Path cacheRoot = projectDir.resolve("cache");
         Path processorJar = cacheRoot.resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         Files.createDirectories(processorJar.getParent());
@@ -109,11 +109,29 @@ final class BuildServiceTest {
                 }
                 """);
 
-        BuildResult result = buildService.build(projectDir, config(), cacheRoot);
-
-        assertEquals("full", result.mainCompilationMode());
-        assertEquals("processor-generated-outputs-untracked", result.mainIncrementalFallbackReason());
+        BuildResult first = buildService.build(projectDir, config(), cacheRoot);
+        assertEquals("full", first.mainCompilationMode());
         assertTrue(Files.exists(projectDir.resolve("target/classes/com/example/GeneratedMessage.class")));
+
+        source("src/main/java/com/example/Main.java", """
+                package com.example;
+
+                public final class Main {
+                    public static String message() {
+                        return GeneratedMessage.value() + "!";
+                    }
+                }
+                """);
+        BuildResult second = buildService.build(projectDir, config(), cacheRoot);
+
+        // No javac worker is reachable in this test, so the isolating processor's outputs cannot be
+        // attributed and the build conservatively stays on the full-recompile path.
+        assertEquals("full", second.mainCompilationMode());
+        assertEquals("processor-generated-outputs-untracked", second.mainIncrementalFallbackReason());
+        IncrementalCompileState state = new IncrementalCompileStateCodec()
+                .read(projectDir.resolve("target/classes/.zolt-incremental-main.state"))
+                .orElseThrow();
+        assertFalse(state.processorAttributionComplete());
     }
 
     @Test

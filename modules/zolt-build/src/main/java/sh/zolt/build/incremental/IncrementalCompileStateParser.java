@@ -48,6 +48,9 @@ final class IncrementalCompileStateParser {
                 fields.compilerSettingsHash = line.substring("compilerSettingsHash=".length());
             } else if (line.startsWith("buildFingerprintSha256=")) {
                 fields.buildFingerprintSha256 = line.substring("buildFingerprintSha256=".length());
+            } else if (line.startsWith("processorAttributionComplete=")) {
+                fields.processorAttributionComplete =
+                        Boolean.parseBoolean(line.substring("processorAttributionComplete=".length()));
             } else if (!parseRecord(line, sourceRoots, generatedSourceRoots, fallbackReasons,
                     compileClasspath, processorClasspath, sources, classes, reverseDependencies)) {
                 return Optional.empty();
@@ -68,7 +71,8 @@ final class IncrementalCompileStateParser {
                 processorClasspath,
                 sources.values().stream().map(SourceBuilder::build).toList(),
                 classes.values().stream().map(ClassBuilder::build).toList(),
-                reverseDependencies));
+                reverseDependencies,
+                fields.processorAttributionComplete));
     }
 
     private static boolean parseRecord(
@@ -108,6 +112,10 @@ final class IncrementalCompileStateParser {
                     .classOutputs.add(pathPart(parts, 2, 3));
             case "sourceReference" -> source(sources, pathPart(parts, 1, 3))
                     .referencedClasses.add(decodedPart(parts, 2, 3));
+            case "sourceGeneratedSource" -> source(sources, pathPart(parts, 1, 3))
+                    .generatedSources.add(pathPart(parts, 2, 3));
+            case "sourceGeneratedClass" -> source(sources, pathPart(parts, 1, 3))
+                    .generatedClasses.add(pathPart(parts, 2, 3));
             case "class" -> classes.computeIfAbsent(decodedPart(parts, 1, 8), ClassBuilder::new)
                     .set(
                             decodedPart(parts, 1, 8),
@@ -155,6 +163,7 @@ final class IncrementalCompileStateParser {
         private Path generatedSourcesDirectory;
         private String compilerSettingsHash;
         private String buildFingerprintSha256;
+        private boolean processorAttributionComplete;
     }
 
     private static final class SourceBuilder {
@@ -166,6 +175,8 @@ final class IncrementalCompileStateParser {
         private final List<String> declaredTypes = new ArrayList<>();
         private final List<Path> classOutputs = new ArrayList<>();
         private final List<String> referencedClasses = new ArrayList<>();
+        private final List<Path> generatedSources = new ArrayList<>();
+        private final List<Path> generatedClasses = new ArrayList<>();
 
         private SourceBuilder(Path path) {
             this.path = path;
@@ -192,7 +203,9 @@ final class IncrementalCompileStateParser {
                     packageName,
                     declaredTypes,
                     classOutputs,
-                    referencedClasses);
+                    referencedClasses,
+                    generatedSources,
+                    generatedClasses);
         }
     }
 

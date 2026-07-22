@@ -62,7 +62,16 @@ final class IncrementalAnnotationProcessorClassifier {
                 }
             }
         }
-        return "processor-generated-outputs-untracked";
+        return "";
+    }
+
+    /**
+     * Whether every active processor on the path is isolating, i.e. the path is eligible for
+     * generated-output attribution and the incremental fast path (subject to complete attribution in
+     * the recorded state). A path with no processors is not "isolating" in this sense.
+     */
+    boolean isolating(Classpath processorClasspath) {
+        return !processorClasspath.entries().isEmpty() && fallbackReason(processorClasspath).isEmpty();
     }
 
     private static List<String> readServiceProcessors(Path entry) {

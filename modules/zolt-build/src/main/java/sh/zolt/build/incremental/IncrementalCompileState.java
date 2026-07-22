@@ -23,9 +23,43 @@ public record IncrementalCompileState(
         List<ClasspathEntry> processorClasspath,
         List<SourceRecord> sources,
         List<ClassRecord> classes,
-        Map<String, List<Path>> reverseDependencies) {
+        Map<String, List<Path>> reverseDependencies,
+        boolean processorAttributionComplete) {
     static final String MAIN_FILE_NAME = ".zolt-incremental-main.state";
     static final String TEST_FILE_NAME = ".zolt-incremental-test.state";
+
+    public IncrementalCompileState(
+            String scope,
+            Path projectDirectory,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            String compilerSettingsHash,
+            String buildFingerprintSha256,
+            List<String> fallbackReasons,
+            List<String> sourceRoots,
+            List<String> generatedSourceRoots,
+            List<ClasspathEntry> compileClasspath,
+            List<ClasspathEntry> processorClasspath,
+            List<SourceRecord> sources,
+            List<ClassRecord> classes,
+            Map<String, List<Path>> reverseDependencies) {
+        this(
+                scope,
+                projectDirectory,
+                outputDirectory,
+                generatedSourcesDirectory,
+                compilerSettingsHash,
+                buildFingerprintSha256,
+                fallbackReasons,
+                sourceRoots,
+                generatedSourceRoots,
+                compileClasspath,
+                processorClasspath,
+                sources,
+                classes,
+                reverseDependencies,
+                false);
+    }
 
     public IncrementalCompileState {
         scope = requireText(scope, "Incremental compile state scope is required.");
@@ -73,7 +107,31 @@ public record IncrementalCompileState(
             String packageName,
             List<String> declaredTypes,
             List<Path> classOutputs,
-            List<String> referencedClasses) {
+            List<String> referencedClasses,
+            List<Path> generatedSources,
+            List<Path> generatedClasses) {
+        public SourceRecord(
+                Path path,
+                Path sourceRoot,
+                Optional<String> generatedSourceStepId,
+                String contentHash,
+                String packageName,
+                List<String> declaredTypes,
+                List<Path> classOutputs,
+                List<String> referencedClasses) {
+            this(
+                    path,
+                    sourceRoot,
+                    generatedSourceStepId,
+                    contentHash,
+                    packageName,
+                    declaredTypes,
+                    classOutputs,
+                    referencedClasses,
+                    List.of(),
+                    List.of());
+        }
+
         public SourceRecord {
             path = normalize(path, "Incremental compile source path is required.");
             sourceRoot = normalize(sourceRoot, "Incremental compile source root is required.");
@@ -84,6 +142,8 @@ public record IncrementalCompileState(
             declaredTypes = sortedStrings(declaredTypes);
             classOutputs = sortedPaths(classOutputs);
             referencedClasses = sortedStrings(referencedClasses);
+            generatedSources = sortedPaths(generatedSources);
+            generatedClasses = sortedPaths(generatedClasses);
         }
     }
 

@@ -18,7 +18,24 @@ public record IncrementalCompilePlan(
         List<IncrementalCompileState.SourceRecord> changedPreviousRecords,
         Map<Path, IncrementalCompileState.SourceRecord> previousSources,
         Map<Path, IncrementalCompileState.ClassRecord> previousClasses,
-        Map<String, List<Path>> reverseDependencies) {
+        Map<String, List<Path>> reverseDependencies,
+        boolean captureProcessorAttribution) {
+    public IncrementalCompilePlan withCaptureProcessorAttribution(boolean captureProcessorAttribution) {
+        return new IncrementalCompilePlan(
+                incremental,
+                sourcesToCompile,
+                fallbackReason,
+                outputsToDelete,
+                sourcesAdded,
+                sourcesChanged,
+                sourcesDeleted,
+                changedPreviousRecords,
+                previousSources,
+                previousClasses,
+                reverseDependencies,
+                captureProcessorAttribution);
+    }
+
     public static IncrementalCompilePlan full(String reason) {
         return full(reason, List.of());
     }
@@ -39,7 +56,8 @@ public record IncrementalCompilePlan(
                 List.of(),
                 Map.of(),
                 Map.of(),
-                Map.of());
+                Map.of(),
+                false);
     }
 
     public static IncrementalCompilePlan incremental(
@@ -68,7 +86,8 @@ public record IncrementalCompilePlan(
                 List.copyOf(changedPreviousRecords),
                 previousSources,
                 previousClasses,
-                reverseDependencies == null ? Map.of() : reverseDependencies);
+                reverseDependencies == null ? Map.of() : reverseDependencies,
+                false);
     }
 
     public Optional<IncrementalCompileState.ClassRecord> previousClass(Path output) {
@@ -85,6 +104,23 @@ public record IncrementalCompilePlan(
                 .map(source -> previousSources.get(source.toAbsolutePath().normalize()))
                 .filter(java.util.Objects::nonNull)
                 .flatMap(record -> record.classOutputs().stream())
+                .distinct()
+                .toList();
+    }
+
+    /**
+     * The generated sources and generated classes attributed to the given handwritten sources in the
+     * previous state. On the isolating fast path these must be deleted before recompiling the dirty
+     * sources so a removed annotation cannot leave a stale generated output behind.
+     */
+    public List<Path> previousGeneratedOutputs(List<Path> sources) {
+        return sources.stream()
+                .map(source -> previousSources.get(source.toAbsolutePath().normalize()))
+                .filter(java.util.Objects::nonNull)
+                .flatMap(record -> java.util.stream.Stream.concat(
+                        record.generatedSources().stream(),
+                        record.generatedClasses().stream()))
+                .map(path -> path.toAbsolutePath().normalize())
                 .distinct()
                 .toList();
     }

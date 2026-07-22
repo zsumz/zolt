@@ -4,6 +4,7 @@ import sh.zolt.build.BuildException;
 import sh.zolt.build.CompileDiagnostics;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
+import sh.zolt.build.incremental.GeneratedOutputAttribution;
 import sh.zolt.build.incremental.IncrementalCompilePlan;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
@@ -12,7 +13,6 @@ import sh.zolt.build.incremental.IncrementalDependentCompiler;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.doctor.JdkStatus;
-import sh.zolt.project.CompilerSettings;
 import sh.zolt.project.ProjectConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -73,9 +73,10 @@ public final class MainCompileSourceExecutor {
                     CompileDiagnostics.empty());
         }
         boolean hostMode = config.compilerSettings().mainHostPlatformApi()
-                && !effectiveRelease(config).isBlank();
+                && !MainCompileOptions.effectiveRelease(config).isBlank();
         CompilerPlatformApi.rejectModularHost(hostMode, sources.mainSources(), "main");
-        JavacOptions options = javacOptions(config, sources.mainSources(), classpaths.compile(), hostMode);
+        JavacOptions options = MainCompileOptions.forMainSources(
+                config, sources.mainSources(), classpaths.compile(), hostMode);
         String platformApiWarning = CompilerPlatformApi.determinismWarning(hostMode, "main", jdkStatus);
         IncrementalCompilePlan plan = incrementalCompilePlanner.planMain(
                 projectDirectory,
@@ -109,7 +110,8 @@ public final class MainCompileSourceExecutor {
                         generatedSourcesDirectory,
                         options,
                         plan.fallbackReason(),
-                        plan.fullDiagnostics(sources.mainSources().size())),
+                        plan.fullDiagnostics(sources.mainSources().size()),
+                        plan.captureProcessorAttribution()),
                 platformApiWarning);
     }
 
@@ -124,7 +126,9 @@ public final class MainCompileSourceExecutor {
                         combinedOutput(warning, attempt.result().output())),
                 attempt.mode(),
                 attempt.fallbackReason(),
-                attempt.diagnostics());
+                attempt.diagnostics(),
+                attempt.attribution(),
+                attempt.compiledSources());
     }
 
     private Attempt incrementalCompile(
@@ -135,10 +139,14 @@ public final class MainCompileSourceExecutor {
             Path generatedSourcesDirectory,
             JavacOptions options,
             IncrementalCompilePlan plan) {
+        boolean captureAttribution = plan.captureProcessorAttribution();
+        List<Path> compiledSources = new ArrayList<>(plan.sourcesToCompile());
+        GeneratedOutputAttribution[] attribution = {GeneratedOutputAttribution.absent()};
         JavacResult result;
         IncrementalCompileWaveResult waves;
         try {
             deleteStaleOutputs(plan, plan.sourcesToCompile());
+            deleteOutputs(plan.previousGeneratedOutputs(plan.sourcesToCompile()));
             result = javacRunner.compile(
                     jdkStatus.javac().orElseThrow(),
                     plan.sourcesToCompile(),
@@ -146,11 +154,14 @@ public final class MainCompileSourceExecutor {
                     outputDirectory,
                     classpaths.processor(),
                     generatedSourcesDirectory,
-                    options);
+                    options,
+                    captureAttribution);
+            attribution[0] = result.attribution();
             waves = incrementalCompilePlanner.validateAndCompileDependents(
                     plan,
                     dependentSources -> {
                         deleteStaleOutputs(plan, dependentSources);
+                        deleteOutputs(plan.previousGeneratedOutputs(dependentSources));
                         JavacResult dependentResult = javacRunner.compile(
                                 jdkStatus.javac().orElseThrow(),
                                 dependentSources,
@@ -158,7 +169,10 @@ public final class MainCompileSourceExecutor {
                                 outputDirectory,
                                 classpaths.processor(),
                                 generatedSourcesDirectory,
-                                options);
+                                options,
+                                captureAttribution);
+                        attribution[0] = attribution[0].merge(dependentResult.attribution());
+                        compiledSources.addAll(dependentSources);
                         return new IncrementalDependentCompiler.Outcome(
                                 dependentResult.sourceCount(), dependentResult.output());
                     });
@@ -172,19 +186,42 @@ public final class MainCompileSourceExecutor {
                     generatedSourcesDirectory,
                     options,
                     "incremental-javac-failed",
-                    plan.fullDiagnostics(sources.mainSources().size()));
+                    plan.fullDiagnostics(sources.mainSources().size()),
+                    captureAttribution);
         }
-        if (!waves.hasFallback()) {
-            JavacResult combined = new JavacResult(
-                    result.sourceCount() + waves.dependentSourceCount(),
-                    outputDirectory,
-                    combinedOutput(result.output(), waves.dependentOutput()));
-            return new Attempt(
-                    combined,
-                    "incremental",
-                    "",
-                    plan.diagnostics(combined.sourceCount(), waves.validation()));
+        if (waves.hasFallback()) {
+            return fullFallback(
+                    jdkStatus, sources, classpaths, outputDirectory, generatedSourcesDirectory,
+                    options, plan, waves.validation().fallbackReason());
         }
+        if (attribution[0].present() && attribution[0].unattributed()) {
+            return fullFallback(
+                    jdkStatus, sources, classpaths, outputDirectory, generatedSourcesDirectory,
+                    options, plan, "processor-unattributed-output");
+        }
+        JavacResult combined = new JavacResult(
+                result.sourceCount() + waves.dependentSourceCount(),
+                outputDirectory,
+                combinedOutput(result.output(), waves.dependentOutput()),
+                attribution[0]);
+        return new Attempt(
+                combined,
+                "incremental",
+                "",
+                plan.diagnostics(combined.sourceCount(), waves.validation()),
+                attribution[0],
+                compiledSources);
+    }
+
+    private Attempt fullFallback(
+            JdkStatus jdkStatus,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            JavacOptions options,
+            IncrementalCompilePlan plan,
+            String fallbackReason) {
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
         deleteOwnedOutputs(plan);
         return fullCompile(
@@ -194,8 +231,9 @@ public final class MainCompileSourceExecutor {
                 outputDirectory,
                 generatedSourcesDirectory,
                 options,
-                waves.validation().fallbackReason(),
-                plan.fullDiagnostics(sources.mainSources().size()));
+                fallbackReason,
+                plan.fullDiagnostics(sources.mainSources().size()),
+                plan.captureProcessorAttribution());
     }
 
     private Attempt fullCompile(
@@ -206,19 +244,24 @@ public final class MainCompileSourceExecutor {
             Path generatedSourcesDirectory,
             JavacOptions options,
             String fallbackReason,
-            CompileDiagnostics diagnostics) {
+            CompileDiagnostics diagnostics,
+            boolean captureAttribution) {
+        JavacResult result = javacRunner.compile(
+                jdkStatus.javac().orElseThrow(),
+                sources.mainSources(),
+                classpaths.compile(),
+                outputDirectory,
+                classpaths.processor(),
+                generatedSourcesDirectory,
+                options,
+                captureAttribution);
         return new Attempt(
-                javacRunner.compile(
-                        jdkStatus.javac().orElseThrow(),
-                        sources.mainSources(),
-                        classpaths.compile(),
-                        outputDirectory,
-                        classpaths.processor(),
-                        generatedSourcesDirectory,
-                        options),
+                result,
                 "full",
                 fallbackReason,
-                diagnostics);
+                diagnostics,
+                result.attribution(),
+                sources.mainSources());
     }
 
     private static String combinedOutput(String first, String second) {
@@ -232,36 +275,6 @@ public final class MainCompileSourceExecutor {
             return first + second;
         }
         return first + "\n" + second;
-    }
-
-    private static JavacOptions javacOptions(
-            ProjectConfig config, List<Path> mainSources, Classpath compileClasspath, boolean hostMode) {
-        CompilerSettings compiler = config.compilerSettings();
-        JavacOptions options = new JavacOptions(
-                effectiveRelease(config),
-                compiler.encoding(),
-                compiler.args(),
-                List.of(),
-                hostMode);
-        if (isModularSourceSet(mainSources)) {
-            return options.withModulePath(compileClasspath.entries());
-        }
-        return options;
-    }
-
-    private static boolean isModularSourceSet(List<Path> mainSources) {
-        for (Path source : mainSources) {
-            Path fileName = source.getFileName();
-            if (fileName != null && fileName.toString().equals("module-info.java")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String effectiveRelease(ProjectConfig config) {
-        String compilerRelease = config.compilerSettings().release();
-        return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
     }
 
     private static Classpath incrementalClasspath(Classpath classpath, Path outputDirectory) {
@@ -297,7 +310,17 @@ public final class MainCompileSourceExecutor {
             JavacResult result,
             String mode,
             String fallbackReason,
-            CompileDiagnostics diagnostics) {
+            CompileDiagnostics diagnostics,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources) {
+        public Attempt(
+                JavacResult result,
+                String mode,
+                String fallbackReason,
+                CompileDiagnostics diagnostics) {
+            this(result, mode, fallbackReason, diagnostics, GeneratedOutputAttribution.absent(), List.of());
+        }
+
         public int sourceCount() {
             return result.sourceCount();
         }

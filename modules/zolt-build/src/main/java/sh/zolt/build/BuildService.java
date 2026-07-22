@@ -255,7 +255,9 @@ public final class BuildService {
                     sources,
                     classpaths,
                     outputDirectory,
-                    generatedSourcesDirectory);
+                    generatedSourcesDirectory,
+                    javacResult.attribution(),
+                    javacResult.compiledSources());
         }
         return new BuildResult(
                 resolveResult,

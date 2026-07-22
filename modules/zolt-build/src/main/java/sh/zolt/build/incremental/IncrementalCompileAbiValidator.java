@@ -73,7 +73,7 @@ final class IncrementalCompileAbiValidator {
         int abiChangedClasses = 0;
         int packagePrivateAbiChangedClasses = 0;
         for (IncrementalCompileState.SourceRecord source : wave) {
-            for (Path output : source.classOutputs()) {
+            for (Path output : validatedOutputs(source)) {
                 Optional<IncrementalCompileState.ClassRecord> previousClass = plan.previousClass(output);
                 if (previousClass.isEmpty()) {
                     return WaveScan.fallback("changed-class-state-missing");
@@ -105,6 +105,15 @@ final class IncrementalCompileAbiValidator {
             }
         }
         return WaveScan.success(newlyScheduled, abiChangedClasses, packagePrivateAbiChangedClasses);
+    }
+
+    private static List<Path> validatedOutputs(IncrementalCompileState.SourceRecord source) {
+        if (source.generatedClasses().isEmpty()) {
+            return source.classOutputs();
+        }
+        List<Path> outputs = new ArrayList<>(source.classOutputs());
+        outputs.addAll(source.generatedClasses());
+        return outputs;
     }
 
     private static void addReverseDependents(

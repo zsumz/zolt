@@ -1,6 +1,8 @@
 package sh.zolt.build.incremental;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.classpath.Classpath;
 import java.io.IOException;
@@ -30,25 +32,39 @@ final class IncrementalAnnotationProcessorClassifierTest {
     }
 
     @Test
-    void allIsolatingProcessorsReportGeneratedOutputsUntracked() throws IOException {
+    void allIsolatingProcessorsAreEligibleForAttribution() throws IOException {
         Path dir = processorDir(
                 "isolating-dir",
                 "com.example.Isolating",
                 "com.example.Isolating,isolating");
-        assertEquals(
-                "processor-generated-outputs-untracked",
-                classifier.fallbackReason(new Classpath(List.of(dir))));
+        Classpath classpath = new Classpath(List.of(dir));
+        assertEquals("", classifier.fallbackReason(classpath));
+        assertTrue(classifier.isolating(classpath));
     }
 
     @Test
-    void allIsolatingProcessorsInJarReportGeneratedOutputsUntracked() throws IOException {
+    void allIsolatingProcessorsInJarAreEligibleForAttribution() throws IOException {
         Path jar = processorJar(
                 "isolating.jar",
                 "com.example.Isolating",
                 "com.example.Isolating,ISOLATING");
-        assertEquals(
-                "processor-generated-outputs-untracked",
-                classifier.fallbackReason(new Classpath(List.of(jar))));
+        Classpath classpath = new Classpath(List.of(jar));
+        assertEquals("", classifier.fallbackReason(classpath));
+        assertTrue(classifier.isolating(classpath));
+    }
+
+    @Test
+    void emptyProcessorClasspathIsNotIsolating() {
+        assertFalse(classifier.isolating(new Classpath(List.of())));
+    }
+
+    @Test
+    void aggregatingProcessorIsNotIsolating() throws IOException {
+        Path dir = processorDir(
+                "aggregating-isolating-check",
+                "com.example.Aggregating",
+                "com.example.Aggregating,aggregating");
+        assertFalse(classifier.isolating(new Classpath(List.of(dir))));
     }
 
     @Test

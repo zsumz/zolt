@@ -10,6 +10,7 @@ final class IncrementalCompileStateFormatter {
         encodedLine(content, "generatedSourcesDirectory", state.generatedSourcesDirectory().toString());
         line(content, "compilerSettingsHash", state.compilerSettingsHash());
         line(content, "buildFingerprintSha256", state.buildFingerprintSha256());
+        line(content, "processorAttributionComplete", Boolean.toString(state.processorAttributionComplete()));
         state.fallbackReasons().forEach(reason -> encodedRecord(content, "fallbackReason", reason));
         state.sourceRoots().forEach(root -> encodedRecord(content, "sourceRoot", root));
         state.generatedSourceRoots().forEach(root -> encodedRecord(content, "generatedSourceRoot", root));
@@ -35,6 +36,8 @@ final class IncrementalCompileStateFormatter {
             source.declaredTypes().forEach(type -> encodedRecord(content, "sourceDeclaredType", source.path().toString(), type));
             source.classOutputs().forEach(output -> encodedRecord(content, "sourceClass", source.path().toString(), output.toString()));
             source.referencedClasses().forEach(reference -> encodedRecord(content, "sourceReference", source.path().toString(), reference));
+            source.generatedSources().forEach(generated -> encodedRecord(content, "sourceGeneratedSource", source.path().toString(), generated.toString()));
+            source.generatedClasses().forEach(generated -> encodedRecord(content, "sourceGeneratedClass", source.path().toString(), generated.toString()));
         }
         for (IncrementalCompileState.ClassRecord classRecord : state.classes()) {
             encodedRecord(

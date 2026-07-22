@@ -121,6 +121,37 @@ public final class IncrementalCompilePlanner {
             Path statePath,
             List<String> additionalFallbackReasons,
             String noSourceFallbackReason) {
+        return planResolved(
+                scope,
+                projectDirectory,
+                config,
+                sources,
+                configuredSourceRoots,
+                generatedSteps,
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                generatedSourcesDirectory,
+                statePath,
+                additionalFallbackReasons,
+                noSourceFallbackReason)
+                .withCaptureProcessorAttribution(processorClassifier.isolating(processorClasspath));
+    }
+
+    private IncrementalCompilePlan planResolved(
+            String scope,
+            Path projectDirectory,
+            ProjectConfig config,
+            List<Path> sources,
+            List<String> configuredSourceRoots,
+            List<GeneratedSourceStep> generatedSteps,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            Path statePath,
+            List<String> additionalFallbackReasons,
+            String noSourceFallbackReason) {
         String processorFallback = processorClassifier.fallbackReason(processorClasspath);
         if (!processorFallback.isEmpty()) {
             return IncrementalCompilePlan.full(processorFallback);
@@ -149,6 +180,9 @@ public final class IncrementalCompilePlanner {
                 generatedSourcesDirectory);
         if (!validationFailure.isBlank()) {
             return IncrementalCompilePlan.full(validationFailure);
+        }
+        if (!processorClasspath.entries().isEmpty() && !state.processorAttributionComplete()) {
+            return IncrementalCompilePlan.full("processor-generated-outputs-untracked");
         }
 
         Map<Path, IncrementalCompileState.SourceRecord> previousSources = new LinkedHashMap<>();

@@ -32,6 +32,7 @@ public final class IncrementalCompileStateRecorder {
     private final IncrementalCompileSourceRecordBuilder sourceRecordBuilder;
     private final IncrementalAnnotationProcessorClassifier processorClassifier =
             new IncrementalAnnotationProcessorClassifier();
+    private final IncrementalGeneratedOutputAttributor attributor = new IncrementalGeneratedOutputAttributor();
 
     public IncrementalCompileStateRecorder() {
         this(
@@ -70,6 +71,26 @@ public final class IncrementalCompileStateRecorder {
             ClasspathSet classpaths,
             Path outputDirectory,
             Path generatedSourcesDirectory) {
+        recordMain(
+                projectDirectory,
+                config,
+                sources,
+                classpaths,
+                outputDirectory,
+                generatedSourcesDirectory,
+                GeneratedOutputAttribution.absent(),
+                List.of());
+    }
+
+    public void recordMain(
+            Path projectDirectory,
+            ProjectConfig config,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources) {
         record(
                 "main",
                 projectDirectory,
@@ -83,7 +104,9 @@ public final class IncrementalCompileStateRecorder {
                 generatedSourcesDirectory,
                 IncrementalCompileState.mainStatePath(outputDirectory),
                 outputDirectory.resolve(MAIN_FINGERPRINT_FILE),
-                processorFallbackReasons(classpaths.processor()));
+                processorFallbackReasons(classpaths.processor()),
+                attribution,
+                compiledSources);
     }
 
     private List<String> processorFallbackReasons(Classpath processorClasspath) {
@@ -116,7 +139,9 @@ public final class IncrementalCompileStateRecorder {
                 generatedSourcesDirectory,
                 IncrementalCompileState.testStatePath(outputDirectory),
                 outputDirectory.resolve(TEST_FINGERPRINT_FILE),
-                fallbackReasons);
+                fallbackReasons,
+                GeneratedOutputAttribution.absent(),
+                List.of());
     }
 
     private void record(
@@ -132,20 +157,25 @@ public final class IncrementalCompileStateRecorder {
             Path generatedSourcesDirectory,
             Path statePath,
             Path fingerprintPath,
-            List<String> fallbackReasons) {
+            List<String> fallbackReasons,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         List<String> stateFallbackReasons = new ArrayList<>(fallbackReasons);
         List<Path> sourceRoots = sourceRoots(projectRoot, configuredSourceRoots, generatedSteps);
         Map<Path, String> generatedStepIds = generatedStepIds(projectRoot, generatedSteps);
         List<ClassFileAbi> classFiles = classFiles(outputDirectory, stateFallbackReasons);
-        List<IncrementalCompileState.SourceRecord> sourceRecords = sourceRecordBuilder.sourceRecords(
+        List<IncrementalCompileState.ClassRecord> classRecords = classRecords(classFiles);
+        List<IncrementalCompileState.SourceRecord> baseRecords = sourceRecordBuilder.sourceRecords(
                 projectRoot,
                 sources,
                 sourceRoots,
                 generatedStepIds,
                 classFiles,
                 IncrementalCompileInputHasher::hash);
-        List<IncrementalCompileState.ClassRecord> classRecords = classRecords(classFiles);
+        AttributionOutcome outcome = attributionOutcome(
+                processorClasspath, baseRecords, classRecords, attribution, compiledSources, statePath);
+        stateFallbackReasons.addAll(outcome.fallbackReasons());
         codec.write(
                 statePath,
                 new IncrementalCompileState(
@@ -160,9 +190,47 @@ public final class IncrementalCompileStateRecorder {
                         generatedSteps.stream().map(GeneratedSourceStep::output).sorted().toList(),
                         classpathEntries(compileClasspath),
                         classpathEntries(processorClasspath),
-                        sourceRecords,
+                        outcome.sources(),
                         classRecords,
-                        reverseDependencies(sourceRecords)));
+                        reverseDependencies(outcome.sources()),
+                        outcome.attributionComplete()));
+    }
+
+    private AttributionOutcome attributionOutcome(
+            Classpath processorClasspath,
+            List<IncrementalCompileState.SourceRecord> baseRecords,
+            List<IncrementalCompileState.ClassRecord> classRecords,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources,
+            Path statePath) {
+        if (!processorClassifier.isolating(processorClasspath)) {
+            return new AttributionOutcome(baseRecords, false, List.of());
+        }
+        IncrementalGeneratedOutputAttributor.Result result = attributor.apply(
+                baseRecords, classRecords, attribution, compiledSources, previousSources(statePath));
+        if (!attribution.present()) {
+            return new AttributionOutcome(result.sources(), false, List.of("processor-generated-outputs-untracked"));
+        }
+        if (attribution.unattributed() || !result.complete()) {
+            return new AttributionOutcome(result.sources(), false, List.of("processor-unattributed-output"));
+        }
+        return new AttributionOutcome(result.sources(), true, List.of());
+    }
+
+    private Map<Path, IncrementalCompileState.SourceRecord> previousSources(Path statePath) {
+        return codec.read(statePath)
+                .map(state -> {
+                    Map<Path, IncrementalCompileState.SourceRecord> previous = new LinkedHashMap<>();
+                    state.sources().forEach(source -> previous.put(source.path(), source));
+                    return previous;
+                })
+                .orElse(Map.of());
+    }
+
+    private record AttributionOutcome(
+            List<IncrementalCompileState.SourceRecord> sources,
+            boolean attributionComplete,
+            List<String> fallbackReasons) {
     }
 
     private List<ClassFileAbi> classFiles(Path outputDirectory, List<String> fallbackReasons) {
