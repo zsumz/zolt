@@ -1,6 +1,7 @@
 package sh.zolt.javac;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -54,6 +55,58 @@ final class JavacWorkerServerTest {
         assertEquals(0, serverExit.get(), error.toString(StandardCharsets.UTF_8));
         assertTrue(Files.isRegularFile(firstOutput.resolve("First.class")));
         assertTrue(Files.isRegularFile(secondOutput.resolve("Second.class")));
+    }
+
+    @Test
+    void attributedCompileOverSocketCapturesOriginatingType() throws Exception {
+        Path state = tempDir.resolve("attr-worker.state");
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
+        AtomicInteger serverExit = new AtomicInteger(-1);
+        CountDownLatch started = new CountDownLatch(1);
+        Thread server = Thread.ofPlatform().start(() -> serverExit.set(JavacWorkerServer.run(
+                state,
+                200,
+                new PrintStream(error, true, StandardCharsets.UTF_8),
+                started::countDown)));
+        assertTrue(started.await(3, TimeUnit.SECONDS), error.toString(StandardCharsets.UTF_8));
+        Map<String, String> metadata = metadata(state);
+
+        Path processorClasses = WorkerAttributionFixture.compileProcessor(tempDir);
+        Path source = source("Widget");
+        Path output = Files.createDirectories(tempDir.resolve("attr-classes"));
+        Path generated = Files.createDirectories(tempDir.resolve("attr-generated"));
+        byte[] response = attributedRequest(metadata, List.of(
+                "-d", output.toString(),
+                "-s", generated.toString(),
+                "-processorpath", processorClasses.toString(),
+                source.toString()));
+
+        server.join(Duration.ofSeconds(3));
+        assertEquals(0, serverExit.get(), error.toString(StandardCharsets.UTF_8));
+        WorkerAttributionFixture.Attribution attribution = WorkerAttributionFixture.parse(response);
+        assertTrue(attribution.present());
+        assertFalse(attribution.unattributed(), attribution.diagnostics());
+        assertTrue(attribution.entries().stream().anyMatch(entry ->
+                entry.path().endsWith("WidgetInfo.java") && entry.originatingTypes().equals(List.of("Widget"))));
+    }
+
+    private static byte[] attributedRequest(Map<String, String> metadata, List<String> arguments) throws Exception {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(
+                    InetAddress.getLoopbackAddress(),
+                    Integer.parseInt(metadata.get("port"))));
+            DataOutputStream request = new DataOutputStream(socket.getOutputStream());
+            request.writeInt(WorkerCompileProtocol.MAGIC);
+            request.writeInt(WorkerCompileProtocol.PROTOCOL_VERSION);
+            writeString(request, metadata.get("token"));
+            request.writeInt(WorkerCompileProtocol.KIND_COMPILE_ATTRIBUTED);
+            request.writeInt(arguments.size());
+            for (String argument : arguments) {
+                writeString(request, argument);
+            }
+            request.flush();
+            return socket.getInputStream().readAllBytes();
+        }
     }
 
     private static Response request(Map<String, String> metadata, List<String> arguments) throws Exception {
