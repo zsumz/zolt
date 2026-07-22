@@ -50,6 +50,6 @@ final class CredentialEnvironmentValidatorTest {
     }
 
     private static RepositoryCredentialSettings credential() {
-        return new RepositoryCredentialSettings("company-artifactory", "USERNAME", "PASSWORD");
+        return RepositoryCredentialSettings.basic("company-artifactory", "USERNAME", "PASSWORD");
     }
 }

@@ -22,24 +22,29 @@ final class CredentialEnvironmentValidator {
 
     private List<String> missingCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
         List<String> missing = new ArrayList<>();
-        if (isMissingEnvironmentValue(credential.usernameEnv())) {
-            missing.add(credential.usernameEnv());
-        }
-        if (isMissingEnvironmentValue(credential.passwordEnv())) {
-            missing.add(credential.passwordEnv());
+        for (String name : environmentNames(credential)) {
+            if (isMissingEnvironmentValue(name)) {
+                missing.add(name);
+            }
         }
         return List.copyOf(missing);
     }
 
     private List<String> placeholderCredentialEnvironmentVariables(RepositoryCredentialSettings credential) {
         List<String> placeholders = new ArrayList<>();
-        if (isPlaceholderCredential(environment.apply(credential.usernameEnv()))) {
-            placeholders.add(credential.usernameEnv());
-        }
-        if (isPlaceholderCredential(environment.apply(credential.passwordEnv()))) {
-            placeholders.add(credential.passwordEnv());
+        for (String name : environmentNames(credential)) {
+            if (isPlaceholderCredential(environment.apply(name))) {
+                placeholders.add(name);
+            }
         }
         return List.copyOf(placeholders);
+    }
+
+    private static List<String> environmentNames(RepositoryCredentialSettings credential) {
+        if (credential.usesToken()) {
+            return List.of(credential.tokenEnv().orElseThrow());
+        }
+        return List.of(credential.usernameEnv().orElseThrow(), credential.passwordEnv().orElseThrow());
     }
 
     boolean isMissingEnvironmentValue(String name) {
