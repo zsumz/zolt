@@ -132,6 +132,19 @@ public final class MavenRepositoryClient {
         upload(repositoryBaseUri, descriptor.coordinate(), pathBuilder.artifactPath(descriptor), source, authentication);
     }
 
+    /**
+     * Uploads a file to an explicit repository-relative path. Used for auxiliary files such as
+     * checksum sidecars ({@code .sha1}/{@code .md5}/{@code .sha256}) and detached signatures
+     * ({@code .asc}) whose paths are derived by suffixing an already-computed artifact path.
+     */
+    public void uploadFile(
+            URI repositoryBaseUri,
+            String repositoryPath,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        send(repositoryBaseUri, repositoryPath, repositoryPath, source, authentication);
+    }
+
     private RepositoryArtifact fetch(
             URI repositoryBaseUri,
             ArtifactDescriptor descriptor,
@@ -150,9 +163,9 @@ public final class MavenRepositoryClient {
             } catch (IOException exception) {
                 lastIoException = exception;
                 if (!hasAttemptsRemaining(attempt)) {
-                    throw downloadException(coordinate, artifactUri, attempt, exception);
+                    throw downloadException(coordinate.toString(), artifactUri, attempt, exception);
                 }
-                sleepBeforeRetry(coordinate, artifactUri, attempt);
+                sleepBeforeRetry(coordinate.toString(), artifactUri, attempt);
                 continue;
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
@@ -173,17 +186,26 @@ public final class MavenRepositoryClient {
                 return new RepositoryArtifact(coordinate, path, artifactUri, response.body());
             }
             if (!transientStatus(response.statusCode()) || !hasAttemptsRemaining(attempt)) {
-                throw statusException(coordinate, artifactUri, response.statusCode(), attempt);
+                throw statusException(coordinate.toString(), artifactUri, response.statusCode(), attempt);
             }
-            sleepBeforeRetry(coordinate, artifactUri, attempt);
+            sleepBeforeRetry(coordinate.toString(), artifactUri, attempt);
         }
 
-        throw downloadException(coordinate, artifactUri, httpPolicy.maxAttempts(), lastIoException);
+        throw downloadException(coordinate.toString(), artifactUri, httpPolicy.maxAttempts(), lastIoException);
     }
 
     private void upload(
             URI repositoryBaseUri,
             Coordinate coordinate,
+            String path,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        send(repositoryBaseUri, coordinate.toString(), path, source, authentication);
+    }
+
+    private void send(
+            URI repositoryBaseUri,
+            String subject,
             String path,
             Path source,
             Optional<RepositoryAuthentication> authentication) {
@@ -194,7 +216,7 @@ public final class MavenRepositoryClient {
         } catch (IOException exception) {
             throw new RepositoryClientException(
                     "Could not read upload source for "
-                            + coordinate
+                            + subject
                             + " at "
                             + source
                             + ". Check that the file exists and is readable.",
@@ -210,15 +232,15 @@ public final class MavenRepositoryClient {
             } catch (IOException exception) {
                 lastIoException = exception;
                 if (!hasAttemptsRemaining(attempt)) {
-                    throw uploadException(coordinate, artifactUri, attempt, exception);
+                    throw uploadException(subject, artifactUri, attempt, exception);
                 }
-                sleepBeforeRetry("uploading", coordinate, artifactUri, attempt);
+                sleepBeforeRetry("uploading", subject, artifactUri, attempt);
                 continue;
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new RepositoryClientException(
                         "Upload interrupted while publishing "
-                                + coordinate
+                                + subject
                                 + " to "
                                 + diagnosticUri(artifactUri)
                                 + ". Try again.",
@@ -229,12 +251,12 @@ public final class MavenRepositoryClient {
                 return;
             }
             if (!transientStatus(response.statusCode()) || !hasAttemptsRemaining(attempt)) {
-                throw statusException("uploading", coordinate, artifactUri, response.statusCode(), attempt);
+                throw statusException("uploading", subject, artifactUri, response.statusCode(), attempt);
             }
-            sleepBeforeRetry("uploading", coordinate, artifactUri, attempt);
+            sleepBeforeRetry("uploading", subject, artifactUri, attempt);
         }
 
-        throw uploadException(coordinate, artifactUri, httpPolicy.maxAttempts(), lastIoException);
+        throw uploadException(subject, artifactUri, httpPolicy.maxAttempts(), lastIoException);
     }
 
     private boolean hasAttemptsRemaining(int attempt) {
@@ -246,16 +268,16 @@ public final class MavenRepositoryClient {
     }
 
     private RepositoryClientException statusException(
-            Coordinate coordinate,
+            String subject,
             URI artifactUri,
             int statusCode,
             int attempts) {
-        return statusException("fetching", coordinate, artifactUri, statusCode, attempts);
+        return statusException("fetching", subject, artifactUri, statusCode, attempts);
     }
 
     private RepositoryClientException statusException(
             String operation,
-            Coordinate coordinate,
+            String subject,
             URI artifactUri,
             int statusCode,
             int attempts) {
@@ -265,7 +287,7 @@ public final class MavenRepositoryClient {
                         + " while "
                         + operation
                         + " "
-                        + coordinate
+                        + subject
                         + " at "
                         + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
@@ -273,13 +295,13 @@ public final class MavenRepositoryClient {
     }
 
     private static RepositoryClientException downloadException(
-            Coordinate coordinate,
+            String subject,
             URI artifactUri,
             int attempts,
             IOException cause) {
         return new RepositoryClientException(
                 "Could not download "
-                        + coordinate
+                        + subject
                         + " from "
                         + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
@@ -288,13 +310,13 @@ public final class MavenRepositoryClient {
     }
 
     private static RepositoryClientException uploadException(
-            Coordinate coordinate,
+            String subject,
             URI artifactUri,
             int attempts,
             IOException cause) {
         return new RepositoryClientException(
                 "Could not upload "
-                        + coordinate
+                        + subject
                         + " to "
                         + diagnosticUri(artifactUri)
                         + attemptsMessage(attempts)
@@ -309,11 +331,11 @@ public final class MavenRepositoryClient {
         return " after " + attempts + " attempts";
     }
 
-    private void sleepBeforeRetry(Coordinate coordinate, URI artifactUri, int attempt) {
-        sleepBeforeRetry("fetching", coordinate, artifactUri, attempt);
+    private void sleepBeforeRetry(String subject, URI artifactUri, int attempt) {
+        sleepBeforeRetry("fetching", subject, artifactUri, attempt);
     }
 
-    private void sleepBeforeRetry(String operation, Coordinate coordinate, URI artifactUri, int attempt) {
+    private void sleepBeforeRetry(String operation, String subject, URI artifactUri, int attempt) {
         if (httpPolicy.retryBackoff().isZero()) {
             return;
         }
@@ -325,7 +347,7 @@ public final class MavenRepositoryClient {
                     "Repository request interrupted while retrying "
                             + operation
                             + " "
-                            + coordinate
+                            + subject
                             + " from "
                             + diagnosticUri(artifactUri)
                             + " after attempt "

@@ -31,6 +31,11 @@ final class PublishDryRunFormatterTest {
                 Path.of("/work/target/app-1.0.0.pom"),
                 "sha256:pom",
                 "com/example/app/1.0.0/app-1.0.0.pom",
+                List.of(
+                        new PublishChecksumSidecar(
+                                "artifact", "sha1", "com/example/app/1.0.0/app-1.0.0.jar.sha1", "a1a1"),
+                        new PublishChecksumSidecar(
+                                "pom", "sha1", "com/example/app/1.0.0/app-1.0.0.pom.sha1", "b2b2")),
                 "release",
                 List.of());
 
@@ -56,6 +61,9 @@ final class PublishDryRunFormatterTest {
                 Generated POM: /work/target/app-1.0.0.pom
                 POM checksum: sha256:pom
                 POM upload path: com/example/app/1.0.0/app-1.0.0.pom
+                Checksum sidecars:
+                - com/example/app/1.0.0/app-1.0.0.jar.sha1: a1a1
+                - com/example/app/1.0.0/app-1.0.0.pom.sha1: b2b2
                 Status: ready
                 No upload was performed.
                 """, text);
@@ -77,6 +85,7 @@ final class PublishDryRunFormatterTest {
                 Path.of("/work/target/app.pom"),
                 "sha256:pom",
                 "upload/app.pom",
+                List.of(),
                 "",
                 List.of("Release repository is not configured.", "Credentials are missing."));
 
@@ -89,5 +98,6 @@ final class PublishDryRunFormatterTest {
         assertTrue(!text.contains("Context: "));
         assertTrue(!text.contains("Status: ready"));
         assertTrue(!text.contains("Supplemental artifacts:"));
+        assertTrue(!text.contains("Checksum sidecars:"));
     }
 }

@@ -36,6 +36,7 @@ final class PublishUploadFormatterTest {
                 Path.of("/work/target/app-1.0.0.pom"),
                 "sha256:pom",
                 "com/example/app/1.0.0/app-1.0.0.pom",
+                List.of(),
                 "release",
                 List.of());
 

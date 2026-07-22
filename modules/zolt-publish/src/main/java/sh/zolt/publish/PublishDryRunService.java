@@ -160,6 +160,13 @@ public final class PublishDryRunService {
                 artifactPath,
                 evidencePath,
                 blockers);
+        List<PublishChecksumSidecar> checksumSidecars = checksumSidecars(
+                root,
+                artifactPath,
+                artifactUploadPath,
+                artifactEvidence.supplementalArtifacts(),
+                pomPath,
+                pomUploadPath);
 
         return new PublishDryRunPlan(
                 config.project().group() + ":" + config.project().name() + ":" + config.project().version(),
@@ -175,8 +182,46 @@ public final class PublishDryRunService {
                 PublishDryRunArtifactEvidencePlanner.display(root, pomPath),
                 pomSha256,
                 pomUploadPath,
+                checksumSidecars,
                 "",
                 blockers);
+    }
+
+    private static List<PublishChecksumSidecar> checksumSidecars(
+            Path root,
+            Path artifactPath,
+            String artifactUploadPath,
+            List<PublishArtifactPlan> supplementalArtifacts,
+            Path pomPath,
+            String pomUploadPath) {
+        List<PublishChecksumSidecar> sidecars = new ArrayList<>();
+        addSidecars(sidecars, "artifact", artifactPath, artifactUploadPath);
+        for (PublishArtifactPlan supplemental : supplementalArtifacts) {
+            addSidecars(
+                    sidecars,
+                    supplemental.id(),
+                    root.resolve(supplemental.path()).normalize(),
+                    supplemental.uploadPath());
+        }
+        addSidecars(sidecars, "pom", pomPath, pomUploadPath);
+        return List.copyOf(sidecars);
+    }
+
+    private static void addSidecars(
+            List<PublishChecksumSidecar> sidecars,
+            String subject,
+            Path file,
+            String uploadPath) {
+        if (!Files.isRegularFile(file)) {
+            return;
+        }
+        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(file)) {
+            sidecars.add(new PublishChecksumSidecar(
+                    subject,
+                    sidecar.extension(),
+                    uploadPath + "." + sidecar.extension(),
+                    sidecar.value()));
+        }
     }
 
     private static Coordinate coordinate(ProjectConfig config) {

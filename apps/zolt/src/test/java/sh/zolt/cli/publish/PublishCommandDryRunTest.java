@@ -64,6 +64,11 @@ final class PublishCommandDryRunTest {
         assertTrue(result.stdout().contains("Generated POM: .zolt/build/publish/demo-0.1.0.pom"));
         assertTrue(result.stdout().contains("POM checksum: sha256:"));
         assertTrue(result.stdout().contains("POM upload path: com/example/demo/0.1.0/demo-0.1.0.pom"));
+        assertTrue(result.stdout().contains("Checksum sidecars:"));
+        assertTrue(result.stdout().contains("com/example/demo/0.1.0/demo-0.1.0.jar.md5: "));
+        assertTrue(result.stdout().contains("com/example/demo/0.1.0/demo-0.1.0.jar.sha1: "));
+        assertTrue(result.stdout().contains("com/example/demo/0.1.0/demo-0.1.0.jar.sha256: "));
+        assertTrue(result.stdout().contains("com/example/demo/0.1.0/demo-0.1.0.pom.sha256: "));
         assertTrue(result.stdout().contains("Status: ready"));
         assertTrue(result.stdout().contains("No upload was performed."));
         assertTrue(result.stderr().contains("\u001B[36mPreparing\u001B[0m publish dry run..."));

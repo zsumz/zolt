@@ -142,6 +142,45 @@ mode = "uber"
 uberDuplicates = "first-wins"
 ```
 
+### Publishing to Maven repositories
+
+`zolt publish` uploads the packaged artifact, a generated POM, and any
+configured supplemental artifacts to a Maven-compatible repository. Configure
+targets under `[publish]`, referencing `[repositoryCredentials]` for
+authenticated repositories:
+
+```toml
+[publish]
+releaseRepository = "company-releases"
+snapshotRepository = "company-snapshots"
+
+[publish.repositories.company-releases]
+url = "https://repo.example.com/releases"
+credentials = "company"
+
+[publish.repositories.company-snapshots]
+url = "https://repo.example.com/snapshots"
+credentials = "company"
+```
+
+`zolt publish --dry-run` previews target routing, artifact evidence, the
+generated POM, checksum sidecars, and any blockers without uploading anything.
+
+Every uploaded file — the main artifact, each supplemental artifact, and the
+POM — is accompanied by `.md5`, `.sha1`, and `.sha256` checksum sidecars, the
+Maven repository standard for integrity verification. The sidecars contain the
+bare lowercase hex digest and are listed in the `--dry-run` output.
+
+Sources and Javadoc jars are produced by `zolt package` when enabled and are
+published as supplemental artifacts with the standard `-sources.jar` and
+`-javadoc.jar` classifiers:
+
+```toml
+[package]
+sources = true
+javadoc = true
+```
+
 Migration and integration commands:
 
 ```sh

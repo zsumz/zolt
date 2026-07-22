@@ -31,6 +31,12 @@ public final class PublishDryRunFormatter {
         output.append("Generated POM: ").append(plan.pomPath()).append('\n');
         output.append("POM checksum: ").append(plan.pomSha256()).append('\n');
         output.append("POM upload path: ").append(plan.pomUploadPath()).append('\n');
+        if (!plan.checksumSidecars().isEmpty()) {
+            output.append("Checksum sidecars:\n");
+            for (PublishChecksumSidecar sidecar : plan.checksumSidecars()) {
+                output.append("- ").append(sidecar.uploadPath()).append(": ").append(sidecar.value()).append('\n');
+            }
+        }
         if (plan.ok()) {
             output.append("Status: ready\n");
             output.append("No upload was performed.\n");

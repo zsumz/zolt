@@ -9,7 +9,9 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.RepositoryUrlPolicy;
 import sh.zolt.toml.ZoltTomlParser;
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.function.Function;
@@ -60,23 +62,29 @@ public final class PublishUploadService {
         Optional<RepositoryAuthentication> authentication = authentication(repository, config);
         URI repositoryUri = repositoryUri(repository);
         try {
+            Path artifactFile = root.resolve(plan.artifactPath()).normalize();
             repositoryClient.uploadArtifact(
                     repositoryUri,
                     new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
-                    root.resolve(plan.artifactPath()).normalize(),
+                    artifactFile,
                     authentication);
+            uploadChecksumSidecars(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication);
             for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
+                Path supplementalFile = root.resolve(artifact.path()).normalize();
                 repositoryClient.uploadArtifact(
                         repositoryUri,
                         new ArtifactDescriptor(coordinate, artifact.classifier(), extension(artifact.path())),
-                        root.resolve(artifact.path()).normalize(),
+                        supplementalFile,
                         authentication);
+                uploadChecksumSidecars(repositoryUri, artifact.uploadPath(), supplementalFile, authentication);
             }
+            Path pomFile = root.resolve(plan.pomPath()).normalize();
             repositoryClient.uploadPom(
                     repositoryUri,
                     coordinate,
-                    root.resolve(plan.pomPath()).normalize(),
+                    pomFile,
                     authentication);
+            uploadChecksumSidecars(repositoryUri, plan.pomUploadPath(), pomFile, authentication);
         } catch (IllegalArgumentException exception) {
             throw new PublishException(
                     "Publish repository `" + repository.id() + "` has an invalid URL. Use a Maven-compatible repository URL.",
@@ -85,6 +93,23 @@ public final class PublishUploadService {
             throw new PublishException(exception.getMessage(), exception);
         }
         return new PublishUploadResult(plan);
+    }
+
+    private void uploadChecksumSidecars(
+            URI repositoryUri,
+            String uploadPath,
+            Path source,
+            Optional<RepositoryAuthentication> authentication) {
+        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(source)) {
+            Path sidecarFile = source.resolveSibling(source.getFileName() + "." + sidecar.extension());
+            try {
+                Files.writeString(sidecarFile, sidecar.value());
+            } catch (IOException exception) {
+                throw new PublishException("Could not write checksum sidecar " + sidecarFile + ".", exception);
+            }
+            repositoryClient.uploadFile(
+                    repositoryUri, uploadPath + "." + sidecar.extension(), sidecarFile, authentication);
+        }
     }
 
     private static URI repositoryUri(PublishRepositorySettings repository) {

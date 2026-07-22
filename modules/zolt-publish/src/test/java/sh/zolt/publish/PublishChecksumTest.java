@@ -41,6 +41,23 @@ final class PublishChecksumTest {
     }
 
     @Test
+    void sidecarsReturnBareHexDigestsInMavenOrder() throws IOException {
+        Path artifact = tempDir.resolve("artifact.jar");
+        Files.write(artifact, "zolt-publish artifact contents\n".getBytes(StandardCharsets.UTF_8));
+
+        java.util.List<PublishChecksum.Sidecar> sidecars = PublishChecksum.sidecars(artifact);
+
+        assertEquals(3, sidecars.size());
+        assertEquals("md5", sidecars.get(0).extension());
+        assertEquals("6760fcfcc43af351b65e6fadb73b07a5", sidecars.get(0).value());
+        assertEquals("sha1", sidecars.get(1).extension());
+        assertEquals("747dfc770bae8fb11ec2c9cf098497215daba8f4", sidecars.get(1).value());
+        assertEquals("sha256", sidecars.get(2).extension());
+        // Bare hex, unlike the "sha256:"-prefixed evidence form above.
+        assertEquals("a19b335775ac59334938d443bd4e8e183addfc7c3013b151ae0bac854f0425ab", sidecars.get(2).value());
+    }
+
+    @Test
     void missingPathRaisesPublishExceptionWithRemediation() {
         Path missing = tempDir.resolve("does-not-exist.jar");
 

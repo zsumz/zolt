@@ -16,7 +16,10 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -121,6 +124,33 @@ final class PublishCommandUploadTest {
             assertTrue(new String(
                     repository.uploaded("/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.pom"),
                     StandardCharsets.UTF_8).contains("<artifactId>publish-upload-release</artifactId>"));
+
+            // Every uploaded file is accompanied by .md5, .sha1 and .sha256 sidecars.
+            String artifactBase = "/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0.jar";
+            assertEquals(
+                    bareHex("fake package\n", "MD5"),
+                    new String(repository.uploaded(artifactBase + ".md5"), StandardCharsets.UTF_8));
+            assertEquals(
+                    bareHex("fake package\n", "SHA-1"),
+                    new String(repository.uploaded(artifactBase + ".sha1"), StandardCharsets.UTF_8));
+            assertEquals(
+                    bareHex("fake package\n", "SHA-256"),
+                    new String(repository.uploaded(artifactBase + ".sha256"), StandardCharsets.UTF_8));
+            for (String suffix : new String[] {"-sources.jar", "-javadoc.jar", "-tests.jar", ".pom"}) {
+                String base = "/maven2/com/example/publish-upload-release/0.1.0/publish-upload-release-0.1.0" + suffix;
+                assertEquals(32, new String(repository.uploaded(base + ".md5"), StandardCharsets.UTF_8).length());
+                assertEquals(40, new String(repository.uploaded(base + ".sha1"), StandardCharsets.UTF_8).length());
+                assertEquals(64, new String(repository.uploaded(base + ".sha256"), StandardCharsets.UTF_8).length());
+            }
+        }
+    }
+
+    private static String bareHex(String content, String algorithm) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance(algorithm).digest(content.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(algorithm + " is unavailable.", exception);
         }
     }
 

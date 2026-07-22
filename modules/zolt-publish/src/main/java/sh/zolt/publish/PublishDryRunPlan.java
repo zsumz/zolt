@@ -18,10 +18,12 @@ public record PublishDryRunPlan(
         Path pomPath,
         String pomSha256,
         String pomUploadPath,
+        List<PublishChecksumSidecar> checksumSidecars,
         String context,
         List<String> blockers) {
     public PublishDryRunPlan {
         supplementalArtifacts = supplementalArtifacts == null ? List.of() : List.copyOf(supplementalArtifacts);
+        checksumSidecars = checksumSidecars == null ? List.of() : List.copyOf(checksumSidecars);
         context = context == null ? "" : context;
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
     }
@@ -47,6 +49,7 @@ public record PublishDryRunPlan(
                 pomPath,
                 pomSha256,
                 pomUploadPath,
+                checksumSidecars,
                 context,
                 combinedBlockers);
     }
