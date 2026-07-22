@@ -7,6 +7,8 @@ import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.command.insight.ZoltResolutionLoader.ZoltResolution;
 import sh.zolt.error.ActionableException;
+import sh.zolt.explain.verify.BuildTool;
+import sh.zolt.explain.verify.GradleDependencyTreeParser;
 import sh.zolt.explain.verify.MavenDependencyTreeParser;
 import sh.zolt.explain.verify.ResolvedModule;
 import sh.zolt.explain.verify.VerifyComparator;
@@ -17,6 +19,7 @@ import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.materialization.RepositoryOverlay;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.workspace.WorkspaceConfigException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +33,10 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
 /**
- * {@code zolt explain verify}: runs the project's Maven and Zolt's resolver over the same project and
- * reports, per module and per scope, exactly how their resolved dependency sets differ — matched,
- * version drift, only-in-Maven, only-in-Zolt — so a migration can be verified against facts.
+ * {@code zolt explain verify}: runs the project's incumbent build (Maven or Gradle, auto-detected) and
+ * Zolt's resolver over the same project and reports, per module and per scope, exactly how their
+ * resolved dependency sets differ — matched, version drift, only-in-incumbent, only-in-Zolt — so a
+ * migration can be verified against facts.
  *
  * <p>The report states facts and counts only. Zolt uses highest-version-wins mediation while Maven
  * uses nearest-wins, so some drift is expected; the command does not editorialize about equivalence.
@@ -49,6 +53,12 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
         JSON
     }
 
+    enum Source {
+        AUTO,
+        MAVEN,
+        GRADLE
+    }
+
     private final MavenDependencyTreeRunner mavenRunner;
     private final MavenDependencyTreeParser treeParser;
     private final MavenModuleDirectories mavenModuleDirectories;
@@ -59,6 +69,11 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
 
     @Option(names = "--format", description = "Output format: text or json.")
     private Format format = Format.TEXT;
+
+    @Option(
+            names = "--source",
+            description = "Incumbent build tool to compare against: auto, maven, or gradle.")
+    private Source source = Source.AUTO;
 
     @Option(
             names = "--zolt-dir",
@@ -122,16 +137,16 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
         Path mavenRoot = projectDirectory.path().toAbsolutePath().normalize();
         Path resolvedZoltDir = (zoltDir == null ? mavenRoot : zoltDir).toAbsolutePath().normalize();
         try {
-            String treeText = mavenRunner.run(mavenRoot);
-            List<ResolvedModule> mavenModules = treeParser.parse(treeText);
-            Map<String, String> mavenDirectories = mavenModuleDirectories.resolve(mavenRoot);
+            BuildTool buildTool = detectBuildTool(mavenRoot);
+            Incumbent incumbent = extractIncumbent(buildTool, mavenRoot);
             ZoltResolution zolt = zoltLoader.load(resolvedZoltDir, cacheRoot, offline, configuredOverlays());
             VerifyReport report = comparator.compare(
+                    buildTool,
                     mavenRoot.toString(),
                     zolt.root(),
-                    mavenModules,
+                    incumbent.modules(),
                     zolt.modules(),
-                    mavenDirectories,
+                    incumbent.directories(),
                     zolt.memberPaths());
             if (format == Format.JSON) {
                 CommandOutput.printAndFlush(spec, jsonWriter.json(report));
@@ -163,5 +178,49 @@ public final class ExplainVerifyCommand implements Callable<Integer> {
                     "Unsupported repository overlay `" + value + "`.",
                     "Supported overlays: maven-local.");
         };
+    }
+
+    /**
+     * Resolves which incumbent build tool to compare against. Explicit {@code --source} wins; otherwise
+     * a {@code pom.xml} selects Maven (Maven precedence, mirroring {@code zolt explain --source auto})
+     * and a Gradle settings/build script selects Gradle. When neither is present the Maven path runs so
+     * its "no pom.xml" guidance is what the user sees.
+     */
+    private BuildTool detectBuildTool(Path root) {
+        if (source == Source.MAVEN) {
+            return BuildTool.MAVEN;
+        }
+        if (source == Source.GRADLE) {
+            return BuildTool.GRADLE;
+        }
+        if (Files.isRegularFile(root.resolve("pom.xml"))) {
+            return BuildTool.MAVEN;
+        }
+        if (hasGradleBuild(root)) {
+            return BuildTool.GRADLE;
+        }
+        return BuildTool.MAVEN;
+    }
+
+    private Incumbent extractIncumbent(BuildTool buildTool, Path root) {
+        if (buildTool == BuildTool.GRADLE) {
+            GradleProjectDiscovery.GradleProjects projects = new GradleProjectDiscovery().discover(root);
+            String reportText = new GradleDependenciesRunner().run(root, projects.projectPaths(), offline);
+            List<ResolvedModule> modules = new GradleDependencyTreeParser().parse(reportText, projects.byPath());
+            return new Incumbent(modules, projects.directories());
+        }
+        String treeText = mavenRunner.run(root);
+        return new Incumbent(treeParser.parse(treeText), mavenModuleDirectories.resolve(root));
+    }
+
+    private static boolean hasGradleBuild(Path root) {
+        return Files.isRegularFile(root.resolve("settings.gradle"))
+                || Files.isRegularFile(root.resolve("settings.gradle.kts"))
+                || Files.isRegularFile(root.resolve("build.gradle"))
+                || Files.isRegularFile(root.resolve("build.gradle.kts"));
+    }
+
+    /** The incumbent side of the comparison: resolved modules and their directories. */
+    private record Incumbent(List<ResolvedModule> modules, Map<String, String> directories) {
     }
 }
