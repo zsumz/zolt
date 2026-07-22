@@ -93,12 +93,16 @@ public final class ProjectResolutionFingerprint {
     private static void credentialInputs(List<String> inputs, Map<String, RepositoryCredentialSettings> credentials) {
         credentials.values().stream()
                 .sorted(Comparator.comparing(RepositoryCredentialSettings::id))
-                .forEach(credential -> line(
-                        inputs,
-                        "repositoryCredential",
-                        credential.id(),
-                        credential.usernameEnv(),
-                        credential.passwordEnv()));
+                .forEach(credential -> {
+                    line(
+                            inputs,
+                            "repositoryCredential",
+                            credential.id(),
+                            credential.usernameEnv().orElse(""),
+                            credential.passwordEnv().orElse(""));
+                    credential.tokenEnv().ifPresent(tokenEnv ->
+                            line(inputs, "repositoryCredentialToken", credential.id(), tokenEnv));
+                });
     }
 
     private static void dependencyInputs(

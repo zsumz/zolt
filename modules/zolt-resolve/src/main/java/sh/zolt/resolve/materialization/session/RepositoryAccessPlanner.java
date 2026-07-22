@@ -68,29 +68,46 @@ final class RepositoryAccessPlanner {
                             + credentialId
                             + "] is not defined.");
         }
-        String username = environment.apply(credential.usernameEnv());
-        String password = environment.apply(credential.passwordEnv());
+        if (credential.usesToken()) {
+            String tokenEnv = credential.tokenEnv().orElseThrow();
+            String token = environment.apply(tokenEnv);
+            if (token == null || token.isBlank()) {
+                throw missingCredentials(repository, credentialId, List.of(tokenEnv));
+            }
+            return RepositoryAuthentication.bearer(token);
+        }
+        String usernameEnv = credential.usernameEnv().orElseThrow();
+        String passwordEnv = credential.passwordEnv().orElseThrow();
+        String username = environment.apply(usernameEnv);
+        String password = environment.apply(passwordEnv);
         List<String> missing = new ArrayList<>();
         if (username == null || username.isBlank()) {
-            missing.add(credential.usernameEnv());
+            missing.add(usernameEnv);
         }
         if (password == null || password.isBlank()) {
-            missing.add(credential.passwordEnv());
+            missing.add(passwordEnv);
         }
         if (!missing.isEmpty()) {
-            throw new ResolveException(
-                    "Repository `"
-                            + repository.id()
-                            + "` requires credentials `"
-                            + credentialId
-                            + "`, but environment variable"
-                            + (missing.size() == 1 ? " " : "s ")
-                            + String.join(", ", missing)
-                            + (missing.size() == 1 ? " is" : " are")
-                            + " not set. Set the variable"
-                            + (missing.size() == 1 ? "" : "s")
-                            + " and retry. Secret values are never written to zolt.lock or command output.");
+            throw missingCredentials(repository, credentialId, missing);
         }
         return new RepositoryAuthentication(username, password);
+    }
+
+    private static ResolveException missingCredentials(
+            RepositorySettings repository,
+            String credentialId,
+            List<String> missing) {
+        return new ResolveException(
+                "Repository `"
+                        + repository.id()
+                        + "` requires credentials `"
+                        + credentialId
+                        + "`, but environment variable"
+                        + (missing.size() == 1 ? " " : "s ")
+                        + String.join(", ", missing)
+                        + (missing.size() == 1 ? " is" : " are")
+                        + " not set. Set the variable"
+                        + (missing.size() == 1 ? "" : "s")
+                        + " and retry. Secret values are never written to zolt.lock or command output.");
     }
 }

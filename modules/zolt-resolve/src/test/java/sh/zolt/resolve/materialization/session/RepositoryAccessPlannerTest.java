@@ -8,6 +8,8 @@ import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.toml.ZoltTomlParser;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,8 +48,24 @@ final class RepositoryAccessPlannerTest {
 
         RepositoryAuthentication authentication = access.authentication().orElseThrow();
         assertEquals("https://repo.example/company", access.uri().toString());
-        assertEquals("user", authentication.username());
-        assertEquals("secret", authentication.password());
+        assertEquals(
+                "Basic " + Base64.getEncoder().encodeToString("user:secret".getBytes(StandardCharsets.UTF_8)),
+                authentication.authorizationHeaderValue());
+    }
+
+    @Test
+    void resolvesBearerTokenCredentialFromEnvironment() {
+        RepositoryAccessPlanner planner = new RepositoryAccessPlanner(Map.of("REPOSITORY_TOKEN", "pat-xyz")::get);
+
+        RepositoryAccess access = planner.plan(config("""
+                [repositories]
+                company = { url = "https://repo.example/company", credentials = "company-artifactory" }
+
+                [repositoryCredentials.company-artifactory]
+                tokenEnv = "REPOSITORY_TOKEN"
+                """)).getFirst();
+
+        assertEquals("Bearer pat-xyz", access.authentication().orElseThrow().authorizationHeaderValue());
     }
 
     @Test
