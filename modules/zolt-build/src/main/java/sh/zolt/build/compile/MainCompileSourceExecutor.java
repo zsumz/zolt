@@ -7,7 +7,8 @@ import sh.zolt.build.discovery.SourceDiscoveryResult;
 import sh.zolt.build.incremental.IncrementalCompilePlan;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
-import sh.zolt.build.incremental.IncrementalCompileValidation;
+import sh.zolt.build.incremental.IncrementalCompileWaveResult;
+import sh.zolt.build.incremental.IncrementalDependentCompiler;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.doctor.JdkStatus;
@@ -135,7 +136,7 @@ public final class MainCompileSourceExecutor {
             JavacOptions options,
             IncrementalCompilePlan plan) {
         JavacResult result;
-        IncrementalCompileValidation validation;
+        IncrementalCompileWaveResult waves;
         try {
             deleteStaleOutputs(plan, plan.sourcesToCompile());
             result = javacRunner.compile(
@@ -146,22 +147,21 @@ public final class MainCompileSourceExecutor {
                     classpaths.processor(),
                     generatedSourcesDirectory,
                     options);
-            validation = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
-            if (!validation.hasFallback() && !validation.additionalSources().isEmpty()) {
-                deleteStaleOutputs(plan, validation.additionalSources());
-                JavacResult dependentResult = javacRunner.compile(
-                        jdkStatus.javac().orElseThrow(),
-                        validation.additionalSources(),
-                        incrementalClasspath(classpaths.compile(), outputDirectory),
-                        outputDirectory,
-                        classpaths.processor(),
-                        generatedSourcesDirectory,
-                        options);
-                result = new JavacResult(
-                        result.sourceCount() + dependentResult.sourceCount(),
-                        outputDirectory,
-                        combinedOutput(result.output(), dependentResult.output()));
-            }
+            waves = incrementalCompilePlanner.validateAndCompileDependents(
+                    plan,
+                    dependentSources -> {
+                        deleteStaleOutputs(plan, dependentSources);
+                        JavacResult dependentResult = javacRunner.compile(
+                                jdkStatus.javac().orElseThrow(),
+                                dependentSources,
+                                incrementalClasspath(classpaths.compile(), outputDirectory),
+                                outputDirectory,
+                                classpaths.processor(),
+                                generatedSourcesDirectory,
+                                options);
+                        return new IncrementalDependentCompiler.Outcome(
+                                dependentResult.sourceCount(), dependentResult.output());
+                    });
         } catch (JavacException exception) {
             incrementalCompileStateRecorder.deleteMainState(outputDirectory);
             return fullCompile(
@@ -174,8 +174,16 @@ public final class MainCompileSourceExecutor {
                     "incremental-javac-failed",
                     plan.fullDiagnostics(sources.mainSources().size()));
         }
-        if (!validation.hasFallback()) {
-            return new Attempt(result, "incremental", "", plan.diagnostics(result.sourceCount(), validation));
+        if (!waves.hasFallback()) {
+            JavacResult combined = new JavacResult(
+                    result.sourceCount() + waves.dependentSourceCount(),
+                    outputDirectory,
+                    combinedOutput(result.output(), waves.dependentOutput()));
+            return new Attempt(
+                    combined,
+                    "incremental",
+                    "",
+                    plan.diagnostics(combined.sourceCount(), waves.validation()));
         }
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
         deleteOwnedOutputs(plan);
@@ -186,7 +194,7 @@ public final class MainCompileSourceExecutor {
                 outputDirectory,
                 generatedSourcesDirectory,
                 options,
-                validation.fallbackReason(),
+                waves.validation().fallbackReason(),
                 plan.fullDiagnostics(sources.mainSources().size()));
     }
 

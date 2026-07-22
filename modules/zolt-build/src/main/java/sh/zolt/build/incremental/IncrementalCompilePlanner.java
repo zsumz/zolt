@@ -196,8 +196,10 @@ public final class IncrementalCompilePlanner {
         return reason == null || reason.isBlank() ? "non-source-input-changed" : reason;
     }
 
-    public IncrementalCompileValidation validateAfterIncrementalCompile(IncrementalCompilePlan plan) {
-        return abiValidator.validate(plan);
+    public IncrementalCompileWaveResult validateAndCompileDependents(
+            IncrementalCompilePlan plan,
+            IncrementalDependentCompiler compiler) {
+        return abiValidator.validateWaves(plan, compiler);
     }
 
     private static List<Path> outputsForDeletedSources(
