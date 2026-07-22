@@ -133,6 +133,7 @@ final class TestCompileSourceExecutor {
         JavacResult javacResult;
         IncrementalCompileValidation validation;
         try {
+            deleteStaleOutputs(plan, plan.sourcesToCompile());
             javacResult = javacRunner.compile(
                     jdkStatus.javac().orElseThrow(),
                     plan.sourcesToCompile(),
@@ -143,6 +144,7 @@ final class TestCompileSourceExecutor {
                     options);
             validation = incrementalCompilePlanner.validateAfterIncrementalCompile(plan);
             if (!validation.hasFallback() && !validation.additionalSources().isEmpty()) {
+                deleteStaleOutputs(plan, validation.additionalSources());
                 JavacResult dependentResult = javacRunner.compile(
                         jdkStatus.javac().orElseThrow(),
                         validation.additionalSources(),
@@ -256,7 +258,15 @@ final class TestCompileSourceExecutor {
     }
 
     private static void deleteOwnedOutputs(IncrementalCompilePlan plan) {
-        for (Path output : plan.outputsToDelete()) {
+        deleteOutputs(plan.outputsToDelete());
+    }
+
+    private static void deleteStaleOutputs(IncrementalCompilePlan plan, List<Path> sources) {
+        deleteOutputs(plan.previousClassOutputs(sources));
+    }
+
+    private static void deleteOutputs(List<Path> outputs) {
+        for (Path output : outputs) {
             try {
                 Files.deleteIfExists(output);
             } catch (IOException exception) {

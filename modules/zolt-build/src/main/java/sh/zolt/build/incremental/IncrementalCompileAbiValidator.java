@@ -3,6 +3,7 @@ package sh.zolt.build.incremental;
 import sh.zolt.build.BuildException;
 import sh.zolt.build.abi.ClassFileAbi;
 import sh.zolt.build.abi.ClassFileAbiReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -26,36 +27,47 @@ final class IncrementalCompileAbiValidator {
         int abiChangedClasses = 0;
         int packagePrivateAbiChangedClasses = 0;
         for (IncrementalCompileState.SourceRecord previousSource : plan.changedPreviousRecords()) {
-            Path output = previousSource.classOutputs().getFirst();
-            ClassFileAbi currentAbi;
-            try {
-                currentAbi = abiReader.read(output);
-            } catch (BuildException exception) {
-                return IncrementalCompileValidation.fallback("changed-class-output-missing");
-            }
-            Optional<IncrementalCompileState.ClassRecord> previousClass = plan.previousClass(output);
-            if (previousClass.isEmpty()) {
-                return IncrementalCompileValidation.fallback("changed-class-state-missing");
-            }
-            IncrementalCompileState.ClassRecord classRecord = previousClass.orElseThrow();
-            boolean abiChanged = !classRecord.abiHash().equals(currentAbi.abiHash());
-            boolean packagePrivateAbiChanged = !classRecord.packagePrivateAbiHash().equals(currentAbi.packagePrivateAbiHash())
-                    && !abiChanged;
-            if (abiChanged) {
-                abiChangedClasses++;
-                addAffectedSources(
-                        additionalSources,
-                        scheduledSources,
-                        plan.reverseDependencies().getOrDefault(classRecord.binaryName(), List.of()),
-                        plan);
-            }
-            if (packagePrivateAbiChanged) {
-                packagePrivateAbiChangedClasses++;
-                addSamePackageSources(
-                        additionalSources,
-                        scheduledSources,
-                        previousSource.packageName(),
-                        plan);
+            for (Path output : previousSource.classOutputs()) {
+                Optional<IncrementalCompileState.ClassRecord> previousClass = plan.previousClass(output);
+                if (previousClass.isEmpty()) {
+                    return IncrementalCompileValidation.fallback("changed-class-state-missing");
+                }
+                IncrementalCompileState.ClassRecord classRecord = previousClass.orElseThrow();
+                if (!Files.exists(output)) {
+                    abiChangedClasses++;
+                    addAffectedSources(
+                            additionalSources,
+                            scheduledSources,
+                            plan.reverseDependencies().getOrDefault(classRecord.binaryName(), List.of()),
+                            plan);
+                    continue;
+                }
+                ClassFileAbi currentAbi;
+                try {
+                    currentAbi = abiReader.read(output);
+                } catch (BuildException exception) {
+                    return IncrementalCompileValidation.fallback("changed-class-output-unreadable");
+                }
+                boolean abiChanged = !classRecord.abiHash().equals(currentAbi.abiHash());
+                boolean packagePrivateAbiChanged =
+                        !classRecord.packagePrivateAbiHash().equals(currentAbi.packagePrivateAbiHash())
+                                && !abiChanged;
+                if (abiChanged) {
+                    abiChangedClasses++;
+                    addAffectedSources(
+                            additionalSources,
+                            scheduledSources,
+                            plan.reverseDependencies().getOrDefault(classRecord.binaryName(), List.of()),
+                            plan);
+                }
+                if (packagePrivateAbiChanged) {
+                    packagePrivateAbiChangedClasses++;
+                    addSamePackageSources(
+                            additionalSources,
+                            scheduledSources,
+                            previousSource.packageName(),
+                            plan);
+                }
             }
         }
         return IncrementalCompileValidation.success(

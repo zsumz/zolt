@@ -173,8 +173,8 @@ public final class IncrementalCompilePlanner {
                 continue;
             }
             if (!previous.contentHash().equals(entry.getValue())) {
-                if (previous.classOutputs().size() != 1) {
-                    return IncrementalCompilePlan.full("multi-class-source");
+                if (previous.classOutputs().isEmpty() && !previous.declaredTypes().isEmpty()) {
+                    return IncrementalCompilePlan.full("unmapped-source-classes");
                 }
                 dirtySources.add(entry.getKey());
                 changedPreviousRecords.add(previous);

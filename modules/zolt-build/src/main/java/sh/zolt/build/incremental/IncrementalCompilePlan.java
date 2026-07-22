@@ -80,6 +80,15 @@ public record IncrementalCompilePlan(
         return previousSources.containsKey(source.toAbsolutePath().normalize());
     }
 
+    public List<Path> previousClassOutputs(List<Path> sources) {
+        return sources.stream()
+                .map(source -> previousSources.get(source.toAbsolutePath().normalize()))
+                .filter(java.util.Objects::nonNull)
+                .flatMap(record -> record.classOutputs().stream())
+                .distinct()
+                .toList();
+    }
+
     public CompileDiagnostics diagnostics(int sourcesRecompiled, IncrementalCompileValidation validation) {
         return new CompileDiagnostics(
                 sourcesAdded,
