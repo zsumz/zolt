@@ -1,6 +1,7 @@
 package sh.zolt.toolchain.install;
 
 import sh.zolt.error.ActionableException;
+import sh.zolt.net.NetworkTransport;
 import sh.zolt.toolchain.catalog.JavaToolchainArtifact;
 import java.io.IOException;
 import java.io.InputStream;
@@ -11,22 +12,31 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.function.UnaryOperator;
 
 public final class JavaToolchainDownloader {
     private final HttpClient httpClient;
+    private final UnaryOperator<URI> uriRewriter;
 
     public JavaToolchainDownloader() {
-        this(HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build());
+        this(NetworkTransport.fromEnvironment(), ToolchainDownloadMirror.fromEnvironment());
+    }
+
+    public JavaToolchainDownloader(NetworkTransport transport, ToolchainDownloadMirror mirror) {
+        this(transport.httpClientBuilder().build(), mirror::rewrite);
     }
 
     JavaToolchainDownloader(HttpClient httpClient) {
+        this(httpClient, UnaryOperator.identity());
+    }
+
+    JavaToolchainDownloader(HttpClient httpClient, UnaryOperator<URI> uriRewriter) {
         this.httpClient = httpClient;
+        this.uriRewriter = uriRewriter;
     }
 
     public Path download(JavaToolchainArtifact artifact, Path destination) {
-        URI uri = artifact.uri();
+        URI uri = uriRewriter.apply(artifact.uri());
         try {
             Files.createDirectories(destination.getParent());
             if ("file".equals(uri.getScheme())) {
@@ -53,7 +63,9 @@ public final class JavaToolchainDownloader {
         } catch (IOException exception) {
             throw new ActionableException(
                     "Could not download Java toolchain artifact from " + uri + ".",
-                    "Check your network connection and retry `zolt toolchain sync`.");
+                    "Check your network connection; behind a firewall set HTTPS_PROXY, ZOLT_CA_BUNDLE, or an "
+                            + "internal mirror (ZOLT_TOOLCHAIN_MIRROR or [network].toolchainMirror), then retry "
+                            + "`zolt toolchain sync`.");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new ActionableException(
