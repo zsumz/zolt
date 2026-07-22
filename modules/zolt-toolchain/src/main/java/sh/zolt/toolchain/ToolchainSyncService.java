@@ -1,12 +1,15 @@
 package sh.zolt.toolchain;
 
 import sh.zolt.error.ActionableException;
+import sh.zolt.net.NetworkTransport;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
 import sh.zolt.toolchain.catalog.BundledJavaToolchainCatalog;
 import sh.zolt.toolchain.catalog.JavaToolchainArtifact;
 import sh.zolt.toolchain.catalog.JavaToolchainCatalog;
+import sh.zolt.toolchain.install.JavaToolchainDownloader;
 import sh.zolt.toolchain.install.JavaToolchainInstaller;
+import sh.zolt.toolchain.install.ToolchainDownloadMirror;
 import sh.zolt.toolchain.lock.LockedJavaToolchain;
 import sh.zolt.toolchain.lock.ToolchainLockfileService;
 import sh.zolt.toolchain.platform.HostPlatform;
@@ -27,6 +30,19 @@ public final class ToolchainSyncService {
                 new BundledJavaToolchainCatalog(),
                 new ToolchainLockfileService(),
                 new JavaToolchainInstaller());
+    }
+
+    /**
+     * A sync service whose downloader routes JDK archives through the given proxy/CA transport and
+     * mirror. The catalog, lockfile, and SHA-256 verification are unchanged, so mirrored downloads
+     * are still integrity-checked against the pinned hash and the lock keeps the upstream URL.
+     */
+    public static ToolchainSyncService withNetwork(NetworkTransport transport, ToolchainDownloadMirror mirror) {
+        return new ToolchainSyncService(
+                new ToolchainConfigReader(),
+                new BundledJavaToolchainCatalog(),
+                new ToolchainLockfileService(),
+                new JavaToolchainInstaller(new JavaToolchainDownloader(transport, mirror)));
     }
 
     ToolchainSyncService(

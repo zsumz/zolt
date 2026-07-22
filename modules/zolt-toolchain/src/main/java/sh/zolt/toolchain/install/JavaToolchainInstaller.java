@@ -19,6 +19,10 @@ public final class JavaToolchainInstaller {
         this(new JavaToolchainDownloader(), new JavaToolchainArchiveExtractor());
     }
 
+    public JavaToolchainInstaller(JavaToolchainDownloader downloader) {
+        this(downloader, new JavaToolchainArchiveExtractor());
+    }
+
     JavaToolchainInstaller(
             JavaToolchainDownloader downloader,
             JavaToolchainArchiveExtractor extractor) {
