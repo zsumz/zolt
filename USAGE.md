@@ -621,7 +621,19 @@ zolt explain --source gradle --scorecard
 zolt explain --source maven --blockers
 zolt explain --emit-toml
 zolt explain --emit-toml-output target/zolt-draft
+zolt explain --emit-toml --resolve-external-parents
 ```
+
+By default the audit is fully offline, so a Maven project that inherits an
+external parent (for example `spring-boot-starter-parent`) reports its inherited
+dependency versions as unknown. Pass `--resolve-external-parents` to opt in to
+fetching those external parent POMs and their imported BOMs over the network —
+from Maven Central plus any HTTPS `<repositories>` declared in the POM chain,
+cached under `~/.zolt/cache` for offline re-runs. Recovered versions are fixed
+literals, so inherited `[dependencies]` and `[platforms]` resolve in the report
+and in `--emit-toml`; anything dynamic (ranges, SNAPSHOT parents, unresolved
+`${...}`) is surfaced as a review item instead of being guessed, and every
+fetched coordinate is recorded in the audit.
 
 ### Verify a migration
 
