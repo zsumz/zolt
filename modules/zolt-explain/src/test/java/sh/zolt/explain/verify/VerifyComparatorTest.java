@@ -24,7 +24,7 @@ final class VerifyComparatorTest {
                 artifact("org.d", "zolt-only", "4.0.0"))));
 
         VerifyReport report = comparator.compare(
-                "/maven", "/zolt", List.of(maven), List.of(zolt), Map.of("com.example:app", "."), Map.of("com.example:app", "."));
+                BuildTool.MAVEN, "/maven", "/zolt", List.of(maven), List.of(zolt), Map.of("com.example:app", "."), Map.of("com.example:app", "."));
 
         assertEquals(1, report.modules().size());
         ModuleComparison module = report.modules().get(0);
@@ -56,7 +56,7 @@ final class VerifyComparatorTest {
                 VerifyScope.COMPILE, List.of(artifact("org.x", "lib", "1.0.0")),
                 VerifyScope.TEST, List.of(artifact("org.junit.jupiter", "junit-jupiter", "5.11.4"))));
 
-        VerifyReport report = comparator.compare("/m", "/z", List.of(maven), List.of(zolt), Map.of(), Map.of());
+        VerifyReport report = comparator.compare(BuildTool.MAVEN, "/m", "/z", List.of(maven), List.of(zolt), Map.of(), Map.of());
 
         assertFalse(report.hasDifferences());
         assertEquals(2, report.summary().matched());
@@ -72,7 +72,7 @@ final class VerifyComparatorTest {
                 VerifyScope.RUNTIME, List.of(artifact("org.y", "lib", "2.0.0"))));
 
         VerifyReport report = comparator.compare(
-                "/m", "/z", List.of(mavenOnly), List.of(zoltOnly), Map.of(), Map.of());
+                BuildTool.MAVEN, "/m", "/z", List.of(mavenOnly), List.of(zoltOnly), Map.of(), Map.of());
 
         assertEquals(2, report.modules().size());
         assertEquals(ModulePresence.MAVEN_ONLY, moduleByKey(report, "g:mvn-only").presence());
@@ -94,7 +94,7 @@ final class VerifyComparatorTest {
                 Map.of(VerifyScope.COMPILE, List.of(artifact("org.x", "lib", "1.0.0"))),
                 Map.of("dev", 2, "processor", 1));
 
-        VerifyReport report = comparator.compare("/m", "/z", List.of(maven), List.of(zolt), Map.of(), Map.of());
+        VerifyReport report = comparator.compare(BuildTool.MAVEN, "/m", "/z", List.of(maven), List.of(zolt), Map.of(), Map.of());
 
         List<String> notes = report.modules().get(0).notes();
         assertEquals(List.of(

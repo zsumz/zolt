@@ -18,6 +18,7 @@ public final class VerifyReportJsonWriter {
         json.append("{\n");
         intField(json, 1, "schemaVersion", 1, true);
         stringField(json, 1, "command", "explain-verify", true);
+        stringField(json, 1, "buildTool", report.buildTool().token(), true);
         stringField(json, 1, "mavenRoot", report.mavenRoot(), true);
         stringField(json, 1, "zoltRoot", report.zoltRoot(), true);
         summary(json, report);

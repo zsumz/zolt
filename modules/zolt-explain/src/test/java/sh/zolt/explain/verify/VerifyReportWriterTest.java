@@ -18,7 +18,7 @@ final class VerifyReportWriterTest {
 
         String first = jsonWriter.json(report);
         String second = jsonWriter.json(comparator.compare(
-                "/maven", "/zolt", List.of(maven()), List.of(zolt()),
+                BuildTool.MAVEN, "/maven", "/zolt", List.of(maven()), List.of(zolt()),
                 Map.of("g:a", "."), Map.of("g:a", ".")));
 
         assertEquals(first, second);
@@ -47,9 +47,33 @@ final class VerifyReportWriterTest {
         assertTrue(text.contains("version drift: 1"), text);
     }
 
+    @Test
+    void mavenReportsDeclareTheirBuildToolInJson() {
+        assertTrue(jsonWriter.json(sampleReport()).contains("\"buildTool\": \"maven\""), "maven buildTool");
+    }
+
+    @Test
+    void gradleBuildToolRelabelsIncumbentSideButKeepsJsonFieldNames() {
+        VerifyReport gradle = comparator.compare(
+                BuildTool.GRADLE, "/gradle", "/zolt", List.of(maven()), List.of(zolt()),
+                Map.of("g:a", "app"), Map.of("g:a", "."));
+
+        String json = jsonWriter.json(gradle);
+        assertTrue(json.contains("\"buildTool\": \"gradle\""), json);
+        // Field names stay maven* for schema stability; only the additive buildTool field disambiguates.
+        assertTrue(json.contains("\"mavenRoot\": \"/gradle\""), json);
+        assertTrue(json.contains("\"mavenVersion\": \"33.4.8-jre\""), json);
+
+        String text = formatter.text(gradle);
+        assertTrue(text.contains("Gradle vs Zolt resolved dependencies"), text);
+        assertTrue(text.contains("Gradle root: /gradle"), text);
+        assertTrue(text.contains("only in gradle:"), text);
+        assertTrue(text.contains("  gradle 33.4.8-jre  zolt 33.0.0-jre"), text);
+    }
+
     private VerifyReport sampleReport() {
         return comparator.compare(
-                "/maven", "/zolt", List.of(maven()), List.of(zolt()),
+                BuildTool.MAVEN, "/maven", "/zolt", List.of(maven()), List.of(zolt()),
                 Map.of("g:a", "."), Map.of("g:a", "."));
     }
 

@@ -24,12 +24,14 @@ public final class VerifyComparator {
             .thenComparing(VersionDrift::classifier);
 
     public VerifyReport compare(
+            BuildTool buildTool,
             String mavenRoot,
             String zoltRoot,
             List<ResolvedModule> mavenModules,
             List<ResolvedModule> zoltModules,
             Map<String, String> mavenDirectories,
             Map<String, String> zoltMembers) {
+        BuildTool incumbent = buildTool == null ? BuildTool.MAVEN : buildTool;
         Map<String, ResolvedModule> maven = index(mavenModules);
         Map<String, ResolvedModule> zolt = index(zoltModules);
         Map<String, String> mavenDirs = mavenDirectories == null ? Map.of() : mavenDirectories;
@@ -58,9 +60,9 @@ public final class VerifyComparator {
                     Optional.ofNullable(mavenDirs.get(moduleKey)),
                     Optional.ofNullable(members.get(moduleKey)),
                     scopes,
-                    notes(mavenModule, zoltModule)));
+                    notes(incumbent, mavenModule, zoltModule)));
         }
-        return new VerifyReport(mavenRoot, zoltRoot, comparisons, totals.summary(moduleKeys.size()));
+        return new VerifyReport(incumbent, mavenRoot, zoltRoot, comparisons, totals.summary(moduleKeys.size()));
     }
 
     private static ScopeComparison compareScope(
@@ -119,10 +121,12 @@ public final class VerifyComparator {
         return mavenModule != null ? ModulePresence.MAVEN_ONLY : ModulePresence.ZOLT_ONLY;
     }
 
-    private static List<String> notes(ResolvedModule mavenModule, ResolvedModule zoltModule) {
+    private static List<String> notes(
+            BuildTool incumbent, ResolvedModule mavenModule, ResolvedModule zoltModule) {
         List<String> notes = new ArrayList<>();
         if (mavenModule != null && !mavenModule.unmappedScopes().isEmpty()) {
-            notes.add("Maven scopes not compared: " + renderScopeCounts(mavenModule.unmappedScopes()));
+            notes.add(incumbent.displayName() + " scopes not compared: "
+                    + renderScopeCounts(mavenModule.unmappedScopes()));
         }
         if (zoltModule != null && !zoltModule.unmappedScopes().isEmpty()) {
             notes.add("Zolt scopes not compared: " + renderScopeCounts(zoltModule.unmappedScopes()));
