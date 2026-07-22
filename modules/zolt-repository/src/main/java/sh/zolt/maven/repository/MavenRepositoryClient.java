@@ -6,6 +6,7 @@ import static sh.zolt.maven.repository.RepositoryHttpRequests.uploadRequest;
 
 import sh.zolt.maven.ArtifactDescriptor;
 import sh.zolt.maven.Coordinate;
+import sh.zolt.net.NetworkTransport;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -20,7 +21,11 @@ public final class MavenRepositoryClient {
     private final RepositoryHttpPolicy httpPolicy;
 
     public MavenRepositoryClient() {
-        this(HttpClient.newHttpClient(), new MavenRepositoryPathBuilder(), RepositoryHttpPolicy.defaults());
+        this(NetworkTransport.fromEnvironment());
+    }
+
+    public MavenRepositoryClient(NetworkTransport transport) {
+        this(transport.newHttpClient(), new MavenRepositoryPathBuilder(), RepositoryHttpPolicy.defaults());
     }
 
     MavenRepositoryClient(HttpClient httpClient, MavenRepositoryPathBuilder pathBuilder) {
