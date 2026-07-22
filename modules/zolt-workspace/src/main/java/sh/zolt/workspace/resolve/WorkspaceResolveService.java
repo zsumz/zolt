@@ -92,7 +92,8 @@ public final class WorkspaceResolveService {
                             + lockfilePath
                             + ". Run `zolt resolve --workspace` to create it, then retry `zolt resolve --workspace --locked`.");
         }
-        options = prepareOptions(lockfilePath, options);
+        options = prepareOptions(lockfilePath, options)
+                .withWorkspaceMemberCoordinates(workspaceMemberCoordinates(workspace));
 
         Map<String, WorkspaceMember> membersByPath = membersByPath(workspace);
         List<WorkspaceMemberResolveOutput> memberOutputs = new ArrayList<>();
@@ -207,6 +208,16 @@ public final class WorkspaceResolveService {
         } catch (LockfileReadException exception) {
             return "";
         }
+    }
+
+    private static Set<PackageId> workspaceMemberCoordinates(Workspace workspace) {
+        Set<PackageId> coordinates = new LinkedHashSet<>();
+        for (WorkspaceMember member : workspace.members()) {
+            coordinates.add(new PackageId(
+                    member.config().project().group(),
+                    member.config().project().name()));
+        }
+        return Set.copyOf(coordinates);
     }
 
     private static Set<PackageId> exportedExternalPackageIds(ProjectConfig config) {
