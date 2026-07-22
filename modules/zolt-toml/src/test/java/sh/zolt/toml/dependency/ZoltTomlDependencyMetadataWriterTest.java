@@ -55,6 +55,36 @@ final class ZoltTomlDependencyMetadataWriterTest {
     }
 
     @Test
+    void writesAndReparsesClassifierAndType() {
+        ProjectConfig config = writer.defaultApplicationConfig("hello", "com.example", "com.example.Main")
+                .withDependencyMetadata(Map.of(
+                        DependencyMetadata.key("dependencies", "io.netty:netty-transport-native-epoll"),
+                        new DependencyMetadata(
+                                "dependencies",
+                                "io.netty:netty-transport-native-epoll",
+                                "4.1.100.Final",
+                                null,
+                                false,
+                                null,
+                                false,
+                                false,
+                                List.of(),
+                                "linux-x86_64",
+                                "jar")));
+        config = writer.addDependency(
+                config, DependencySection.MAIN, "io.netty:netty-transport-native-epoll", "4.1.100.Final");
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains(
+                "\"io.netty:netty-transport-native-epoll\" = "
+                        + "{ version = \"4.1.100.Final\", classifier = \"linux-x86_64\", type = \"jar\" }"));
+        assertEquals(config.dependencyMetadata(), parsed.dependencyMetadata());
+        assertEquals("4.1.100.Final", parsed.dependencies().get("io.netty:netty-transport-native-epoll"));
+    }
+
+    @Test
     void versionRefMutationPreservesExistingDependencyMetadata() {
         ProjectConfig config = parser.parse("""
                 [project]

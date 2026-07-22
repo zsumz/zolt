@@ -2,10 +2,12 @@ package sh.zolt.toml.dependency;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +45,69 @@ final class ZoltTomlDependencyMetadataParserTest {
         assertTrue(publish.publishOnly());
         assertTrue(managedPublish.managed());
         assertTrue(managedPublish.publishOnly());
+    }
+
+    @Test
+    void parsesClassifierAndTypeOnVersionedDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "library"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "io.netty:netty-transport-native-epoll" = { version = "4.1.100.Final", classifier = "linux-x86_64" }
+                "com.example:native" = { version = "1.0.0", type = "so" }
+                """);
+
+        DependencyMetadata netty = config.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "io.netty:netty-transport-native-epoll"));
+        DependencyMetadata nativeArtifact = config.dependencyMetadata()
+                .get(DependencyMetadata.key("dependencies", "com.example:native"));
+
+        assertEquals("4.1.100.Final", config.dependencies().get("io.netty:netty-transport-native-epoll"));
+        assertEquals("linux-x86_64", netty.classifier());
+        assertEquals(null, netty.type());
+        assertEquals("so", nativeArtifact.type());
+        assertEquals(null, nativeArtifact.classifier());
+    }
+
+    @Test
+    void parsesClassifierOnPlatformManagedDependency() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "library"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [test.dependencies]
+                "org.apache.kafka:kafka-clients" = { classifier = "test" }
+                """);
+
+        DependencyMetadata metadata = config.dependencyMetadata()
+                .get(DependencyMetadata.key("test.dependencies", "org.apache.kafka:kafka-clients"));
+
+        assertTrue(config.managedTestDependencies().contains("org.apache.kafka:kafka-clients"));
+        assertTrue(metadata.managed());
+        assertEquals("test", metadata.classifier());
+    }
+
+    @Test
+    void rejectsClassifierOnWorkspaceDependency() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "library"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [dependencies]
+                "com.example:member" = { workspace = "modules/member", classifier = "tests" }
+                """));
+
+        assertTrue(exception.getMessage().contains("Classifier and type apply to external dependency artifacts"));
     }
 
 }

@@ -45,6 +45,84 @@ final class DependencyMetadataTest {
     }
 
     @Test
+    void retainsClassifierAndType() {
+        DependencyMetadata metadata = new DependencyMetadata(
+                "dependencies",
+                "io.netty:netty-transport-native-epoll",
+                "4.1.100.Final",
+                null,
+                false,
+                null,
+                false,
+                false,
+                List.of(),
+                "linux-x86_64",
+                "jar");
+
+        assertFalse(metadata.emptyMetadata());
+        assertEquals("linux-x86_64", metadata.classifier());
+        assertEquals("jar", metadata.type());
+    }
+
+    @Test
+    void normalizesBlankClassifierAndType() {
+        DependencyMetadata metadata = new DependencyMetadata(
+                "dependencies",
+                "com.example:app",
+                "1.0.0",
+                null,
+                false,
+                null,
+                false,
+                false,
+                List.of(),
+                " ",
+                " ");
+
+        assertTrue(metadata.emptyMetadata());
+        assertEquals(null, metadata.classifier());
+        assertEquals(null, metadata.type());
+    }
+
+    @Test
+    void classifierAloneKeepsMetadataNonEmpty() {
+        DependencyMetadata metadata = new DependencyMetadata(
+                "test.dependencies",
+                "org.apache.kafka:kafka-clients",
+                "3.7.0",
+                null,
+                false,
+                null,
+                false,
+                false,
+                List.of(),
+                "test",
+                null);
+
+        assertFalse(metadata.emptyMetadata());
+        assertEquals("test", metadata.classifier());
+        assertEquals(null, metadata.type());
+    }
+
+    @Test
+    void nineArgConstructorDefaultsClassifierAndType() {
+        DependencyMetadata metadata = new DependencyMetadata(
+                "dependencies",
+                "com.example:app",
+                "1.0.0",
+                null,
+                false,
+                null,
+                false,
+                false,
+                List.of());
+
+        assertEquals(null, metadata.classifier());
+        assertEquals(null, metadata.type());
+        assertTrue(metadata.emptyMetadata());
+    }
+
+    @Test
     void requiresSectionAndCoordinate() {
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,

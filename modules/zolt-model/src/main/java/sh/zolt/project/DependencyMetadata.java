@@ -11,7 +11,9 @@ public record DependencyMetadata(
         String workspace,
         boolean optional,
         boolean publishOnly,
-        List<DependencyExclusionSpec> exclusions) {
+        List<DependencyExclusionSpec> exclusions,
+        String classifier,
+        String type) {
     public DependencyMetadata {
         section = normalize(section);
         coordinate = normalize(coordinate);
@@ -19,6 +21,21 @@ public record DependencyMetadata(
         versionRef = versionRef == null || versionRef.isBlank() ? null : versionRef;
         workspace = workspace == null || workspace.isBlank() ? null : workspace;
         exclusions = exclusions == null ? List.of() : List.copyOf(exclusions);
+        classifier = classifier == null || classifier.isBlank() ? null : classifier;
+        type = type == null || type.isBlank() ? null : type;
+    }
+
+    public DependencyMetadata(
+            String section,
+            String coordinate,
+            String version,
+            String versionRef,
+            boolean managed,
+            String workspace,
+            boolean optional,
+            boolean publishOnly,
+            List<DependencyExclusionSpec> exclusions) {
+        this(section, coordinate, version, versionRef, managed, workspace, optional, publishOnly, exclusions, null, null);
     }
 
     public DependencyMetadata(
@@ -38,7 +55,12 @@ public record DependencyMetadata(
     }
 
     public boolean emptyMetadata() {
-        return versionRef == null && !optional && !publishOnly && exclusions.isEmpty();
+        return versionRef == null
+                && !optional
+                && !publishOnly
+                && exclusions.isEmpty()
+                && classifier == null
+                && type == null;
     }
 
     private static String normalize(String value) {

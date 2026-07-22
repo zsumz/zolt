@@ -2,6 +2,7 @@ package sh.zolt.resolve.request;
 
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.maven.ArtifactDescriptor;
 import sh.zolt.maven.Coordinate;
 import sh.zolt.maven.CoordinateParser;
 import sh.zolt.project.DependencyExclusionSpec;
@@ -12,6 +13,7 @@ import sh.zolt.resolve.ResolveException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 final class DirectDependencyRequestPlanner {
     private final CoordinateParser coordinateParser;
@@ -148,17 +150,34 @@ final class DirectDependencyRequestPlanner {
         validateSupportedVersion(section, packageId, version, retryCommand);
         DependencyMetadata metadata = config.dependencyMetadata()
                 .get(DependencyMetadata.key(section, packageId.toString()));
+        Optional<ArtifactDescriptor> artifactDescriptor = directArtifactDescriptor(packageId, version, metadata);
         if (metadata == null || metadata.exclusions().isEmpty()) {
-            return new DependencyRequest(packageId, version, scope, RequestOrigin.DIRECT);
+            return new DependencyRequest(packageId, version, scope, RequestOrigin.DIRECT, artifactDescriptor);
         }
         return new DependencyRequest(
                 packageId,
                 version,
                 scope,
                 RequestOrigin.DIRECT,
+                artifactDescriptor,
                 metadata.exclusions().stream()
                         .map(exclusion -> directExclusion(exclusion, retryCommand))
                         .toList());
+    }
+
+    private static Optional<ArtifactDescriptor> directArtifactDescriptor(
+            PackageId packageId,
+            String version,
+            DependencyMetadata metadata) {
+        if (metadata == null) {
+            return Optional.empty();
+        }
+        String extension = metadata.type() == null ? "jar" : metadata.type();
+        if (metadata.classifier() == null && "jar".equals(extension)) {
+            return Optional.empty();
+        }
+        Coordinate coordinate = new Coordinate(packageId.groupId(), packageId.artifactId(), Optional.of(version));
+        return Optional.of(new ArtifactDescriptor(coordinate, Optional.ofNullable(metadata.classifier()), extension));
     }
 
     private static void validateSupportedVersion(

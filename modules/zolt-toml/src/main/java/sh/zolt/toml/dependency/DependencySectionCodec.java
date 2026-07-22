@@ -155,8 +155,10 @@ public final class DependencySectionCodec {
             }
             if (rawValue instanceof TomlTable dependencyTable) {
                 TomlValidation.validateKeysWithVersionRefHint(section + "." + key, dependencyTable, allowWorkspace
-                        ? Set.of("version", "versionRef", "workspace", "optional", "publishOnly", "exclusions")
-                        : Set.of("version", "versionRef", "optional", "publishOnly", "exclusions"));
+                        ? Set.of("version", "versionRef", "workspace", "optional", "publishOnly", "exclusions",
+                                "classifier", "type")
+                        : Set.of("version", "versionRef", "optional", "publishOnly", "exclusions",
+                                "classifier", "type"));
                 Object rawVersion = dependencyTable.get(List.of("version"));
                 Object rawVersionRef = dependencyTable.get(List.of("versionRef"));
                 Object rawWorkspace = dependencyTable.get(List.of("workspace"));
@@ -165,6 +167,9 @@ public final class DependencySectionCodec {
                 boolean publishOnly =
                         TomlScalars.booleanOrDefault(dependencyTable, section + "." + key, "publishOnly", false);
                 List<DependencyExclusionSpec> exclusions = dependencyExclusions(dependencyTable, section + "." + key);
+                String classifier =
+                        TomlScalars.nonBlankStringOrDefault(dependencyTable, section + "." + key, "classifier", null);
+                String type = TomlScalars.nonBlankStringOrDefault(dependencyTable, section + "." + key, "type", null);
                 if ((rawVersion != null || rawVersionRef != null) && rawWorkspace != null) {
                     throw new ZoltConfigException(
                             "Invalid value for [" + section + "]." + key + " in zolt.toml. Use version, versionRef, or workspace; do not combine them.");
@@ -176,6 +181,10 @@ public final class DependencySectionCodec {
                 if (rawWorkspace != null && !exclusions.isEmpty()) {
                     throw new ZoltConfigException(
                             "Invalid value for [" + section + "]." + key + ".exclusions in zolt.toml. Exclusions apply to external dependency edges, not workspace dependencies.");
+                }
+                if (rawWorkspace != null && (classifier != null || type != null)) {
+                    throw new ZoltConfigException(
+                            "Invalid value for [" + section + "]." + key + " in zolt.toml. Classifier and type apply to external dependency artifacts, not workspace dependencies.");
                 }
                 String version = null;
                 String versionRef = null;
@@ -219,7 +228,9 @@ public final class DependencySectionCodec {
                         workspacePathValue,
                         optional,
                         publishOnly,
-                        exclusions);
+                        exclusions,
+                        classifier,
+                        type);
                 if (!metadata.emptyMetadata() || publishOnly) {
                     dependencyMetadata.put(DependencyMetadata.key(section, key), metadata);
                 }

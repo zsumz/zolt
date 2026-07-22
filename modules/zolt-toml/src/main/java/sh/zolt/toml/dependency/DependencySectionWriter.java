@@ -157,6 +157,12 @@ final class DependencySectionWriter {
         } else if (!managedDependency) {
             parts.add("version = " + quote(""));
         }
+        if (metadata.classifier() != null) {
+            parts.add("classifier = " + quote(metadata.classifier()));
+        }
+        if (metadata.type() != null) {
+            parts.add("type = " + quote(metadata.type()));
+        }
         if (metadata.optional()) {
             parts.add("optional = true");
         }

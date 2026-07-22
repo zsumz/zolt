@@ -220,6 +220,10 @@ spring = "4.0.6"
 "org.springframework.boot:spring-boot-starter-webmvc" = { exclusions = [
   { group = "org.apache.tomcat.embed", artifact = "tomcat-embed-core" }
 ] }
+# classifier and type select a specific published artifact for a coordinate and
+# are independent; both work in every dependency scope, with or without a
+# version or platform-managed version.
+"io.netty:netty-transport-native-epoll" = { version = "4.1.100.Final", classifier = "linux-x86_64" }
 
 [dependencyPolicy]
 exclude = [
