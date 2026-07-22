@@ -646,17 +646,22 @@ fetched coordinate is recorded in the audit.
 
 ### Verify a migration
 
-`zolt explain verify` gives a factual, per-module comparison between what Maven
-resolves and what Zolt resolves, so a migration can be verified instead of trusted.
-It runs the project's Maven (`./mvnw` when present, else `mvn` on `PATH`) once as
-`dependency:tree` to extract the resolved dependencies of every reactor module, then
-resolves the Zolt project/workspace with Zolt's own resolver, and reports — per module
-and per scope — what matched, what drifted in version, and what appears on only one
-side.
+`zolt explain verify` gives a factual, per-module comparison between what the incumbent
+build (Maven or Gradle) resolves and what Zolt resolves, so a migration can be verified
+instead of trusted. The incumbent is auto-detected — a `pom.xml` selects Maven, a Gradle
+settings/build script selects Gradle — and `--source maven|gradle` overrides. For Maven it
+runs `./mvnw` (else `mvn` on `PATH`) once as `dependency:tree`; for Gradle it runs
+`./gradlew` (else `gradle` on `PATH`) once, requesting every project's `dependencies`
+report in a single invocation. It then resolves the Zolt project/workspace with Zolt's own
+resolver and reports — per module and per scope — what matched, what drifted in version,
+and what appears on only one side.
 
 ```sh
-# Compare the Maven project and a Zolt project rooted in the same directory.
+# Compare the incumbent build and a Zolt project rooted in the same directory.
 zolt explain verify
+
+# Verify a Gradle migration (auto-detected when a settings/build script is present).
+zolt explain verify --source gradle
 
 # Point at a draft emitted by --emit-toml-output, and emit machine-readable JSON.
 zolt explain verify --zolt-dir target/zolt-draft --format json
@@ -666,6 +671,19 @@ zolt explain verify --zolt-dir target/zolt-draft --format json
   names map one to one. Scopes with no counterpart (Maven `system`; Zolt `dev`,
   `processor`, `test-processor`, `quarkus-deployment`, `tool-*`) are reported as
   per-module notes rather than counted as differences.
+- Gradle configuration mapping: Gradle's classpaths are cumulative (`runtimeClasspath` and
+  `testRuntimeClasspath` include the compile dependencies) whereas Maven and Zolt place each
+  dependency in exactly one scope, so the compared scopes are recovered as set operations
+  over the three resolvable classpaths — `compile` = `compileClasspath` ∩ `runtimeClasspath`,
+  `runtime` = `runtimeClasspath` \ `compileClasspath`, `provided` = `compileClasspath` \
+  `runtimeClasspath` (Gradle `compileOnly`, the Maven `provided` equivalent), and `test` =
+  `testRuntimeClasspath` \ (`compileClasspath` ∪ `runtimeClasspath`). BOM/platform nodes and
+  dependency constraints (`(c)`) are excluded so the resolved set stays jar-for-jar
+  comparable with Maven's tree; `(*)` repeated subtrees are de-duplicated, `a:b:req ->
+  resolved` conflict resolutions take the resolved version, and `project(":x")` dependencies
+  are compared as ordinary resolved artifacts (mirroring how Maven lists reactor siblings).
+  Annotation-processor and other non-classpath configurations are not compared, matching
+  Maven's `dependency:tree` (which likewise omits processors).
 - Categories per module × scope: matched (same `group:artifact[:classifier]` and
   version), version drift (same coordinate, different version — both reported),
   only-in-Maven, and only-in-Zolt. Zolt uses highest-version-wins mediation and Maven
@@ -684,9 +702,13 @@ zolt explain verify --zolt-dir target/zolt-draft --format json
 - Exit code is `0` when the resolved sets are identical across every module and scope,
   and non-zero when any module is one-sided or any scope shows drift or a one-sided
   artifact — so it can gate a migration in CI. `--format json` emits a stable schema
-  (`schemaVersion` 1).
+  (`schemaVersion` 1) with an additive `buildTool` field (`maven` or `gradle`); the JSON
+  field names stay `maven*` across both tools for schema stability.
 
-Gradle project verification is a planned follow-up; this first version compares Maven.
+Both Maven and Gradle projects are supported. The comparison model, scopes, categories,
+and JSON schema are shared; a Gradle build with a dynamic version, a missing included
+build, or another unresolvable configuration fails the extraction with an actionable error
+rather than a partial comparison, because a build that does not resolve cannot be verified.
 
 ## Examples in This Repository
 
