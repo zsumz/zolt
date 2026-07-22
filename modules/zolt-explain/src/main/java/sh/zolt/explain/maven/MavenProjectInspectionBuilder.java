@@ -27,7 +27,8 @@ final class MavenProjectInspectionBuilder {
             Path relativePath,
             Path projectDirectory,
             Element project,
-            MavenReactorPoms reactor) {
+            MavenReactorPoms reactor,
+            RecoveredParentMetadata recovered) {
         if (project == null || !hasName(project, "project")) {
             throw new MigrationExplainException(
                     "Could not inspect Maven project. Expected root <project> element in " + pom + ".");
@@ -36,11 +37,13 @@ final class MavenProjectInspectionBuilder {
         // The parent chain within the reactor, nearest parent first (empty for the root or an external
         // parent). Effective properties and dependencyManagement inherit root-first with child override.
         List<Element> ancestors = reactor.ancestors(project);
-        MavenPomProperties properties = effectiveProperties(project, projectDirectory, ancestors);
+        MavenPomProperties properties = effectiveProperties(project, projectDirectory, ancestors, recovered);
         List<String> modules = texts(child(project, "modules"), "module");
-        // A module's own dependencyManagement layered over its inherited (parent-chain) management, so a
-        // version-less dependency can pick up a version managed by a reactor parent.
-        MavenManagedVersions managedVersions = MavenManagedVersions.resolve(project, ancestors, properties);
+        // A module's own dependencyManagement layered over its inherited (parent-chain) management, plus any
+        // recovered external-parent management as the farthest layer, so a version-less dependency can pick
+        // up a version managed by a reactor parent or a fetched external parent.
+        MavenManagedVersions managedVersions = MavenManagedVersions.resolve(
+                project, ancestors, properties, recovered.managedDependencies());
         List<MavenDependencyInspection> dependencies = managedVersions.applyTo(
                 MavenDependencyParser.parseDependencies(child(project, "dependencies"), false, properties));
         List<MavenDependencyInspection> effectiveDependencyManagement = managedVersions.effectiveDependencyManagement();
@@ -52,7 +55,7 @@ final class MavenProjectInspectionBuilder {
                 .toList();
         List<MavenAnnotationProcessorInspection> annotationProcessors =
                 MavenAnnotationProcessorPaths.parse(project, properties);
-        List<MavenParentInspection> parents = parents(project, ancestors, reactor);
+        List<MavenParentInspection> parents = parents(project, ancestors, reactor, recovered.resolved());
         List<MavenRepositoryInspection> repositories = repositories(project);
         List<MavenPluginInspection> plugins = MavenPluginParser.parse(project, properties);
         List<MavenProfileInspection> profiles = profiles(project);
@@ -103,7 +106,8 @@ final class MavenProjectInspectionBuilder {
     private static List<MavenParentInspection> parents(
             Element project,
             List<Element> ancestors,
-            MavenReactorPoms reactor) {
+            MavenReactorPoms reactor,
+            boolean externalParentRecovered) {
         List<MavenParentInspection> parents = new ArrayList<>();
         Element current = project;
         int ancestorIndex = 0;
@@ -126,7 +130,10 @@ final class MavenProjectInspectionBuilder {
                 }
             }
             if (resolved.isEmpty()) {
-                parents.add(new MavenParentInspection(groupId, artifactId, version, false, false, ""));
+                // The chain left the reactor. When --resolve-external-parents fetched this parent, it is
+                // resolved-but-external (inReactor = false, resolved = true) so inherited metadata counts.
+                parents.add(new MavenParentInspection(
+                        groupId, artifactId, version, false, externalParentRecovered, ""));
                 return parents;
             }
             Element ancestor = resolved.orElseThrow();
@@ -242,7 +249,8 @@ final class MavenProjectInspectionBuilder {
     private static MavenPomProperties effectiveProperties(
             Element project,
             Path projectDirectory,
-            List<Element> ancestors) {
+            List<Element> ancestors,
+            RecoveredParentMetadata recovered) {
         Map<String, String> properties = new LinkedHashMap<>();
         Optional<Element> parent = child(project, "parent");
         String parentGroupId = parent.flatMap(element -> text(element, "groupId")).orElse(null);
@@ -268,6 +276,11 @@ final class MavenProjectInspectionBuilder {
         putBuiltIn(properties, "parent.artifactId", parentArtifactId);
         putBuiltIn(properties, "project.parent.version", parentVersion);
         putBuiltIn(properties, "parent.version", parentVersion);
+
+        // Recovered external-parent <properties> sit below every reactor ancestor (they are the farthest
+        // POMs in the chain) but above the built-ins, so a version property declared only by a fetched
+        // external parent resolves while a nearer reactor or module value still wins.
+        properties.putAll(recovered.properties());
 
         // Inherited <properties>, farthest ancestor first, then the module itself: nearer wins on
         // collision and POM-declared properties win over the built-ins.

@@ -168,6 +168,9 @@ public final class MavenExplainFormatter {
         if (parent.resolved() && parent.inReactor()) {
             return "in-reactor " + path(Path.of(parent.path()));
         }
+        if (parent.resolved()) {
+            return "external/recovered";
+        }
         return "external/unresolved";
     }
 

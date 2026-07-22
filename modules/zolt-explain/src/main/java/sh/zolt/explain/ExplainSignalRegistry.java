@@ -17,6 +17,7 @@ final class ExplainSignalRegistry {
             ExplainSignals.MAVEN_ANNOTATION_PROCESSOR_PATH,
             ExplainSignals.MAVEN_PARENT_SNAPSHOT,
             ExplainSignals.MAVEN_PARENT_UNRESOLVED,
+            ExplainSignals.MAVEN_EXTERNAL_PARENT_RESOLVED,
             ExplainSignals.MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
             ExplainSignals.MAVEN_DEPENDENCY_MISSING_VERSION,
             ExplainSignals.MAVEN_JAVA_VERSION_UNKNOWN,

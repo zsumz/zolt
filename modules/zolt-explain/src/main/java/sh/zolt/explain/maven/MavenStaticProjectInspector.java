@@ -25,6 +25,20 @@ import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
 public final class MavenStaticProjectInspector {
+    private final MavenExternalParentResolver externalParentResolver;
+
+    public MavenStaticProjectInspector() {
+        this(null);
+    }
+
+    /**
+     * @param externalParentResolver fetches external parent chains for {@code --resolve-external-parents};
+     *     {@code null} keeps the audit fully offline so external parents stay unresolved (the default).
+     */
+    public MavenStaticProjectInspector(MavenExternalParentResolver externalParentResolver) {
+        this.externalParentResolver = externalParentResolver;
+    }
+
     public MavenInspectionResult inspect(Path root) {
         Path normalizedRoot = root.toAbsolutePath().normalize();
         Path rootPom = normalizedRoot.resolve("pom.xml");
@@ -43,15 +57,23 @@ public final class MavenStaticProjectInspector {
         MavenReactorPoms reactor = new MavenReactorPoms();
         List<MavenPomNode> poms = new ArrayList<>();
         collectPom(normalizedRoot, normalizedRoot, poms, signals, reactor, new LinkedHashSet<>());
+        MavenReactorParentRecovery recovery = externalParentResolver == null
+                ? null
+                : MavenReactorParentRecovery.create(
+                        externalParentResolver, poms.stream().map(MavenPomNode::project).toList());
         for (MavenPomNode pom : poms) {
+            RecoveredParentMetadata recovered = recovery == null
+                    ? RecoveredParentMetadata.none()
+                    : recovery.recover(pom.project(), reactor);
             MavenProjectInspection inspection = MavenProjectInspectionBuilder.build(
                     pom.pom(),
                     pom.relativePath(),
                     pom.directory(),
                     pom.project(),
-                    reactor);
+                    reactor,
+                    recovered);
             projects.add(inspection);
-            signals.addAll(signalsFor(pom.projectLabel(), inspection, pom.directory()));
+            signals.addAll(signalsFor(pom.projectLabel(), inspection, pom.directory(), recovered));
         }
         projects.sort(Comparator.comparing(project -> project.path().toString()));
         return new MavenInspectionResult(normalizedRoot, projects, ExplainSignals.sorted(signals));
@@ -117,14 +139,17 @@ public final class MavenStaticProjectInspector {
     }
 
     private List<ExplainSignal> signalsFor(
-            String project, MavenProjectInspection inspection, Path projectDirectory) {
+            String project,
+            MavenProjectInspection inspection,
+            Path projectDirectory,
+            RecoveredParentMetadata recovered) {
         List<ExplainSignal> signals = new ArrayList<>();
         List<String> profileModules = MavenProfileSignals.modules(inspection);
         if ("pom".equals(inspection.packaging()) && (!inspection.modules().isEmpty() || !profileModules.isEmpty())) {
             int members = inspection.modules().size();
             signals.add(ExplainSignals.MAVEN_REACTOR_DETECTED.signal(
                     project,
-                    reactorMessage(members, profileModules)));
+                    MavenSignalRules.reactorMessage(members, profileModules)));
         }
         if (unsupportedPackaging(inspection.packaging())) {
             signals.add(ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
@@ -152,7 +177,8 @@ public final class MavenStaticProjectInspector {
         }
         MavenPlatformApiHostCandidate.signal(project, inspection).ifPresent(signals::add);
         boolean hasUnresolvedParent = inspection.parents().stream().anyMatch(parent -> !parent.resolved());
-        for (MavenDependencyInspection dependency : concat(inspection.dependencies(), inspection.dependencyManagement())) {
+        for (MavenDependencyInspection dependency
+                : MavenSignalRules.concat(inspection.dependencies(), inspection.dependencyManagement())) {
             // An unresolved ${...} is not a genuine dynamic/SNAPSHOT/range version; the emit path
             // surfaces it as an honest review comment instead of a wrong non-determinism blocker.
             if (dependency.version().contains("${")) {
@@ -186,24 +212,24 @@ public final class MavenStaticProjectInspector {
             if (plugin.pluginManagement()) {
                 continue;
             }
-            if (unsupportedLanguagePlugin(plugin.coordinate())) {
+            if (MavenSignalRules.unsupportedLanguagePlugin(plugin.coordinate())) {
                 signals.add(ExplainSignals.MAVEN_LANGUAGE_UNSUPPORTED.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` declares an unsupported public-beta language or Android build."));
-            } else if (unsupportedFrameworkNativePlugin(plugin)) {
+            } else if (MavenSignalRules.unsupportedFrameworkNativePlugin(plugin)) {
                 signals.add(ExplainSignals.MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` declares framework AOT/native behavior that Zolt does not execute as Maven lifecycle behavior; migrate supported cases to typed Zolt framework settings."));
-            } else if (knownPlugin(plugin.coordinate()) && (!plugin.phases().isEmpty() || !plugin.goals().isEmpty())) {
+            } else if (MavenSignalRules.knownPlugin(plugin.coordinate()) && (!plugin.phases().isEmpty() || !plugin.goals().isEmpty())) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` declares statically visible Maven behavior"
-                                + phaseSuffix(plugin) + "."));
+                                + MavenSignalRules.phaseSuffix(plugin) + "."));
             } else if (!plugin.phases().isEmpty()) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_LIFECYCLE_BINDING.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` runs in effective lifecycle phase(s) " + plugin.phases() + "."));
-            } else if (!knownPlugin(plugin.coordinate())) {
+            } else if (!MavenSignalRules.knownPlugin(plugin.coordinate())) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` is declared and was not executed."));
@@ -220,13 +246,17 @@ public final class MavenStaticProjectInspector {
                 signals.add(ExplainSignals.MAVEN_PARENT_UNRESOLVED.signal(
                         project,
                         "Parent `" + parent.coordinate()
-                                + "` was not resolved from the reactor; inherited metadata remains unknown."));
+                                + "` was not resolved from the reactor; inherited metadata remains unknown.",
+                        recovered.reviewNote()));
             }
             if (snapshotVersion(parent.version())) {
                 signals.add(ExplainSignals.MAVEN_PARENT_SNAPSHOT.signal(
                         project,
                         "Parent `" + parent.coordinate() + "` uses a SNAPSHOT version."));
             }
+        }
+        if (recovered.resolved() && !recovered.fetchedArtifacts().isEmpty()) {
+            signals.add(MavenReactorParentRecovery.recoveredSignal(project, recovered));
         }
         for (MavenRepositoryInspection repository : inspection.repositories()) {
             String label = repositoryLabel(repository);
@@ -248,19 +278,6 @@ public final class MavenStaticProjectInspector {
         return relative.toString().isBlank() ? Path.of(".") : relative;
     }
 
-    private static String reactorMessage(int members, List<String> profileModules) {
-        if (profileModules.isEmpty()) {
-            return "Multi-module reactor with " + members + " module(s); `zolt explain --emit-toml`"
-                    + " emits a Zolt workspace with a root [workspace] plus one member draft per module.";
-        }
-        return "Multi-module reactor with " + members + " top-level module(s) plus "
-                + profileModules.size()
-                + " profile-declared module(s) omitted from default workspace coverage: "
-                + String.join(", ", profileModules)
-                + "; `zolt explain --emit-toml` emits a Zolt workspace with a root [workspace]"
-                + " plus one member draft per top-level module.";
-    }
-
     private static boolean unsupportedPackaging(String packaging) {
         return !Set.of("jar", "pom").contains(packaging);
     }
@@ -272,54 +289,12 @@ public final class MavenStaticProjectInspector {
         return VersionPolicy.violation(VersionPolicy.Context.EXTERNAL_DEPENDENCY, version);
     }
 
-    private static boolean knownPlugin(String coordinate) {
-        return coordinate.contains(":maven-compiler-plugin")
-                || coordinate.contains(":maven-surefire-plugin")
-                || coordinate.contains(":maven-failsafe-plugin")
-                || coordinate.contains(":spring-boot-maven-plugin");
-    }
-
-    private static String phaseSuffix(MavenPluginInspection plugin) {
-        if (plugin.phases().isEmpty()) {
-            return "";
-        }
-        return " in effective lifecycle phase(s) " + plugin.phases();
-    }
-
-    private static boolean unsupportedLanguagePlugin(String coordinate) {
-        String lower = coordinate.toLowerCase();
-        return lower.contains(":kotlin-maven-plugin")
-                || lower.contains(":scala-maven-plugin")
-                || lower.contains(":android-maven-plugin");
-    }
-
     private static boolean snapshotVersion(String version) {
         return version.toUpperCase().contains("SNAPSHOT");
     }
 
     private static String repositoryLabel(MavenRepositoryInspection repository) {
         return repository.pluginRepository() ? "pluginRepository" : "repository";
-    }
-
-    private static boolean unsupportedFrameworkNativePlugin(MavenPluginInspection plugin) {
-        String lower = plugin.coordinate().toLowerCase();
-        if (lower.contains(":native-maven-plugin") || lower.contains(":micronaut-maven-plugin")) {
-            return true;
-        }
-        if (!lower.contains(":spring-boot-maven-plugin")) {
-            return false;
-        }
-        return plugin.goals().stream()
-                .map(String::toLowerCase)
-                .anyMatch(goal -> goal.contains("aot") || goal.contains("build-image") || goal.contains("native"));
-    }
-
-    private static List<MavenDependencyInspection> concat(
-            List<MavenDependencyInspection> first,
-            List<MavenDependencyInspection> second) {
-        List<MavenDependencyInspection> combined = new ArrayList<>(first);
-        combined.addAll(second);
-        return combined;
     }
 
     private record MavenPomNode(

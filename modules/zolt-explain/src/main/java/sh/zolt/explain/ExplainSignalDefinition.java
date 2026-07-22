@@ -23,4 +23,10 @@ public record ExplainSignalDefinition(
     public ExplainSignal signal(String project, String message) {
         return new ExplainSignal(severity, category, project, id, message, nextStep);
     }
+
+    /** As {@link #signal(String, String)} but with a situation-specific next step overriding the default. */
+    public ExplainSignal signal(String project, String message, String nextStepOverride) {
+        String resolvedNextStep = nextStepOverride == null || nextStepOverride.isBlank() ? nextStep : nextStepOverride;
+        return new ExplainSignal(severity, category, project, id, message, resolvedNextStep);
+    }
 }

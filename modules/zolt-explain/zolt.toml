@@ -9,6 +9,8 @@ central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
 "sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
+"sh.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
+"sh.zolt:zolt-resolve" = { workspace = "modules/zolt-resolve" }
 "org.tomlj:tomlj" = "1.1.1"
 
 [test.dependencies]

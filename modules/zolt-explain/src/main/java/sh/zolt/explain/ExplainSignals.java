@@ -77,7 +77,12 @@ public final class ExplainSignals {
             "maven.parent.unresolved",
             ExplainSignal.Severity.UNKNOWN,
             ExplainSignal.Category.BUILDABILITY,
-            "Vendor or resolve the parent POM metadata before relying on inherited Maven settings.");
+            "Re-run zolt explain with --resolve-external-parents to fetch the external parent POM chain, or vendor the inherited Maven settings before relying on the draft.");
+    public static final ExplainSignalDefinition MAVEN_EXTERNAL_PARENT_RESOLVED = new ExplainSignalDefinition(
+            "maven.external-parent.resolved",
+            ExplainSignal.Severity.OK,
+            ExplainSignal.Category.BUILDABILITY,
+            "Recovered external parent/BOM metadata was fetched over the network; review the listed coordinates and pin them if the draft must stay reproducible offline.");
     public static final ExplainSignalDefinition MAVEN_JAVA_VERSION_UNKNOWN = new ExplainSignalDefinition(
             "maven.java-version.unknown",
             ExplainSignal.Severity.UNKNOWN,
