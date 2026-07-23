@@ -1,8 +1,13 @@
 package sh.zolt.plan;
 
+import sh.zolt.dependency.DependencyScope;
 import sh.zolt.generated.GeneratedSourceEvidence;
 import sh.zolt.generated.GeneratedSourceEvidenceService;
+import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.lockfile.toml.LockfileReadException;
+import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
@@ -17,6 +22,8 @@ import java.util.Optional;
 public final class BuildPlanService {
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
     private final BuildPlanGeneratedSourceNodePlanner generatedSourceNodePlanner;
+    private final BuildPlanExecStepNodePlanner execStepNodePlanner = new BuildPlanExecStepNodePlanner();
+    private final ZoltLockfileReader lockfileReader = new ZoltLockfileReader();
     private final SpringBootNativePlanNodePlanner nativePlanNodePlanner;
 
     public BuildPlanService() {
@@ -56,10 +63,11 @@ public final class BuildPlanService {
         List<PlanNode> nodes = new ArrayList<>();
         List<GeneratedSourceEvidence> generatedSources =
                 generatedSourceEvidenceService.evidence(root, config.build());
+        boolean execToolLocked = execToolLocked(root);
         addLockfileNode(nodes, root);
-        addBuildNodes(nodes, root, config, generatedSources);
+        addBuildNodes(nodes, root, config, generatedSources, execToolLocked);
         if (target.includesTests()) {
-            addTestNodes(nodes, root, config, reportsDir, generatedSources);
+            addTestNodes(nodes, root, config, reportsDir, generatedSources, execToolLocked);
         }
         if (target.includesCoverage()) {
             addCoverageNode(nodes, config.build());
@@ -108,9 +116,11 @@ public final class BuildPlanService {
             List<PlanNode> nodes,
             Path root,
             ProjectConfig config,
-            List<GeneratedSourceEvidence> generatedSources) {
+            List<GeneratedSourceEvidence> generatedSources,
+            boolean execToolLocked) {
         BuildSettings build = config.build();
         nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "main"));
+        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "main", outputRoot(build), execToolLocked));
         addResourceNode(
                 nodes,
                 "process-main-resources",
@@ -135,9 +145,11 @@ public final class BuildPlanService {
             Path root,
             ProjectConfig config,
             Optional<Path> reportsDir,
-            List<GeneratedSourceEvidence> generatedSources) {
+            List<GeneratedSourceEvidence> generatedSources,
+            boolean execToolLocked) {
         BuildSettings build = config.build();
         nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "test"));
+        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "test", outputRoot(build), execToolLocked));
         addResourceNode(
                 nodes,
                 "process-test-resources",
@@ -151,7 +163,9 @@ public final class BuildPlanService {
         testCompileInputs.addAll(build.testSources());
         testCompileInputs.addAll(build.groovyTestSources());
         for (GeneratedSourceStep step : build.generatedTestSources()) {
-            testCompileInputs.add(step.output());
+            if (joinsCompileSources(step)) {
+                testCompileInputs.add(step.output());
+            }
         }
         nodes.add(new PlanNode(
                 "compile-tests",
@@ -262,11 +276,30 @@ public final class BuildPlanService {
                 List.of()));
     }
 
+    private boolean execToolLocked(Path root) {
+        Path lockfilePath = root.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return false;
+        }
+        try {
+            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+            return lockfile.packages().stream().anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_EXEC);
+        } catch (LockfileReadException exception) {
+            return false;
+        }
+    }
+
+    private static boolean joinsCompileSources(GeneratedSourceStep step) {
+        return step.kind() != GeneratedSourceKind.EXEC || step.exec().produces() != sh.zolt.project.ProducesLane.RESOURCES;
+    }
+
     private static List<String> mainCompileInputs(BuildSettings build) {
         List<String> inputs = new ArrayList<>();
         inputs.addAll(build.sourceRoots());
         for (GeneratedSourceStep step : build.generatedMainSources()) {
-            inputs.add(step.output());
+            if (joinsCompileSources(step)) {
+                inputs.add(step.output());
+            }
         }
         return List.copyOf(inputs);
     }

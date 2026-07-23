@@ -114,6 +114,8 @@ final class BuildPlanGeneratedSourceNodePlanner {
             String scope) {
         return generatedSources.stream()
                 .filter(evidence -> evidence.scope().equals(scope))
+                // exec steps are planned by BuildPlanExecStepNodePlanner, not this typed-generator planner.
+                .filter(evidence -> evidence.step().kind() != GeneratedSourceKind.EXEC)
                 .toList();
     }
 
