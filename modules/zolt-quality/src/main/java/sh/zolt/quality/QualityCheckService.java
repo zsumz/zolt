@@ -178,7 +178,8 @@ public final class QualityCheckService {
                 case GENERATED_SOURCES -> results.addAll(generatedSourceQualityCheck.check(
                         Optional.empty(),
                         request.projectRoot(),
-                        config));
+                        config,
+                        request.context() == QualityCheckContext.CI && request.requireOfflineReady()));
                 default -> results.add(QualityCheckCatalog.unsupportedOrSkipped(requestedCheck));
             }
         }
@@ -257,7 +258,8 @@ public final class QualityCheckService {
                         results.addAll(generatedSourceQualityCheck.check(
                                 Optional.of(member.path()),
                                 member.directory(),
-                                member.config()));
+                                member.config(),
+                                request.context() == QualityCheckContext.CI && request.requireOfflineReady()));
                     }
                 }
                 default -> results.add(QualityCheckCatalog.unsupportedOrSkipped(requestedCheck));

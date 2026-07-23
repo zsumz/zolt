@@ -17,9 +17,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Produces a typed plan node per exec step. Position is derived from the produces lane, and blockers
- * cover every stage-1 failure: an unresolved tool ref, exec tooling absent from the lock, a missing or
- * out-of-tree input, an out-of-tree output, an input under compiled classes, and ordering cycles.
+ * Produces a typed plan node per exec step. Position is derived from the produces lane and whether the
+ * step runs post-compile; blockers cover every failure Zolt can detect statically: an unresolvable
+ * tool for the declared runner, an unacknowledged unpinned process tool, jvm tooling absent from the
+ * lock, invalid or missing inputs/outputs, a post-compile step that would produce compile sources, and
+ * ordering cycles. A {@code cache = "none"} step is informational (nondeterministic marker), not blocked.
  */
 final class BuildPlanExecStepNodePlanner {
     List<PlanNode> nodes(
@@ -36,32 +38,27 @@ final class BuildPlanExecStepNodePlanner {
             return List.of();
         }
         Set<String> cyclicIds = cyclicStepIds(root, execEvidence.stream().map(GeneratedSourceEvidence::step).toList());
-        Path classesRoot = root.resolve(outputRoot).resolve("classes").normalize();
         List<PlanNode> nodes = new ArrayList<>();
         for (GeneratedSourceEvidence evidence : execEvidence) {
-            nodes.add(execNode(root, scope, evidence, toolLocked, cyclicIds, classesRoot));
+            nodes.add(execNode(root, outputRoot, scope, evidence, toolLocked, cyclicIds));
         }
         return List.copyOf(nodes);
     }
 
     private static PlanNode execNode(
             Path root,
+            String outputRoot,
             String scope,
             GeneratedSourceEvidence evidence,
             boolean toolLocked,
-            Set<String> cyclicIds,
-            Path classesRoot) {
+            Set<String> cyclicIds) {
         GeneratedSourceStep step = evidence.step();
         ExecGenerationSettings exec = step.exec();
         String subject = "[generated." + scope + "." + step.id() + "]";
+        boolean postCompile = isPostCompile(step, root, outputRoot);
         List<PlanBlocker> blockers = new ArrayList<>();
-        if (exec.tool().mainClass().isBlank() || exec.tool().coordinates().isEmpty() || !"jvm".equals(exec.tool().runner())) {
-            blockers.add(new PlanBlocker(
-                    "unresolved-exec-tool",
-                    "Exec step " + subject + " references tool `" + exec.toolName() + "` that is not a resolvable jvm tool.",
-                    "Declare [generated.execTools." + exec.toolName() + "] with runner = \"jvm\", coordinates, and mainClass."));
-        }
-        if (!toolLocked) {
+        addToolBlockers(blockers, exec, subject);
+        if ("jvm".equals(exec.tool().runner()) && !toolLocked) {
             blockers.add(new PlanBlocker(
                     "exec-tool-not-locked",
                     "Exec tooling for " + subject + " is not present in zolt.lock (scope tool-exec).",
@@ -71,19 +68,22 @@ final class BuildPlanExecStepNodePlanner {
         for (int index = 0; index < step.inputs().size(); index++) {
             String input = step.inputs().get(index);
             addInvalidPathBlocker(blockers, root, input, "input");
-            if (root.resolve(literalBase(input)).normalize().startsWith(classesRoot)) {
-                blockers.add(new PlanBlocker(
-                        "exec-input-under-compiled-classes",
-                        "Exec step " + subject + " reads input `" + input + "` under compiled classes.",
-                        "Inputs under compiled classes need tool = \"project\" and post-compile scheduling in a later "
-                                + "stage; remove the input or point it at a source path."));
-            }
-            if (!isGlob(input) && !Files.exists(evidence.inputs().get(index))) {
+            if (!isGlob(input) && !underCompileOutput(root, outputRoot, input)
+                    && !Files.exists(evidence.inputs().get(index))) {
                 blockers.add(new PlanBlocker(
                         "missing-exec-input",
                         "Exec input `" + input + "` for " + subject + " is missing.",
                         "Create the input file or update " + subject + ".inputs."));
             }
+        }
+        if (postCompile
+                && (exec.produces() == ProducesLane.JAVA_SOURCES || exec.produces() == ProducesLane.TEST_SOURCES)) {
+            blockers.add(new PlanBlocker(
+                    "post-compile-produces-sources",
+                    "Exec step " + subject + " runs after compilation but produces "
+                            + exec.produces().configValue() + ", which would feed that same compile.",
+                    "Post-compile steps (project runner / inputs under compiled classes) may only produce "
+                            + "resources, test-resources, or intermediate."));
         }
         if (cyclicIds.contains(step.id())) {
             blockers.add(new PlanBlocker(
@@ -94,19 +94,6 @@ final class BuildPlanExecStepNodePlanner {
         PlanNodeStatus status = blockers.isEmpty()
                 ? (evidence.outputExists() && "fresh".equals(evidence.freshness()) ? PlanNodeStatus.SKIPPED : PlanNodeStatus.READY)
                 : PlanNodeStatus.BLOCKED;
-        List<String> details = new ArrayList<>(List.of(
-                "scope: " + scope,
-                "tool: " + exec.toolName(),
-                "runner: " + exec.tool().runner(),
-                "mainClass: " + exec.tool().mainClass(),
-                "produces: " + (exec.produces() == null ? "" : exec.produces().configValue()),
-                "derivedPosition: " + derivedPosition(scope, exec.produces()),
-                "cache: " + exec.cache(),
-                "toolLocked: " + toolLocked,
-                "outputExists: " + evidence.outputExists(),
-                "freshness: " + evidence.freshness()));
-        exec.into().ifPresent(into -> details.add("into: " + into));
-        details.add("toolCoordinates: " + coordinates(exec));
         return new PlanNode(
                 "exec-" + scope + "-" + step.id(),
                 "exec-step",
@@ -114,14 +101,111 @@ final class BuildPlanExecStepNodePlanner {
                 "Run pinned exec tool `" + exec.toolName() + "` on declared inputs.",
                 step.inputs(),
                 List.of(step.output()),
-                details,
+                details(scope, evidence, exec, postCompile, toolLocked),
                 blockers);
     }
 
-    private static String derivedPosition(String scope, ProducesLane produces) {
-        return produces == ProducesLane.RESOURCES
-                ? "before " + scope + " resource copy"
-                : "before " + scope + " compile";
+    private static void addToolBlockers(List<PlanBlocker> blockers, ExecGenerationSettings exec, String subject) {
+        switch (exec.tool().runner()) {
+            case "jvm" -> {
+                if (exec.tool().mainClass().isBlank() || exec.tool().coordinates().isEmpty()) {
+                    blockers.add(unresolvedTool(subject, exec,
+                            "Declare [generated.execTools." + exec.toolName()
+                                    + "] with runner = \"jvm\", coordinates, and mainClass."));
+                }
+            }
+            case "process" -> {
+                if (exec.tool().binary().isBlank() || exec.tool().versionCommand().isEmpty()) {
+                    blockers.add(unresolvedTool(subject, exec,
+                            "Declare [generated.execTools." + exec.toolName()
+                                    + "] with runner = \"process\", binary, and versionCommand."));
+                }
+                if (!exec.tool().allowUnpinnedTool()) {
+                    blockers.add(new PlanBlocker(
+                            "exec-tool-unpinned",
+                            "Exec step " + subject + " runs unpinned PATH binary `" + exec.tool().binary()
+                                    + "` whose bytes Zolt cannot lock.",
+                            "Set allowUnpinnedTool = true on [generated.execTools." + exec.toolName()
+                                    + "] to acknowledge PATH tool identity rests on the probed version."));
+                }
+            }
+            case "project" -> {
+                if (exec.tool().mainClass().isBlank()) {
+                    blockers.add(unresolvedTool(subject, exec,
+                            "Add mainClass to " + subject + " naming the class to run on the member's classpath."));
+                }
+            }
+            default -> blockers.add(unresolvedTool(subject, exec,
+                    "Use runner = \"jvm\" or \"process\", or tool = \"project\"."));
+        }
+    }
+
+    private static PlanBlocker unresolvedTool(String subject, ExecGenerationSettings exec, String remediation) {
+        return new PlanBlocker(
+                "unresolved-exec-tool",
+                "Exec step " + subject + " references tool `" + exec.toolName() + "` (runner `"
+                        + exec.tool().runner() + "`) that is not resolvable.",
+                remediation);
+    }
+
+    private static List<String> details(
+            String scope,
+            GeneratedSourceEvidence evidence,
+            ExecGenerationSettings exec,
+            boolean postCompile,
+            boolean toolLocked) {
+        List<String> details = new ArrayList<>(List.of(
+                "scope: " + scope,
+                "tool: " + exec.toolName(),
+                "runner: " + exec.tool().runner()));
+        switch (exec.tool().runner()) {
+            case "jvm" -> {
+                details.add("mainClass: " + exec.tool().mainClass());
+                details.add("toolLocked: " + toolLocked);
+                details.add("toolCoordinates: " + coordinates(exec));
+            }
+            case "process" -> {
+                details.add("binary: " + exec.tool().binary());
+                details.add("versionProbe: " + String.join(" ", exec.tool().versionCommand()));
+                exec.tool().versionExpect().ifPresent(expect -> details.add("versionExpect: " + expect));
+                details.add("allowUnpinnedTool: " + exec.tool().allowUnpinnedTool());
+            }
+            case "project" -> details.add("mainClass: " + exec.tool().mainClass());
+            default -> {
+                // unsupported runner already reported as a blocker.
+            }
+        }
+        details.add("produces: " + (exec.produces() == null ? "" : exec.produces().configValue()));
+        details.add("derivedPosition: " + derivedPosition(exec.produces(), postCompile));
+        details.add("cache: " + exec.cache());
+        if ("none".equals(exec.cache())) {
+            details.add("nondeterministic: always runs; excluded from --offline; stamps hermetic = false");
+        }
+        exec.into().ifPresent(into -> details.add("into: " + into));
+        if (!exec.secretEnv().isEmpty()) {
+            details.add("secretEnv: " + String.join(", ", exec.secretEnv().keySet()));
+        }
+        if (!exec.inheritEnv().isEmpty()) {
+            details.add("inheritEnv: " + String.join(", ", exec.inheritEnv()));
+        }
+        details.add("outputExists: " + evidence.outputExists());
+        details.add("freshness: " + evidence.freshness());
+        return details;
+    }
+
+    private static String derivedPosition(ProducesLane produces, boolean postCompile) {
+        if (postCompile) {
+            return "after compile, before resource copy";
+        }
+        if (produces == null) {
+            return "";
+        }
+        return switch (produces) {
+            case JAVA_SOURCES, TEST_SOURCES -> "before compile";
+            case RESOURCES -> "before main resource copy";
+            case TEST_RESOURCES -> "before test resource copy";
+            case INTERMEDIATE -> "on demand (consumed by other exec steps)";
+        };
     }
 
     private static String coordinates(ExecGenerationSettings exec) {
@@ -129,6 +213,19 @@ final class BuildPlanExecStepNodePlanner {
                 .map(coordinate -> coordinate.coordinate() + ":" + coordinate.version().orElse(""))
                 .reduce((left, right) -> left + "," + right)
                 .orElse("");
+    }
+
+    private static boolean isPostCompile(GeneratedSourceStep step, Path root, String outputRoot) {
+        if ("project".equals(step.exec().tool().runner())) {
+            return true;
+        }
+        return step.inputs().stream().anyMatch(input -> underCompileOutput(root, outputRoot, input));
+    }
+
+    private static boolean underCompileOutput(Path root, String outputRoot, String input) {
+        Path base = root.resolve(literalBase(input)).normalize();
+        return base.startsWith(root.resolve(outputRoot).resolve("classes").normalize())
+                || base.startsWith(root.resolve(outputRoot).resolve("test-classes").normalize());
     }
 
     private static Set<String> cyclicStepIds(Path root, List<GeneratedSourceStep> steps) {

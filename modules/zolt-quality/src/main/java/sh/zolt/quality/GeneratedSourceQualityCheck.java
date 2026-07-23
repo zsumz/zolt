@@ -26,6 +26,14 @@ final class GeneratedSourceQualityCheck {
             Optional<String> member,
             Path projectRoot,
             ProjectConfig config) {
+        return check(member, projectRoot, config, false);
+    }
+
+    List<QualityCheckResult> check(
+            Optional<String> member,
+            Path projectRoot,
+            ProjectConfig config,
+            boolean requireOfflineReady) {
         List<GeneratedSourceCheckStep> steps = generatedSourceSteps(config.build());
         if (steps.isEmpty()) {
             return List.of(QualityCheckResult.passed(
@@ -37,16 +45,27 @@ final class GeneratedSourceQualityCheck {
 
         List<QualityCheckResult> results = new ArrayList<>();
         Path normalizedRoot = projectRoot.toAbsolutePath().normalize();
+        String outputRoot = config.build().outputRoot();
         Map<String, GeneratedSourceEvidence> evidenceByKey = generatedSourceEvidenceByKey(normalizedRoot, config);
         for (GeneratedSourceCheckStep checkStep : steps) {
             GeneratedSourceStep step = checkStep.step();
-            Optional<QualityCheckResult> invalid = invalidGeneratedSourceStep(member, normalizedRoot, checkStep);
+            Optional<QualityCheckResult> invalid =
+                    invalidGeneratedSourceStep(member, normalizedRoot, outputRoot, checkStep);
             if (invalid.isPresent()) {
                 results.add(invalid.orElseThrow());
                 continue;
             }
 
             String subject = generatedSection(checkStep);
+            if (requireOfflineReady && step.kind() == GeneratedSourceKind.EXEC && "none".equals(step.exec().cache())) {
+                results.add(QualityCheckResult.failed(
+                        QualityCheckService.GENERATED_SOURCES,
+                        member,
+                        subject,
+                        "Exec step uses cache = \"none\", which always runs and is not offline-reproducible.",
+                        "Commit a deterministic input and use cache = \"content\", or drop --require-offline-ready."));
+                continue;
+            }
             GeneratedSourceEvidence evidence = evidenceByKey.get(generatedSourceKey(checkStep.scope(), step.id()));
             Optional<String> missingInput = firstMissingGeneratedInput(step, evidence);
             if (missingInput.isPresent()) {
@@ -144,6 +163,7 @@ final class GeneratedSourceQualityCheck {
     private static Optional<QualityCheckResult> invalidGeneratedSourceStep(
             Optional<String> member,
             Path projectRoot,
+            String outputRoot,
             GeneratedSourceCheckStep checkStep) {
         GeneratedSourceStep step = checkStep.step();
         String subject = generatedSection(checkStep);
@@ -159,7 +179,7 @@ final class GeneratedSourceQualityCheck {
                     "Use declared-root for already generated Java sources."));
         }
         if (step.kind() == GeneratedSourceKind.EXEC) {
-            Optional<QualityCheckResult> invalidExec = invalidExecStep(member, checkStep);
+            Optional<QualityCheckResult> invalidExec = invalidExecStep(member, projectRoot, outputRoot, checkStep);
             if (invalidExec.isPresent()) {
                 return invalidExec;
             }
@@ -197,37 +217,130 @@ final class GeneratedSourceQualityCheck {
 
     private static Optional<QualityCheckResult> invalidExecStep(
             Optional<String> member,
+            Path projectRoot,
+            String outputRoot,
             GeneratedSourceCheckStep checkStep) {
         GeneratedSourceStep step = checkStep.step();
         String subject = generatedSection(checkStep);
-        if (!"jvm".equals(step.exec().tool().runner())
-                || step.exec().tool().mainClass().isBlank()
-                || step.exec().tool().coordinates().isEmpty()) {
-            return Optional.of(QualityCheckResult.failed(
-                    QualityCheckService.GENERATED_SOURCES,
-                    member,
-                    subject,
-                    "Exec step references tool `" + step.exec().toolName() + "` that is not a resolvable jvm tool.",
-                    "Declare [generated.execTools." + step.exec().toolName()
-                            + "] with runner = \"jvm\", coordinates, and mainClass."));
+        Optional<QualityCheckResult> invalidTool = invalidExecTool(member, subject, step);
+        if (invalidTool.isPresent()) {
+            return invalidTool;
         }
-        if ("main".equals(checkStep.scope()) && step.exec().produces() == ProducesLane.TEST_SOURCES) {
-            return Optional.of(QualityCheckResult.failed(
-                    QualityCheckService.GENERATED_SOURCES,
-                    member,
-                    subject,
-                    "Exec step produces test-sources but is declared in the main lane.",
-                    "Move it to [generated.test." + step.id() + "] or set produces = \"java-sources\"."));
+        Optional<QualityCheckResult> invalidLane = invalidExecLane(member, subject, checkStep);
+        if (invalidLane.isPresent()) {
+            return invalidLane;
         }
-        if ("test".equals(checkStep.scope()) && step.exec().produces() == ProducesLane.JAVA_SOURCES) {
+        if (isPostCompile(step, projectRoot, outputRoot)
+                && (step.exec().produces() == ProducesLane.JAVA_SOURCES
+                        || step.exec().produces() == ProducesLane.TEST_SOURCES)) {
             return Optional.of(QualityCheckResult.failed(
                     QualityCheckService.GENERATED_SOURCES,
                     member,
                     subject,
-                    "Exec step produces java-sources but is declared in the test lane.",
-                    "Move it to [generated.main." + step.id() + "] or set produces = \"test-sources\"."));
+                    "Exec step runs after compilation but produces " + step.exec().produces().configValue()
+                            + ", which would feed that same compile.",
+                    "Post-compile steps may only produce resources, test-resources, or intermediate."));
         }
         return Optional.empty();
+    }
+
+    private static Optional<QualityCheckResult> invalidExecTool(
+            Optional<String> member, String subject, GeneratedSourceStep step) {
+        String runner = step.exec().tool().runner();
+        String toolName = step.exec().toolName();
+        boolean resolvable = switch (runner) {
+            case "jvm" -> !step.exec().tool().mainClass().isBlank() && !step.exec().tool().coordinates().isEmpty();
+            case "process" -> !step.exec().tool().binary().isBlank() && !step.exec().tool().versionCommand().isEmpty();
+            case "project" -> !step.exec().tool().mainClass().isBlank();
+            default -> false;
+        };
+        if (!resolvable) {
+            return Optional.of(QualityCheckResult.failed(
+                    QualityCheckService.GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Exec step references tool `" + toolName + "` (runner `" + runner + "`) that is not resolvable.",
+                    "Declare the tool with a supported runner (jvm/process) or use tool = \"project\" with a mainClass."));
+        }
+        if ("process".equals(runner) && !step.exec().tool().allowUnpinnedTool()) {
+            return Optional.of(QualityCheckResult.failed(
+                    QualityCheckService.GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Exec step runs unpinned PATH binary `" + step.exec().tool().binary()
+                            + "` without acknowledging that its bytes are unprovable.",
+                    "Set allowUnpinnedTool = true on [generated.execTools." + toolName + "]."));
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<QualityCheckResult> invalidExecLane(
+            Optional<String> member, String subject, GeneratedSourceCheckStep checkStep) {
+        GeneratedSourceStep step = checkStep.step();
+        ProducesLane produces = step.exec().produces();
+        if ("main".equals(checkStep.scope())) {
+            if (produces == ProducesLane.TEST_SOURCES) {
+                return Optional.of(laneFailure(member, subject, "test-sources",
+                        "[generated.test." + step.id() + "]", "java-sources"));
+            }
+            if (produces == ProducesLane.TEST_RESOURCES) {
+                return Optional.of(laneFailure(member, subject, "test-resources",
+                        "[generated.test." + step.id() + "]", "resources"));
+            }
+        }
+        if ("test".equals(checkStep.scope())) {
+            if (produces == ProducesLane.JAVA_SOURCES) {
+                return Optional.of(laneFailure(member, subject, "java-sources",
+                        "[generated.main." + step.id() + "]", "test-sources"));
+            }
+            if (produces == ProducesLane.RESOURCES) {
+                return Optional.of(laneFailure(member, subject, "resources",
+                        "[generated.main." + step.id() + "]", "test-resources"));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static QualityCheckResult laneFailure(
+            Optional<String> member, String subject, String lane, String otherSection, String otherLane) {
+        return QualityCheckResult.failed(
+                QualityCheckService.GENERATED_SOURCES,
+                member,
+                subject,
+                "Exec step produces " + lane + " but is declared in the wrong lane.",
+                "Move it to " + otherSection + " or set produces = \"" + otherLane + "\".");
+    }
+
+    private static boolean isPostCompile(GeneratedSourceStep step, Path projectRoot, String outputRoot) {
+        if ("project".equals(step.exec().tool().runner())) {
+            return true;
+        }
+        Path classes = projectRoot.resolve(outputRoot).resolve("classes").normalize();
+        Path testClasses = projectRoot.resolve(outputRoot).resolve("test-classes").normalize();
+        for (String input : step.inputs()) {
+            Path base = projectRoot.resolve(literalBase(input)).normalize();
+            if (base.startsWith(classes) || base.startsWith(testClasses)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String literalBase(String input) {
+        int glob = -1;
+        for (int index = 0; index < input.length(); index++) {
+            char character = input.charAt(index);
+            if (character == '*' || character == '?' || character == '[') {
+                glob = index;
+                break;
+            }
+        }
+        if (glob < 0) {
+            return input;
+        }
+        String prefix = input.substring(0, glob);
+        int slash = prefix.lastIndexOf('/');
+        return slash < 0 ? "" : prefix.substring(0, slash);
     }
 
     private static Optional<QualityCheckResult> invalidGeneratedPath(

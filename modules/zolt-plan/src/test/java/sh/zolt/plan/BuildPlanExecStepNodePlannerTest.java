@@ -44,8 +44,66 @@ final class BuildPlanExecStepNodePlannerTest {
         assertEquals(PlanNodeStatus.READY, node.status());
         assertTrue(node.blockers().isEmpty(), node.blockers().toString());
         assertTrue(node.details().contains("tool: tool"));
-        assertTrue(node.details().contains("derivedPosition: before main compile"));
+        assertTrue(node.details().contains("derivedPosition: before compile"));
         assertTrue(node.details().contains("toolCoordinates: org.jooq:jooq-codegen:3.19.15"));
+    }
+
+    @Test
+    void processToolReadyWithoutLockAndShowsProbeDetails() throws IOException {
+        writeInput("web/package.json");
+        ExecToolSettings tool = ExecToolSettings.process(
+                "npm", List.of("npm", "--version"), Optional.of(">=10 <11"), true);
+        GeneratedSourceStep step = execStep("frontend", "web/node_modules",
+                List.of("web/package.json"), ProducesLane.INTERMEDIATE, tool);
+
+        PlanNode node = node(step, false, false, "missing");
+
+        assertEquals(PlanNodeStatus.READY, node.status());
+        assertTrue(node.blockers().isEmpty(), node.blockers().toString());
+        assertTrue(node.details().contains("runner: process"));
+        assertTrue(node.details().contains("binary: npm"));
+        assertTrue(node.details().contains("versionProbe: npm --version"));
+        assertTrue(node.details().contains("versionExpect: >=10 <11"));
+        assertTrue(node.details().contains("derivedPosition: on demand (consumed by other exec steps)"));
+    }
+
+    @Test
+    void blocksUnpinnedProcessToolWithoutAcknowledgement() throws IOException {
+        writeInput("web/package.json");
+        ExecToolSettings tool = ExecToolSettings.process("npm", List.of("npm", "--version"), Optional.empty(), false);
+        GeneratedSourceStep step = execStep("frontend", "web/node_modules",
+                List.of("web/package.json"), ProducesLane.INTERMEDIATE, tool);
+
+        assertBlocker(node(step, false, false, "missing"), "exec-tool-unpinned");
+    }
+
+    @Test
+    void cacheNoneIsMarkedNondeterministicNotBlocked() throws IOException {
+        writeInput("src/main/jooq/config.xml");
+        ExecGenerationSettings exec = new ExecGenerationSettings(
+                "tool", JVM_TOOL, List.of(), ProducesLane.JAVA_SOURCES, Optional.empty(), Map.of(), "none");
+        GeneratedSourceStep step = new GeneratedSourceStep(
+                "model", GeneratedSourceKind.EXEC, "java", "target/generated/sources/jooq",
+                List.of("src/main/jooq/config.xml"), true, true,
+                OpenApiGenerationSettings.empty(), ProtobufGenerationSettings.empty(), exec);
+
+        PlanNode node = node(step, true, false, "missing");
+
+        assertTrue(node.blockers().isEmpty(), node.blockers().toString());
+        assertTrue(node.details().contains("cache: none"));
+        assertTrue(node.details().stream().anyMatch(detail -> detail.startsWith("nondeterministic:")),
+                node.details().toString());
+    }
+
+    @Test
+    void projectRunnerSchedulesAfterCompile() {
+        GeneratedSourceStep step = execStep("gen", "target/generated/res",
+                List.of("target/classes"), ProducesLane.RESOURCES, ExecToolSettings.project("com.example.Gen"));
+
+        PlanNode node = node(step, false, false, "missing");
+
+        assertTrue(node.blockers().isEmpty(), node.blockers().toString());
+        assertTrue(node.details().contains("derivedPosition: after compile, before resource copy"));
     }
 
     @Test
@@ -78,11 +136,11 @@ final class BuildPlanExecStepNodePlannerTest {
     }
 
     @Test
-    void blocksInputUnderCompiledClasses() {
+    void blocksPostCompileStepProducingSources() {
         GeneratedSourceStep step = execStep("model", "target/generated/sources/jooq",
                 List.of("target/classes/com/example/App.class"), ProducesLane.JAVA_SOURCES, JVM_TOOL);
 
-        assertBlocker(node(step, true, false, "missing"), "exec-input-under-compiled-classes");
+        assertBlocker(node(step, true, false, "missing"), "post-compile-produces-sources");
     }
 
     @Test

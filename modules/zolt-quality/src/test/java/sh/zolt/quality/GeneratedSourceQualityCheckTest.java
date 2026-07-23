@@ -254,8 +254,57 @@ final class GeneratedSourceQualityCheckTest extends QualityCheckServiceTestSuppo
                 result,
                 QualityCheckStatus.FAILED,
                 "[generated.main.model]",
-                "Exec step produces test-sources but is declared in the main lane.",
+                "Exec step produces test-sources but is declared in the wrong lane.",
                 "Move it to [generated.test.model] or set produces = \"java-sources\".");
+    }
+
+    @Test
+    void reportsUnacknowledgedUnpinnedProcessTool() throws IOException {
+        Path projectDir = tempDir.resolve("exec-unpinned");
+        Files.createDirectories(projectDir.resolve("web"));
+        Files.writeString(projectDir.resolve("web/package.json"), "{}\n");
+        ProjectConfig config = parseProject(projectDir, """
+
+                [generated.execTools.node]
+                runner = "process"
+                binary = "npm"
+                versionCommand = ["npm", "--version"]
+
+                [generated.main.frontend]
+                kind = "exec"
+                tool = "node"
+                inputs = ["web/package.json"]
+                output = "web/node_modules"
+                produces = "intermediate"
+                """);
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertEquals(QualityCheckStatus.FAILED, result.status());
+        assertTrue(result.message().contains("allowUnpinnedTool") || result.nextStep().contains("allowUnpinnedTool"),
+                result.message() + " / " + result.nextStep());
+    }
+
+    @Test
+    void requireOfflineReadyFailsForCacheNoneStep() throws IOException {
+        Path projectDir = tempDir.resolve("exec-cache-none");
+        Path inputFile = projectDir.resolve("src/main/jooq/config.xml");
+        Path outputFile = projectDir.resolve("target/generated/sources/jooq/com/example/Model.java");
+        Files.createDirectories(inputFile.getParent());
+        Files.createDirectories(outputFile.getParent());
+        Files.writeString(inputFile, "<configuration/>\n");
+        Files.writeString(outputFile, "package com.example; public final class Model {}\n");
+        Files.setLastModifiedTime(inputFile, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(outputFile, FileTime.fromMillis(2_000));
+        ProjectConfig config = parseProject(projectDir, execConfig("java-sources").replace(
+                "produces = \"java-sources\"", "produces = \"java-sources\"\ncache = \"none\""));
+
+        QualityCheckResult offlineReady = check.check(Optional.empty(), projectDir, config, true).getFirst();
+        QualityCheckResult normal = check.check(Optional.empty(), projectDir, config, false).getFirst();
+
+        assertEquals(QualityCheckStatus.FAILED, offlineReady.status());
+        assertTrue(offlineReady.message().contains("cache = \"none\""), offlineReady.message());
+        assertEquals(QualityCheckStatus.PASSED, normal.status());
     }
 
     private static String execConfig(String produces) {
