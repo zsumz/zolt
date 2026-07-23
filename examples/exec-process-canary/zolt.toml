@@ -1,0 +1,54 @@
+[project]
+name = "exec-process-canary"
+version = "0.1.0"
+group = "sh.zolt.canary"
+java = "21"
+main = "sh.zolt.canary.execprocess.Main"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+# A PATH `process` tool. `sh` is universally present; `sh --version` is not portable,
+# so the probe is a portable command and PATH bytes are acknowledged as unprovable.
+[generated.execTools.sh]
+runner = "process"
+binary = "sh"
+versionCommand = ["sh", "-c", "echo 1"]
+allowUnpinnedTool = true
+
+# 1) A process step that writes a Java source consumed by the compile.
+[generated.main.greeting-source]
+kind = "exec"
+tool = "sh"
+args = ["scripts/gen-greeting.sh"]
+inputs = ["scripts/gen-greeting.sh", "src/main/exec/seed.txt"]
+output = "target/generated/sources/greeting"
+produces = "java-sources"
+
+# 2) A process step that stages an intermediate consumed only by another step.
+[generated.main.stage]
+kind = "exec"
+tool = "sh"
+args = ["scripts/stage.sh"]
+inputs = ["scripts/stage.sh", "src/main/exec/seed.txt"]
+output = "target/generated/exec/stage"
+produces = "intermediate"
+
+# 3) A process step that consumes the intermediate and emits a packaged resource.
+# Its input under step 2's output is the ordering edge that schedules it after stage.
+[generated.main.bundle]
+kind = "exec"
+tool = "sh"
+args = ["scripts/emit-resource.sh", "target/generated/exec/stage"]
+inputs = ["scripts/emit-resource.sh", "target/generated/exec/stage"]
+output = "target/generated/exec/resource"
+produces = "resources"
+
+[test.dependencies]
+"org.junit.platform:junit-platform-console-standalone" = "1.11.4"
+
+[build]
+source = "src/main/java"
+test = "src/test/java"
+output = "target/classes"
+testOutput = "target/test-classes"

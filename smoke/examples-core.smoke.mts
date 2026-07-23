@@ -50,6 +50,18 @@ const PROJECT_EXAMPLES: ProjectExample[] = [
     expectedTests: 1,
     package: true,
   },
+  {
+    fixture: "exec-jvm-canary",
+    expectedTests: 1,
+    package: true,
+    runPackageOutput: /exec-jvm-canary version 1\.4\.2 \(exec-project\)/u,
+  },
+  {
+    fixture: "exec-process-canary",
+    expectedTests: 1,
+    package: true,
+    runPackageOutput: /Hello from exec-process-canary :: exec-process/u,
+  },
 ];
 
 const WORKSPACE_EXAMPLES: WorkspaceExample[] = [

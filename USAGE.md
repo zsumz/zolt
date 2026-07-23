@@ -996,6 +996,10 @@ The `examples/` directory is deliberately broad. It includes:
 - `micronaut-http`: Micronaut HTTP with annotation processors.
 - `vertx-http` and `vertx-postgres-crud`: Vert.x application shapes.
 - `protobuf-grpc-canary`: Protobuf/gRPC generated sources.
+- `exec-jvm-canary`: exec step with `tool = "project"` generating a packaged
+  build-info resource from the member's own classes (no external tool).
+- `exec-process-canary`: `process` exec steps running committed `sh` scripts to
+  generate a Java source and chain an intermediate into a packaged resource.
 - `provided-container-api`: provided dependency/container API shape.
 - `commons-cli-canary`, `hikaricp-canary`, `slf4j-canary`: library-style
   canaries and workspace/library packaging exercises.
