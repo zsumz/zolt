@@ -26,6 +26,10 @@ final class ExplainSignalsTest {
                 ExplainSignal.Severity.BLOCK,
                 ExplainSignal.Category.NON_DETERMINISM);
         assertDefinition(
+                "maven.bom.detected",
+                ExplainSignal.Severity.OK,
+                ExplainSignal.Category.BUILDABILITY);
+        assertDefinition(
                 "maven.plugin.static-signal",
                 ExplainSignal.Severity.WARN,
                 ExplainSignal.Category.BUILDABILITY);

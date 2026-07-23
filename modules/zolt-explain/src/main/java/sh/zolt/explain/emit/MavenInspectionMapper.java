@@ -52,6 +52,11 @@ final class MavenInspectionMapper {
             WorkspaceMemberRegistry registry,
             Map<String, MavenProjectInspection> reactorProjects,
             List<String> notes) {
+        // A standalone dependencyManagement BOM drafts a [bom] member. Reactor-member BOMs keep the
+        // existing platform/pin routing so multi-module emit stays stable.
+        if (registry == null && MavenBomDraftMapper.isBom(primary)) {
+            return MavenBomDraftMapper.map(primary, notes);
+        }
         Map<String, String> dependencies = new TreeMap<>();
         Map<String, String> runtime = new TreeMap<>();
         Map<String, String> provided = new TreeMap<>();
@@ -181,7 +186,7 @@ final class MavenInspectionMapper {
                 + " raising [project].java or a multi-release JAR.";
     }
 
-    private static String javaVersion(
+    static String javaVersion(
             String inspected,
             List<String> notes,
             Set<String> commentedProjectKeys) {
@@ -245,7 +250,7 @@ final class MavenInspectionMapper {
                         + "`; Zolt has no separate test Java key yet, so review test compilation before use.");
     }
 
-    private static String group(MavenProjectInspection project, List<String> notes) {
+    static String group(MavenProjectInspection project, List<String> notes) {
         String groupId = project.groupId();
         if (groupId != null && !groupId.isBlank()) {
             return groupId;
@@ -256,7 +261,7 @@ final class MavenInspectionMapper {
         return PLACEHOLDER_GROUP;
     }
 
-    private static String version(MavenProjectInspection project, List<String> notes) {
+    static String version(MavenProjectInspection project, List<String> notes) {
         String version = project.version();
         if (version != null && !version.isBlank()) {
             if (VersionPolicy.isSnapshot(version)) {
@@ -273,7 +278,7 @@ final class MavenInspectionMapper {
         return PLACEHOLDER_VERSION;
     }
 
-    private static String coordinateOf(String coordinate) {
+    static String coordinateOf(String coordinate) {
         String[] parts = coordinate.split(":");
         if (parts.length >= 2) {
             return parts[0] + ":" + parts[1];

@@ -21,6 +21,7 @@ final class ExplainSignalRegistry {
             ExplainSignals.MAVEN_PARENT_SNAPSHOT,
             ExplainSignals.MAVEN_PARENT_UNRESOLVED,
             ExplainSignals.MAVEN_EXTERNAL_PARENT_RESOLVED,
+            ExplainSignals.MAVEN_BOM_DETECTED,
             ExplainSignals.MAVEN_DEPENDENCY_UNRESOLVED_VERSION,
             ExplainSignals.MAVEN_DEPENDENCY_MISSING_VERSION,
             ExplainSignals.MAVEN_JAVA_VERSION_UNKNOWN,

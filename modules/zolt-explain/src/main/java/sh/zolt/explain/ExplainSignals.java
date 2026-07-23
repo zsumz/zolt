@@ -101,6 +101,11 @@ public final class ExplainSignals {
             ExplainSignal.Severity.OK,
             ExplainSignal.Category.BUILDABILITY,
             "Recovered external parent/BOM metadata was fetched over the network; review the listed coordinates and pin them if the draft must stay reproducible offline.");
+    public static final ExplainSignalDefinition MAVEN_BOM_DETECTED = new ExplainSignalDefinition(
+            "maven.bom.detected",
+            ExplainSignal.Severity.OK,
+            ExplainSignal.Category.BUILDABILITY,
+            "This is a dependencyManagement BOM; `zolt explain --emit-toml` drafts a [bom] member (import-scope BOMs to [bom.imports], plain pins to [bom.versions]).");
     public static final ExplainSignalDefinition MAVEN_JAVA_VERSION_UNKNOWN = new ExplainSignalDefinition(
             "maven.java-version.unknown",
             ExplainSignal.Severity.UNKNOWN,

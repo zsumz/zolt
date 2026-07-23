@@ -151,6 +151,18 @@ public final class MavenStaticProjectInspector {
                     project,
                     MavenSignalRules.reactorMessage(members, profileModules)));
         }
+        if ("pom".equals(inspection.packaging())
+                && inspection.modules().isEmpty()
+                && profileModules.isEmpty()
+                && inspection.sourceRoots().isEmpty()
+                && (!inspection.dependencyManagement().isEmpty() || !inspection.importedBoms().isEmpty())) {
+            int pins = inspection.dependencyManagement().size();
+            int imports = inspection.importedBoms().size();
+            signals.add(ExplainSignals.MAVEN_BOM_DETECTED.signal(
+                    project,
+                    "dependencyManagement BOM detected: " + pins + " version pin(s), " + imports
+                            + " import-scope BOM(s)."));
+        }
         if (unsupportedPackaging(inspection.packaging())) {
             signals.add(ExplainSignals.MAVEN_PACKAGING_UNSUPPORTED.signal(
                     project,
