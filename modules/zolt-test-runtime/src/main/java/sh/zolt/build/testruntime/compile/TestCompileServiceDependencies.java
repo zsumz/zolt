@@ -2,10 +2,12 @@ package sh.zolt.build.testruntime.compile;
 
 import sh.zolt.build.fingerprint.BuildFingerprintService;
 import sh.zolt.build.BuildService;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.build.compile.GroovyCompilerRunner;
 import sh.zolt.build.compile.JavacRunner;
 import sh.zolt.build.resources.ResourceCopier;
 import sh.zolt.build.discovery.SourceDiscoverer;
+import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
@@ -21,13 +23,16 @@ final class TestCompileServiceDependencies {
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
+    private final ExecGeneratedSourceService execGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final TestCompileSourceExecutor sourceExecutor;
+    private final BuildCacheService buildCacheService;
 
     private TestCompileServiceDependencies(
             TestInputDependencies testInputDependencies,
             GeneratedSourceDependencies generatedSourceDependencies,
-            TestSourceExecutorDependencies executorDependencies) {
+            TestSourceExecutorDependencies executorDependencies,
+            BuildCacheService buildCacheService) {
         this.buildService = testInputDependencies.buildService();
         this.sourceDiscoverer = testInputDependencies.sourceDiscoverer();
         this.resourceCopier = testInputDependencies.resourceCopier();
@@ -35,8 +40,10 @@ final class TestCompileServiceDependencies {
         this.jdkDetector = generatedSourceDependencies.jdkDetector();
         this.openApiGeneratedSourceService = generatedSourceDependencies.openApiGeneratedSourceService();
         this.protobufGeneratedSourceService = generatedSourceDependencies.protobufGeneratedSourceService();
+        this.execGeneratedSourceService = generatedSourceDependencies.execGeneratedSourceService();
         this.incrementalCompileStateRecorder = executorDependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = executorDependencies.sourceExecutor();
+        this.buildCacheService = buildCacheService;
     }
 
     static TestCompileServiceDependencies create(JdkChecker jdkDetector, ResolveService resolveService) {
@@ -70,14 +77,38 @@ final class TestCompileServiceDependencies {
                 new GeneratedSourceDependencies(
                         jdkDetector,
                         openApiGeneratedSourceService,
-                        new ProtobufGeneratedSourceService()),
+                        new ProtobufGeneratedSourceService(),
+                        new ExecGeneratedSourceService(jdkDetector)),
                 new TestSourceExecutorDependencies(
                         incrementalCompileStateRecorder,
                         new TestCompileSourceExecutor(
                                 javacRunner,
                                 groovyCompilerRunner,
                                 incrementalCompileStateRecorder,
-                                new IncrementalCompilePlanner())));
+                                new IncrementalCompilePlanner())),
+                BuildCacheService.disabled());
+    }
+
+    /**
+     * Returns dependencies whose build service and cache use the given build-output cache. Everything else
+     * is carried over, so a service rebuilt from these behaves exactly as before apart from cache use.
+     */
+    TestCompileServiceDependencies withBuildCache(BuildCacheService buildCacheService) {
+        return new TestCompileServiceDependencies(
+                new TestInputDependencies(
+                        buildService.withBuildCache(buildCacheService),
+                        sourceDiscoverer,
+                        resourceCopier,
+                        buildFingerprintService),
+                new GeneratedSourceDependencies(
+                        jdkDetector,
+                        openApiGeneratedSourceService,
+                        protobufGeneratedSourceService,
+                        execGeneratedSourceService),
+                new TestSourceExecutorDependencies(
+                        incrementalCompileStateRecorder,
+                        sourceExecutor),
+                buildCacheService);
     }
 
     BuildService buildService() {
@@ -108,12 +139,20 @@ final class TestCompileServiceDependencies {
         return protobufGeneratedSourceService;
     }
 
+    ExecGeneratedSourceService execGeneratedSourceService() {
+        return execGeneratedSourceService;
+    }
+
     IncrementalCompileStateRecorder incrementalCompileStateRecorder() {
         return incrementalCompileStateRecorder;
     }
 
     TestCompileSourceExecutor sourceExecutor() {
         return sourceExecutor;
+    }
+
+    BuildCacheService buildCacheService() {
+        return buildCacheService;
     }
 
     private record TestInputDependencies(
@@ -126,7 +165,8 @@ final class TestCompileServiceDependencies {
     private record GeneratedSourceDependencies(
             JdkChecker jdkDetector,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            ProtobufGeneratedSourceService protobufGeneratedSourceService) {
+            ProtobufGeneratedSourceService protobufGeneratedSourceService,
+            ExecGeneratedSourceService execGeneratedSourceService) {
     }
 
     private record TestSourceExecutorDependencies(

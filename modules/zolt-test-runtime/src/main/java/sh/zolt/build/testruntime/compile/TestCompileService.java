@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class TestCompileService {
+    private final TestCompileServiceDependencies dependencies;
     private final BuildService buildService;
     private final SourceDiscoverer sourceDiscoverer;
     private final ResourceCopier resourceCopier;
@@ -82,43 +83,18 @@ public final class TestCompileService {
     }
 
     TestCompileService(TestCompileServiceDependencies dependencies) {
-        this(
-                dependencies.buildService(),
-                dependencies.sourceDiscoverer(),
-                dependencies.resourceCopier(),
-                dependencies.buildFingerprintService(),
-                dependencies.jdkDetector(),
-                dependencies.openApiGeneratedSourceService(),
-                dependencies.protobufGeneratedSourceService(),
-                new ExecGeneratedSourceService(dependencies.jdkDetector()),
-                dependencies.incrementalCompileStateRecorder(),
-                dependencies.sourceExecutor(),
-                BuildCacheService.disabled());
-    }
-
-    private TestCompileService(
-            BuildService buildService,
-            SourceDiscoverer sourceDiscoverer,
-            ResourceCopier resourceCopier,
-            BuildFingerprintService buildFingerprintService,
-            JdkChecker jdkDetector,
-            OpenApiGeneratedSourceService openApiGeneratedSourceService,
-            ProtobufGeneratedSourceService protobufGeneratedSourceService,
-            ExecGeneratedSourceService execGeneratedSourceService,
-            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
-            TestCompileSourceExecutor sourceExecutor,
-            BuildCacheService buildCacheService) {
-        this.buildService = buildService;
-        this.sourceDiscoverer = sourceDiscoverer;
-        this.resourceCopier = resourceCopier;
-        this.buildFingerprintService = buildFingerprintService;
-        this.jdkDetector = jdkDetector;
-        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
-        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
-        this.execGeneratedSourceService = execGeneratedSourceService;
-        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
-        this.sourceExecutor = sourceExecutor;
-        this.buildCacheService = buildCacheService;
+        this.dependencies = dependencies;
+        this.buildService = dependencies.buildService();
+        this.sourceDiscoverer = dependencies.sourceDiscoverer();
+        this.resourceCopier = dependencies.resourceCopier();
+        this.buildFingerprintService = dependencies.buildFingerprintService();
+        this.jdkDetector = dependencies.jdkDetector();
+        this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
+        this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
+        this.execGeneratedSourceService = dependencies.execGeneratedSourceService();
+        this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
+        this.sourceExecutor = dependencies.sourceExecutor();
+        this.buildCacheService = dependencies.buildCacheService();
     }
 
     /**
@@ -126,18 +102,7 @@ public final class TestCompileService {
      * the test-class compile. The default is a disabled no-op, so existing callers are unaffected.
      */
     public TestCompileService withBuildCache(BuildCacheService cache) {
-        return new TestCompileService(
-                buildService.withBuildCache(cache),
-                sourceDiscoverer,
-                resourceCopier,
-                buildFingerprintService,
-                jdkDetector,
-                openApiGeneratedSourceService,
-                protobufGeneratedSourceService,
-                execGeneratedSourceService,
-                incrementalCompileStateRecorder,
-                sourceExecutor,
-                cache);
+        return new TestCompileService(dependencies.withBuildCache(cache));
     }
 
     TestCompileService(
