@@ -390,6 +390,14 @@ ambient or historically shaped:
 - `[publish]` is active project configuration for `zolt publish --dry-run`
   and uploads, and can reference `[repositoryCredentials]` entries for
   authenticated repositories.
+- Version discovery is advisory-only. `maven-metadata.xml` is fetched only by
+  `zolt outdated` and `zolt update`. Resolution — `zolt resolve`, `zolt resolve
+  --locked`, `build`/`test`/`package`, workspace resolve, and `zolt explain
+  verify` — never fetches, reads, or is influenced by version listings, and
+  `zolt.lock` never records one. A discovered version enters a build only when
+  written as a fixed literal into `zolt.toml` and re-resolved. This is enforced
+  structurally (the resolve layer has no dependency on the discovery layer) and
+  by a test asserting a resolve issues zero `maven-metadata.xml` requests.
 
 ### SNAPSHOT dependencies
 
@@ -414,6 +422,70 @@ overlay is rejected at resolve time with guidance (from `zolt resolve`, `zolt
 resolve --locked`, and `zolt explain verify`) rather than fetched from the
 network. `[platforms]` and `[dependencyConstraints]` continue to reject
 SNAPSHOTs while parsing.
+
+## Dependency Updates
+
+`zolt outdated` and `zolt update` are the only commands that consult remote
+version listings (`maven-metadata.xml`). Discovery is advisory: it never changes
+a build until a chosen version is written into `zolt.toml` and re-resolved.
+SNAPSHOT versions are never suggested, ranges are never written, and toolchain
+JDK versions are out of scope.
+
+Listings are fetched from the same repositories, in the same
+alphabetical-by-id order that resolution uses, and unioned across them (a
+candidate's source is the first repository in that order that lists it). Version
+comparison and stability are Zolt's own rules: a version is a prerelease only
+when it carries a known qualifier (`alpha`/`a`, `beta`/`b`, `milestone`/`m`,
+`rc`/`cr`); unknown qualifiers such as `-jre`, `-android`, or calendar versions
+are treated as releases. Listings live in a cache namespace kept separate from
+the immutable artifact cache; online runs always refetch, falling back to the
+cache with a staleness note only when a fetch fails, while `--offline` consults
+the cache only.
+
+### `zolt outdated`
+
+Reports available updates for every version surface in `zolt.toml`: `[versions]`
+aliases (with the coordinates each alias `governs`), literal-versioned
+dependencies in every scope, `[platforms]`, `[annotationProcessors]` and their
+test variants, `[dependencyConstraints]`, and `[generated.execTools]` /
+protobuf / openapi tool coordinates. A versionRef-backed entry reports under its
+alias rather than twice; SNAPSHOT literals and workspace-member dependencies are
+ignored. Candidates are grouped by change class (patch, minor, major) with a
+selected in-major target and a latest target. Run at a workspace root it reports
+one block per member and notes coordinates shared across members.
+
+Flags: `--format text|json` (JSON is schema v1 with stable keys and explicit
+nulls), `--include-prereleases`, `--all` (also show up-to-date surfaces),
+`--offline`, and optional selectors (a coordinate, alias, or section token).
+
+    zolt outdated
+    zolt outdated --format json
+    zolt outdated --include-prereleases com.google.guava:guava
+
+### `zolt update`
+
+The top-level `update` command writes version updates into `zolt.toml` using the
+same discovery; binary self-update stays at `zolt self update`. By default it
+moves each surface to the latest stable version within its current major;
+`--latest` allows a major bump and `--patch`/`--minor`/`--major` set the
+ceiling. `--include-prereleases` widens candidates (never to a SNAPSHOT), and
+selectors scope which surfaces update.
+
+Edits use only Zolt's existing mutation machinery and preserve dependency
+metadata (exclusions, classifier, type, optional): a `[versions]` alias is the
+primary lever, and updating one always warns with the full fan-out of
+coordinates it changes; a versionRef-backed coordinate never has a literal
+written over it. Literal exec-tool coordinate mutation is deferred, so those
+surfaces are reported as skipped. `--dry-run` prints the semantic edit list (the
+TOML writer re-serializes whole files, so text diffs are noise) and writes
+nothing; `--format json` emits `edits[]`/`skipped[]`. After a successful write,
+`zolt resolve` runs by default to keep `zolt.lock` consistent (`--no-resolve`
+opts out), and a file containing comments is warned about before it is
+rewritten.
+
+    zolt update --dry-run
+    zolt update --latest
+    zolt update --minor com.example:lib
 
 ## Java Toolchains
 
