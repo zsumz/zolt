@@ -534,6 +534,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "sh.zolt.cli.command.supplychain.LicensesCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.supplychain.LicensesCommand$Format",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "sh.zolt.cli.command.packaging.RunPackageCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

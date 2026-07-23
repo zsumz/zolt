@@ -93,21 +93,55 @@ public final class CycloneDxSbomWriter {
 
     private void component(StringBuilder json, int level, SbomComponent component, boolean includeScope) {
         boolean hasHashes = !component.hashes().isEmpty();
+        boolean hasLicenses = !component.licenses().isEmpty();
         json.append("{\n");
         stringField(json, level + 1, "type", component.type().jsonValue(), true);
         stringField(json, level + 1, "bom-ref", component.bomRef(), true);
         stringField(json, level + 1, "group", component.group(), true);
         stringField(json, level + 1, "name", component.name(), true);
         stringField(json, level + 1, "version", component.version(), true);
-        stringField(json, level + 1, "purl", component.purl(), includeScope || hasHashes);
+        stringField(json, level + 1, "purl", component.purl(), includeScope || hasHashes || hasLicenses);
         if (includeScope) {
-            stringField(json, level + 1, "scope", component.scope().jsonValue(), hasHashes);
+            stringField(json, level + 1, "scope", component.scope().jsonValue(), hasHashes || hasLicenses);
         }
         if (hasHashes) {
             hashesArray(json, level + 1, component.hashes());
+            json.append(hasLicenses ? ",\n" : "\n");
+        }
+        if (hasLicenses) {
+            licensesArray(json, level + 1, component.licenses());
             json.append('\n');
         }
         indent(json, level).append("}");
+    }
+
+    private void licensesArray(StringBuilder json, int level, List<SbomLicense> licenses) {
+        indent(json, level);
+        string(json, "licenses");
+        json.append(": [\n");
+        for (int index = 0; index < licenses.size(); index++) {
+            SbomLicense license = licenses.get(index);
+            indent(json, level + 1).append("{\n");
+            indent(json, level + 2);
+            string(json, "license");
+            json.append(": {\n");
+            if (license.status() == SbomLicenseStatus.SPDX) {
+                stringField(json, level + 3, "id", license.spdxId().orElseThrow(), false);
+            } else {
+                boolean hasUrl = license.url().isPresent();
+                stringField(json, level + 3, "name", license.displayName(), hasUrl);
+                if (hasUrl) {
+                    stringField(json, level + 3, "url", license.url().orElseThrow(), false);
+                }
+            }
+            indent(json, level + 2).append("}\n");
+            indent(json, level + 1).append("}");
+            if (index + 1 < licenses.size()) {
+                json.append(',');
+            }
+            json.append('\n');
+        }
+        indent(json, level).append("]");
     }
 
     private void hashesArray(StringBuilder json, int level, List<SbomHash> hashes) {

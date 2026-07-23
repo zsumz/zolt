@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -14,7 +12,6 @@ import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 import sh.zolt.cache.LocalArtifactCache;
-import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.ZoltCli;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandOutput;
@@ -26,63 +23,64 @@ import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.sbom.CycloneDxSbomWriter;
 import sh.zolt.sbom.LicenseIndex;
+import sh.zolt.sbom.LicenseNoticesWriter;
+import sh.zolt.sbom.LicenseReport;
+import sh.zolt.sbom.LicenseReportBuilder;
+import sh.zolt.sbom.LicenseReportJsonWriter;
+import sh.zolt.sbom.LicenseReportTextWriter;
 import sh.zolt.sbom.LockSbomAssembler;
 import sh.zolt.sbom.PomLicenseResolver;
+import sh.zolt.sbom.SbomComponent;
 import sh.zolt.sbom.SbomModel;
 import sh.zolt.sbom.SbomScopeGroup;
 import sh.zolt.sbom.SbomScopeSelection;
-import sh.zolt.sbom.SbomTimestamp;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 
-@Command(name = "sbom", description = "Generate a CycloneDX software bill of materials from zolt.lock.")
-public final class SbomCommand implements Runnable {
+@Command(name = "licenses", description = "Report the licenses of resolved dependencies from cached POMs.")
+public final class LicensesCommand implements Runnable {
     enum Format {
-        CYCLONEDX
+        TEXT,
+        JSON
     }
 
     private final ZoltTomlParser tomlParser;
     private final ZoltLockfileReader lockfileReader;
     private final LockSbomAssembler assembler;
-    private final CycloneDxSbomWriter cycloneDxWriter;
-    private final Clock clock;
-    private final Map<String, String> environment;
     private final String toolVersion;
+    private final LicenseReportBuilder reportBuilder = new LicenseReportBuilder();
+    private final LicenseReportTextWriter textWriter = new LicenseReportTextWriter();
+    private final LicenseReportJsonWriter jsonWriter = new LicenseReportJsonWriter();
+    private final LicenseNoticesWriter noticesWriter = new LicenseNoticesWriter();
 
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
-    @Option(names = "--format", paramLabel = "<FORMAT>", description = "Output format: cyclonedx.")
-    private Format format = Format.CYCLONEDX;
-
-    @Option(names = "--output", paramLabel = "<PATH>", description = "Write the SBOM to a file instead of stdout.")
-    private Path output;
-
-    @Option(names = "--include-provided", description = "Include provided-scope dependencies as optional.")
-    private boolean includeProvided;
-
-    @Option(names = "--include-dev", description = "Include dev-scope dependencies as optional.")
-    private boolean includeDev;
-
-    @Option(names = "--include-test", description = "Include test-scope dependencies as optional.")
-    private boolean includeTest;
+    @Option(names = "--format", paramLabel = "<FORMAT>", description = "Output format: text or json.")
+    private Format format = Format.TEXT;
 
     @Option(
-            names = "--include-tools",
-            description = "Include annotation-processor and tooling dependencies as optional.")
+            names = "--notices",
+            paramLabel = "<PATH>",
+            description = "Also write a deterministic THIRD_PARTY notices file to the given path.")
+    private Path notices;
+
+    @Option(names = "--include-provided", description = "Include provided-scope dependencies.")
+    private boolean includeProvided;
+
+    @Option(names = "--include-dev", description = "Include dev-scope dependencies.")
+    private boolean includeDev;
+
+    @Option(names = "--include-test", description = "Include test-scope dependencies.")
+    private boolean includeTest;
+
+    @Option(names = "--include-tools", description = "Include annotation-processor and tooling dependencies.")
     private boolean includeTools;
 
     @Option(
-            names = "--timestamp",
-            paramLabel = "<WHEN>",
-            description = "Set metadata.timestamp: an ISO-8601 instant, or `now`. Omitted by default.")
-    private String timestamp;
-
-    @Option(
             names = "--offline",
-            description = "Accepted for consistency; SBOM generation never uses the network.")
+            description = "Accepted for consistency; license resolution never uses the network.")
     private boolean offline;
 
     @Option(names = "--cache-root", hidden = true)
@@ -91,31 +89,18 @@ public final class SbomCommand implements Runnable {
     @Spec
     private CommandSpec spec;
 
-    public SbomCommand() {
-        this(
-                new ZoltTomlParser(),
-                new ZoltLockfileReader(),
-                new LockSbomAssembler(),
-                new CycloneDxSbomWriter(),
-                Clock.systemUTC(),
-                System.getenv(),
-                ZoltCli.version());
+    public LicensesCommand() {
+        this(new ZoltTomlParser(), new ZoltLockfileReader(), new LockSbomAssembler(), ZoltCli.version());
     }
 
-    SbomCommand(
+    LicensesCommand(
             ZoltTomlParser tomlParser,
             ZoltLockfileReader lockfileReader,
             LockSbomAssembler assembler,
-            CycloneDxSbomWriter cycloneDxWriter,
-            Clock clock,
-            Map<String, String> environment,
             String toolVersion) {
         this.tomlParser = tomlParser;
         this.lockfileReader = lockfileReader;
         this.assembler = assembler;
-        this.cycloneDxWriter = cycloneDxWriter;
-        this.clock = clock;
-        this.environment = environment;
         this.toolVersion = toolVersion;
     }
 
@@ -127,31 +112,26 @@ public final class SbomCommand implements Runnable {
             if (!Files.isRegularFile(lockfilePath)) {
                 throw new ActionableException(ActionableError.of(
                         "No zolt.lock found at " + lockfilePath + ".",
-                        "Run `zolt resolve` to generate it, then re-run `zolt sbom`."));
+                        "Run `zolt resolve` to generate it, then re-run `zolt licenses`."));
             }
             ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-            Optional<String> resolvedTimestamp =
-                    SbomTimestamp.resolve(Optional.ofNullable(timestamp), environment, clock);
             SbomScopeSelection selection =
                     new SbomScopeSelection(includeProvided, includeDev, includeTest, includeTools);
-            LicenseIndex licenses = resolveLicenses(lockfile, selection);
-            SbomModel model =
-                    assembler.assemble(config, lockfile, selection, resolvedTimestamp, toolVersion, licenses);
-            String document = cycloneDxWriter.write(model);
-            if (output != null) {
-                writeToFile(document);
-            } else {
-                CommandOutput.printAndFlush(spec, document);
+            LicenseIndex index = resolveLicenses(lockfile, selection);
+            SbomModel model = assembler.assemble(config, lockfile, selection, Optional.empty(), toolVersion, index);
+            List<SbomComponent> components = model.components();
+            LicenseReport report = reportBuilder.build(components, index);
+
+            String document = format == Format.JSON ? jsonWriter.write(report) : textWriter.write(report);
+            CommandOutput.printAndFlush(spec, document);
+            if (notices != null) {
+                writeNotices(components, index);
             }
-            warnOnUnknownLicenses(licenses);
         } catch (LockfileReadException | ZoltConfigException | ActionableException exception) {
             throw CommandFailures.user(spec, exception);
         } catch (IOException exception) {
-            throw CommandFailures.user(
-                    spec,
-                    "Could not write the SBOM to " + output + ".",
-                    exception);
+            throw CommandFailures.user(spec, "Could not write the notices file to " + notices + ".", exception);
         }
     }
 
@@ -163,19 +143,11 @@ public final class SbomCommand implements Runnable {
         return new PomLicenseResolver(cacheRoot).index(externalInScope);
     }
 
-    private void warnOnUnknownLicenses(LicenseIndex licenses) {
-        if (licenses.unresolved().isEmpty()) {
-            return;
-        }
-        CommandHumanOutput.errors(spec).detail(licenses.unresolved().size()
-                + " dependencies have unknown licenses; run `zolt resolve` to cache their POMs for complete data.");
-    }
-
-    private void writeToFile(String document) throws IOException {
-        Path normalized = output.toAbsolutePath().normalize();
+    private void writeNotices(List<SbomComponent> components, LicenseIndex index) throws IOException {
+        Path normalized = notices.toAbsolutePath().normalize();
         if (normalized.getParent() != null) {
             Files.createDirectories(normalized.getParent());
         }
-        Files.writeString(normalized, document, StandardCharsets.UTF_8);
+        Files.writeString(normalized, noticesWriter.write(components, index), StandardCharsets.UTF_8);
     }
 }

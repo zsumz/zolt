@@ -21,12 +21,24 @@ import sh.zolt.project.ProjectConfig;
  * all happen here so the writers only serialize.
  */
 public final class LockSbomAssembler {
+    private final SpdxLicenseMapping licenseMapping = new SpdxLicenseMapping();
+
     public SbomModel assemble(
             ProjectConfig config,
             ZoltLockfile lockfile,
             SbomScopeSelection selection,
             Optional<String> timestamp,
             String toolVersion) {
+        return assemble(config, lockfile, selection, timestamp, toolVersion, LicenseIndex.empty());
+    }
+
+    public SbomModel assemble(
+            ProjectConfig config,
+            ZoltLockfile lockfile,
+            SbomScopeSelection selection,
+            Optional<String> timestamp,
+            String toolVersion,
+            LicenseIndex licenses) {
         SbomComponent root = rootComponent(config);
 
         // Dedup components by bom-ref (purl). Multi-scope duplicates merge; required wins.
@@ -43,7 +55,8 @@ public final class LockSbomAssembler {
         }
 
         List<SbomComponent> components = byRef.values().stream()
-                .map(ComponentAccumulator::toComponent)
+                .map(accumulator -> accumulator.toComponent(
+                        emittableLicenses(licenses.forCoordinate(accumulator.coordinate()))))
                 .sorted(Comparator.comparing(SbomComponent::bomRef))
                 .toList();
 
@@ -56,6 +69,15 @@ public final class LockSbomAssembler {
                 root,
                 components,
                 dependencies);
+    }
+
+    /** SBOM-emittable licenses: UNKNOWN dropped, deduplicated, sorted by label (id/name). */
+    static List<SbomLicense> emittableLicenses(List<SbomLicense> licenses) {
+        return licenses.stream()
+                .filter(license -> license.status() != SbomLicenseStatus.UNKNOWN)
+                .distinct()
+                .sorted(Comparator.comparing(SbomLicense::label))
+                .toList();
     }
 
     private void accumulate(
@@ -141,7 +163,22 @@ public final class LockSbomAssembler {
                 version,
                 purl,
                 SbomComponentScope.REQUIRED,
-                List.of());
+                List.of(),
+                emittableLicenses(rootLicenses(config)));
+    }
+
+    /** The root license is authoritative from config ([package.metadata]), not POM-extracted. */
+    private List<SbomLicense> rootLicenses(ProjectConfig config) {
+        String license = config.packageSettings().metadata().license();
+        String licenseUrl = config.packageSettings().metadata().licenseUrl();
+        Optional<String> name = license.isBlank() ? Optional.empty() : Optional.of(license);
+        Optional<String> url = licenseUrl.isBlank() ? Optional.empty() : Optional.of(licenseUrl);
+        if (name.isEmpty() && url.isEmpty()) {
+            return List.of();
+        }
+        return List.of(licenseMapping.spdxId(name, url)
+                .map(SbomLicense::spdx)
+                .orElseGet(() -> SbomLicense.unmapped(name, url)));
     }
 
     private static SbomComponentType rootType(ProjectConfig config) {
@@ -250,8 +287,12 @@ public final class LockSbomAssembler {
             }
         }
 
-        private SbomComponent toComponent() {
-            return new SbomComponent(type, bomRef, group, name, version, purl, scope, List.copyOf(hashes));
+        private String coordinate() {
+            return group + ":" + name + ":" + version;
+        }
+
+        private SbomComponent toComponent(List<SbomLicense> licenses) {
+            return new SbomComponent(type, bomRef, group, name, version, purl, scope, List.copyOf(hashes), licenses);
         }
     }
 }

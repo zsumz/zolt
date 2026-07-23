@@ -308,6 +308,89 @@ final class RawPomParserTest {
         assertEquals("1.0.0", pom.version().orElseThrow());
     }
 
+    @Test
+    void parsesLicenseNameUrlAndDistribution() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>licensed</artifactId>
+                  <version>1.0.0</version>
+                  <licenses>
+                    <license>
+                      <name>Apache License, Version 2.0</name>
+                      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+                      <distribution>repo</distribution>
+                    </license>
+                  </licenses>
+                </project>
+                """);
+
+        assertEquals(1, pom.licenses().size());
+        RawPomLicense license = pom.licenses().getFirst();
+        assertEquals("Apache License, Version 2.0", license.name().orElseThrow());
+        assertEquals("https://www.apache.org/licenses/LICENSE-2.0.txt", license.url().orElseThrow());
+        assertEquals("repo", license.distribution().orElseThrow());
+        assertTrue(license.comments().isEmpty());
+    }
+
+    @Test
+    void parsesDualLicensesInDeclarationOrder() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>dual</artifactId>
+                  <version>1.0.0</version>
+                  <licenses>
+                    <license>
+                      <name>EPL 2.0</name>
+                      <url>https://www.eclipse.org/legal/epl-2.0/</url>
+                    </license>
+                    <license>
+                      <name>GPL2 w/ CPE</name>
+                      <url>https://openjdk.java.net/legal/gplv2+ce.html</url>
+                    </license>
+                  </licenses>
+                </project>
+                """);
+
+        assertEquals(2, pom.licenses().size());
+        assertEquals("EPL 2.0", pom.licenses().get(0).name().orElseThrow());
+        assertEquals("GPL2 w/ CPE", pom.licenses().get(1).name().orElseThrow());
+    }
+
+    @Test
+    void absentLicensesProduceEmptyList() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>unlicensed</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        assertTrue(pom.licenses().isEmpty());
+    }
+
+    @Test
+    void parsesLicenseWithUrlOnly() {
+        RawPom pom = parser.parse("""
+                <project>
+                  <groupId>org.example</groupId>
+                  <artifactId>url-only</artifactId>
+                  <version>1.0.0</version>
+                  <licenses>
+                    <license>
+                      <url>https://opensource.org/licenses/MIT</url>
+                    </license>
+                  </licenses>
+                </project>
+                """);
+
+        assertEquals(1, pom.licenses().size());
+        assertTrue(pom.licenses().getFirst().name().isEmpty());
+        assertEquals("https://opensource.org/licenses/MIT", pom.licenses().getFirst().url().orElseThrow());
+    }
+
     private RawPom parseFixture(String name) throws IOException {
         try (InputStream inputStream = RawPomParserTest.class.getResourceAsStream("/poms/" + name)) {
             if (inputStream == null) {

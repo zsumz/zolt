@@ -13,7 +13,8 @@ public record RawPom(
         Optional<RawPomRelocation> relocation,
         Map<String, String> properties,
         List<RawPomDependency> dependencyManagement,
-        List<RawPomDependency> dependencies) {
+        List<RawPomDependency> dependencies,
+        List<RawPomLicense> licenses) {
     public RawPom {
         groupId = groupId == null ? Optional.empty() : groupId;
         version = version == null ? Optional.empty() : version;
@@ -22,5 +23,30 @@ public record RawPom(
         properties = Map.copyOf(properties);
         dependencyManagement = List.copyOf(dependencyManagement);
         dependencies = List.copyOf(dependencies);
+        licenses = licenses == null ? List.of() : List.copyOf(licenses);
+    }
+
+    /** Back-compat constructor for callers that predate license parsing. */
+    public RawPom(
+            Optional<String> groupId,
+            String artifactId,
+            Optional<String> version,
+            String packaging,
+            Optional<RawPomParent> parent,
+            Optional<RawPomRelocation> relocation,
+            Map<String, String> properties,
+            List<RawPomDependency> dependencyManagement,
+            List<RawPomDependency> dependencies) {
+        this(
+                groupId,
+                artifactId,
+                version,
+                packaging,
+                parent,
+                relocation,
+                properties,
+                dependencyManagement,
+                dependencies,
+                List.of());
     }
 }

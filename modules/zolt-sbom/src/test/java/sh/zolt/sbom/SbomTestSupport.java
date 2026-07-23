@@ -7,9 +7,12 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.PackageMode;
+import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.project.PublicationMetadata;
 
 /** Shared fixtures for the SBOM tests: a demo project plus lockfile-package builders. */
 abstract class SbomTestSupport {
@@ -25,6 +28,13 @@ abstract class SbomTestSupport {
                 java.util.Map.of(),
                 java.util.Map.of(),
                 BuildSettings.defaults());
+    }
+
+    protected static ProjectConfig configWithLicense(String license, String licenseUrl) {
+        PublicationMetadata metadata = new PublicationMetadata(
+                "demo", "", "", license, licenseUrl, List.of(), List.of(), "", "", "", "", "");
+        return config().withPackageSettings(new PackageSettings(
+                PackageMode.THIN, false, false, false, metadata, java.util.Map.of()));
     }
 
     protected static ZoltLockfile lockfile(Optional<String> fingerprint, LockPackage... packages) {

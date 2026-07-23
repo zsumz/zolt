@@ -1,5 +1,7 @@
 package sh.zolt.sbom.json;
 
+import java.util.Optional;
+
 /**
  * Minimal, deterministic JSON emitter shared by the SBOM writers.
  *
@@ -33,6 +35,19 @@ public final class JsonWriter {
         indent(json, level);
         string(json, name);
         json.append(": ").append(raw);
+        terminate(json, trailingComma);
+    }
+
+    public static void optionalStringField(
+            StringBuilder json,
+            int level,
+            String name,
+            Optional<String> value,
+            boolean trailingComma) {
+        indent(json, level);
+        string(json, name);
+        json.append(": ");
+        value.ifPresentOrElse(present -> string(json, present), () -> json.append("null"));
         terminate(json, trailingComma);
     }
 

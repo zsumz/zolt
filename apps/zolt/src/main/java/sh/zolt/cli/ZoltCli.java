@@ -31,6 +31,7 @@ import sh.zolt.cli.command.quarkus.QuarkusCommand;
 import sh.zolt.cli.command.resolve.ClasspathCommand;
 import sh.zolt.cli.command.resolve.ResolveCommand;
 import sh.zolt.cli.command.selfhost.SelfCheckCommand;
+import sh.zolt.cli.command.supplychain.LicensesCommand;
 import sh.zolt.cli.command.supplychain.SbomCommand;
 import sh.zolt.cli.command.testcmd.IntegrationTestCommand;
 import sh.zolt.cli.command.testcmd.TestCommand;
@@ -87,6 +88,7 @@ import picocli.CommandLine.Spec;
                 PackageCommand.class,
                 PublishCommand.class,
                 SbomCommand.class,
+                LicensesCommand.class,
                 RunPackageCommand.class,
                 NativeCommand.class,
                 NativeSmokeCommand.class,

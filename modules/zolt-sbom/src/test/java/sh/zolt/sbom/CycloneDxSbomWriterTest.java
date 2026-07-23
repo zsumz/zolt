@@ -137,6 +137,61 @@ final class CycloneDxSbomWriterTest extends SbomTestSupport {
                 "  \"metadata\": {\n    \"timestamp\": \"2026-07-23T12:00:00Z\",\n    \"tools\": ["));
     }
 
+    @Test
+    void emitsSpdxIdAndUnmappedNameUrlLicensesInComponents() {
+        ZoltLockfile lockfile = lockfile(
+                Optional.of("sha256:demo-lock-fingerprint"),
+                maven("org.example", "lib-a", "1.0.0", DependencyScope.COMPILE, true, SHA_A, List.of()),
+                maven("org.example", "lib-b", "2.0.0", DependencyScope.COMPILE, false, SHA_B, List.of()));
+        LicenseIndex index = new LicenseIndex(
+                Map.of(
+                        "org.example:lib-a:1.0.0", List.of(SbomLicense.spdx("Apache-2.0")),
+                        "org.example:lib-b:2.0.0",
+                        List.of(SbomLicense.unmapped(Optional.of("Weird License"), Optional.of("https://example.com/l")))),
+                List.of());
+
+        SbomModel model = assembler.assemble(
+                config(), lockfile, SbomScopeSelection.requiredOnly(), Optional.empty(), TOOL_VERSION, index);
+        String json = writer.write(model);
+
+        assertTrue(json.contains(
+                "      \"licenses\": [\n"
+                        + "        {\n"
+                        + "          \"license\": {\n"
+                        + "            \"id\": \"Apache-2.0\"\n"
+                        + "          }\n"
+                        + "        }\n"
+                        + "      ]"), json);
+        assertTrue(json.contains(
+                "      \"licenses\": [\n"
+                        + "        {\n"
+                        + "          \"license\": {\n"
+                        + "            \"name\": \"Weird License\",\n"
+                        + "            \"url\": \"https://example.com/l\"\n"
+                        + "          }\n"
+                        + "        }\n"
+                        + "      ]"), json);
+    }
+
+    @Test
+    void emitsAuthoritativeRootLicenseFromConfig() {
+        ZoltLockfile lockfile = lockfile(
+                Optional.of("sha256:demo-lock-fingerprint"),
+                maven("org.example", "lib-a", "1.0.0", DependencyScope.COMPILE, true, SHA_A, List.of()));
+
+        SbomModel model = assembler.assemble(
+                configWithLicense("Apache-2.0", ""),
+                lockfile,
+                SbomScopeSelection.requiredOnly(),
+                Optional.empty(),
+                TOOL_VERSION,
+                LicenseIndex.empty());
+
+        assertEquals(
+                List.of(SbomLicense.spdx("Apache-2.0")),
+                model.metadataComponent().licenses());
+    }
+
     private static Clock fixedClock() {
         return Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC);
     }

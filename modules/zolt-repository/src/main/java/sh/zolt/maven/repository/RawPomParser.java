@@ -46,7 +46,24 @@ public final class RawPomParser {
                 relocation,
                 parseProperties(project),
                 parseDependencyManagement(project),
-                parseDependencies(child(project, "dependencies")));
+                parseDependencies(child(project, "dependencies")),
+                parseLicenses(project));
+    }
+
+    private List<RawPomLicense> parseLicenses(Element project) {
+        Optional<Element> licenses = child(project, "licenses");
+        if (licenses.isEmpty()) {
+            return List.of();
+        }
+        List<RawPomLicense> parsed = new ArrayList<>();
+        for (Element license : children(licenses.orElseThrow(), "license")) {
+            parsed.add(new RawPomLicense(
+                    text(license, "name"),
+                    text(license, "url"),
+                    text(license, "distribution"),
+                    text(license, "comments")));
+        }
+        return parsed;
     }
 
     private Document document(InputStream inputStream) {

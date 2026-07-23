@@ -35,6 +35,7 @@ final class CliFocusedHelpSurfaceCoverageTest {
             "zolt ide model",
             "zolt init",
             "zolt integration-test",
+            "zolt licenses",
             "zolt native",
             "zolt native-smoke",
             "zolt outdated",
