@@ -25,7 +25,7 @@ public record UserGlobalConfig(
         return new UserGlobalConfig(
                 1,
                 configPath,
-                UserGlobalConfigParser.expandUserHome(Path.of("~/.zolt/cache")),
+                UserGlobalConfigToml.expandUserHome(Path.of("~/.zolt/cache")),
                 new RepositoryExecutionConfig(8, "platform"),
                 Map.of("mavenLocal", new RepositoryOverlayConfig("mavenLocal", "maven-local", false)),
                 UserGlobalToolchainDefaults.none(),
