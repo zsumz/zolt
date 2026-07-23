@@ -157,6 +157,20 @@ final class ExecProcessRunnerServiceTest {
         assertTrue(exception.getMessage().contains("rogue.txt"), exception.getMessage());
     }
 
+    @Test
+    void runsInDeclaredWorkingDirectory() throws IOException {
+        seedInput();
+        Files.createDirectories(projectDir.resolve("web"));
+        writeScript(binDir, "zoltprobe", "echo 1.0.0");
+        writeScript(binDir, "zoltgen", "pwd > \"$ZOLT_OUTPUT_DIR/cwd.txt\"");
+        ProjectConfig config = config(processTool("allowUnpinnedTool = true"), "cwd = \"web\"");
+
+        service(projectDir, binDir, Map.of()).generateMain(projectDir, config, List.of());
+
+        String cwd = Files.readString(projectDir.resolve("target/generated/assets/cwd.txt")).strip();
+        assertTrue(cwd.endsWith("/web") || cwd.contains("/web"), cwd);
+    }
+
     private void seedInput() throws IOException {
         Files.writeString(projectDir.resolve("seed.txt"), "seed\n");
     }
