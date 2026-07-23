@@ -20,6 +20,7 @@ import sh.zolt.cli.command.testcmd.CommandTestAttributes;
 import sh.zolt.cli.command.testcmd.CommandTestEvents;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.perf.TimingRecorder;
+import sh.zolt.project.CoverageSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.test.TestSelection;
@@ -31,6 +32,8 @@ import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.workspace.WorkspaceConfigException;
 import sh.zolt.workspace.coverage.WorkspaceCoverageResult;
 import sh.zolt.workspace.coverage.WorkspaceCoverageService;
+import sh.zolt.workspace.discovery.WorkspaceDiscoveryService;
+import sh.zolt.workspace.service.Workspace;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +52,7 @@ public final class CoverageCommand implements Runnable {
     private final CoverageService coverageService;
     private final WorkspaceCoverageService workspaceCoverageService;
     private final CommandServiceBundles.CoverageServiceFactory coverageServiceFactory;
+    private final WorkspaceDiscoveryService workspaceDiscovery = new WorkspaceDiscoveryService();
 
     @Option(names = "--workspace", description = "Run coverage for workspace members and write aggregate reports.")
     private boolean workspace;
@@ -191,6 +195,10 @@ public final class CoverageCommand implements Runnable {
             }
             printCoverageReports(output, "Coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
             result.testRunResult().reportsDirectory().ifPresent(path -> output.pointer("wrote", path.toString()));
+            CoverageFloorEnforcement.enforce(
+                    spec,
+                    tomlParser.parseCoverageFloors(projectRoot.resolve("zolt.toml")),
+                    result.xmlReport());
         } catch (BuildException
                 | CoverageException
                 | JavacException
@@ -266,6 +274,11 @@ public final class CoverageCommand implements Runnable {
             }
         }
         printCoverageReports(output, "Workspace coverage reports written", result.execFile(), result.xmlReport(), result.htmlDirectory());
+        Path workspaceRoot = workspaceDiscovery.discover(projectRoot).map(Workspace::root).orElse(projectRoot);
+        CoverageFloorEnforcement.enforce(
+                spec,
+                tomlParser.parseCoverageFloors(workspaceRoot.resolve("zolt.toml")),
+                result.xmlReport());
         output.summary(
                 "Coverage passed for " + result.members().size() + " workspace members",
                 result.members().size() + " members");
