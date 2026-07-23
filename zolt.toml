@@ -41,3 +41,7 @@ version = "21"
 distribution = "graalvm-community"
 features = ["native-image"]
 policy = "require-managed"
+
+[coverage]
+minLine = 88.0
+minBranch = 74.0

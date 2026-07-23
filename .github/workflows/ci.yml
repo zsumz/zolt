@@ -80,6 +80,58 @@ jobs:
       - name: Test workspace group with managed Java
         run: scripts/run-zolt-built test --workspace --members "${{ matrix.members }}" --no-progress --cache-root .zolt/cache
 
+  coverage:
+    name: coverage floors
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: "21"
+          components: native-image
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Zolt artifacts
+        uses: actions/cache@v4
+        with:
+          path: .zolt/cache
+          key: zolt-cache-${{ runner.os }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-cache-${{ runner.os }}-
+
+      - name: Cache Zolt managed toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.zolt/toolchains
+          key: zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('zolt.lock') }}
+          restore-keys: |
+            zolt-toolchains-${{ runner.os }}-${{ runner.arch }}-
+            zolt-toolchains-${{ runner.os }}-
+
+      - name: Bootstrap sync Zolt-managed Java
+        run: scripts/bootstrap-zolt-jvm --no-progress toolchain sync
+
+      - name: Package stage-0 Zolt
+        run: scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Sync Zolt-managed Java
+        run: scripts/run-zolt-built toolchain sync
+
+      - name: Package JUnit worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-junit-worker --no-progress --cache-root .zolt/cache
+
+      - name: Package javac worker with managed Java
+        run: scripts/run-zolt-built package --workspace --member apps/zolt-javac-worker --no-progress --cache-root .zolt/cache
+
+      - name: Enforce coverage floors across the workspace
+        run: scripts/run-zolt-built coverage --workspace --all --no-progress --cache-root .zolt/cache
+
   smoke:
     name: smoke packaged workflows
     needs: test
