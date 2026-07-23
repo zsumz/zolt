@@ -14,6 +14,7 @@ import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 import sh.zolt.toolchain.JavaToolchainStatus;
 import sh.zolt.toolchain.JavaToolchainStatusService;
+import sh.zolt.toolchain.TestRuntimeToolchainResolver;
 import sh.zolt.toolchain.ToolchainConfigReader;
 import sh.zolt.toolchain.ToolchainSyncResult;
 import sh.zolt.toolchain.ToolchainSyncService;
@@ -102,6 +103,9 @@ public final class ToolchainCommand implements Runnable {
                         ? globalStatus()
                         : projectStatus(projectRoot);
                 print(status);
+                if (!global && !json) {
+                    printTestRuntimeStatus(projectRoot);
+                }
                 if (!status.ok() && !json) {
                     CommandHumanOutput errors = CommandHumanOutput.errors(spec);
                     for (String problem : status.resolved().problems()) {
@@ -133,6 +137,18 @@ public final class ToolchainCommand implements Runnable {
                     config,
                     HostPlatform.parse(target),
                     new ToolchainStore(installRoot));
+        }
+
+        private void printTestRuntimeStatus(Path projectRoot) {
+            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+            new TestRuntimeToolchainResolver()
+                    .resolve(
+                            projectRoot,
+                            projectRoot,
+                            config,
+                            HostPlatform.parse(target),
+                            new ToolchainStore(installRoot))
+                    .ifPresent(testRuntime -> ToolchainStatusOutput.printTestRuntime(spec, testRuntime));
         }
 
         private JavaToolchainStatus globalStatus() {

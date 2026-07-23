@@ -2,12 +2,24 @@ package sh.zolt.cli.command.toolchain;
 
 import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.toolchain.JavaToolchainStatus;
+import sh.zolt.toolchain.TestRuntimeToolchain;
 import sh.zolt.toolchain.jvm.ResolvedJavaToolchain;
 import java.nio.file.Path;
 import picocli.CommandLine.Model.CommandSpec;
 
 final class ToolchainStatusOutput {
     private ToolchainStatusOutput() {
+    }
+
+    static void printTestRuntime(CommandSpec spec, TestRuntimeToolchain testRuntime) {
+        CommandHumanOutput output = CommandHumanOutput.of(spec);
+        output.blankLine();
+        output.line("test runtime ([toolchain.java.test])");
+        output.line("  java: " + testRuntime.request().version());
+        output.line("  status: " + (testRuntime.ready() ? "ok" : "error"));
+        testRuntime.java().ifPresent(java -> output.line("  resolved: " + java));
+        testRuntime.problem().ifPresent(problem -> output.line("  problem: " + problem));
+        testRuntime.remediation().ifPresent(next -> output.line("  next: " + next));
     }
 
     static void print(CommandSpec spec, JavaToolchainStatus status) {
