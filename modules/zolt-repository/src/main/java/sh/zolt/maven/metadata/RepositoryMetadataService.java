@@ -21,7 +21,7 @@ import java.util.Optional;
  * repository and is silently skipped. Missing metadata everywhere degrades to unknown, never an
  * error.
  */
-public final class RepositoryMetadataService {
+public final class RepositoryMetadataService implements VersionDiscovery {
     private final MavenRepositoryClient client;
     private final MavenMetadataParser parser;
     private final MetadataCache cache;
@@ -37,6 +37,7 @@ public final class RepositoryMetadataService {
         this.cache = cache;
     }
 
+    @Override
     public MetadataDiscovery discover(
             List<RepositoryAccess> repositories, String groupId, String artifactId, boolean offline) {
         Map<String, String> sourceByVersion = new LinkedHashMap<>();

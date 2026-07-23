@@ -6,6 +6,7 @@ members = [
     "modules/zolt-toml",
     "modules/zolt-repository",
     "modules/zolt-resolve",
+    "modules/zolt-update",
     "modules/zolt-test-model",
     "modules/zolt-junit-client",
     "modules/zolt-build",
