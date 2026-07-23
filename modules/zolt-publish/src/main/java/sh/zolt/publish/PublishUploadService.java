@@ -69,13 +69,15 @@ public final class PublishUploadService {
                 ? new PublishSigner(settings.signing(), environment)
                 : null;
         try {
-            Path artifactFile = root.resolve(plan.artifactPath()).normalize();
-            repositoryClient.uploadArtifact(
-                    repositoryUri,
-                    new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
-                    artifactFile,
-                    authentication);
-            uploadIntegrity(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication, signer);
+            if (!plan.pomOnly()) {
+                Path artifactFile = root.resolve(plan.artifactPath()).normalize();
+                repositoryClient.uploadArtifact(
+                        repositoryUri,
+                        new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
+                        artifactFile,
+                        authentication);
+                uploadIntegrity(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication, signer);
+            }
             for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
                 Path supplementalFile = root.resolve(artifact.path()).normalize();
                 repositoryClient.uploadArtifact(

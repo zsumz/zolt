@@ -34,7 +34,8 @@ public final class PublishCentralReadinessService {
                 metadata,
                 hasClassifier(plan, "sources"),
                 hasClassifier(plan, "javadoc"),
-                publish.signing().enabled());
+                publish.signing().enabled(),
+                config.packageSettings().mode() == sh.zolt.project.PackageMode.BOM);
     }
 
     private static boolean hasClassifier(PublishDryRunPlan plan, String classifier) {

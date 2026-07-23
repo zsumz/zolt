@@ -110,6 +110,11 @@ public final class RunPackageService {
             ProjectConfig config,
             Path cacheRoot,
             List<String> arguments) {
+        if (config.packageSettings().mode() == PackageMode.BOM) {
+            throw new RunPackageException(
+                    "Package mode `bom` publishes a dependencyManagement POM and produces no runnable artifact. "
+                            + "Import the BOM from an application module via [platforms] instead of running it.");
+        }
         if (config.packageSettings().mode() == PackageMode.WAR) {
             throw new RunPackageException(
                     "Package mode `war` creates a servlet container deployment artifact and cannot be run directly. "

@@ -37,6 +37,35 @@ final class PublishCentralReadinessTest {
     }
 
     @Test
+    void pomPackagingOmitsSourcesAndJavadocButKeepsSigningAndChecksums() {
+        PublicationMetadata metadata = new PublicationMetadata(
+                "Acme Platform BOM",
+                "Curated platform versions.",
+                "https://example.test/bom",
+                "Apache-2.0",
+                "https://www.apache.org/licenses/LICENSE-2.0.txt",
+                List.of(),
+                List.of(new DeveloperEntry("ada", "Ada Lovelace", "ada@example.test", "", "")),
+                "https://github.com/example/bom",
+                "scm:git:https://github.com/example/bom.git",
+                "",
+                "",
+                "");
+
+        // A BOM has no sources/javadoc jars; pass false for both and still expect readiness.
+        List<PublishCentralRequirement> requirements =
+                PublishCentralReadiness.evaluate("release", metadata, false, false, true, true);
+
+        Map<String, PublishCentralRequirement> byName = requirements.stream()
+                .collect(Collectors.toMap(PublishCentralRequirement::name, Function.identity()));
+        assertFalse(byName.containsKey("sources jar"));
+        assertFalse(byName.containsKey("javadoc jar"));
+        assertTrue(byName.get("gpg signatures").satisfied());
+        assertTrue(byName.get("checksums").satisfied());
+        assertTrue(PublishCentralReadiness.allSatisfied(requirements));
+    }
+
+    @Test
     void flagsMissingRequirementsWithActionableRemediation() {
         List<PublishCentralRequirement> requirements =
                 PublishCentralReadiness.evaluate("snapshot", PublicationMetadata.empty(), false, false, false);

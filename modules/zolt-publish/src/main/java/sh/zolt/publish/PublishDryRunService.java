@@ -132,7 +132,6 @@ public final class PublishDryRunService {
         if (!publish.configured()) {
             throw new PublishException("No [publish] configuration found. Add release/snapshot publish repositories before running `zolt publish --dry-run`.");
         }
-        String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
         String versionKind = VersionPolicy.classifyPublishVersion(config.project().version());
         String repositoryId = versionKind.equals("snapshot")
                 ? publish.snapshotRepository()
@@ -162,7 +161,14 @@ public final class PublishDryRunService {
         String displayRepositoryUrl = repository != null
                 ? redactedRepositoryUrl(repository.url())
                 : PublishCentralSettings.DEFAULT_BASE_URL;
+        Coordinate coordinate = coordinate(config);
 
+        if (config.packageSettings().mode() == PackageMode.BOM) {
+            return bomPlan(
+                    root, config, versionKind, displayRepositoryId, displayRepositoryUrl, coordinate, blockers);
+        }
+
+        String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
         ZoltLockfile lockfile = lockfile(root);
         PackagePlan packagePlan = packagePlan(root, config);
         Path artifactPath = packagePlan.archivePath();
@@ -171,7 +177,6 @@ public final class PublishDryRunService {
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")
                 .normalize();
         String pomSha256 = writePom(root, pomPath, config, lockfile);
-        Coordinate coordinate = coordinate(config);
         String artifactUploadPath = repositoryPathBuilder.artifactPath(
                 new ArtifactDescriptor(
                         coordinate,
@@ -212,6 +217,48 @@ public final class PublishDryRunService {
                 checksumSidecars,
                 "",
                 blockers);
+    }
+
+    private PublishDryRunPlan bomPlan(
+            Path root,
+            ProjectConfig config,
+            String versionKind,
+            String displayRepositoryId,
+            String displayRepositoryUrl,
+            Coordinate coordinate,
+            List<String> blockers) {
+        // A BOM has no archive: the artifact IS the generated dependencyManagement POM. --sbom is
+        // deliberately not attached (a BOM has no resolved graph, so an SBOM would be misleading).
+        ZoltLockfile lockfile = lockfile(root);
+        Path pomPath = root.resolve(config.build().outputRoot()).resolve("publish")
+                .resolve(config.project().name() + "-" + config.project().version() + ".pom")
+                .normalize();
+        String pomSha256 = writePom(root, pomPath, config, lockfile);
+        String pomUploadPath = repositoryPathBuilder.pomPath(coordinate);
+        List<PublishChecksumSidecar> checksumSidecars = new ArrayList<>();
+        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(pomPath)) {
+            checksumSidecars.add(new PublishChecksumSidecar(
+                    "pom", sidecar.extension(), pomUploadPath + "." + sidecar.extension(), sidecar.value()));
+        }
+        Path pomDisplay = PublishDryRunArtifactEvidencePlanner.display(root, pomPath);
+        return new PublishDryRunPlan(
+                config.project().group() + ":" + config.project().name() + ":" + config.project().version(),
+                versionKind,
+                displayRepositoryId,
+                displayRepositoryUrl,
+                "bom",
+                pomDisplay,
+                pomSha256,
+                "",
+                List.of(),
+                pomDisplay,
+                pomDisplay,
+                pomSha256,
+                pomUploadPath,
+                List.copyOf(checksumSidecars),
+                "",
+                blockers,
+                true);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {

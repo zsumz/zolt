@@ -15,6 +15,7 @@ import sh.zolt.workspace.service.WorkspaceBuildPlan;
 import sh.zolt.workspace.service.WorkspaceBuildResult;
 import sh.zolt.workspace.service.WorkspaceBuildService;
 import sh.zolt.workspace.service.WorkspaceJdkCheckerResolver;
+import sh.zolt.workspace.publish.WorkspaceBomPackager;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.service.WorkspaceSelection;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
@@ -28,6 +29,7 @@ import java.util.Optional;
 public final class WorkspacePackageService {
     private final WorkspaceBuildService workspaceBuildService;
     private final PackageService packageService;
+    private final WorkspaceBomPackager bomPackager = new WorkspaceBomPackager();
 
     public WorkspacePackageService() {
         this(new JdkDetector());
@@ -138,6 +140,13 @@ public final class WorkspacePackageService {
             ProjectConfig memberConfig = packageModeOverride
                     .map(mode -> member.config().withPackageSettings(new PackageSettings(mode)))
                     .orElse(member.config());
+            if (memberConfig.packageSettings().mode() == PackageMode.BOM) {
+                // A BOM has no jar; generate its dependencyManagement POM from the family instead.
+                results.add(new WorkspacePackageResult.MemberPackageResult(
+                        member.path(),
+                        bomPackager.packageBom(member, workspace, plan.lockfile(), memberBuild.result())));
+                continue;
+            }
             results.add(new WorkspacePackageResult.MemberPackageResult(
                     member.path(),
                     packageService.packageJar(

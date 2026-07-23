@@ -192,6 +192,12 @@ public final class BuildService {
             Optional<ResolveResult> resolveResult,
             List<ResolvedClasspathPackage> classpathPackages,
             boolean offline) {
+        if (config.packageSettings().mode() == sh.zolt.project.PackageMode.BOM) {
+            // A BOM has no compiled sources; keep it in the build graph for ordering, but skip the
+            // compile wave and produce no class output.
+            return new BuildResult(
+                    resolveResult, 0, 0, projectDirectory.resolve(config.build().output()), "", true);
+        }
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {

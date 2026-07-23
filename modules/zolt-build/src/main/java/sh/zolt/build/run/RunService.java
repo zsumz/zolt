@@ -78,6 +78,11 @@ public final class RunService {
             Path cacheRoot,
             List<String> arguments,
             Consumer<String> outputConsumer) {
+        if (config.packageSettings().mode() == sh.zolt.project.PackageMode.BOM) {
+            throw new RunException(
+                    "Package mode `bom` publishes a dependencyManagement POM and has nothing to run. "
+                            + "Import the BOM from an application module via [platforms] instead.");
+        }
         boolean frameworkRunEnabled = frameworkRunAugmenter.isEnabled(config);
         String mainClass = frameworkRunEnabled
                 ? null

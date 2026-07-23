@@ -33,7 +33,9 @@ public final class PublishCentralBundle {
         Path root = projectRoot.toAbsolutePath().normalize();
         PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
         List<BundleEntry> entries = new ArrayList<>();
-        addFile(entries, root.resolve(plan.artifactPath()).normalize(), plan.artifactUploadPath(), signer);
+        if (!plan.pomOnly()) {
+            addFile(entries, root.resolve(plan.artifactPath()).normalize(), plan.artifactUploadPath(), signer);
+        }
         for (PublishArtifactPlan supplemental : plan.supplementalArtifacts()) {
             addFile(entries, root.resolve(supplemental.path()).normalize(), supplemental.uploadPath(), signer);
         }

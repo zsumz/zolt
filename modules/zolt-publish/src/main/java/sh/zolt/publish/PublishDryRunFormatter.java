@@ -45,9 +45,13 @@ public final class PublishDryRunFormatter {
         output.append("Target repository: ").append(plan.repositoryId()).append('\n');
         output.append("Target URL: ").append(plan.repositoryUrl()).append('\n');
         output.append("Artifact: ").append(plan.artifactId()).append('\n');
-        output.append("Artifact path: ").append(plan.artifactPath()).append('\n');
-        output.append("Artifact checksum: ").append(plan.artifactSha256()).append('\n');
-        output.append("Artifact upload path: ").append(plan.artifactUploadPath()).append('\n');
+        if (plan.pomOnly()) {
+            output.append("Packaging: pom (no archive; the POM is the published artifact)\n");
+        } else {
+            output.append("Artifact path: ").append(plan.artifactPath()).append('\n');
+            output.append("Artifact checksum: ").append(plan.artifactSha256()).append('\n');
+            output.append("Artifact upload path: ").append(plan.artifactUploadPath()).append('\n');
+        }
         if (!plan.supplementalArtifacts().isEmpty()) {
             output.append("Supplemental artifacts:\n");
             for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {

@@ -23,6 +23,16 @@ final class PublishCentralReadiness {
             boolean sourcesJar,
             boolean javadocJar,
             boolean signaturesConfigured) {
+        return evaluate(versionKind, metadata, sourcesJar, javadocJar, signaturesConfigured, false);
+    }
+
+    static List<PublishCentralRequirement> evaluate(
+            String versionKind,
+            PublicationMetadata metadata,
+            boolean sourcesJar,
+            boolean javadocJar,
+            boolean signaturesConfigured,
+            boolean pomPackaging) {
         List<PublishCentralRequirement> requirements = new ArrayList<>();
         requirements.add(requirement(
                 "release version",
@@ -53,14 +63,17 @@ final class PublishCentralReadiness {
                 "scm url and connection",
                 !metadata.scm().isBlank() && !metadata.scmConnection().isBlank(),
                 "Add [package.metadata].scm and [package.metadata].scmConnection."));
-        requirements.add(requirement(
-                "sources jar",
-                sourcesJar,
-                "Set [package].sources = true and re-run zolt package."));
-        requirements.add(requirement(
-                "javadoc jar",
-                javadocJar,
-                "Set [package].javadoc = true and re-run zolt package."));
+        if (!pomPackaging) {
+            // A BOM (pom packaging) has no compiled sources or Javadoc; Central accepts the POM alone.
+            requirements.add(requirement(
+                    "sources jar",
+                    sourcesJar,
+                    "Set [package].sources = true and re-run zolt package."));
+            requirements.add(requirement(
+                    "javadoc jar",
+                    javadocJar,
+                    "Set [package].javadoc = true and re-run zolt package."));
+        }
         requirements.add(requirement(
                 "gpg signatures",
                 signaturesConfigured,

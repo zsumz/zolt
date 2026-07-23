@@ -35,6 +35,7 @@ import sh.zolt.workspace.service.WorkspaceBuildResult;
 import sh.zolt.workspace.WorkspaceConfigException;
 import sh.zolt.workspace.packaging.WorkspacePackageResult;
 import sh.zolt.workspace.packaging.WorkspacePackageService;
+import sh.zolt.workspace.publish.WorkspaceBomPackager;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,7 @@ public final class PackageCommand implements Runnable {
     private final PackageService packageService;
     private final BuildService buildService;
     private final WorkspacePackageService workspacePackageService;
+    private final WorkspaceBomPackager bomPackager = new WorkspaceBomPackager();
     private final CommandLockfiles lockfiles;
     private final CommandPackageResultWriter packageResultWriter;
 
@@ -262,6 +264,10 @@ public final class PackageCommand implements Runnable {
             packageService.preparePackageToolingIfNeeded(projectRoot, config, cacheRoot);
         }
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
+        if (config.packageSettings().mode() == PackageMode.BOM) {
+            runSingleProjectBomPackage(projectRoot, config);
+            return;
+        }
         if (planOnly) {
             PackagePlan packagePlan = timings.measure(
                     "plan package contents",
@@ -304,6 +310,25 @@ public final class PackageCommand implements Runnable {
         }
         printPackageResult(result, "");
         output.provenance(CommandBuildProvenance.read(projectRoot));
+        progress.result("Packaged " + result.jarPath());
+    }
+
+    private void runSingleProjectBomPackage(Path projectRoot, ProjectConfig config) {
+        if (planOnly) {
+            CommandOutput.printAndFlush(spec, "Package mode: bom\nArtifact: "
+                    + config.project().name() + "-" + config.project().version()
+                    + ".pom (dependencyManagement POM; no archive)\n");
+            return;
+        }
+        ProgressWriter progress = CommandProgress.human(spec);
+        progress.start("Packaging BOM");
+        BuildResultWithClasspaths buildResult = buildService
+                .withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "package"))
+                .withBuildCache(CommandBuildCache.service(noBuildCache, false))
+                .buildWithClasspaths(projectRoot, config, cacheRoot, false);
+        // A standalone BOM resolves no workspace family; use zolt package --workspace for a family BOM.
+        PackageResult result = bomPackager.packageStandaloneBom(projectRoot, config, buildResult.buildResult());
+        printPackageResult(result, "");
         progress.result("Packaged " + result.jarPath());
     }
 
