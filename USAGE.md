@@ -609,6 +609,92 @@ mirrored bytes, and the lock keeps the canonical upstream URL, so mirroring is
 transparent to reproducibility. When a toolchain download fails with a network
 error, the remediation names the proxy, CA, and mirror options above.
 
+## Build Cache
+
+Zolt fingerprints every module's compile inputs to skip recompilation when
+nothing changed. That skip-gate is local: a clean checkout or a wiped `target/`
+always recompiles. The build cache stores the compiled output keyed by those
+same fingerprints, so a wiped or fresh checkout **restores** the classes instead
+of recompiling them. It is opt-in and content-addressed.
+
+Correctness beats hit rate: the cache is keyed on everything that determines the
+compiled bytes, and any doubt is a miss that rebuilds. A cache hit is guaranteed
+to produce the same bytes a compile would.
+
+### Enabling it
+
+The build cache is a machine concern, like proxy and CA settings — it never
+affects `zolt.lock` or what gets built, so it lives in `~/.zolt/config.toml`, not
+in a committed `zolt.toml` (a `[buildCache]` table in a project `zolt.toml` is
+rejected). It is disabled by default.
+
+```toml
+# ~/.zolt/config.toml
+version = 1
+
+[buildCache]
+enabled = true
+# Optional. Defaults to ~/.zolt/build-cache.
+dir = "~/.zolt/build-cache"
+# Optional cap in megabytes; the cache is pruned (least-recently-used) to fit.
+# Defaults to 2048.
+maxSizeMb = 2048
+```
+
+When enabled, `zolt build`, `zolt test`, and `zolt package` restore a module's
+compiled classes on a fingerprint miss and store them after a real compile. In a
+workspace each member is cached independently. Restores are reported distinctly:
+
+```text
+✔ Restored 80 main classes · build cache
+```
+
+Pass `--no-build-cache` to any of those commands to bypass the cache for one run
+(neither restore nor store). `--timings` records the per-module cache outcome
+(`restored`, `stored`, or `uncacheable`).
+
+### Inspecting and pruning
+
+```sh
+zolt cache status              # location, entry count, size, and cap
+zolt cache prune               # evict least-recently-used entries to the cap
+zolt cache prune --max-size-mb 512   # prune to a smaller cap for this run
+```
+
+The cache also auto-prunes opportunistically after a store when it exceeds the
+cap.
+
+### The key, and the JDK
+
+The cache key is the inputs-only compile fingerprint (sources, classpath,
+compiler settings, generated sources, resources — everything except the expected
+output classes) plus the compile scope and the resolved JDK identity. The JDK is
+part of the key because `javac` can emit different bytecode across JDK majors even
+for the same `--release`; the on-disk skip-gate does not need it, but a shared
+cache does. Classpath dependencies contribute a content hash of their compiled
+bytes (not their location), so a build keys identically whether a dependency was
+itself compiled or restored, and regardless of where artifacts live on disk.
+
+### Incremental state (v1 tradeoff)
+
+Zolt's warm incremental compiler keeps machine-local state files
+(`.zolt-incremental-*.state`) that record per-source ownership using absolute
+paths. Those are never cached. A restored module therefore has no incremental
+state: the skip-gate works immediately (a no-op rebuild still skips), but the
+**next source edit does one full recompile**, which re-establishes incremental
+state and re-stores the cache entry. Subsequent edits are incremental as usual.
+The build cache is aimed at clean and CI builds; warm incremental development
+stays entirely local, and the cache is not consulted while incremental state is
+present.
+
+### What is never cached
+
+A module whose output is not a pure function of its hashed inputs is excluded
+from the cache entirely (store and restore). Today that means any module with a
+`cache = "none"` exec generated-source step: such a step runs against an oracle
+Zolt cannot hash (a live database, a clock, the network), so its output is not
+reproducible. Over-approximating this taint is the safe direction.
+
 ## Workspaces
 
 Workspace roots describe member projects and default selections:
