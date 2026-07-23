@@ -222,6 +222,12 @@ public final class MavenStaticProjectInspector {
                         "Plugin `" + plugin.coordinate() + "` declares framework AOT/native behavior that Zolt does not execute as Maven lifecycle behavior; migrate supported cases to typed Zolt framework settings."));
             } else if (!plugin.execInvocations().isEmpty()) {
                 signals.addAll(MavenExecPluginSignals.signals(project, plugin));
+            } else if (plugin.databaseBackedCodegen()) {
+                signals.add(ExplainSignals.MAVEN_PLUGIN_EXEC_NONDETERMINISTIC.signal(
+                        project,
+                        "Plugin `" + plugin.coordinate() + "` generates from a live database"
+                                + MavenSignalRules.phaseSuffix(plugin)
+                                + ", so its output is not reproducible from committed inputs."));
             } else if (MavenSignalRules.knownPlugin(plugin.coordinate()) && (!plugin.phases().isEmpty() || !plugin.goals().isEmpty())) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,

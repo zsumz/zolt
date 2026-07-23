@@ -34,6 +34,32 @@ final class MavenExecConfigParser {
         return kind(artifactId) != null;
     }
 
+    /**
+     * Detects a codegen plugin whose output depends on a live database rather than committed files:
+     * {@code flyway-maven-plugin} always, and {@code jooq-codegen-maven} when its configuration reads
+     * from a {@code <jdbc><url>} (jOOQ can instead generate from committed DDL, which stays reproducible).
+     */
+    static boolean databaseBacked(String artifactId, Element plugin, List<Element> executions) {
+        String normalized = artifactId.toLowerCase();
+        if (normalized.contains("flyway-maven-plugin")) {
+            return true;
+        }
+        if (!normalized.equals("jooq-codegen-maven")) {
+            return false;
+        }
+        if (hasJdbcUrl(child(plugin, "configuration"))) {
+            return true;
+        }
+        return executions.stream().anyMatch(execution -> hasJdbcUrl(child(execution, "configuration")));
+    }
+
+    private static boolean hasJdbcUrl(Optional<Element> configuration) {
+        return configuration
+                .flatMap(config -> child(config, "jdbc"))
+                .flatMap(jdbc -> text(jdbc, "url"))
+                .isPresent();
+    }
+
     static List<MavenExecInvocation> invocations(
             String artifactId,
             Element plugin,

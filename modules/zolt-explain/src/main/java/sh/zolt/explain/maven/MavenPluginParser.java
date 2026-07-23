@@ -53,7 +53,8 @@ final class MavenPluginParser {
                     goals(executions, properties),
                     disabledExecutions(executions, properties),
                     pluginManagement,
-                    MavenExecConfigParser.invocations(artifactId, plugin, executions, properties)));
+                    MavenExecConfigParser.invocations(artifactId, plugin, executions, properties),
+                    MavenExecConfigParser.databaseBacked(artifactId, plugin, executions)));
         }
         return plugins;
     }

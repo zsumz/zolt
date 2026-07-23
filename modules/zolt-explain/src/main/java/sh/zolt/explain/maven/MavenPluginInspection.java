@@ -8,7 +8,8 @@ public record MavenPluginInspection(
         List<String> goals,
         List<String> disabledExecutions,
         boolean pluginManagement,
-        List<MavenExecInvocation> execInvocations) {
+        List<MavenExecInvocation> execInvocations,
+        boolean databaseBackedCodegen) {
     public MavenPluginInspection {
         phases = List.copyOf(phases);
         goals = List.copyOf(goals);
@@ -21,8 +22,18 @@ public record MavenPluginInspection(
             List<String> phases,
             List<String> goals,
             List<String> disabledExecutions,
+            boolean pluginManagement,
+            List<MavenExecInvocation> execInvocations) {
+        this(coordinate, phases, goals, disabledExecutions, pluginManagement, execInvocations, false);
+    }
+
+    public MavenPluginInspection(
+            String coordinate,
+            List<String> phases,
+            List<String> goals,
+            List<String> disabledExecutions,
             boolean pluginManagement) {
-        this(coordinate, phases, goals, disabledExecutions, pluginManagement, List.of());
+        this(coordinate, phases, goals, disabledExecutions, pluginManagement, List.of(), false);
     }
 
     public MavenPluginInspection(
@@ -30,10 +41,10 @@ public record MavenPluginInspection(
             List<String> phases,
             List<String> goals,
             boolean pluginManagement) {
-        this(coordinate, phases, goals, List.of(), pluginManagement, List.of());
+        this(coordinate, phases, goals, List.of(), pluginManagement, List.of(), false);
     }
 
     public MavenPluginInspection(String coordinate, List<String> phases, boolean pluginManagement) {
-        this(coordinate, phases, List.of(), List.of(), pluginManagement, List.of());
+        this(coordinate, phases, List.of(), List.of(), pluginManagement, List.of(), false);
     }
 }

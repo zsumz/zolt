@@ -271,7 +271,9 @@ public final class MavenMigrationReadinessFindings {
                     "Maven generated-source plugin",
                     "[generatedSources]",
                     "",
-                    "Model generated sources as typed Zolt generated-source steps with explicit inputs and outputs.");
+                    "Model generated sources as typed Zolt generated-source steps: the openapi/protobuf built-ins,"
+                            + " or a jvm exec tool under [generated.execTools] (using the plugin's own dependency"
+                            + " coordinates) with explicit inputs and output.");
         }
         return MigrationReadinessFindings.finding(
                 "ci",
