@@ -52,7 +52,8 @@ final class MavenPluginParser {
                     phases(artifactId, executions, properties),
                     goals(executions, properties),
                     disabledExecutions(executions, properties),
-                    pluginManagement));
+                    pluginManagement,
+                    MavenExecConfigParser.invocations(artifactId, plugin, executions, properties)));
         }
         return plugins;
     }
