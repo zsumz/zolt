@@ -16,7 +16,8 @@ import org.tomlj.TomlTable;
 public final class ToolchainSectionCodec {
     private static final Set<String> TOOLCHAIN_KEYS = Set.of("zolt", "java");
     private static final Set<String> ZOLT_KEYS = Set.of("version");
-    private static final Set<String> JAVA_KEYS = Set.of("version", "distribution", "features", "policy");
+    private static final Set<String> JAVA_KEYS = Set.of("version", "distribution", "features", "policy", "test");
+    private static final Set<String> JAVA_TEST_KEYS = Set.of("version", "distribution");
 
     private ToolchainSectionCodec() {
     }
@@ -60,10 +61,44 @@ public final class ToolchainSectionCodec {
         validateKeys("toolchain.java", java, JAVA_KEYS, sourceName);
 
         String version = requiredString(java, "toolchain.java", "version", sourceName);
-        Optional<JavaDistribution> distribution = optionalDistribution(java, sourceName);
+        Optional<JavaDistribution> distribution = optionalDistribution(java, "toolchain.java", sourceName);
         Set<JavaFeature> features = features(java, sourceName);
         ToolchainPolicy policy = optionalPolicy(java, sourceName).orElse(ToolchainPolicy.PREFER_MANAGED);
         return Optional.of(new JavaToolchainRequest(version, distribution, features, policy));
+    }
+
+    /**
+     * Parses the optional {@code [toolchain.java.test]} scoped entry that pins the JDK used to
+     * <em>run</em> tests (compile stays on the main toolchain). It sets its own {@code version}
+     * (and optional {@code distribution}), inheriting {@code features} and {@code policy} from the
+     * main {@code [toolchain.java]} entry, so an equal-version entry is byte-identical to the main
+     * request and resolves to the same locked toolchain.
+     */
+    public static Optional<JavaToolchainRequest> parseJavaTestToolchain(
+            TomlParseResult result, String sourceName, JavaToolchainRequest main) {
+        TomlTable toolchain = result.getTable("toolchain");
+        if (toolchain == null) {
+            return Optional.empty();
+        }
+        TomlTable java = nestedTable(toolchain, "java", "[toolchain].java", sourceName);
+        if (java == null) {
+            return Optional.empty();
+        }
+        TomlTable test = nestedTable(java, "test", "[toolchain.java].test", sourceName);
+        if (test == null) {
+            return Optional.empty();
+        }
+        validateKeys("toolchain.java.test", test, JAVA_TEST_KEYS, sourceName);
+        if (main == null) {
+            throw new ZoltConfigException(
+                    "[toolchain.java.test] needs a [toolchain.java] entry to inherit from in "
+                            + sourceName
+                            + ". Add [toolchain.java] with version and distribution.");
+        }
+        String version = requiredString(test, "toolchain.java.test", "version", sourceName);
+        Optional<JavaDistribution> distribution =
+                optionalDistribution(test, "toolchain.java.test", sourceName).or(main::distribution);
+        return Optional.of(new JavaToolchainRequest(version, distribution, main.features(), main.policy()));
     }
 
     private static void validateKeys(String section, TomlTable table, Set<String> allowedKeys, String sourceName) {
@@ -120,13 +155,13 @@ public final class ToolchainSectionCodec {
         return Optional.of(value.strip());
     }
 
-    private static Optional<JavaDistribution> optionalDistribution(TomlTable table, String sourceName) {
-        Optional<String> raw = optionalString(table, "toolchain.java", "distribution", sourceName);
+    private static Optional<JavaDistribution> optionalDistribution(TomlTable table, String section, String sourceName) {
+        Optional<String> raw = optionalString(table, section, "distribution", sourceName);
         if (raw.isEmpty()) {
             return Optional.empty();
         }
         return Optional.of(JavaDistribution.fromId(raw.orElseThrow()).orElseThrow(() -> new ZoltConfigException(
-                "Unsupported value for [toolchain.java].distribution in "
+                "Unsupported value for [" + section + "].distribution in "
                         + sourceName
                         + ": `"
                         + raw.orElseThrow()
