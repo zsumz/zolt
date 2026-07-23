@@ -57,6 +57,7 @@ import picocli.CommandLine.Spec;
                 sh.zolt.cli.command.self.SelfCommand.class,
                 UpdateCommand.class,
                 ConfigCommand.class,
+                sh.zolt.cli.command.cache.CacheCommand.class,
                 CheckCommand.class,
                 AddCommand.class,
                 RemoveCommand.class,

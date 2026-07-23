@@ -105,6 +105,10 @@ public final class ConfigCommand implements Runnable {
                     "network.toolchainMirror",
                     config.network().toolchainMirror().orElse("none")
                             + " (source: " + config.sources().networkToolchainMirror() + ")");
+            output.context("buildCache.enabled", Boolean.toString(config.buildCache().enabled()));
+            output.context(
+                    "buildCache.dir",
+                    config.buildCache().directory().map(Path::toString).orElse("none"));
             output.context("local overlay CI policy", "reject with --no-local-overlays or zolt check --context ci");
             output.context(
                     "redaction",
