@@ -23,14 +23,22 @@ final class CommandServiceBundlesTest {
                 () -> new CommandCoverageServices(
                         null,
                         services.coverageService(),
-                        services.workspaceCoverageService()),
+                        services.workspaceCoverageService(),
+                        services.coverageServiceFactory()),
                 () -> new CommandCoverageServices(
                         services.tomlParser(),
                         null,
-                        services.workspaceCoverageService()),
+                        services.workspaceCoverageService(),
+                        services.coverageServiceFactory()),
                 () -> new CommandCoverageServices(
                         services.tomlParser(),
                         services.coverageService(),
+                        null,
+                        services.coverageServiceFactory()),
+                () -> new CommandCoverageServices(
+                        services.tomlParser(),
+                        services.coverageService(),
+                        services.workspaceCoverageService(),
                         null));
     }
 

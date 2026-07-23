@@ -48,6 +48,7 @@ public final class CoverageCommand implements Runnable {
     private final ZoltTomlParser tomlParser;
     private final CoverageService coverageService;
     private final WorkspaceCoverageService workspaceCoverageService;
+    private final CommandServiceBundles.CoverageServiceFactory coverageServiceFactory;
 
     @Option(names = "--workspace", description = "Run coverage for workspace members and write aggregate reports.")
     private boolean workspace;
@@ -103,6 +104,9 @@ public final class CoverageCommand implements Runnable {
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
 
+    @Mixin
+    private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
+
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
@@ -120,16 +124,19 @@ public final class CoverageCommand implements Runnable {
         this(
                 services.tomlParser(),
                 services.coverageService(),
-                services.workspaceCoverageService());
+                services.workspaceCoverageService(),
+                services.coverageServiceFactory());
     }
 
     CoverageCommand(
             ZoltTomlParser tomlParser,
             CoverageService coverageService,
-            WorkspaceCoverageService workspaceCoverageService) {
+            WorkspaceCoverageService workspaceCoverageService,
+            CommandServiceBundles.CoverageServiceFactory coverageServiceFactory) {
         this.tomlParser = tomlParser;
         this.coverageService = coverageService;
         this.workspaceCoverageService = workspaceCoverageService;
+        this.coverageServiceFactory = coverageServiceFactory;
     }
 
     @Override
@@ -151,10 +158,14 @@ public final class CoverageCommand implements Runnable {
             ProjectConfig config = timings.measure(
                     "config read",
                     () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+            var compileChecker = toolchainOptions.jdkChecker(projectRoot, config, "coverage");
+            CoverageService projectCoverageService = coverageServiceFactory.create(
+                    compileChecker,
+                    toolchainOptions.testRuntimeRunChecker(projectRoot, config, compileChecker));
             CoverageReportSettings reportSettings = coverageReportSettings(Path.of(config.build().outputRoot()));
             CoverageResult result = timings.measure(
                     "run coverage",
-                    () -> coverageService.runCoverage(
+                    () -> projectCoverageService.runCoverage(
                             projectRoot,
                             config,
                             cacheRoot,

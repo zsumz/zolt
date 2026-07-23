@@ -28,14 +28,22 @@ public final class CommandServiceBundles {
     private CommandServiceBundles() {
     }
 
+    @FunctionalInterface
+    public interface CoverageServiceFactory {
+        /** Creates a coverage service that instruments tests run with {@code runChecker} and reports with {@code compileChecker}. */
+        CoverageService create(JdkChecker compileChecker, JdkChecker runChecker);
+    }
+
     public record CommandCoverageServices(
             ZoltTomlParser tomlParser,
             CoverageService coverageService,
-            WorkspaceCoverageService workspaceCoverageService) {
+            WorkspaceCoverageService workspaceCoverageService,
+            CoverageServiceFactory coverageServiceFactory) {
         public CommandCoverageServices {
             Objects.requireNonNull(tomlParser, "tomlParser");
             Objects.requireNonNull(coverageService, "coverageService");
             Objects.requireNonNull(workspaceCoverageService, "workspaceCoverageService");
+            Objects.requireNonNull(coverageServiceFactory, "coverageServiceFactory");
         }
     }
 

@@ -226,10 +226,14 @@ public final class CommandFrameworkServices {
     }
 
     public static CommandCoverageServices coverageCommandServices() {
+        CommandTestFrameworkServices testFrameworkServices = testFrameworkServices();
         return new CommandCoverageServices(
                 new ZoltTomlParser(),
                 new CoverageService(),
-                new WorkspaceCoverageService());
+                new WorkspaceCoverageService(),
+                (compileChecker, runChecker) -> new CoverageService(
+                        testRunService(testFrameworkServices, compileChecker, runChecker),
+                        compileChecker));
     }
 
     static WorkspaceRunPackageService workspaceRunPackageService() {
