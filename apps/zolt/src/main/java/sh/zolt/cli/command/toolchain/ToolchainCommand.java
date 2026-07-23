@@ -140,6 +140,9 @@ public final class ToolchainCommand implements Runnable {
         }
 
         private void printTestRuntimeStatus(Path projectRoot) {
+            if (toolchainConfigReader.readJavaTest(projectRoot.resolve("zolt.toml")).isEmpty()) {
+                return;
+            }
             ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
             new TestRuntimeToolchainResolver()
                     .resolve(
