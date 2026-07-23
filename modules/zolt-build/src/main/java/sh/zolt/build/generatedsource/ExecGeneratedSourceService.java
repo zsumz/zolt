@@ -12,6 +12,7 @@ import sh.zolt.doctor.JdkDetector;
 import sh.zolt.doctor.JdkStatus;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.project.ProducesLane;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectPaths;
 import java.io.ByteArrayOutputStream;
@@ -116,6 +117,9 @@ public final class ExecGeneratedSourceService {
         Path root = ProjectPaths.root(projectDirectory);
         String outputRoot = config.build().outputRoot();
         List<GeneratedSourceStep> ordered = ExecStepScheduler.order(root, outputRoot, scope, execSteps);
+        // Structural lane check across both phases up front, so a post-compile step that produces sources
+        // fails with a clear cycle error before source discovery reports a confusing "root missing".
+        validateLaneStructure(root, outputRoot, scope, ordered);
         List<GeneratedSourceStep> phaseSteps = ordered.stream()
                 .filter(step -> phase.matches(ExecStepClassification.isPostCompile(step, root, outputRoot)))
                 .toList();
@@ -125,6 +129,23 @@ public final class ExecGeneratedSourceService {
         StepContext context = prepareContext(root, config, packages, scope, phaseSteps);
         for (GeneratedSourceStep step : phaseSteps) {
             generateStep(context, step, offline);
+        }
+    }
+
+    private static void validateLaneStructure(
+            Path root, String outputRoot, String scope, List<GeneratedSourceStep> steps) {
+        for (GeneratedSourceStep step : steps) {
+            if (!ExecStepClassification.isPostCompile(step, root, outputRoot)) {
+                continue;
+            }
+            ProducesLane produces = step.exec().produces();
+            if (produces == ProducesLane.JAVA_SOURCES || produces == ProducesLane.TEST_SOURCES) {
+                throw BuildException.actionable(
+                        "Exec step [generated." + scope + "." + step.id() + "] runs after compilation (project runner "
+                                + "or an input under compiled classes) but produces " + produces.configValue()
+                                + ", which would feed that same compile.",
+                        "Post-compile steps may only produce resources, test-resources, or intermediate.");
+            }
         }
     }
 
@@ -322,7 +343,7 @@ public final class ExecGeneratedSourceService {
         }
     }
 
-    private static ProcessResult runProcess(
+    static ProcessResult runProcess(
             List<String> command, Path directory, Map<String, String> environment, Duration timeout) {
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(command)

@@ -186,6 +186,107 @@ final class ExecGeneratedSourceServiceTest {
         assertTrue(exception.getMessage().contains("does not exist"), exception.getMessage());
     }
 
+    @Test
+    void cacheNoneAlwaysRunsAndIsRejectedUnderOffline() throws IOException {
+        writeProjectFiles(projectDir);
+        List<List<String>> commands = new ArrayList<>();
+        ExecGeneratedSourceService service = service(projectDir, generatingRunner(commands));
+        var config = config("args = [\"src/main/jooq/config.xml\"]\ncache = \"none\"");
+
+        service.generateMain(projectDir, config, packages(projectDir));
+        service.generateMain(projectDir, config, packages(projectDir));
+        assertEquals(2, commands.size(), "cache = \"none\" must always run, never skip");
+
+        BuildException offline = assertThrows(
+                BuildException.class, () -> service.generateMain(projectDir, config, packages(projectDir), true));
+        assertTrue(offline.getMessage().contains("--offline"), offline.getMessage());
+    }
+
+    @Test
+    void intermediateLaneStepChainsIntoConsumerInDerivedOrder() throws IOException {
+        writeProjectFiles(projectDir);
+        Files.createDirectories(projectDir.resolve("web"));
+        Files.writeString(projectDir.resolve("web/package.json"), "{}\n");
+        List<String> order = new ArrayList<>();
+        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment, timeout) -> {
+            order.add(environment.get("ZOLT_STEP_ID"));
+            try {
+                Path output = Path.of(environment.get("ZOLT_OUTPUT_DIR"));
+                Files.createDirectories(output);
+                Files.writeString(output.resolve("out.txt"), "x\n");
+            } catch (IOException exception) {
+                throw new AssertionError(exception);
+            }
+            return new ExecGeneratedSourceService.ProcessResult(0, "ok\n", false);
+        });
+
+        service.generateMain(projectDir, npmChainConfig(), packages(projectDir));
+
+        assertEquals(List.of("install", "build"), order);
+    }
+
+    @Test
+    void postCompileProjectStepProducingSourcesIsBlocked() throws IOException {
+        writeProjectFiles(projectDir);
+
+        BuildException exception = assertThrows(
+                BuildException.class,
+                () -> service(projectDir, generatingRunner(new ArrayList<>()))
+                        .generateMain(projectDir, projectSourcesConfig(), packages(projectDir)));
+
+        assertTrue(exception.getMessage().contains("Post-compile steps may only produce"), exception.getMessage());
+    }
+
+    private static sh.zolt.project.ProjectConfig npmChainConfig() {
+        return new sh.zolt.toml.ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                jooq = "3.19.15"
+
+                [generated.execTools.t]
+                runner = "jvm"
+                coordinates = [{ coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" }]
+                mainClass = "com.example.GenerationTool"
+
+                [generated.main.build]
+                kind = "exec"
+                tool = "t"
+                inputs = ["web/node_modules"]
+                output = "web/dist"
+                produces = "resources"
+
+                [generated.main.install]
+                kind = "exec"
+                tool = "t"
+                inputs = ["web/package.json"]
+                output = "web/node_modules"
+                produces = "intermediate"
+                """);
+    }
+
+    private static sh.zolt.project.ProjectConfig projectSourcesConfig() {
+        return new sh.zolt.toml.ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.gen]
+                kind = "exec"
+                tool = "project"
+                mainClass = "com.example.Gen"
+                inputs = ["target/classes"]
+                output = "target/generated/sources/gen"
+                produces = "java-sources"
+                """);
+    }
+
     private static sh.zolt.project.ProjectConfig twoStepChainConfig() {
         return new sh.zolt.toml.ZoltTomlParser().parse("""
                 [project]

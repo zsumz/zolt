@@ -4,9 +4,11 @@ import sh.zolt.dependency.DependencyScope;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.project.GeneratedSourceKind;
+import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.ProjectConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
 
 /**
  * Decides whether a project declares OpenAPI or exec generated sources whose tooling is absent from
@@ -42,7 +44,7 @@ final class GeneratedSourceToolingGate {
                 lockfileReader,
                 projectDirectory,
                 offline,
-                hasKind(config, GeneratedSourceKind.EXEC),
+                hasJvmExecStep(config),
                 DependencyScope.TOOL_EXEC,
                 "Exec generation requires locked tool artifacts in scope `tool-exec`, "
                         + "but zolt.lock does not contain them.",
@@ -79,5 +81,14 @@ final class GeneratedSourceToolingGate {
     private static boolean hasKind(ProjectConfig config, GeneratedSourceKind kind) {
         return config.build().generatedMainSources().stream().anyMatch(step -> step.kind() == kind)
                 || config.build().generatedTestSources().stream().anyMatch(step -> step.kind() == kind);
+    }
+
+    /** Only jvm-runner exec steps resolve into tool-exec; process/project steps need no locked tooling. */
+    private static boolean hasJvmExecStep(ProjectConfig config) {
+        return Stream.concat(
+                        config.build().generatedMainSources().stream(),
+                        config.build().generatedTestSources().stream())
+                .anyMatch(step -> step.kind() == GeneratedSourceKind.EXEC
+                        && "jvm".equals(step.exec().tool().runner()));
     }
 }

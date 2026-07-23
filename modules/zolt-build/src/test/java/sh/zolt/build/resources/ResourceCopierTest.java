@@ -5,14 +5,59 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.ExecGenerationSettings;
+import sh.zolt.project.ExecToolSettings;
+import sh.zolt.project.GeneratedSourceKind;
+import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.project.OpenApiGenerationSettings;
+import sh.zolt.project.ProducesLane;
+import sh.zolt.project.ProtobufGenerationSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class ResourceCopierTest extends ResourceCopierTestSupport {
     private final ResourceCopier copier = new ResourceCopier();
+
+    @Test
+    void copiesExecTestResourcesUnderIntoSubtree() throws IOException {
+        Files.createDirectories(projectDir.resolve("target/generated/test-fixtures"));
+        Files.writeString(projectDir.resolve("target/generated/test-fixtures/seed.json"), "{}\n");
+        BuildSettings settings = BuildSettings.defaults().withGeneratedSources(List.of(), List.of(execTestResourceStep()));
+
+        ResourceCopyResult result = copier.copyTestResources(projectDir, settings);
+
+        Path copied = projectDir.resolve("target/test-classes/data/seed.json");
+        assertTrue(Files.exists(copied), "test-resources lane output must join the test resource copy under into");
+        assertEquals("{}\n", Files.readString(copied));
+        assertEquals(1, result.copiedCount());
+    }
+
+    private static GeneratedSourceStep execTestResourceStep() {
+        ExecGenerationSettings exec = new ExecGenerationSettings(
+                "project",
+                ExecToolSettings.project("com.example.Fixtures"),
+                List.of(),
+                ProducesLane.TEST_RESOURCES,
+                Optional.of("data"),
+                Map.of(),
+                "content");
+        return new GeneratedSourceStep(
+                "fixtures",
+                GeneratedSourceKind.EXEC,
+                "java",
+                "target/generated/test-fixtures",
+                List.of("target/test-classes"),
+                true,
+                true,
+                OpenApiGenerationSettings.empty(),
+                ProtobufGenerationSettings.empty(),
+                exec);
+    }
 
     @Test
     void copiesMainResourcesDeterministicallyPreservingRelativePaths() throws IOException {

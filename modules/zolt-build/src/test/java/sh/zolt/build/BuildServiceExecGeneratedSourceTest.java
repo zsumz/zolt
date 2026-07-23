@@ -117,6 +117,67 @@ final class BuildServiceExecGeneratedSourceTest {
         assertFalse(afterOutputChange.mainCompilationSkipped());
     }
 
+    @Test
+    void projectPseudoToolRunsAfterCompileAndItsResourceIsCopied() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        source("src/main/java/com/example/Gen.java", """
+                package com.example;
+
+                import java.nio.file.Files;
+                import java.nio.file.Path;
+
+                public final class Gen {
+                    public static void main(String[] args) throws Exception {
+                        Path out = Path.of(System.getenv("ZOLT_OUTPUT_DIR")).resolve("generated.properties");
+                        Files.createDirectories(out.getParent());
+                        Files.writeString(out, "from=project-classes\\n");
+                    }
+                }
+                """);
+        ProjectConfig config = configWith(projectResourceStep(ProducesLane.RESOURCES));
+
+        buildService.build(projectDir, config, projectDir.resolve("cache"));
+
+        Path copied = projectDir.resolve("target/classes/config/generated.properties");
+        assertTrue(Files.exists(copied), "post-compile project resource must be copied into the package output");
+        assertEquals("from=project-classes\n", Files.readString(copied));
+    }
+
+    @Test
+    void projectStepProducingSourcesIsBlockedBeforeCompile() throws IOException {
+        writeLockfile("version = 1\n");
+        source("src/main/java/com/example/Main.java", "package com.example; public final class Main {}\n");
+        ProjectConfig config = configWith(projectResourceStep(ProducesLane.JAVA_SOURCES));
+
+        RuntimeException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class, () -> buildService.build(projectDir, config, projectDir.resolve("cache")));
+
+        assertTrue(exception.getMessage().contains("Post-compile steps may only produce"), exception.getMessage());
+    }
+
+    private static GeneratedSourceStep projectResourceStep(ProducesLane produces) {
+        ExecGenerationSettings exec = new ExecGenerationSettings(
+                "project",
+                ExecToolSettings.project("com.example.Gen"),
+                List.of(),
+                produces,
+                produces == ProducesLane.RESOURCES ? Optional.of("config") : Optional.empty(),
+                Map.of(),
+                "content");
+        return new GeneratedSourceStep(
+                "gen",
+                GeneratedSourceKind.EXEC,
+                "java",
+                "target/generated/resources/gen",
+                List.of("target/classes"),
+                true,
+                true,
+                OpenApiGenerationSettings.empty(),
+                ProtobufGenerationSettings.empty(),
+                exec);
+    }
+
     private void seedToolAndLock() throws IOException {
         Path jar = ExecToolJarFixture.generatorJar(projectDir.resolve("fixture-work"));
         Path cachedJar = projectDir.resolve("cache/com/example/gen-tool/1.0.0/gen-tool-1.0.0.jar");
