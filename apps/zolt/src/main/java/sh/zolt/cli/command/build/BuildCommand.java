@@ -12,6 +12,7 @@ import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.CommandProgress;
 import sh.zolt.cli.ZoltCli;
+import sh.zolt.cli.command.CommandBuildCache;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandBuildProvenance;
 import sh.zolt.cli.command.CommandFrameworkServices;
@@ -73,6 +74,11 @@ public final class BuildCommand implements Runnable {
 
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
+
+    @Option(
+            names = "--no-build-cache",
+            description = "Bypass the build-output cache for this run (neither restore nor store).")
+    private boolean noBuildCache;
 
     @Mixin
     private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
@@ -144,6 +150,13 @@ public final class BuildCommand implements Runnable {
                 for (WorkspaceBuildResult.MemberBuildResult member : result.members()) {
                     if (member.result().mainCompilationSkipped()) {
                         output.detail("Skipped main compilation in " + member.member() + "; inputs are unchanged");
+                    } else if (member.result().mainCompilationRestored()) {
+                        output.detail(
+                                "Restored "
+                                        + member.result().mainRestoredClassCount()
+                                        + " main classes in "
+                                        + member.member()
+                                        + " (build cache)");
                     } else {
                         output.detail(
                                 "Compiled "
@@ -175,17 +188,24 @@ public final class BuildCommand implements Runnable {
             output.work("Building " + config.project().name());
             BuildResult result = timings.measure(
                     "compile main",
-                    () -> buildService.withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "build")).build(
-                            projectRoot,
-                            config,
-                            cacheRoot,
-                            offline),
+                    () -> buildService
+                            .withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "build"))
+                            .withBuildCache(CommandBuildCache.service(noBuildCache))
+                            .build(
+                                    projectRoot,
+                                    config,
+                                    cacheRoot,
+                                    offline),
                     CommandBuildAttributes::build);
             if (result.resolvedLockfile()) {
                 output.detail("Resolved dependencies because zolt.lock was missing");
             }
             if (result.mainCompilationSkipped()) {
                 output.detail("Skipped main compilation; inputs are unchanged");
+            } else if (result.mainCompilationRestored()) {
+                output.summary(
+                        "Restored " + result.mainRestoredClassCount() + " main classes",
+                        "build cache");
             } else if (result.resourceCount() > 0) {
                 output.summary(
                         "Compiled " + result.sourceCount() + " main source files",

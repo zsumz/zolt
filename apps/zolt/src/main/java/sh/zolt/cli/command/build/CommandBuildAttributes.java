@@ -22,6 +22,8 @@ public final class CommandBuildAttributes {
         attributes.put(CommandAttributeKeys.RESOLVED_LOCKFILE, Boolean.toString(result.resolvedLockfile()));
         attributes.put(CommandAttributeKeys.MAIN_COMPILATION_SKIPPED, Boolean.toString(result.mainCompilationSkipped()));
         attributes.put(CommandAttributeKeys.MAIN_COMPILATION_MODE, result.mainCompilationMode());
+        attributes.put(CommandAttributeKeys.MAIN_BUILD_CACHE_OUTCOME, result.mainBuildCacheOutcome());
+        attributes.put(CommandAttributeKeys.MAIN_RESTORED_CLASSES, Integer.toString(result.mainRestoredClassCount()));
         attributes.put(CommandAttributeKeys.MAIN_INCREMENTAL_FALLBACK_REASON, result.mainIncrementalFallbackReason());
         addMainCompileDiagnostics(attributes, result.mainCompileDiagnostics());
         addMainFingerprintAttributes(attributes, result);

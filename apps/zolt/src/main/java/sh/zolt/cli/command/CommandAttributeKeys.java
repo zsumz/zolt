@@ -48,6 +48,8 @@ public final class CommandAttributeKeys {
     public static final String LOCKFILE_WRITE_NANOS = "lockfileWriteNanos";
     public static final String MAIN_CLASS = "mainClass";
     public static final String MAIN_COMPILATION_MODE = "mainCompilationMode";
+    public static final String MAIN_BUILD_CACHE_OUTCOME = "mainBuildCacheOutcome";
+    public static final String MAIN_RESTORED_CLASSES = "mainRestoredClasses";
     public static final String MAIN_COMPILATION_SKIPPED = "mainCompilationSkipped";
     public static final String MAIN_COMPILATIONS_EXECUTED = "mainCompilationsExecuted";
     public static final String MAIN_COMPILATIONS_SKIPPED = "mainCompilationsSkipped";

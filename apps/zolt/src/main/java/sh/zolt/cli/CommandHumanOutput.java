@@ -182,7 +182,7 @@ public final class CommandHumanOutput {
             case SUCCESS -> style.success(text);
             case DETAIL -> switch (text) {
                 case "Wrote", "Verified", "Included", "Copied", "Generated", "Ran", "Compiled", "Unpacked",
-                        "Downloaded", "Skipped", "Preserved" -> style.success(text);
+                        "Downloaded", "Skipped", "Preserved", "Restored" -> style.success(text);
                 default -> text;
             };
         };

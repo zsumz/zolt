@@ -21,7 +21,8 @@ public final class UserGlobalConfigParser {
             "repositoryOverlays",
             "defaults",
             "ui",
-            "network");
+            "network",
+            "buildCache");
     private static final Set<String> REJECTED_TOP_LEVEL_KEYS = Set.of(
             "repositories",
             "repositoryCredentials",
@@ -42,6 +43,8 @@ public final class UserGlobalConfigParser {
     private static final Set<String> OVERLAY_KEYS = Set.of("kind", "enabled");
     private static final Set<String> UI_KEYS = Set.of("color", "progress");
     private static final Set<String> NETWORK_KEYS = Set.of("caBundle", "toolchainMirror");
+    private static final Set<String> BUILD_CACHE_KEYS = Set.of("enabled", "dir", "maxSizeMb");
+    private static final int DEFAULT_BUILD_CACHE_MAX_SIZE_MB = 2048;
     private static final Set<String> EXECUTION_LANES = Set.of("platform", "serial");
     private static final Set<String> UI_MODES = Set.of("auto", "always", "never");
 
@@ -80,9 +83,27 @@ public final class UserGlobalConfigParser {
                 UserGlobalToolchainDefaultsParser.parse(optionalTable(result, "defaults"));
         UiConfig ui = ui(optionalTable(result, "ui"), defaults.ui());
         NetworkConfig network = network(optionalTable(result, "network"), normalizedPath, defaults.network());
+        BuildCacheConfig buildCache = buildCache(optionalTable(result, "buildCache"), normalizedPath);
         UserGlobalConfigSources sources = sources(result, defaults.sources());
         return new UserGlobalConfig(
-                version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, network, sources);
+                version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, network,
+                buildCache, sources);
+    }
+
+    private static BuildCacheConfig buildCache(TomlTable table, Path configPath) {
+        if (table == null) {
+            return BuildCacheConfig.disabled();
+        }
+        validateKeys("buildCache", table, BUILD_CACHE_KEYS);
+        if (!booleanOrDefault(table, "buildCache", "enabled", false)) {
+            return BuildCacheConfig.disabled();
+        }
+        String rawDir = stringOrNull(table, "buildCache", "dir");
+        Path directory = rawDir != null
+                ? resolveConfigRelativePath(rawDir, configPath)
+                : expandUserHome(Path.of("~/.zolt/build-cache"));
+        int maxSizeMb = positiveIntOrDefault(table, "buildCache", "maxSizeMb", DEFAULT_BUILD_CACHE_MAX_SIZE_MB);
+        return new BuildCacheConfig(true, Optional.of(directory), (long) maxSizeMb * 1024L * 1024L);
     }
 
     private static NetworkConfig network(TomlTable table, Path configPath, NetworkConfig defaultValue) {

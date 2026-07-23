@@ -129,6 +129,53 @@ final class UserGlobalConfigParserTest {
     }
 
     @Test
+    void parsesBuildCacheSection() throws IOException {
+        Path configPath = tempDir.resolve("zolt/config.toml");
+        Files.createDirectories(configPath.getParent());
+        Files.writeString(configPath, """
+                version = 1
+
+                [buildCache]
+                enabled = true
+                dir = "build-cache"
+                maxSizeMb = 512
+                """);
+
+        UserGlobalConfig config = new UserGlobalConfigParser().read(configPath);
+
+        assertTrue(config.buildCache().enabled());
+        assertEquals(
+                configPath.getParent().resolve("build-cache").toAbsolutePath().normalize(),
+                config.buildCache().directory().orElseThrow());
+        assertEquals(512L * 1024L * 1024L, config.buildCache().maxSizeBytes());
+    }
+
+    @Test
+    void buildCacheEnabledDefaultsDirAndCap() throws IOException {
+        Path configPath = tempDir.resolve("zolt/config.toml");
+        Files.createDirectories(configPath.getParent());
+        Files.writeString(configPath, """
+                version = 1
+
+                [buildCache]
+                enabled = true
+                """);
+
+        UserGlobalConfig config = new UserGlobalConfigParser().read(configPath);
+
+        assertTrue(config.buildCache().enabled());
+        assertTrue(config.buildCache().directory().orElseThrow().endsWith(Path.of(".zolt", "build-cache")));
+        assertEquals(2048L * 1024L * 1024L, config.buildCache().maxSizeBytes());
+    }
+
+    @Test
+    void buildCacheAbsentOrDisabledIsOff() {
+        UserGlobalConfig absent = new UserGlobalConfigParser().read(tempDir.resolve("absent.toml"));
+        assertFalse(absent.buildCache().enabled());
+        assertTrue(absent.buildCache().directory().isEmpty());
+    }
+
+    @Test
     void tracksBuiltInSourcesForOmittedKeysInExistingConfig() {
         UserGlobalConfig config = new UserGlobalConfigParser().parse("""
                 version = 1

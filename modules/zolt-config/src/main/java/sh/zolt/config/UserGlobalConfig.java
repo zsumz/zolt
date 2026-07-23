@@ -12,6 +12,7 @@ public record UserGlobalConfig(
         UserGlobalToolchainDefaults toolchainDefaults,
         UiConfig ui,
         NetworkConfig network,
+        BuildCacheConfig buildCache,
         UserGlobalConfigSources sources) {
     public UserGlobalConfig {
         repositoryOverlays = Map.copyOf(repositoryOverlays);
@@ -27,6 +28,7 @@ public record UserGlobalConfig(
                 UserGlobalToolchainDefaults.none(),
                 new UiConfig("auto", "auto"),
                 NetworkConfig.none(),
+                BuildCacheConfig.disabled(),
                 UserGlobalConfigSources.defaults());
     }
 }
