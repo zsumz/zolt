@@ -26,6 +26,8 @@ final class GradleDependencyParser {
     private static final Pattern PROPERTY_PLACEHOLDER =
             Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_.-]*)}|\\$([A-Za-z][A-Za-z0-9_.-]*)");
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
+    private static final Pattern PLATFORM_WRAPPER =
+            Pattern.compile("^\\s*(enforcedPlatform|platform)\\s*\\(");
 
     private GradleDependencyParser() {
     }
@@ -92,14 +94,19 @@ final class GradleDependencyParser {
             return List.of();
         }
         notation = interpolatedNotation.orElseThrow();
+        // A platform(...) / enforcedPlatform(...) wrapper marks a scope-agnostic BOM import; the inner
+        // coordinate/alias is extracted by the same machinery below, tagged so the emitter routes it to
+        // [platforms] (or [bom.imports]) rather than a regular dependency section.
+        GradleDependencyInspection.PlatformKind platformKind = platformKind(notation);
         Optional<String> mapNotation = mapNotation(notation);
         if (mapNotation.isPresent()) {
-            return List.of(new GradleDependencyInspection(configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), ""));
+            return List.of(new GradleDependencyInspection(
+                    configuration, mapNotation.orElseThrow(), mapNotation.orElseThrow(), "", platformKind));
         }
         List<String> quoted = quotedValues(notation);
         if (!quoted.isEmpty()) {
             return quoted.stream()
-                    .map(value -> new GradleDependencyInspection(configuration, value, value, ""))
+                    .map(value -> new GradleDependencyInspection(configuration, value, value, "", platformKind))
                     .toList();
         }
         Optional<String> bundle = catalogBundleAlias(notation);
@@ -110,7 +117,8 @@ final class GradleDependencyParser {
         if (!aliases.isEmpty()) {
             String catalogNotation = notation;
             return aliases.stream()
-                    .map(key -> new GradleDependencyInspection(configuration, catalogNotation, versionCatalog.getOrDefault(key, ""), key))
+                    .map(key -> new GradleDependencyInspection(
+                            configuration, catalogNotation, versionCatalog.getOrDefault(key, ""), key, platformKind))
                     .toList();
         }
         unresolvedDependencySignal(project, configuration, notation, signals);
@@ -193,6 +201,16 @@ final class GradleDependencyParser {
             expanded.add(new GradleDependencyInspection(configuration, notation, coordinate, "bundles." + bundleName));
         }
         return expanded;
+    }
+
+    private static GradleDependencyInspection.PlatformKind platformKind(String notation) {
+        Matcher matcher = PLATFORM_WRAPPER.matcher(notation);
+        if (!matcher.find()) {
+            return GradleDependencyInspection.PlatformKind.NONE;
+        }
+        return "enforcedPlatform".equals(matcher.group(1))
+                ? GradleDependencyInspection.PlatformKind.ENFORCED_PLATFORM
+                : GradleDependencyInspection.PlatformKind.PLATFORM;
     }
 
     private static Optional<String> mapNotation(String value) {
