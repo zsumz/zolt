@@ -54,12 +54,7 @@ public final class TestRunService {
         this(jdkDetector, jdkDetector, frameworkTestRunner, resolveService);
     }
 
-    /**
-     * Compiles tests with {@code compileChecker} (the build toolchain) but RUNS them with
-     * {@code runChecker}. When a project pins {@code [toolchain.java.test]}, the run checker resolves
-     * that target JRE so tests execute on the version the code was compiled for; otherwise the two
-     * checkers are identical and behavior is unchanged.
-     */
+    /** Compiles tests with {@code compileChecker} but RUNS them with {@code runChecker} (the test-runtime toolchain when pinned; otherwise identical). */
     public TestRunService(
             JdkChecker compileChecker,
             JdkChecker runChecker,
@@ -343,17 +338,9 @@ public final class TestRunService {
             List<String> cliEvents,
             String suiteName,
             TestShardSpec shard) {
-        return runCompiledTests(
-                projectDirectory,
-                config,
-                classpaths,
-                compileTests(projectDirectory, config, classpaths, buildResult),
-                selection,
-                jvmArguments,
-                reportSettings,
-                cliEvents,
-                suiteName,
-                shard);
+        return TestRunFromBuildResult.run(
+                this, projectDirectory, config, classpaths, buildResult,
+                selection, jvmArguments, reportSettings, cliEvents, suiteName, shard);
     }
 
     public TestCompileResult compileTests(

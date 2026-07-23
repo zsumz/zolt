@@ -51,11 +51,7 @@ public final class CoverageService {
                 new ResolveService()::resolveWithCoverageTooling);
     }
 
-    /**
-     * A coverage service whose instrumented test worker runs through {@code testRunService} (which
-     * can carry a {@code [toolchain.java.test]} run toolchain, so the jacoco agent attaches on the
-     * target JRE), while the jacoco report/merge CLI runs on {@code jdkDetector} (the build toolchain).
-     */
+    /** Coverage whose instrumented worker runs via {@code testRunService} (carrying any test-runtime toolchain) while jacoco reports run on {@code jdkDetector}. */
     public CoverageService(TestRunService testRunService, JdkChecker jdkDetector) {
         this(
                 testRunService::runTests,

@@ -12,7 +12,6 @@ import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ResourceFilteringSettings;
-import sh.zolt.project.TestRuntimeSettings;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -187,37 +186,7 @@ public final class BuildPlanService {
                 List.of(build.testOutput()),
                 testCompileDetails(build),
                 List.of()));
-        TestRuntimeSettings runtime = build.testRuntime();
-        List<String> outputs = reportsDir.map(path -> List.of(path.toString())).orElseGet(List::of);
-        List<String> details = new ArrayList<>();
-        testRuntime.ifPresent(toolchain ->
-                details.add("testRuntimeJava: " + toolchain.version() + " ([toolchain.java.test])"));
-        if (!runtime.jvmArgs().isEmpty()) {
-            details.add("jvmArgs: " + runtime.jvmArgs().size());
-        }
-        if (!runtime.systemProperties().isEmpty()) {
-            details.add("systemProperties: " + runtime.systemProperties().keySet());
-        }
-        if (!runtime.environment().isEmpty()) {
-            details.add("environment: " + runtime.environment().keySet() + " (values redacted)");
-        }
-        if (!runtime.events().isEmpty()) {
-            details.add("events: " + String.join(",", runtime.events()));
-        }
-        List<PlanBlocker> blockers = new ArrayList<>();
-        testRuntime.filter(toolchain -> !toolchain.ready()).ifPresent(toolchain -> blockers.add(new PlanBlocker(
-                "test-runtime-toolchain",
-                toolchain.problem().orElse("Test runtime toolchain " + toolchain.version() + " is not ready."),
-                toolchain.remediation().orElse("Run `zolt toolchain sync`."))));
-        nodes.add(new PlanNode(
-                "run-tests",
-                "test",
-                blockers.isEmpty() ? PlanNodeStatus.READY : PlanNodeStatus.BLOCKED,
-                "Run tests through Zolt's JUnit Platform path.",
-                List.of(build.testOutput(), build.output(), "zolt.lock"),
-                outputs,
-                details,
-                blockers));
+        nodes.add(BuildPlanRunTestsNode.node(build, reportsDir, testRuntime));
     }
 
     private static void addResourceNode(
