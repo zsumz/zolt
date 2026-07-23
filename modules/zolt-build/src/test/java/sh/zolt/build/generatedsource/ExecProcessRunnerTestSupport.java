@@ -43,7 +43,7 @@ final class ExecProcessRunnerTestSupport {
         ambient.putAll(extraAmbient);
         UnaryOperator<String> ambientEnv = ambient::get;
         return new ExecGeneratedSourceService(
-                jdkChecker(projectDir), File.pathSeparator, ExecGeneratedSourceService::runProcess, ambientEnv);
+                jdkChecker(projectDir), File.pathSeparator, ExecSubprocess::run, ambientEnv);
     }
 
     static ProjectConfig config(String toml) {
