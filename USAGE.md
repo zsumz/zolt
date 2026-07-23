@@ -662,6 +662,8 @@ Zolt has project-model support for common Java application shapes:
 - Vert.x applications with platform BOMs and dependency exclusions.
 - OpenAPI generated Java sources with tool versioning and presets.
 - Protobuf/gRPC generated Java sources.
+- Generic exec steps that run a pinned jvm tool to produce Java sources or
+  resources consumed by the build.
 - Library-style canaries such as Commons CLI, HikariCP, and SLF4J workspace
   modules.
 
@@ -706,6 +708,58 @@ language = "java"
 inputs = ["src/main/proto/greeter.proto"]
 output = "target/generated/sources/protobuf"
 ```
+
+### Exec Steps
+
+An exec step runs a pinned tool on declared inputs to produce one owned output
+that the build consumes — the same reproducible machinery as OpenAPI/protobuf,
+with the tool identity lifted into configuration. A named tool under
+`[generated.execTools.<name>]` (stage 1: `runner = "jvm"`) resolves its
+`coordinates` into the locked `tool-exec` scope, never onto application
+classpaths, and Zolt launches `<managed java> -cp <locked jars> <mainClass>
+<args>` in a sandboxed working directory with a curated environment.
+
+```toml
+[versions]
+jooq = "3.19.15"
+postgres = "42.7.4"
+
+[generated.execTools.jooq]
+runner = "jvm"
+coordinates = [
+    { coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" },
+    { coordinate = "org.postgresql:postgresql", versionRef = "postgres" },
+]
+mainClass = "org.jooq.codegen.GenerationTool"
+
+[generated.main.jooq-model]
+kind = "exec"
+tool = "jooq"
+args = ["src/main/jooq/config.xml"]
+inputs = ["src/main/jooq/config.xml", "src/main/resources/db/schema.sql"]
+output = "target/generated/sources/jooq"
+produces = "java-sources"          # or "resources", with into = "static"
+cache = "content"                  # default (only value in stage 1)
+```
+
+A step's position is derived entirely from its declared IO — there is no
+anchor, `after`, or `dependsOn`. `produces = "java-sources"` (or
+`"test-sources"`) joins that scope's compile source roots; `produces =
+"resources"` joins resource copying, optionally under an `into` subtree. An
+input equal to or under another exec step's declared output creates an ordering
+edge; steps run serially in the topological order of those edges, with ties
+broken alphabetically by id, and a cycle is a configuration error.
+
+Determinism follows the OpenAPI cache: an exec step re-runs only when its
+fingerprint changes — locked tool jar hashes, argv, the content of its expanded
+inputs, its literal `env`, and produces/into — and its output bytes are hashed
+into the module build fingerprint so a changed output invalidates exactly its
+consumers. `args` is an argv array Zolt never interprets as a shell string, and
+every declared path is real-path-contained under the project root. `zolt plan`
+shows each step's derived position, tool identity, inputs/outputs, and cache
+policy, and `zolt check` validates the steps. Inputs under `target/classes`, the
+`process` runner, `tool = "project"`, `secretEnv`, timeouts, and
+`cache = "none"` are later stages.
 
 ## Quality and CI
 
