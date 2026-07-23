@@ -23,8 +23,7 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "version",
                     "config",
                     "doctor",
-                    "self",
-                    "update")),
+                    "self")),
             new CommandGroup("Dependencies", List.of(
                     "add",
                     "remove",
@@ -34,7 +33,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "why",
                     "policy",
                     "conflicts",
-                    "outdated")),
+                    "outdated",
+                    "update")),
             new CommandGroup("Build, Test, Run", List.of(
                     "aliases",
                     "tasks",

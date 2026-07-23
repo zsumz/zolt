@@ -1,12 +1,10 @@
 package sh.zolt.cli.command.dependency;
 
-import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.VersionAliasRules;
 import sh.zolt.project.VersionPolicy;
-import java.util.LinkedHashSet;
+import sh.zolt.update.AliasReferences;
 import java.util.List;
-import java.util.Set;
 
 final class VersionAliasCommands {
     private VersionAliasCommands() {
@@ -42,27 +40,7 @@ final class VersionAliasCommands {
     }
 
     static List<String> references(ProjectConfig config, String alias) {
-        Set<String> references = new LinkedHashSet<>();
-        for (DependencyMetadata metadata : config.dependencyMetadata().values()) {
-            if (alias.equals(metadata.versionRef())) {
-                references.add("[" + metadata.section() + "]." + metadata.coordinate());
-            }
-        }
-        config.dependencyPolicy().constraints().values().stream()
-                .filter(constraint -> constraint.versionRef().filter(alias::equals).isPresent())
-                .map(constraint -> "[dependencyConstraints]." + constraint.coordinate())
-                .forEach(references::add);
-        config.build().generatedMainSources().stream()
-                .flatMap(step -> step.openApi().toolVersionRef().stream())
-                .filter(alias::equals)
-                .findAny()
-                .ifPresent(ignored -> references.add("[generated.openapiTool].versionRef"));
-        config.build().generatedTestSources().stream()
-                .flatMap(step -> step.openApi().toolVersionRef().stream())
-                .filter(alias::equals)
-                .findAny()
-                .ifPresent(ignored -> references.add("[generated.openapiTool].versionRef"));
-        return List.copyOf(references);
+        return AliasReferences.referencingLabels(config, alias);
     }
 
     static final class VersionAliasCommandException extends RuntimeException {

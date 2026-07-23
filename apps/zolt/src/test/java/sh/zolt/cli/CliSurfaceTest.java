@@ -17,8 +17,8 @@ final class CliSurfaceTest {
     private Path tempDir;
 
     @Test
-    void updateRequiresInstallerManagedLayoutByDefault() {
-        CommandResult result = execute("update", "--install-root", tempDir.resolve("install").toString());
+    void selfUpdateRequiresInstallerManagedLayoutByDefault() {
+        CommandResult result = execute("self", "update", "--install-root", tempDir.resolve("install").toString());
 
         assertEquals(1, result.exitCode());
         assertEquals("", result.stdout());
@@ -26,10 +26,10 @@ final class CliSurfaceTest {
     }
 
     @Test
-    void updateLayoutErrorsUseModernHumanOutputControls() {
+    void selfUpdateLayoutErrorsUseModernHumanOutputControls() {
         Path installRoot = tempDir.resolve("install");
-        CommandResult color = execute("--color", "always", "update", "--install-root", installRoot.toString());
-        CommandResult quiet = execute("--quiet", "update", "--install-root", installRoot.toString());
+        CommandResult color = execute("--color", "always", "self", "update", "--install-root", installRoot.toString());
+        CommandResult quiet = execute("--quiet", "self", "update", "--install-root", installRoot.toString());
 
         assertEquals(1, color.exitCode());
         assertTrue(color.stderr().contains("\u001B[31merror:\u001B[0m Installer-managed native Zolt layouts"));
@@ -233,7 +233,7 @@ final class CliSurfaceTest {
         assertEquals(commandClass("config"), "sh.zolt.cli.command.config.ConfigCommand");
         assertEquals(commandClass("version"), "sh.zolt.cli.command.dependency.VersionCommand");
         assertEquals(commandClass("self"), "sh.zolt.cli.command.self.SelfCommand");
-        assertEquals(commandClass("update"), "sh.zolt.cli.command.update.UpdateCommand");
+        assertEquals(commandClass("update"), "sh.zolt.cli.command.dependency.UpdateCommand");
         assertEquals(commandClass("native-smoke"), "sh.zolt.cli.command.nativeimage.NativeSmokeCommand");
         assertEquals(commandClass("aliases"), "sh.zolt.cli.command.task.AliasesCommand");
         assertEquals(commandClass("tasks"), "sh.zolt.cli.command.task.TasksCommand");

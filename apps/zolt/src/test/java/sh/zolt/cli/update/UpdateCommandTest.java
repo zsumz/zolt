@@ -28,6 +28,7 @@ final class UpdateCommandTest {
         Files.writeString(devExecutable, "dev");
 
         CommandResult result = execute(
+                "self",
                 "update",
                 "--install-root", installRoot.toString(),
                 "--current-executable", devExecutable.toString(),
@@ -78,6 +79,7 @@ final class UpdateCommandTest {
         Files.writeString(installed.installRoot().resolve("channel-url"), channel.toUri().toString());
 
         CommandResult result = execute(
+                "self",
                 "update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
@@ -98,6 +100,7 @@ final class UpdateCommandTest {
         Files.writeString(installed.installRoot().resolve("channel-url"), "http://dist.example/channel.json");
 
         CommandResult result = execute(
+                "self",
                 "update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),
@@ -295,6 +298,7 @@ final class UpdateCommandTest {
 
     private CommandResult update(InstalledFixture installed, Path channel) {
         return execute(
+                "self",
                 "update",
                 "--install-root", installed.installRoot().toString(),
                 "--current-executable", installed.binLink().toString(),

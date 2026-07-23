@@ -162,7 +162,13 @@
     "allDeclaredMethods": true
   },
   {
-    "name": "sh.zolt.cli.command.update.UpdateCommand",
+    "name": "sh.zolt.cli.command.dependency.UpdateCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.dependency.UpdateCommand$Format",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,
     "allDeclaredMethods": true

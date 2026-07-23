@@ -50,8 +50,7 @@ final class ZoltToolchainNoticeHook {
         List<String> commandPath = commandPath(parseResult);
         return commandPath.isEmpty()
                 || commandPath.contains("help")
-                || commandPath.contains("self")
-                || commandPath.contains("update");
+                || commandPath.contains("self");
     }
 
     private String message(ToolchainRequirement requirement) {
