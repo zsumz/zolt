@@ -6,6 +6,7 @@ import sh.zolt.explain.maven.MavenInspectionResult;
 import sh.zolt.explain.maven.MavenPlatformApiHostCandidate;
 import sh.zolt.explain.maven.MavenProjectInspection;
 import sh.zolt.explain.maven.MavenRepositoryInspection;
+import sh.zolt.project.BuildSettings;
 import sh.zolt.project.CompilerSettings;
 import sh.zolt.project.DependencyConstraint;
 import sh.zolt.project.DependencyMetadata;
@@ -118,6 +119,19 @@ final class MavenInspectionMapper {
                 javaVersion,
                 Optional.empty());
 
+        BuildSettings buildSettings = InspectionBuildSettingsMapper.fromRoots(
+                primary.sourceRoots(),
+                primary.testSourceRoots(),
+                primary.resourceRoots(),
+                primary.testResourceRoots(),
+                notes);
+        MavenExecStepDrafter.Drafted drafted = MavenExecStepDrafter.draft(primary.plugins(), notes);
+        if (!drafted.isEmpty()) {
+            buildSettings = buildSettings.withGeneratedSources(drafted.mainSteps(), drafted.testSteps());
+            notes.add("Exec steps drafted from Maven exec-shaped plugins carry a placeholder input ("
+                    + MavenExecStepDrafter.INPUT_PLACEHOLDER + ") and a conventional output path;"
+                    + " declare the real declared-input closure and owned output for each before building.");
+        }
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
                 metadata,
                 ProjectConfig.defaultRepositories(),
@@ -141,12 +155,7 @@ final class MavenInspectionMapper {
                 Set.of(),
                 Map.of(),
                 Set.of(),
-                InspectionBuildSettingsMapper.fromRoots(
-                        primary.sourceRoots(),
-                        primary.testSourceRoots(),
-                        primary.resourceRoots(),
-                        primary.testResourceRoots(),
-                        notes),
+                buildSettings,
                 NativeSettings.defaults(),
                 CompilerSettings.defaults(),
                 PackageSettings.defaults());

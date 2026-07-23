@@ -52,6 +52,10 @@ public final class DraftZoltTomlRenderer {
             "# platformApi = \"host\"  # uncomment only if a post-target-Java platform API"
                     + " (e.g. an annotation processor) fails the strict --release build";
 
+    private static final String EXEC_INPUT_OUTPUT_TODO =
+            "# TODO declare inputs/outputs: Zolt cannot infer them from the Maven plugin config;"
+                    + " replace REPLACE_ME with the real inputs and confirm the output directory.";
+
     private static String renderConfig(DraftZoltToml draft, ProjectConfigRenderer renderer) {
         String rendered = renderer.render(draft.config());
         if (!draft.commentedProjectKeys().isEmpty()) {
@@ -60,7 +64,35 @@ public final class DraftZoltTomlRenderer {
         if (draft.suggestCompilerPlatformApiHost()) {
             rendered = withCompilerPlatformApiHostSuggestion(rendered);
         }
+        rendered = withExecInputOutputTodos(rendered);
         return rendered;
+    }
+
+    /**
+     * Inserts a {@code # TODO declare inputs/outputs} comment directly under every drafted
+     * {@code [generated.main|test.<id>]} exec section header. The section is recognized by its header
+     * shape and the {@code kind = "exec"} line the writer always emits immediately after it, so
+     * openapi/protobuf sections and the {@code [generated.execTools.*]} tables are left untouched.
+     */
+    private static String withExecInputOutputTodos(String toml) {
+        boolean trailingNewline = toml.endsWith("\n");
+        String body = trailingNewline ? toml.substring(0, toml.length() - 1) : toml;
+        String[] lines = body.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            out.append(lines[i]).append('\n');
+            String stripped = lines[i].strip();
+            boolean header = (stripped.startsWith("[generated.main.") || stripped.startsWith("[generated.test."))
+                    && stripped.endsWith("]");
+            boolean execNext = i + 1 < lines.length && "kind = \"exec\"".equals(lines[i + 1].strip());
+            if (header && execNext) {
+                out.append(EXEC_INPUT_OUTPUT_TODO).append('\n');
+            }
+        }
+        if (!trailingNewline && out.length() > 0) {
+            out.setLength(out.length() - 1);
+        }
+        return out.toString();
     }
 
     /**
