@@ -1005,6 +1005,24 @@ The `examples/` directory is deliberately broad. It includes:
   canaries and workspace/library packaging exercises.
 - `migration-explain/*`: Maven and Gradle projects used by `zolt explain`.
 
+## Platforms
+
+Zolt ships only through the rolling `zap` nightly channel, which publishes native
+binaries for:
+
+- `linux-x64`
+- `linux-arm64`
+- `macos-arm64`
+- `macos-x64`
+
+Windows (`windows-x64`) is **experimental and not yet supported as a host**. CI
+runs a non-blocking `windows-smoke` discovery lane that builds the workspace and
+tests a couple of small modules from the bash bootstrap under Git Bash, and the
+managed-toolchain catalog can lock a checksum-verified `windows-x64` JDK on
+request — but no Windows native binary is produced or published, and rough edges
+remain (for example, `zolt shims` emits POSIX shell scripts). Treat any Windows
+use as unsupported until a native target ships.
+
 ## Good Fit
 
 Zolt is strongest when you want:
