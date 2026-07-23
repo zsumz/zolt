@@ -664,6 +664,43 @@ zolt cache prune --max-size-mb 512   # prune to a smaller cap for this run
 The cache also auto-prunes opportunistically after a store when it exceeds the
 cap.
 
+### Remote cache
+
+A remote HTTP endpoint lets a team or CI share compiled output. It is dumb HTTP —
+`GET <url>/<key>` reads a blob (404 is a miss), `PUT <url>/<key>` writes one — so
+any Artifactory or Nexus generic repository works. On a local miss Zolt fetches
+from the remote, verifies the blob, copies it into the local cache, and restores
+from there. Reads are the default; pushing is opt-in, so developers populate from
+the shared cache while CI writes to it.
+
+```toml
+# ~/.zolt/config.toml
+version = 1
+
+[buildCache]
+enabled = true
+
+[buildCache.remote]
+url = "https://nexus.example.com/repository/zolt-build-cache"
+credentials = "buildCache"   # optional; names a [repositoryCredentials] block
+push = false                 # devs read; set true (or ZOLT_BUILD_CACHE_PUSH=1) on CI
+
+# Credential definitions may live in user-global config for machine/CI use. Only
+# environment-variable *names* are stored — never secret values.
+[repositoryCredentials.buildCache]
+tokenEnv = "ZOLT_BUILD_CACHE_TOKEN"   # bearer; or usernameEnv + passwordEnv for basic
+```
+
+Auth reuses the repository credential model: `tokenEnv` sends
+`Authorization: Bearer <token>`, and `usernameEnv`/`passwordEnv` send HTTP Basic.
+A credentialed remote must use HTTPS. Set `push = true` in config or export
+`ZOLT_BUILD_CACHE_PUSH=1` for one run (the typical CI setup).
+
+The remote never fails a build. A read problem is a miss that rebuilds; an upload
+problem is a warning and the build continues; an unauthorized (`401`/`403`) push
+surfaces one actionable warning per build. `--offline` drops the remote tier
+entirely while the local cache keeps serving.
+
 ### The key, and the JDK
 
 The cache key is the inputs-only compile fingerprint (sources, classpath,
