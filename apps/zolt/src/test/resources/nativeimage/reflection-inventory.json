@@ -15,6 +15,11 @@
     "note": "DocumentBuilderFactory.newInstance() JAXP lookup handled by GraalVM built-in JAXP support; exercised by native resolve/build POM parsing."
   },
   {
+    "file": "modules/zolt-quality/src/main/java/sh/zolt/quality/coverage/JacocoCoverageReport.java",
+    "disposition": "JAXP_FACTORY",
+    "note": "DocumentBuilderFactory.newInstance() JAXP lookup handled by GraalVM built-in JAXP support; exercised by coverage-floor jacoco.xml report parsing."
+  },
+  {
     "file": "modules/zolt-quarkus/src/main/java/sh/zolt/quarkus/annotation/QuarkusAnnotationApiProbe.java",
     "disposition": "WORKER_JVM"
   },

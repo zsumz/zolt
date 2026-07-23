@@ -14,7 +14,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 /**
  * Reads the report-level coverage totals from a Jacoco {@code jacoco.xml} file. Only the
@@ -22,13 +24,34 @@ import org.xml.sax.SAXException;
  * those are the whole-report totals. Nested package/class/method counters are ignored.
  */
 public final class JacocoCoverageReport {
+    private static final ErrorHandler THROWING_ERROR_HANDLER = new ErrorHandler() {
+        @Override
+        public void warning(SAXParseException exception) {
+            // Warnings are non-fatal for report parsing; ignore them.
+        }
+
+        @Override
+        public void error(SAXParseException exception) throws SAXParseException {
+            throw exception;
+        }
+
+        @Override
+        public void fatalError(SAXParseException exception) throws SAXParseException {
+            throw exception;
+        }
+    };
+
     private JacocoCoverageReport() {
     }
 
     public static CoverageMeasurement read(Path jacocoXml) {
         Document document;
         try (InputStream input = Files.newInputStream(jacocoXml)) {
-            document = documentBuilder().parse(input);
+            DocumentBuilder builder = documentBuilder();
+            // Throw parse errors as exceptions instead of letting the default handler print them to
+            // stderr, so a malformed report surfaces only through CoverageReportException.
+            builder.setErrorHandler(THROWING_ERROR_HANDLER);
+            document = builder.parse(input);
         } catch (IOException | SAXException | ParserConfigurationException exception) {
             throw new CoverageReportException(
                     "Could not read the Jacoco XML report at " + jacocoXml + ": " + exception.getMessage(),
