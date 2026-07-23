@@ -267,7 +267,7 @@ public final class CommandFrameworkServices {
         return new CommandTestServices(
                 testRunService(testFrameworkServices),
                 workspaceTestService(testFrameworkServices),
-                jdkChecker -> testRunService(testFrameworkServices, jdkChecker));
+                (compileChecker, runChecker) -> testRunService(testFrameworkServices, compileChecker, runChecker));
     }
 
     static TestRunService testRunService(FrameworkTestRunner frameworkTestRunner) {
@@ -281,8 +281,16 @@ public final class CommandFrameworkServices {
     private static TestRunService testRunService(
             CommandTestFrameworkServices testFrameworkServices,
             JdkChecker jdkChecker) {
+        return testRunService(testFrameworkServices, jdkChecker, jdkChecker);
+    }
+
+    private static TestRunService testRunService(
+            CommandTestFrameworkServices testFrameworkServices,
+            JdkChecker compileChecker,
+            JdkChecker runChecker) {
         return new TestRunService(
-                jdkChecker,
+                compileChecker,
+                runChecker,
                 testFrameworkServices.frameworkTestRunner(),
                 testFrameworkServices.resolveService());
     }

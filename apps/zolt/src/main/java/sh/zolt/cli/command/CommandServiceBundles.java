@@ -143,7 +143,13 @@ public final class CommandServiceBundles {
 
     @FunctionalInterface
     public interface TestRunServiceFactory {
-        TestRunService create(JdkChecker jdkChecker);
+        /** Creates a service that compiles with {@code compileChecker} and runs tests with {@code runChecker}. */
+        TestRunService create(JdkChecker compileChecker, JdkChecker runChecker);
+
+        /** Creates a service that compiles and runs tests with the same toolchain checker. */
+        default TestRunService create(JdkChecker jdkChecker) {
+            return create(jdkChecker, jdkChecker);
+        }
     }
 
     public record CommandTestServices(

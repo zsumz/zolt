@@ -87,6 +87,34 @@ public final class TestRunServiceTestSupport {
                 ":");
     }
 
+    static TestRunService service(
+            JdkChecker compileChecker,
+            JdkChecker runChecker,
+            PlainJunitWorkerRunner plainJunitWorkerRunner) {
+        return new TestRunService(
+                new TestCompileService(compileChecker),
+                runChecker,
+                new JavaRunner(":", (command, outputConsumer) -> {
+                    throw new AssertionError("Console runner should not run when the worker is enabled.");
+                }),
+                FrameworkTestRunner.none(),
+                () -> List.of(Path.of("/zolt/zolt.jar")),
+                plainJunitWorkerRunner,
+                true,
+                ":");
+    }
+
+    static JdkStatus fixedJdkStatus(Path java, String requiredVersion) {
+        Path bin = java.getParent();
+        return new JdkStatus(
+                Optional.of(bin.getParent()),
+                Optional.of(java),
+                Optional.of(bin.resolve(executable("javac"))),
+                Optional.of(bin.resolve(executable("jar"))),
+                Optional.of(requiredVersion),
+                requiredVersion);
+    }
+
     static FrameworkTestRunner enabledFrameworkTestRunner(
             Function<FrameworkTestRunRequest, Optional<FrameworkTestRunResult>> runner) {
         return enabledFrameworkTestRunner(runner, null);

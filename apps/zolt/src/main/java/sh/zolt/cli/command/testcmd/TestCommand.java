@@ -256,8 +256,11 @@ public final class TestCommand implements Runnable {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
+        var compileChecker = toolchainOptions.jdkChecker(projectRoot, config, "test");
         TestRunService projectTestRunService =
-                testRunServiceFactory.create(toolchainOptions.jdkChecker(projectRoot, config, "test"))
+                testRunServiceFactory.create(
+                                compileChecker,
+                                toolchainOptions.testRuntimeRunChecker(projectRoot, config, compileChecker))
                         .withBuildCache(CommandBuildCache.service(noBuildCache, false));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         progress.start("Testing project");

@@ -237,11 +237,11 @@ public final class IntegrationTestCommand implements Runnable {
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         ProjectConfig integrationConfig = config.withBuildSettings(config.build().asIntegrationTestBuild());
+        var compileChecker = toolchainOptions.jdkChecker(projectRoot, integrationConfig, "integration-test");
         TestRunService projectTestRunService =
-                testRunServiceFactory.create(toolchainOptions.jdkChecker(
-                        projectRoot,
-                        integrationConfig,
-                        "integration-test"));
+                testRunServiceFactory.create(
+                        compileChecker,
+                        toolchainOptions.testRuntimeRunChecker(projectRoot, integrationConfig, compileChecker));
         TestReportSettings reportSettings = TestReportSettings.reportsDirectory(integrationReportsDir(config));
         TestRunResult result = timings.measure(
                 "run integration tests",
