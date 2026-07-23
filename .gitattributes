@@ -1,0 +1,41 @@
+# Zolt determinism contract: LF everywhere.
+#
+# zolt.lock, TOML config, and golden fixtures are compared byte-for-byte, and the
+# lockfile/manifest/TOML writers emit LF unconditionally. A Windows checkout with
+# core.autocrlf=true would rewrite tracked text to CRLF and corrupt that
+# determinism (and break golden-fixture assertions such as ZoltLockfileWriterTest).
+# Force LF on checkout for all text so Windows checkouts stay byte-identical to
+# Linux/macOS.
+* text=auto eol=lf
+
+# Determinism-critical text, pinned explicitly (belt and suspenders).
+*.java    text eol=lf
+*.toml    text eol=lf
+*.lock    text eol=lf
+*.golden  text eol=lf
+*.json    text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.md      text eol=lf
+*.txt     text eol=lf
+*.sh      text eol=lf
+*.pom     text eol=lf
+*.svg     text eol=lf
+zolt.lock text eol=lf
+
+# Windows batch scripts, if ever added, must keep CRLF to run under cmd.exe.
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Binary assets: never normalize line endings.
+*.zip     binary
+*.gz      binary
+*.tgz     binary
+*.jar     binary
+*.class   binary
+*.png     binary
+*.jpg     binary
+*.gif     binary
+*.ico     binary
+*.sig     binary
+*.gpg     binary
