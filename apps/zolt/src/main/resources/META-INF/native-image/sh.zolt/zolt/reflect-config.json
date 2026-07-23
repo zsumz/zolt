@@ -264,6 +264,18 @@
     "allDeclaredMethods": true
   },
   {
+    "name": "sh.zolt.cli.command.dependency.OutdatedCommand",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "sh.zolt.cli.command.dependency.OutdatedCommand$Format",
+    "allDeclaredConstructors": true,
+    "allDeclaredFields": true,
+    "allDeclaredMethods": true
+  },
+  {
     "name": "sh.zolt.cli.command.insight.TreeCommand",
     "allDeclaredConstructors": true,
     "allDeclaredFields": true,

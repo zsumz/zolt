@@ -67,6 +67,7 @@ import picocli.CommandLine.Spec;
                 WhyCommand.class,
                 PolicyCommand.class,
                 ConflictsCommand.class,
+                sh.zolt.cli.command.dependency.OutdatedCommand.class,
                 ExplainCommand.class,
                 PlanCommand.class,
                 ClasspathCommand.class,

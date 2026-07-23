@@ -1,6 +1,6 @@
 version = 1
-projectResolutionFingerprint = "sha256:5fc432d7a1e3127a0859fceb8d356917ef5e78d269c4e1f517baa0376dbe141a"
-projectResolutionInputFingerprints = ["dependencies.api=sha256:4ce39b687df3a02e2eb24d4b1b2d55903971a2cfeb8593fba3cb52c81fd3bd9c", "dependencies.compile.workspace=sha256:99b446186a9699fe1f264eabbf7ef974bc51f956b28f6a36c01b7568991727c7", "dependencies.compile=sha256:ff84fa7b7a416746662ce10d9ec1cec2553f43cca30569ac127e92bbb1dcc546", "dependencies.provided=sha256:fb1d589a350c36415cc1f7ab6f5efe21de446b82ef4f93d2562b248243479fe7", "dependencies.test=sha256:2b52faf6bad0dede44d67f6ec37813609313096982c6cbbb5c58feb363f95d09", "dependencyMetadata=sha256:cdc704285703fc71a1707e5059aebf9f5748acd917f12084b12d26ad88011dd1", "framework.quarkus=sha256:f0b0a1b9b937156b72239ea1fa186336faa4e4f0626aa05f06c4009ac3e67348", "framework.springBoot.native=sha256:42f3326f0434dbcf2863db4b9beabe4729f11de4b7d0212239c8eafec9a71d8b", "java=sha256:eabd66865e4f9027b6640385f1ba1b97312c80a5980fbfafc38bf13a565598c3", "package=sha256:e836046481e83e3301d7f34facce6c90a70e653a6abe808c7da24e074b622370", "repositories=sha256:0ce16c9420d98b225079a489a2d155d65f70dac2a8e0ce529ec4df5e6bce6210", "schema=sha256:cb7cd41b35d3147deab11234036e17155f6659a773d255ec71a54fa22ee82be5"]
+projectResolutionFingerprint = "sha256:2b5d2b5a253e0c4fe26071709880452b237ed99819fd27d4a3cd4b14d37b5d96"
+projectResolutionInputFingerprints = ["dependencies.api=sha256:4ce39b687df3a02e2eb24d4b1b2d55903971a2cfeb8593fba3cb52c81fd3bd9c", "dependencies.compile.workspace=sha256:bea5b599f9fe8f8058ab8c20b341a996f6e5e1e2f0c39adf4aba33f147a1269c", "dependencies.compile=sha256:ff84fa7b7a416746662ce10d9ec1cec2553f43cca30569ac127e92bbb1dcc546", "dependencies.provided=sha256:fb1d589a350c36415cc1f7ab6f5efe21de446b82ef4f93d2562b248243479fe7", "dependencies.test=sha256:2b52faf6bad0dede44d67f6ec37813609313096982c6cbbb5c58feb363f95d09", "dependencyMetadata=sha256:cdc704285703fc71a1707e5059aebf9f5748acd917f12084b12d26ad88011dd1", "framework.quarkus=sha256:f0b0a1b9b937156b72239ea1fa186336faa4e4f0626aa05f06c4009ac3e67348", "framework.springBoot.native=sha256:42f3326f0434dbcf2863db4b9beabe4729f11de4b7d0212239c8eafec9a71d8b", "java=sha256:eabd66865e4f9027b6640385f1ba1b97312c80a5980fbfafc38bf13a565598c3", "package=sha256:e836046481e83e3301d7f34facce6c90a70e653a6abe808c7da24e074b622370", "repositories=sha256:0ce16c9420d98b225079a489a2d155d65f70dac2a8e0ce529ec4df5e6bce6210", "schema=sha256:cb7cd41b35d3147deab11234036e17155f6659a773d255ec71a54fa22ee82be5"]
 
 [[package]]
 id = "info.picocli:picocli"
@@ -434,6 +434,17 @@ source = "workspace"
 scope = "compile"
 direct = true
 workspace = "modules/zolt-tree"
+workspaceOutput = "target/classes"
+members = ["apps/zolt"]
+dependencies = []
+
+[[package]]
+id = "sh.zolt:zolt-update"
+version = "0.1.0-SNAPSHOT"
+source = "workspace"
+scope = "compile"
+direct = true
+workspace = "modules/zolt-update"
 workspaceOutput = "target/classes"
 members = ["apps/zolt"]
 dependencies = []
