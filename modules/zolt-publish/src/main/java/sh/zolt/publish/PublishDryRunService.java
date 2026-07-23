@@ -185,7 +185,8 @@ public final class PublishDryRunService {
                 evidencePath,
                 blockers);
         List<PublishArtifactPlan> supplementalArtifacts = new ArrayList<>(artifactEvidence.supplementalArtifacts());
-        sbomFile.ifPresent(file -> supplementalArtifacts.add(sbomArtifact(root, coordinate, file)));
+        sbomFile.ifPresent(file -> supplementalArtifacts.add(
+                PublishSbomArtifactPlanner.plan(root, coordinate, file, repositoryPathBuilder)));
         List<PublishChecksumSidecar> checksumSidecars = PublishChecksumSidecarPlanner.plan(
                 root,
                 artifactPath,
@@ -211,17 +212,6 @@ public final class PublishDryRunService {
                 checksumSidecars,
                 "",
                 blockers);
-    }
-
-    private PublishArtifactPlan sbomArtifact(Path root, Coordinate coordinate, Path sbomFile) {
-        String uploadPath = repositoryPathBuilder.artifactPath(
-                new ArtifactDescriptor(coordinate, Optional.of("cyclonedx"), "json"));
-        return new PublishArtifactPlan(
-                "cyclonedx",
-                Optional.of("cyclonedx"),
-                PublishDryRunArtifactEvidencePlanner.display(root, sbomFile),
-                PublishChecksum.sha256(sbomFile),
-                uploadPath);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {
