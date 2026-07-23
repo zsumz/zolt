@@ -22,6 +22,19 @@ final class BuildFingerprintFileHasher {
             ".zolt-build-main.fingerprint.state",
             ".zolt-build-test.fingerprint.state");
 
+    /**
+     * All machine-local metadata a compile output may hold. Excluded when hashing a dependency output
+     * directory for a build-cache key so the key is stable whether the dependency was compiled (has
+     * incremental state) or restored (has none), and portable across machines (no absolute paths).
+     */
+    private static final List<String> LOCAL_METADATA_FILES = List.of(
+            ".zolt-build-main.fingerprint",
+            ".zolt-build-test.fingerprint",
+            ".zolt-build-main.fingerprint.state",
+            ".zolt-build-test.fingerprint.state",
+            ".zolt-incremental-main.state",
+            ".zolt-incremental-test.state");
+
     String hashText(String text) {
         return sha256(text.getBytes(StandardCharsets.UTF_8));
     }
@@ -36,6 +49,22 @@ final class BuildFingerprintFileHasher {
             if (abiHash.isPresent()) {
                 return "abi:" + abiHash.orElseThrow();
             }
+        }
+        return fileHash(normalized, cachedState, collectedState);
+    }
+
+    /**
+     * Content hash of a classpath entry for build-cache KEY derivation. A directory is hashed by its
+     * compiled bytes with all machine-local metadata excluded (never the incremental-state abi hash), so
+     * a restored dependency keys identically to a freshly compiled one. Files hash by content as usual.
+     */
+    String classpathKeyHash(
+            Path path,
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
+        Path normalized = path.toAbsolutePath().normalize();
+        if (Files.isDirectory(normalized)) {
+            return "content:" + directoryHash(normalized, cachedState, collectedState, LOCAL_METADATA_FILES);
         }
         return fileHash(normalized, cachedState, collectedState);
     }
@@ -100,11 +129,19 @@ final class BuildFingerprintFileHasher {
             Path directory,
             BuildFingerprintState cachedState,
             Map<Path, BuildFingerprintCachedFileHash> collectedState) {
+        return directoryHash(directory, cachedState, collectedState, LOCAL_FINGERPRINT_FILES);
+    }
+
+    private String directoryHash(
+            Path directory,
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState,
+            List<String> excludedFileNames) {
         try (Stream<Path> paths = Files.walk(directory)) {
             StringBuilder content = new StringBuilder();
             paths.filter(Files::isRegularFile)
                     .map(Path::normalize)
-                    .filter(path -> !LOCAL_FINGERPRINT_FILES.contains(path.getFileName().toString()))
+                    .filter(path -> !excludedFileNames.contains(path.getFileName().toString()))
                     .sorted()
                     .forEach(path -> content
                             .append(directory.relativize(path).toString().replace('\\', '/'))

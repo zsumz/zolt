@@ -250,7 +250,8 @@ public final class BuildFingerprintService {
                 outputDirectoryName,
                 generatedSourcesDirectory,
                 null,
-                null);
+                null,
+                true);
         return BuildFingerprintInputs.inputsSha256(fingerprint);
     }
 

@@ -5,6 +5,7 @@ import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.build.classpath.LockfileClasspathPackageConverter;
 import sh.zolt.classpath.ResolvedClasspathPackage;
+import sh.zolt.build.cache.BuildCacheJdkIdentity;
 import sh.zolt.build.cache.BuildCacheKey;
 import sh.zolt.build.cache.BuildCacheModulePolicy;
 import sh.zolt.build.cache.BuildCacheRestoreResult;
@@ -324,7 +325,7 @@ public final class BuildService {
         }
         String inputsSha = buildFingerprintService.mainInputsFingerprintSha256(
                 projectDirectory, config, lockfilePath, sources, classpaths, outputDirectory, generatedSourcesDirectory);
-        BuildCacheKey key = BuildCacheKey.of(BuildCacheScope.MAIN, inputsSha, jdkIdentity(jdkStatus));
+        BuildCacheKey key = BuildCacheKey.of(BuildCacheScope.MAIN, inputsSha, BuildCacheJdkIdentity.of(jdkStatus));
         return BuildCacheAttempt.active(key, buildCacheService.restore(key, outputDirectory));
     }
 
@@ -334,13 +335,6 @@ public final class BuildService {
         }
         buildCacheService.store(attempt.key().orElseThrow(), outputDirectory);
         return "stored";
-    }
-
-    private static String jdkIdentity(JdkStatus jdkStatus) {
-        return jdkStatus.version()
-                .or(() -> jdkStatus.featureVersion().map(String::valueOf))
-                .filter(value -> !value.isBlank())
-                .orElse("unknown");
     }
 
     private record BuildCacheAttempt(

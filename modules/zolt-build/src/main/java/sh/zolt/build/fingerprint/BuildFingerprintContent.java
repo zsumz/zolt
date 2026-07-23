@@ -41,6 +41,42 @@ final class BuildFingerprintContent {
             Path generatedSourcesDirectory,
             BuildFingerprintState cachedState,
             Map<Path, BuildFingerprintCachedFileHash> collectedState) {
+        return fingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sourceRoots,
+                resourceRoots,
+                resourceRootKey,
+                sources,
+                generatedSteps,
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                outputDirectoryName,
+                generatedSourcesDirectory,
+                cachedState,
+                collectedState,
+                false);
+    }
+
+    String fingerprint(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            List<String> sourceRoots,
+            List<String> resourceRoots,
+            String resourceRootKey,
+            List<Path> sources,
+            List<GeneratedSourceStep> generatedSteps,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            String outputDirectoryName,
+            Path generatedSourcesDirectory,
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState,
+            boolean cacheKeyMode) {
         Path projectRoot = projectDirectory.toAbsolutePath().normalize();
         StringBuilder content = new StringBuilder();
         line(content, "version", VERSION);
@@ -51,8 +87,8 @@ final class BuildFingerprintContent {
         line(content, "outputDirectory", normalize(outputDirectoryName));
         line(content, "generatedSourcesDirectory", fileHasher.relative(projectRoot, generatedSourcesDirectory));
         line(content, "compilerSettings", config.compilerSettings().toString());
-        section(content, "compileClasspath", classpathEntries(compileClasspath, cachedState, collectedState));
-        section(content, "processorClasspath", classpathEntries(processorClasspath, cachedState, collectedState));
+        section(content, "compileClasspath", classpathEntries(compileClasspath, cachedState, collectedState, cacheKeyMode));
+        section(content, "processorClasspath", classpathEntries(processorClasspath, cachedState, collectedState, cacheKeyMode));
         section(content, "sources", fileEntries(projectRoot, sources, cachedState, collectedState));
         section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
         section(content, "resources", resourceEntries(projectRoot, resourceRoots, resourceRootKey, config.build(), cachedState, collectedState));
@@ -65,7 +101,19 @@ final class BuildFingerprintContent {
     private List<String> classpathEntries(
             Classpath classpath,
             BuildFingerprintState cachedState,
-            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
+            Map<Path, BuildFingerprintCachedFileHash> collectedState,
+            boolean cacheKeyMode) {
+        if (cacheKeyMode) {
+            // Content-only, path-free entries: two builds with the same compiled dependencies key
+            // identically regardless of where those artifacts live (machine, checkout) or whether a
+            // dependency output was compiled or restored. Sorted by content so order does not matter,
+            // which the skip-gate fingerprint already disregards (it sorts entries too).
+            return classpath.entries().stream()
+                    .map(path -> path.toAbsolutePath().normalize())
+                    .map(path -> fileHasher.classpathKeyHash(path, cachedState, collectedState))
+                    .sorted()
+                    .toList();
+        }
         return classpath.entries().stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
