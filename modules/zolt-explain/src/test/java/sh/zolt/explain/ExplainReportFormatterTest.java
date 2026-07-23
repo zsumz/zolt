@@ -152,6 +152,7 @@ final class ExplainReportFormatterTest {
                                 "guava")),
                         List.of("src/main/java"),
                         List.of("src/test/java"),
+                        List.of(),
                         List.of())),
                 ExplainSignals.sorted(List.of(
                         ExplainSignals.GRADLE_CUSTOM_TASK_DETECTED.signal(
@@ -256,6 +257,7 @@ final class ExplainReportFormatterTest {
                         List.of(),
                         List.of("src/main/java"),
                         List.of("src/test/java"),
+                        List.of(),
                         List.of())),
                 List.of());
 
@@ -333,6 +335,7 @@ final class ExplainReportFormatterTest {
                 List.of(),
                 List.of("src/main/java"),
                 List.of("src/test/java"),
+                List.of(),
                 List.of());
     }
 
