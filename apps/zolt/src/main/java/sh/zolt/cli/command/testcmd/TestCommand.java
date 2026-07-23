@@ -7,7 +7,6 @@ import sh.zolt.build.JavaRunException;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.ResourceCopyException;
 import sh.zolt.build.SourceDiscoveryException;
-import sh.zolt.build.profile.TestProfileSettings;
 import sh.zolt.build.testruntime.*;
 import sh.zolt.build.testruntime.compile.TestCompileResult;
 import sh.zolt.build.testruntime.compile.TestCompileResultWithClasspaths;
@@ -150,37 +149,19 @@ public final class TestCommand implements Runnable {
         TimingRecorder timings = CommandTimings.recorder(timingOptions);
         Path projectRoot = projectDirectory.path();
         try {
-            TestSelection testSelection = TestSelection.fromCli(testSelectors, testPatterns, includedTags, excludedTags);
-            TestShardSpec shard = TestShardSpec.parse(shardValue);
-            TestJvmArguments testJvmArguments = TestJvmArguments.fromCli(jvmArgs);
-            List<String> requestedTestEvents = CommandTestEvents.validated(testEvents);
-            TestReportSettings reportSettings = TestReportSettings.reportsDirectory(reportsDir);
-            TestProfileSettings profileSettings = profileOptions.settings();
+            TestCommandRequest request = new TestCommandRequest(
+                    TestSelection.fromCli(testSelectors, testPatterns, includedTags, excludedTags),
+                    TestJvmArguments.fromCli(jvmArgs),
+                    TestReportSettings.reportsDirectory(reportsDir),
+                    profileOptions.settings(),
+                    CommandTestEvents.validated(testEvents),
+                    suiteName,
+                    TestShardSpec.parse(shardValue));
             if (workspace) {
-                runWorkspaceTests(
-                        projectRoot,
-                        timings,
-                        CommandProgress.human(spec),
-                        testSelection,
-                        testJvmArguments,
-                        reportSettings,
-                        profileSettings,
-                        requestedTestEvents,
-                        suiteName,
-                        shard);
+                runWorkspaceTests(projectRoot, timings, CommandProgress.human(spec), request);
                 return;
             }
-            runSingleProjectTests(
-                    projectRoot,
-                    timings,
-                    CommandProgress.human(spec),
-                    testSelection,
-                    testJvmArguments,
-                    reportSettings,
-                    profileSettings,
-                    requestedTestEvents,
-                    suiteName,
-                    shard);
+            runSingleProjectTests(projectRoot, timings, CommandProgress.human(spec), request);
         } catch (BuildException
                 | JavacException
                 | GroovyCompileException
@@ -206,13 +187,7 @@ public final class TestCommand implements Runnable {
             Path projectRoot,
             TimingRecorder timings,
             ProgressWriter progress,
-            TestSelection testSelection,
-            TestJvmArguments testJvmArguments,
-            TestReportSettings reportSettings,
-            TestProfileSettings profileSettings,
-            List<String> requestedTestEvents,
-            String suiteName,
-            TestShardSpec shard) {
+            TestCommandRequest request) {
         WorkspaceTestService projectWorkspaceTestService = workspaceTestService.withMemberServices(
                 toolchainOptions.workspaceJdkCheckers("test"),
                 toolchainOptions.workspaceTestRunServices(testRunServiceFactory, "test"));
@@ -239,13 +214,13 @@ public final class TestCommand implements Runnable {
                                     plan,
                                     buildResult,
                                     cacheRoot,
-                                    testSelection,
-                                    testJvmArguments,
-                                    reportSettings,
-                                    requestedTestEvents,
-                                    suiteName,
-                                    shard,
-                                    profileSettings),
+                                    request.testSelection(),
+                                    request.testJvmArguments(),
+                                    request.reportSettings(),
+                                    request.requestedTestEvents(),
+                                    request.suiteName(),
+                                    request.shard(),
+                                    request.profileSettings()),
                             CommandTestAttributes::workspaceTest);
                 },
                 CommandTestAttributes::workspaceTest);
@@ -262,7 +237,7 @@ public final class TestCommand implements Runnable {
                     output.pointer("wrote", directory.toString()));
         }
         result.profileDirectory().ifPresent(directory ->
-                CommandTestProfileOutput.print(output, directory, profileSettings));
+                CommandTestProfileOutput.print(output, directory, request.profileSettings()));
         int testedMembers = result.members().size();
         String summary = testedMembers < result.totalMemberCount()
                 ? "Tested " + testedMembers + " of " + result.totalMemberCount()
@@ -277,13 +252,7 @@ public final class TestCommand implements Runnable {
             Path projectRoot,
             TimingRecorder timings,
             ProgressWriter progress,
-            TestSelection testSelection,
-            TestJvmArguments testJvmArguments,
-            TestReportSettings reportSettings,
-            TestProfileSettings profileSettings,
-            List<String> requestedTestEvents,
-            String suiteName,
-            TestShardSpec shard) {
+            TestCommandRequest request) {
         ProjectConfig config = timings.measure(
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
@@ -329,13 +298,13 @@ public final class TestCommand implements Runnable {
                                     config,
                                     compileResult.classpaths(),
                                     compileResult.testCompileResult(),
-                                    testSelection,
-                                    testJvmArguments,
-                                    reportSettings,
-                                    requestedTestEvents,
-                                    suiteName,
-                                    shard,
-                                    profileSettings),
+                                    request.testSelection(),
+                                    request.testJvmArguments(),
+                                    request.reportSettings(),
+                                    request.requestedTestEvents(),
+                                    request.suiteName(),
+                                    request.shard(),
+                                    request.profileSettings()),
                             CommandTestAttributes::testExecution);
                 },
                 CommandTestAttributes::testRun);
@@ -348,7 +317,7 @@ public final class TestCommand implements Runnable {
                 result.compileResult().sourceCount() + " test source files");
         result.reportsDirectory().ifPresent(directory ->
                 output.pointer("wrote", directory.toString()));
-        CommandTestProfileOutput.print(output, result, profileSettings);
+        CommandTestProfileOutput.print(output, result, request.profileSettings());
         output.provenance(CommandBuildProvenance.read(projectRoot));
         progress.result("Tested project");
     }
