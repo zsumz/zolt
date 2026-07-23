@@ -64,6 +64,51 @@ final class JavacWorkerAttributionTest {
         assertTrue(attribution.unattributed(), "output generated without originating elements must be unattributed");
     }
 
+    @Test
+    void attributedCompileMapsGeneratedResourceToOriginatingType() throws Exception {
+        Path processorClasses = WorkerAttributionFixture.compileResourceProcessor(tempDir);
+        Path source = writeSource("Widget", "public class Widget {}\n");
+        Path output = Files.createDirectories(tempDir.resolve("classes"));
+        Path generated = Files.createDirectories(tempDir.resolve("generated"));
+
+        WorkerAttributionFixture.Attribution attribution = compileAttributed(List.of(
+                "-d", output.toString(),
+                "-s", generated.toString(),
+                "-processorpath", processorClasses.toString(),
+                source.toString()));
+
+        assertEquals(0, attribution.exitCode(), attribution.diagnostics());
+        assertTrue(attribution.present());
+        assertFalse(attribution.unattributed(), "an isolating resource with an originating element is attributed");
+        assertTrue(Files.isRegularFile(output.resolve("gen/Widget.meta")));
+        WorkerAttributionFixture.Entry meta = attribution.entries().stream()
+                .filter(entry -> entry.path().endsWith("Widget.meta"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(GeneratedFileRecord.KIND_RESOURCE, meta.kind());
+        assertEquals("", meta.createdType());
+        assertEquals(List.of("Widget"), meta.originatingTypes());
+    }
+
+    @Test
+    void attributedCompileFlagsResourceGeneratedWithoutOriginatingElement() throws Exception {
+        Path processorClasses = WorkerAttributionFixture.compileResourceProcessor(tempDir);
+        Path source = writeSource("Gadget", "public class Gadget {}\n");
+        Path output = Files.createDirectories(tempDir.resolve("classes"));
+        Path generated = Files.createDirectories(tempDir.resolve("generated"));
+
+        WorkerAttributionFixture.Attribution attribution = compileAttributed(List.of(
+                "-Azolt.omitOriginating=true",
+                "-d", output.toString(),
+                "-s", generated.toString(),
+                "-processorpath", processorClasses.toString(),
+                source.toString()));
+
+        assertEquals(0, attribution.exitCode(), attribution.diagnostics());
+        assertTrue(attribution.present());
+        assertTrue(attribution.unattributed(), "a resource generated without originating elements must be unattributed");
+    }
+
     private Path writeSource(String name, String body) throws Exception {
         Path source = tempDir.resolve(name + ".java");
         Files.writeString(source, body);

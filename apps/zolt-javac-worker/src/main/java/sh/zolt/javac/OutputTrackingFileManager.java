@@ -10,10 +10,14 @@ import javax.tools.StandardJavaFileManager;
 import javax.tools.StandardLocation;
 
 /**
- * Wraps the standard file manager and records the ground-truth set of files the compiler actually
- * created under {@link StandardLocation#SOURCE_OUTPUT}. This is independent of the Filer interception:
- * anything created here that the Filer did not also report is an unexplained generated source, which
- * {@link AttributionCollector} treats as unattributed.
+ * Wraps the standard file manager and records the ground-truth set of outputs the compiler actually
+ * created: generated sources under {@link StandardLocation#SOURCE_OUTPUT} (via
+ * {@link #getJavaFileForOutput}) and generated resources under {@link StandardLocation#CLASS_OUTPUT}
+ * or {@link StandardLocation#SOURCE_OUTPUT} (via {@link #getFileForOutput}, the {@code createResource}
+ * path). This is independent of the Filer interception: anything created here that the Filer did not
+ * also report is an unexplained generated output, which {@link AttributionCollector} treats as
+ * unattributed. Resources typically land in {@code CLASS_OUTPUT}, so watching it is what makes an
+ * unrecorded resource write (e.g. from a non-recording processor) force a full recompile.
  */
 final class OutputTrackingFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
     private final AttributionCollector collector;
@@ -31,7 +35,7 @@ final class OutputTrackingFileManager extends ForwardingJavaFileManager<Standard
             FileObject sibling) throws IOException {
         JavaFileObject fileObject = super.getJavaFileForOutput(location, className, kind, sibling);
         if (location == StandardLocation.SOURCE_OUTPUT) {
-            observe(fileObject);
+            collector.observeSourceOutput(pathOf(fileObject));
         }
         return fileObject;
     }
@@ -43,18 +47,17 @@ final class OutputTrackingFileManager extends ForwardingJavaFileManager<Standard
             String relativeName,
             FileObject sibling) throws IOException {
         FileObject fileObject = super.getFileForOutput(location, packageName, relativeName, sibling);
-        if (location == StandardLocation.SOURCE_OUTPUT) {
-            observe(fileObject);
+        if (location == StandardLocation.CLASS_OUTPUT || location == StandardLocation.SOURCE_OUTPUT) {
+            collector.observeResourceOutput(pathOf(fileObject));
         }
         return fileObject;
     }
 
-    private void observe(FileObject fileObject) {
+    private static Path pathOf(FileObject fileObject) {
         URI uri = fileObject.toUri();
         if (uri != null && "file".equalsIgnoreCase(uri.getScheme())) {
-            collector.observeSourceOutput(Path.of(uri));
-        } else {
-            collector.observeSourceOutput(Path.of(fileObject.getName()));
+            return Path.of(uri);
         }
+        return Path.of(fileObject.getName());
     }
 }

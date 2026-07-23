@@ -11,14 +11,17 @@ import java.util.Set;
 /**
  * Thread-safe sink that reconciles two independent views of what an annotation-processor round wrote:
  * the {@link javax.annotation.processing.Filer} calls (with their originating elements) and the
- * ground-truth files the {@link OutputTrackingFileManager} actually saw created under the
- * source-output location. Any generated source the file manager observed that no Filer call explains,
- * or any Filer output produced without an originating element, marks the whole result unattributed.
+ * ground-truth files the {@link OutputTrackingFileManager} actually saw created under the source- and
+ * class-output locations. Generated sources and generated resources are each reconciled against the
+ * matching Filer records: any output the file manager observed that no Filer call explains, or any
+ * Filer output produced without an originating element, marks the whole result unattributed.
  */
 final class AttributionCollector {
     private final Map<Path, GeneratedFileRecord> entries = new LinkedHashMap<>();
     private final Set<Path> filerSourceOutputs = new LinkedHashSet<>();
+    private final Set<Path> filerResourceOutputs = new LinkedHashSet<>();
     private final Set<Path> observedSourceOutputs = new LinkedHashSet<>();
+    private final Set<Path> observedResourceOutputs = new LinkedHashSet<>();
     private boolean unattributedOrigin;
 
     synchronized void recordSource(Path path, String createdType, List<String> originating) {
@@ -31,6 +34,7 @@ final class AttributionCollector {
     }
 
     synchronized void recordResource(Path path, List<String> originating) {
+        filerResourceOutputs.add(path);
         record(path, GeneratedFileRecord.KIND_RESOURCE, "", originating);
     }
 
@@ -38,12 +42,19 @@ final class AttributionCollector {
         observedSourceOutputs.add(path.toAbsolutePath().normalize());
     }
 
+    synchronized void observeResourceOutput(Path path) {
+        observedResourceOutputs.add(path.toAbsolutePath().normalize());
+    }
+
     synchronized AttributionCompileResult result(int exitCode, String diagnostics) {
+        boolean unattributed = unattributedOrigin
+                || hasUnexplained(observedSourceOutputs, filerSourceOutputs)
+                || hasUnexplained(observedResourceOutputs, filerResourceOutputs);
         return new AttributionCompileResult(
                 exitCode,
                 diagnostics,
                 true,
-                unattributedOrigin || hasUnexplainedSourceOutput(),
+                unattributed,
                 new ArrayList<>(entries.values()));
     }
 
@@ -54,9 +65,9 @@ final class AttributionCollector {
         entries.put(path, new GeneratedFileRecord(path.toString(), kind, createdType, originating));
     }
 
-    private boolean hasUnexplainedSourceOutput() {
-        for (Path observed : observedSourceOutputs) {
-            if (!filerSourceOutputs.contains(observed)) {
+    private static boolean hasUnexplained(Set<Path> observed, Set<Path> explained) {
+        for (Path path : observed) {
+            if (!explained.contains(path)) {
                 return true;
             }
         }

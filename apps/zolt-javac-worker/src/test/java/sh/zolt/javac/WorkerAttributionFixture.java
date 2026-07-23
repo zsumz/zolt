@@ -22,9 +22,7 @@ final class WorkerAttributionFixture {
      * the class as the originating element unless {@code -Azolt.omitOriginating=true} is set.
      */
     static Path compileProcessor(Path tempDir) throws Exception {
-        Path processorSource = tempDir.resolve("proc/GenProc.java");
-        Files.createDirectories(processorSource.getParent());
-        Files.writeString(processorSource, """
+        return compile(tempDir, "GenProc", """
                 package proc;
                 import java.io.Writer;
                 import java.util.Set;
@@ -59,6 +57,60 @@ final class WorkerAttributionFixture {
                     }
                 }
                 """);
+    }
+
+    /**
+     * Compiles a processor that generates a {@code gen/<Name>.meta} resource under {@code CLASS_OUTPUT}
+     * for each root class, passing the class as the originating element unless
+     * {@code -Azolt.omitOriginating=true} is set. Mirrors {@link #compileProcessor} for the resource path.
+     */
+    static Path compileResourceProcessor(Path tempDir) throws Exception {
+        return compile(tempDir, "GenResourceProc", """
+                package proc;
+                import java.io.Writer;
+                import java.util.Set;
+                import javax.annotation.processing.AbstractProcessor;
+                import javax.annotation.processing.RoundEnvironment;
+                import javax.annotation.processing.SupportedAnnotationTypes;
+                import javax.lang.model.SourceVersion;
+                import javax.lang.model.element.Element;
+                import javax.lang.model.element.ElementKind;
+                import javax.lang.model.element.TypeElement;
+                import javax.tools.FileObject;
+                import javax.tools.StandardLocation;
+
+                @SupportedAnnotationTypes("*")
+                public class GenResourceProc extends AbstractProcessor {
+                    private boolean done;
+                    @Override public SourceVersion getSupportedSourceVersion() { return SourceVersion.latestSupported(); }
+                    @Override public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+                        if (done) { return false; }
+                        boolean omit = "true".equals(processingEnv.getOptions().get("zolt.omitOriginating"));
+                        for (Element element : roundEnv.getRootElements()) {
+                            if (element.getKind() != ElementKind.CLASS) { continue; }
+                            String resourceName = element.getSimpleName() + ".meta";
+                            try {
+                                FileObject file = omit
+                                        ? processingEnv.getFiler().createResource(
+                                                StandardLocation.CLASS_OUTPUT, "gen", resourceName)
+                                        : processingEnv.getFiler().createResource(
+                                                StandardLocation.CLASS_OUTPUT, "gen", resourceName, element);
+                                Writer writer = file.openWriter();
+                                writer.write("owner=" + element.getSimpleName());
+                                writer.close();
+                                done = true;
+                            } catch (Exception exception) { throw new RuntimeException(exception); }
+                        }
+                        return false;
+                    }
+                }
+                """);
+    }
+
+    private static Path compile(Path tempDir, String simpleName, String source) throws Exception {
+        Path processorSource = tempDir.resolve("proc/" + simpleName + ".java");
+        Files.createDirectories(processorSource.getParent());
+        Files.writeString(processorSource, source);
         Path processorClasses = Files.createDirectories(tempDir.resolve("processor-classes"));
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         ByteArrayOutputStream diagnostics = new ByteArrayOutputStream();
@@ -67,7 +119,7 @@ final class WorkerAttributionFixture {
         assertEquals(0, exitCode, diagnostics.toString(StandardCharsets.UTF_8));
         Path services = processorClasses.resolve("META-INF/services/javax.annotation.processing.Processor");
         Files.createDirectories(services.getParent());
-        Files.writeString(services, "proc.GenProc\n");
+        Files.writeString(services, "proc." + simpleName + "\n");
         return processorClasses;
     }
 
