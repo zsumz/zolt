@@ -31,6 +31,7 @@ import java.util.function.UnaryOperator;
  */
 public final class ExecGeneratedSourceService {
     private static final int LOG_TAIL_LINES = 20;
+    private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(30);
 
     private final JdkChecker jdkDetector;
     private final ExecCommandBuilder commandBuilder;
@@ -239,9 +240,11 @@ public final class ExecGeneratedSourceService {
                     context.projectClasspath(),
                     ExecToolIdentity.none());
             case "process" -> {
+                // Probes are near-instant version checks; the step's timeoutSeconds governs the
+                // step run only, so a tight step timeout cannot race probe process startup.
                 ExecProcessToolResolver.Resolved probe = ExecProcessToolResolver.resolve(
                         step.exec().tool(), subject, cwd, ambientEnv, pathSeparator, processRunner,
-                        Duration.ofSeconds(step.exec().timeoutSeconds()));
+                        PROBE_TIMEOUT);
                 yield new ResolvedCommand(
                         commandBuilder.processCommand(probe.binary(), args),
                         List.of(),
