@@ -48,6 +48,7 @@ public final class WorkspaceConfigParser {
             "native",
             "toolchain",
             "workspace",
+            "coverage",
             "commands");
     private static final Set<String> WORKSPACE_KEYS = Set.of("name", "members", "defaultMembers");
 

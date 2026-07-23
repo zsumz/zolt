@@ -98,6 +98,21 @@ public final class TomlScalars {
         }
     }
 
+    public static Optional<Double> optionalDouble(TomlTable table, String section, String key) {
+        Object rawValue = table.get(List.of(key));
+        if (rawValue == null) {
+            return Optional.empty();
+        }
+        if (rawValue instanceof Double value) {
+            return Optional.of(value);
+        }
+        if (rawValue instanceof Long value) {
+            return Optional.of(value.doubleValue());
+        }
+        throw new ZoltConfigException(
+                "Invalid value for [" + section + "]." + key + " in zolt.toml. Use a number between 0 and 100.");
+    }
+
     public static Map<String, String> stringMap(TomlTable table, String section) {
         if (table == null) {
             return Map.of();

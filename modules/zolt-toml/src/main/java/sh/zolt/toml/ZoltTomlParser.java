@@ -3,6 +3,7 @@ package sh.zolt.toml;
 import sh.zolt.error.ActionableError;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.CompilerSettings;
+import sh.zolt.project.CoverageSettings;
 import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.DependencyPolicySettings;
 import sh.zolt.project.FrameworkSettings;
@@ -15,6 +16,7 @@ import sh.zolt.project.RepositorySettings;
 import sh.zolt.toml.dependency.DependencySectionCodec;
 import sh.zolt.toml.generated.GeneratedSectionCodec;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -51,6 +53,7 @@ public final class ZoltTomlParser {
             "native",
             "toolchain",
             "workspace",
+            "coverage",
             "commands");
     public ProjectConfig parse(Path path) {
         try {
@@ -65,6 +68,31 @@ public final class ZoltTomlParser {
 
     public ProjectConfig parse(String content) {
         return parse(Toml.parse(content));
+    }
+
+    /**
+     * Reads only the {@code [coverage]} floors from a {@code zolt.toml}. Returns
+     * {@link CoverageSettings#none()} when the file is absent so callers can treat "no config" as
+     * "no floors". Throws {@link ZoltConfigException} for unreadable files, TOML syntax errors, or an
+     * invalid {@code [coverage]} section.
+     */
+    public CoverageSettings parseCoverageFloors(Path path) {
+        if (!Files.exists(path)) {
+            return CoverageSettings.none();
+        }
+        TomlParseResult result;
+        try {
+            result = Toml.parse(path);
+        } catch (IOException exception) {
+            throw new ZoltConfigException(ActionableError.of(
+                    "Could not read zolt.toml at " + path + ".",
+                    "Check that the file exists and is readable.",
+                    exception));
+        }
+        if (result.hasErrors()) {
+            throw new ZoltConfigException(parseErrorMessage(result));
+        }
+        return CoverageSectionCodec.parse(result.getTable("coverage"));
     }
 
     private ProjectConfig parse(TomlParseResult result) {
@@ -113,6 +141,10 @@ public final class ZoltTomlParser {
         PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
         NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name(), build);
+
+        // Validate [coverage] floors eagerly so typos and out-of-range values surface on any config
+        // load; the coverage and check commands read them on demand via parseCoverageFloors.
+        CoverageSectionCodec.parse(optionalTable(result, "coverage"));
 
         return new ProjectConfig(
                 project,
