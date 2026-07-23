@@ -3,6 +3,8 @@ package sh.zolt.build.generatedsource;
 import sh.zolt.build.BuildException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -11,14 +13,28 @@ import java.util.regex.Pattern;
  * the discovered path is deterministic and recordable in plan/fingerprint evidence.
  */
 final class ProcessToolLocator {
+    // Windows resolves a bare command name against PATHEXT; mirror the default set so a
+    // process-tool `binary` like `protoc` also matches `protoc.exe`/`protoc.cmd` on PATH.
+    private static final List<String> WINDOWS_EXECUTABLE_SUFFIXES =
+            List.of("", ".exe", ".bat", ".cmd", ".com");
+    private static final List<String> POSIX_EXECUTABLE_SUFFIXES = List.of("");
+
     private ProcessToolLocator() {
     }
 
     static Path locate(String binary, String pathValue, String pathSeparator, String subject) {
+        return locate(binary, pathValue, pathSeparator, subject, System.getProperty("os.name", ""));
+    }
+
+    static Path locate(String binary, String pathValue, String pathSeparator, String subject, String osName) {
+        List<String> suffixes = executableSuffixes(osName, binary);
         Path direct = Path.of(binary);
         if (direct.getNameCount() != 1 || direct.isAbsolute()) {
-            if (isExecutable(direct)) {
-                return direct.toAbsolutePath().normalize();
+            for (String suffix : suffixes) {
+                Path candidate = Path.of(binary + suffix);
+                if (isExecutable(candidate)) {
+                    return candidate.toAbsolutePath().normalize();
+                }
             }
             throw notFound(binary, subject);
         }
@@ -27,13 +43,30 @@ final class ProcessToolLocator {
                 if (entry.isBlank()) {
                     continue;
                 }
-                Path candidate = Path.of(entry).resolve(binary);
-                if (isExecutable(candidate)) {
-                    return candidate.toAbsolutePath().normalize();
+                Path directory = Path.of(entry);
+                for (String suffix : suffixes) {
+                    Path candidate = directory.resolve(binary + suffix);
+                    if (isExecutable(candidate)) {
+                        return candidate.toAbsolutePath().normalize();
+                    }
                 }
             }
         }
         throw notFound(binary, subject);
+    }
+
+    private static List<String> executableSuffixes(String osName, String binary) {
+        if (!osName.toLowerCase(Locale.ROOT).contains("win")) {
+            return POSIX_EXECUTABLE_SUFFIXES;
+        }
+        String lower = binary.toLowerCase(Locale.ROOT);
+        for (String suffix : WINDOWS_EXECUTABLE_SUFFIXES) {
+            if (!suffix.isEmpty() && lower.endsWith(suffix)) {
+                // Already carries an executable extension; do not append another.
+                return POSIX_EXECUTABLE_SUFFIXES;
+            }
+        }
+        return WINDOWS_EXECUTABLE_SUFFIXES;
     }
 
     private static boolean isExecutable(Path path) {

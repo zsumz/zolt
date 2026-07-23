@@ -5,6 +5,7 @@ import sh.zolt.project.ExecGenerationSettings;
 import sh.zolt.project.GeneratedSourceStep;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -25,11 +26,30 @@ final class ExecEnvironment {
             String scope,
             GeneratedSourceStep step,
             UnaryOperator<String> ambientEnv) {
+        return build(projectRoot, output, scope, step, ambientEnv, System.getProperty("os.name", ""));
+    }
+
+    static Map<String, String> build(
+            Path projectRoot,
+            Path output,
+            String scope,
+            GeneratedSourceStep step,
+            UnaryOperator<String> ambientEnv,
+            String osName) {
         ExecGenerationSettings exec = step.exec();
         String subject = "[generated." + scope + "." + step.id() + "]";
         Map<String, String> environment = new LinkedHashMap<>();
         putIfPresent(environment, "PATH", ambientEnv.apply("PATH"));
         putIfPresent(environment, "HOME", ambientEnv.apply("HOME"));
+        // Windows resolves environment names case-insensitively (System.getenv and
+        // ProcessBuilder.environment() both use a case-insensitive map on Windows), so the curated
+        // upper-case PATH above is authoritative regardless of the ambient `Path` casing. A cleared
+        // Windows environment must still carry SystemRoot/SystemDrive or most native executables fail
+        // to initialize (winsock, crypto, and %TEMP% resolution all read SystemRoot).
+        if (osName.toLowerCase(Locale.ROOT).contains("win")) {
+            putIfPresent(environment, "SystemRoot", ambientEnv.apply("SystemRoot"));
+            putIfPresent(environment, "SystemDrive", ambientEnv.apply("SystemDrive"));
+        }
         for (String name : exec.inheritEnv()) {
             putIfPresent(environment, name, ambientEnv.apply(name));
         }
