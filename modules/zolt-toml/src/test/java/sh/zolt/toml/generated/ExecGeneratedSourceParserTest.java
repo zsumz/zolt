@@ -1,6 +1,7 @@
 package sh.zolt.toml.generated;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,8 +127,175 @@ final class ExecGeneratedSourceParserTest {
         assertTrue(exception.getMessage().contains("Unknown exec tool `missing`"), exception.getMessage());
     }
 
+    private static final String FRONTEND_CONFIG = """
+            [project]
+            name = "demo"
+            version = "0.1.0"
+            group = "com.example"
+            java = "21"
+
+            [generated.execTools.node]
+            runner = "process"
+            binary = "npm"
+            versionCommand = ["npm", "--version"]
+            versionExpect = ">=10 <11"
+            allowUnpinnedTool = true
+
+            [generated.main.frontend-install]
+            kind = "exec"
+            tool = "node"
+            cwd = "web"
+            args = ["ci"]
+            inputs = ["web/package.json", "web/package-lock.json"]
+            output = "web/node_modules"
+            produces = "intermediate"
+            timeoutSeconds = 120
+
+            [generated.main.frontend-build]
+            kind = "exec"
+            tool = "node"
+            cwd = "web"
+            args = ["run", "build"]
+            inputs = ["web/package-lock.json", "web/node_modules", "web/src/main.ts"]
+            output = "web/dist"
+            produces = "resources"
+            into = "static"
+            inheritEnv = ["CI"]
+            [generated.main.frontend-build.env]
+            NODE_ENV = "production"
+            [generated.main.frontend-build.secretEnv]
+            NPM_TOKEN = "CI_NPM_TOKEN"
+            """;
+
     @Test
-    void rejectsNonJvmRunner() {
+    void parsesProcessToolAndLanes() {
+        ProjectConfig config = parser.parse(FRONTEND_CONFIG);
+        List<GeneratedSourceStep> steps = config.build().generatedMainSources();
+
+        GeneratedSourceStep install = steps.stream().filter(step -> step.id().equals("frontend-install")).findFirst().orElseThrow();
+        assertEquals("process", install.exec().tool().runner());
+        assertEquals("npm", install.exec().tool().binary());
+        assertEquals(List.of("npm", "--version"), install.exec().tool().versionCommand());
+        assertEquals(">=10 <11", install.exec().tool().versionExpect().orElseThrow());
+        assertTrue(install.exec().tool().allowUnpinnedTool());
+        assertEquals(ProducesLane.INTERMEDIATE, install.exec().produces());
+        assertEquals("web", install.exec().cwd().orElseThrow());
+        assertEquals(120, install.exec().timeoutSeconds());
+
+        GeneratedSourceStep build = steps.stream().filter(step -> step.id().equals("frontend-build")).findFirst().orElseThrow();
+        assertEquals(ProducesLane.RESOURCES, build.exec().produces());
+        assertEquals("static", build.exec().into().orElseThrow());
+        assertEquals(List.of("CI"), build.exec().inheritEnv());
+        assertEquals("production", build.exec().env().get("NODE_ENV"));
+        assertEquals("CI_NPM_TOKEN", build.exec().secretEnv().get("NPM_TOKEN"));
+    }
+
+    @Test
+    void roundTripsProcessToolAndLanesThroughWriter() {
+        ProjectConfig config = parser.parse(FRONTEND_CONFIG);
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("runner = \"process\""), toml);
+        assertTrue(toml.contains("binary = \"npm\""), toml);
+        assertTrue(toml.contains("versionCommand = [\"npm\", \"--version\"]"), toml);
+        assertTrue(toml.contains("allowUnpinnedTool = true"), toml);
+        assertTrue(toml.contains("produces = \"intermediate\""), toml);
+        assertTrue(toml.contains("cwd = \"web\""), toml);
+        assertTrue(toml.contains("timeoutSeconds = 120"), toml);
+        assertTrue(toml.contains("inheritEnv = [\"CI\"]"), toml);
+        assertTrue(toml.contains("secretEnv = { \"NPM_TOKEN\" = \"CI_NPM_TOKEN\" }"), toml);
+        assertEquals(sortedById(config.build().generatedMainSources()), sortedById(parsed.build().generatedMainSources()));
+    }
+
+    @Test
+    void parsesAndRoundTripsProjectPseudoTool() {
+        String projectConfig = """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.assets]
+                kind = "exec"
+                tool = "project"
+                mainClass = "com.example.AssetGenerator"
+                inputs = ["target/classes"]
+                output = "target/generated/assets"
+                produces = "resources"
+                cache = "none"
+                """;
+        ProjectConfig config = parser.parse(projectConfig);
+        GeneratedSourceStep step = config.build().generatedMainSources().getFirst();
+        assertEquals("project", step.exec().toolName());
+        assertEquals("project", step.exec().tool().runner());
+        assertEquals("com.example.AssetGenerator", step.exec().tool().mainClass());
+        assertEquals("none", step.exec().cache());
+
+        String toml = writer.write(config);
+        assertTrue(toml.contains("tool = \"project\""), toml);
+        assertTrue(toml.contains("mainClass = \"com.example.AssetGenerator\""), toml);
+        assertTrue(toml.contains("cache = \"none\""), toml);
+        // the built-in project pseudo-tool is never emitted as a declared execTools table.
+        assertFalse(toml.contains("[generated.execTools.project]"), toml);
+        ProjectConfig parsed = parser.parse(toml);
+        assertEquals(sortedById(config.build().generatedMainSources()), sortedById(parsed.build().generatedMainSources()));
+    }
+
+    @Test
+    void parsesTestResourcesLane() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.execTools.t]
+                runner = "jvm"
+                coordinates = [{ coordinate = "x:y", version = "1.0.0" }]
+                mainClass = "M"
+
+                [generated.test.fixtures]
+                kind = "exec"
+                tool = "t"
+                inputs = ["src/test/fixtures/seed.txt"]
+                output = "target/generated/test-fixtures"
+                produces = "test-resources"
+                into = "data"
+                """);
+        GeneratedSourceStep step = config.build().generatedTestSources().getFirst();
+        assertEquals(ProducesLane.TEST_RESOURCES, step.exec().produces());
+        assertEquals("data", step.exec().into().orElseThrow());
+    }
+
+    @Test
+    void rejectsUnsupportedRunner() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.execTools.node]
+                runner = "docker"
+                binary = "docker"
+                versionCommand = ["docker", "--version"]
+
+                [generated.main.step]
+                kind = "exec"
+                tool = "node"
+                inputs = ["web/package.json"]
+                output = "web/node_modules"
+                produces = "intermediate"
+                """));
+        assertTrue(exception.getMessage().contains("Supported runners are: jvm, process"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsProcessToolWithoutVersionCommand() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
                 [project]
                 name = "demo"
@@ -137,24 +305,50 @@ final class ExecGeneratedSourceParserTest {
 
                 [generated.execTools.node]
                 runner = "process"
-                coordinates = [{ coordinate = "x:y", version = "1" }]
-                mainClass = "M"
+                binary = "npm"
+                allowUnpinnedTool = true
 
                 [generated.main.step]
                 kind = "exec"
                 tool = "node"
                 inputs = ["web/package.json"]
                 output = "web/node_modules"
-                produces = "resources"
+                produces = "intermediate"
                 """));
-        assertTrue(exception.getMessage().contains("runner = \"jvm\""), exception.getMessage());
+        assertTrue(exception.getMessage().contains("versionCommand"), exception.getMessage());
     }
 
     @Test
-    void rejectsNonContentCachePolicy() {
+    void rejectsMainClassOnNonProjectTool() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse(execStepConfig(
-                "produces = \"java-sources\"\ncache = \"none\"")));
-        assertTrue(exception.getMessage().contains("cache = \"content\""), exception.getMessage());
+                "produces = \"java-sources\"\nmainClass = \"com.example.Rogue\"")));
+        assertTrue(exception.getMessage().contains("mainClass applies only to tool = \"project\""), exception.getMessage());
+    }
+
+    @Test
+    void rejectsProjectToolWithoutMainClass() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.main.step]
+                kind = "exec"
+                tool = "project"
+                inputs = ["target/classes"]
+                output = "target/generated/x"
+                produces = "resources"
+                """));
+        assertTrue(exception.getMessage().contains("mainClass"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsUnsupportedCachePolicy() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse(execStepConfig(
+                "produces = \"java-sources\"\ncache = \"live-db\"")));
+        assertTrue(exception.getMessage().contains("Supported cache policies are: content, none"), exception.getMessage());
     }
 
     @Test
@@ -167,8 +361,15 @@ final class ExecGeneratedSourceParserTest {
     @Test
     void rejectsUnsupportedProducesLane() {
         ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse(execStepConfig(
-                "produces = \"intermediate\"")));
-        assertTrue(exception.getMessage().contains("Unsupported exec produces lane `intermediate`"), exception.getMessage());
+                "produces = \"sideways\"")));
+        assertTrue(exception.getMessage().contains("Unsupported exec produces lane `sideways`"), exception.getMessage());
+    }
+
+    @Test
+    void rejectsNonPositiveTimeout() {
+        ZoltConfigException exception = assertThrows(ZoltConfigException.class, () -> parser.parse(execStepConfig(
+                "produces = \"java-sources\"\ntimeoutSeconds = 0")));
+        assertTrue(exception.getMessage().contains("timeoutSeconds"), exception.getMessage());
     }
 
     @Test

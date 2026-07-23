@@ -23,10 +23,15 @@ import org.tomlj.TomlArray;
 import org.tomlj.TomlTable;
 
 final class ExecGeneratedSourceParser {
-    private static final Set<String> EXEC_TOOL_KEYS = Set.of("runner", "coordinates", "mainClass");
+    /** The built-in {@code tool = "project"} pseudo-tool: never declared, always synthesized. */
+    static final String PROJECT_TOOL = "project";
+
+    private static final Set<String> EXEC_TOOL_KEYS = Set.of(
+            "runner", "coordinates", "mainClass", "binary", "versionCommand", "versionExpect", "allowUnpinnedTool");
     private static final Set<String> EXEC_COORDINATE_KEYS = Set.of("coordinate", "version", "versionRef");
     private static final Set<String> GENERATED_EXEC_SOURCE_KEYS = Set.of(
-            "kind", "language", "tool", "args", "inputs", "output", "produces", "into", "cache", "env", "required", "clean");
+            "kind", "language", "tool", "mainClass", "args", "inputs", "output", "produces", "into", "cache", "env",
+            "secretEnv", "inheritEnv", "cwd", "timeoutSeconds", "required", "clean");
 
     private ExecGeneratedSourceParser() {
     }
@@ -37,25 +42,51 @@ final class ExecGeneratedSourceParser {
         }
         Map<String, ExecToolSettings> tools = new LinkedHashMap<>();
         for (String name : table.keySet()) {
+            if (PROJECT_TOOL.equals(name)) {
+                throw new ZoltConfigException(
+                        "Exec tool name `project` is reserved for the built-in pseudo-tool in [generated.execTools]. "
+                                + "Reference it directly with tool = \"project\"; do not declare it.");
+            }
             TomlTable toolTable = optionalTable(table, name);
             if (toolTable == null) {
                 throw new ZoltConfigException(
                         "Invalid value for [generated.execTools]." + name
-                                + " in zolt.toml. Use a table with runner, coordinates, and mainClass.");
+                                + " in zolt.toml. Use a table with runner, and either jvm (coordinates, mainClass) or "
+                                + "process (binary, versionCommand) fields.");
             }
             String section = "generated.execTools." + name;
             TomlValidation.validateKeysWithVersionRefHint(section, toolTable, EXEC_TOOL_KEYS);
             String runner = TomlScalars.requiredString(toolTable, section, "runner");
-            if (!"jvm".equals(runner)) {
-                throw new ZoltConfigException(
+            tools.put(name, switch (runner) {
+                case "jvm" -> parseJvmTool(toolTable, section, versionAliases);
+                case "process" -> parseProcessTool(toolTable, section);
+                default -> throw new ZoltConfigException(
                         "Unsupported exec tool runner `" + runner + "` in [" + section
-                                + "]. Stage 1 supports only runner = \"jvm\"; the process runner arrives in a later stage.");
-            }
-            List<ExecToolCoordinate> coordinates = parseCoordinates(toolTable, section, versionAliases);
-            String mainClass = TomlScalars.requiredString(toolTable, section, "mainClass");
-            tools.put(name, new ExecToolSettings(runner, coordinates, mainClass));
+                                + "]. Supported runners are: jvm, process. (tool = \"project\" is a built-in "
+                                + "pseudo-tool referenced directly, never declared.)");
+            });
         }
         return Map.copyOf(tools);
+    }
+
+    private static ExecToolSettings parseJvmTool(
+            TomlTable toolTable, String section, Map<String, String> versionAliases) {
+        List<ExecToolCoordinate> coordinates = parseCoordinates(toolTable, section, versionAliases);
+        String mainClass = TomlScalars.requiredString(toolTable, section, "mainClass");
+        return new ExecToolSettings("jvm", coordinates, mainClass);
+    }
+
+    private static ExecToolSettings parseProcessTool(TomlTable toolTable, String section) {
+        String binary = TomlScalars.requiredString(toolTable, section, "binary");
+        List<String> versionCommand = TomlScalars.stringListOrDefault(toolTable, section, "versionCommand", List.of());
+        if (versionCommand.isEmpty()) {
+            throw new ZoltConfigException(
+                    "Missing required field [" + section + "].versionCommand in zolt.toml. Add the argv probe whose "
+                            + "stdout identifies the tool, e.g. versionCommand = [\"" + binary + "\", \"--version\"].");
+        }
+        Optional<String> versionExpect = TomlScalars.optionalString(toolTable, section, "versionExpect");
+        boolean allowUnpinnedTool = TomlScalars.booleanOrDefault(toolTable, section, "allowUnpinnedTool", false);
+        return ExecToolSettings.process(binary, versionCommand, versionExpect, allowUnpinnedTool);
     }
 
     static GeneratedSourceStep parseStep(
@@ -71,12 +102,7 @@ final class ExecGeneratedSourceParser {
                             + "` in zolt.toml. Supported generated source languages are: java.");
         }
         String toolName = TomlScalars.requiredString(table, section, "tool");
-        ExecToolSettings tool = tools.get(toolName);
-        if (tool == null) {
-            throw new ZoltConfigException(
-                    "Unknown exec tool `" + toolName + "` in [" + section
-                            + "]. Add [generated.execTools." + toolName + "] or fix the tool reference.");
-        }
+        ExecToolSettings tool = resolveTool(toolName, table, section, tools);
         List<String> inputs = TomlScalars.stringListOrDefault(table, section, "inputs", List.of());
         if (inputs.isEmpty()) {
             throw new ZoltConfigException(
@@ -90,19 +116,29 @@ final class ExecGeneratedSourceParser {
                         "Unsupported exec produces lane `" + producesValue + "` in [" + section
                                 + "]. Supported lanes are: " + ProducesLane.supportedValues() + "."));
         Optional<String> into = TomlScalars.optionalString(table, section, "into");
-        if (into.isPresent() && produces != ProducesLane.RESOURCES) {
+        if (into.isPresent() && produces != ProducesLane.RESOURCES && produces != ProducesLane.TEST_RESOURCES) {
             throw new ZoltConfigException(
-                    "[" + section + "].into applies only to produces = \"resources\". "
-                            + "Remove into or set produces = \"resources\".");
+                    "[" + section + "].into applies only to produces = \"resources\" or \"test-resources\". "
+                            + "Remove into or set a resource-producing lane.");
         }
         String cache = TomlScalars.stringOrDefault(table, section, "cache", "content");
-        if (!"content".equals(cache)) {
+        if (!"content".equals(cache) && !"none".equals(cache)) {
             throw new ZoltConfigException(
                     "Unsupported cache policy `" + cache + "` for [" + section
-                            + "]. Stage 1 supports only cache = \"content\"; cache = \"none\" arrives in a later stage.");
+                            + "]. Supported cache policies are: content, none.");
         }
         Map<String, String> env = TomlScalars.stringMap(optionalTable(table, "env"), section + ".env");
-        ExecGenerationSettings settings = new ExecGenerationSettings(toolName, tool, args, produces, into, env, cache);
+        Map<String, String> secretEnv = TomlScalars.stringMap(optionalTable(table, "secretEnv"), section + ".secretEnv");
+        List<String> inheritEnv = TomlScalars.stringListOrDefault(table, section, "inheritEnv", List.of());
+        Optional<String> cwd = TomlScalars.optionalString(table, section, "cwd");
+        int timeoutSeconds = TomlScalars.integerOrDefault(
+                table, section, "timeoutSeconds", ExecGenerationSettings.DEFAULT_TIMEOUT_SECONDS);
+        if (timeoutSeconds <= 0) {
+            throw new ZoltConfigException(
+                    "[" + section + "].timeoutSeconds must be a positive number of seconds.");
+        }
+        ExecGenerationSettings settings = new ExecGenerationSettings(
+                toolName, tool, args, produces, into, env, cache, cwd, secretEnv, inheritEnv, timeoutSeconds);
         return new GeneratedSourceStep(
                 id,
                 GeneratedSourceKind.EXEC,
@@ -114,6 +150,29 @@ final class ExecGeneratedSourceParser {
                 OpenApiGenerationSettings.empty(),
                 ProtobufGenerationSettings.empty(),
                 settings);
+    }
+
+    private static ExecToolSettings resolveTool(
+            String toolName,
+            TomlTable table,
+            String section,
+            Map<String, ExecToolSettings> tools) {
+        if (PROJECT_TOOL.equals(toolName)) {
+            String mainClass = TomlScalars.requiredString(table, section, "mainClass");
+            return ExecToolSettings.project(mainClass);
+        }
+        if (TomlScalars.optionalString(table, section, "mainClass").isPresent()) {
+            throw new ZoltConfigException(
+                    "[" + section + "].mainClass applies only to tool = \"project\". "
+                            + "Declare the main class on [generated.execTools." + toolName + "] instead.");
+        }
+        ExecToolSettings tool = tools.get(toolName);
+        if (tool == null) {
+            throw new ZoltConfigException(
+                    "Unknown exec tool `" + toolName + "` in [" + section
+                            + "]. Add [generated.execTools." + toolName + "] or fix the tool reference.");
+        }
+        return tool;
     }
 
     private static List<ExecToolCoordinate> parseCoordinates(

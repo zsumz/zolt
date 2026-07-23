@@ -217,13 +217,23 @@ public final class GeneratedSectionCodec {
         java.util.stream.Stream
                 .concat(build.generatedMainSources().stream(), build.generatedTestSources().stream())
                 .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
+                .filter(step -> !ExecGeneratedSourceParser.PROJECT_TOOL.equals(step.exec().toolName()))
                 .forEach(step -> tools.putIfAbsent(step.exec().toolName(), step.exec().tool()));
         for (Map.Entry<String, ExecToolSettings> entry : tools.entrySet()) {
             ExecToolSettings tool = entry.getValue();
             toml.append("\n[generated.execTools.").append(entry.getKey()).append("]\n");
             writeAssignment(toml, "runner", tool.runner());
-            writeExecCoordinates(toml, tool.coordinates());
-            writeAssignment(toml, "mainClass", tool.mainClass());
+            if ("process".equals(tool.runner())) {
+                writeAssignment(toml, "binary", tool.binary());
+                writeStringArray(toml, "versionCommand", tool.versionCommand());
+                tool.versionExpect().ifPresent(value -> writeAssignment(toml, "versionExpect", value));
+                if (tool.allowUnpinnedTool()) {
+                    writeAssignment(toml, "allowUnpinnedTool", true);
+                }
+            } else {
+                writeExecCoordinates(toml, tool.coordinates());
+                writeAssignment(toml, "mainClass", tool.mainClass());
+            }
         }
     }
 
@@ -244,6 +254,9 @@ public final class GeneratedSectionCodec {
     private static void writeExecSettings(StringBuilder toml, GeneratedSourceStep step) {
         ExecGenerationSettings exec = step.exec();
         writeAssignment(toml, "tool", exec.toolName());
+        if (ExecGeneratedSourceParser.PROJECT_TOOL.equals(exec.toolName())) {
+            writeAssignment(toml, "mainClass", exec.tool().mainClass());
+        }
         if (!exec.args().isEmpty()) {
             writeStringArray(toml, "args", exec.args());
         }
@@ -253,8 +266,18 @@ public final class GeneratedSectionCodec {
         if (!"content".equals(exec.cache())) {
             writeAssignment(toml, "cache", exec.cache());
         }
+        exec.cwd().ifPresent(value -> writeAssignment(toml, "cwd", value));
+        if (!exec.inheritEnv().isEmpty()) {
+            writeStringArray(toml, "inheritEnv", exec.inheritEnv());
+        }
+        if (exec.timeoutSeconds() != ExecGenerationSettings.DEFAULT_TIMEOUT_SECONDS) {
+            writeAssignment(toml, "timeoutSeconds", exec.timeoutSeconds());
+        }
         if (!exec.env().isEmpty()) {
             writeInlineStringMap(toml, "env", exec.env());
+        }
+        if (!exec.secretEnv().isEmpty()) {
+            writeInlineStringMap(toml, "secretEnv", exec.secretEnv());
         }
     }
 
@@ -263,6 +286,10 @@ public final class GeneratedSectionCodec {
     }
 
     private static void writeAssignment(StringBuilder toml, String key, boolean value) {
+        toml.append(key).append(" = ").append(value).append('\n');
+    }
+
+    private static void writeAssignment(StringBuilder toml, String key, int value) {
         toml.append(key).append(" = ").append(value).append('\n');
     }
 

@@ -7,13 +7,16 @@ import java.util.stream.Collectors;
 /**
  * The consumption lane an exec step's output joins. Position in the build is derived from this
  * declaration, never from an anchor: {@code JAVA_SOURCES}/{@code TEST_SOURCES} join the matching
- * compile source roots; {@code RESOURCES} joins resource copying (optionally under an {@code into}
- * subtree).
+ * compile source roots; {@code RESOURCES}/{@code TEST_RESOURCES} join the matching resource copying
+ * (optionally under an {@code into} subtree); {@code INTERMEDIATE} is consumed only by other steps
+ * through IO ordering edges and is never compiled or packaged.
  */
 public enum ProducesLane {
     JAVA_SOURCES("java-sources"),
     TEST_SOURCES("test-sources"),
-    RESOURCES("resources");
+    RESOURCES("resources"),
+    TEST_RESOURCES("test-resources"),
+    INTERMEDIATE("intermediate");
 
     private final String configValue;
 
