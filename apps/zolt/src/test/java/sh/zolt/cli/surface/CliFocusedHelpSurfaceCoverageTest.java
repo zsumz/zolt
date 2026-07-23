@@ -55,6 +55,7 @@ final class CliFocusedHelpSurfaceCoverageTest {
             "zolt resolve",
             "zolt run",
             "zolt run-package",
+            "zolt sbom",
             "zolt self",
             "zolt self channel",
             "zolt self exec",

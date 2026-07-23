@@ -63,6 +63,8 @@ final class RootCommandListRenderer implements IHelpSectionRenderer {
                     "release-archive",
                     "release-verify",
                     "publish")),
+            new CommandGroup("Supply Chain", List.of(
+                    "sbom")),
             new CommandGroup("Self-Hosting", List.of(
                     "self-check",
                     "self-parity")));
