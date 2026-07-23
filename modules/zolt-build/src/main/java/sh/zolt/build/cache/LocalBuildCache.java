@@ -104,6 +104,11 @@ public final class LocalBuildCache {
         return Files.isRegularFile(archivePath) ? Optional.of(archivePath) : Optional.empty();
     }
 
+    public Optional<Path> metaFileIfPresent(BuildCacheKey key) {
+        Path metaPath = metaPath(key);
+        return Files.isRegularFile(metaPath) ? Optional.of(metaPath) : Optional.empty();
+    }
+
     public BuildCacheStatus status() {
         List<Entry> entries = entries();
         long total = entries.stream().mapToLong(Entry::size).sum();

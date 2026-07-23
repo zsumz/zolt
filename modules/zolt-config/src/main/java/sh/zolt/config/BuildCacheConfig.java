@@ -14,13 +14,18 @@ import java.util.Optional;
  * @param directory the resolved cache directory when enabled, empty when disabled
  * @param maxSizeBytes the size cap the cache is pruned to (LRU), in bytes
  */
-public record BuildCacheConfig(boolean enabled, Optional<Path> directory, long maxSizeBytes) {
+public record BuildCacheConfig(
+        boolean enabled,
+        Optional<Path> directory,
+        long maxSizeBytes,
+        Optional<RemoteBuildCacheConfig> remote) {
     public BuildCacheConfig {
         directory = directory == null ? Optional.empty() : directory;
         maxSizeBytes = Math.max(0L, maxSizeBytes);
+        remote = remote == null ? Optional.empty() : remote;
     }
 
     public static BuildCacheConfig disabled() {
-        return new BuildCacheConfig(false, Optional.empty(), 0L);
+        return new BuildCacheConfig(false, Optional.empty(), 0L, Optional.empty());
     }
 }

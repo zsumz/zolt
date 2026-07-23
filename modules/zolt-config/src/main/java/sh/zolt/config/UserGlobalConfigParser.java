@@ -1,5 +1,6 @@
 package sh.zolt.config;
 
+import sh.zolt.project.RepositoryCredentialSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,10 +23,10 @@ public final class UserGlobalConfigParser {
             "defaults",
             "ui",
             "network",
-            "buildCache");
+            "buildCache",
+            "repositoryCredentials");
     private static final Set<String> REJECTED_TOP_LEVEL_KEYS = Set.of(
             "repositories",
-            "repositoryCredentials",
             "dependencies",
             "devDependencies",
             "runtimeDependencies",
@@ -43,7 +44,9 @@ public final class UserGlobalConfigParser {
     private static final Set<String> OVERLAY_KEYS = Set.of("kind", "enabled");
     private static final Set<String> UI_KEYS = Set.of("color", "progress");
     private static final Set<String> NETWORK_KEYS = Set.of("caBundle", "toolchainMirror");
-    private static final Set<String> BUILD_CACHE_KEYS = Set.of("enabled", "dir", "maxSizeMb");
+    private static final Set<String> BUILD_CACHE_KEYS = Set.of("enabled", "dir", "maxSizeMb", "remote");
+    private static final Set<String> BUILD_CACHE_REMOTE_KEYS = Set.of("url", "credentials", "push");
+    private static final Set<String> CREDENTIAL_KEYS = Set.of("usernameEnv", "passwordEnv", "tokenEnv");
     private static final int DEFAULT_BUILD_CACHE_MAX_SIZE_MB = 2048;
     private static final Set<String> EXECUTION_LANES = Set.of("platform", "serial");
     private static final Set<String> UI_MODES = Set.of("auto", "always", "never");
@@ -84,10 +87,13 @@ public final class UserGlobalConfigParser {
         UiConfig ui = ui(optionalTable(result, "ui"), defaults.ui());
         NetworkConfig network = network(optionalTable(result, "network"), normalizedPath, defaults.network());
         BuildCacheConfig buildCache = buildCache(optionalTable(result, "buildCache"), normalizedPath);
+        Map<String, RepositoryCredentialSettings> credentials =
+                repositoryCredentials(optionalTable(result, "repositoryCredentials"));
+        validateRemoteCredentialReference(buildCache, credentials);
         UserGlobalConfigSources sources = sources(result, defaults.sources());
         return new UserGlobalConfig(
                 version, normalizedPath, cacheRoot, repository, overlays, toolchainDefaults, ui, network,
-                buildCache, sources);
+                buildCache, credentials, sources);
     }
 
     private static BuildCacheConfig buildCache(TomlTable table, Path configPath) {
@@ -103,7 +109,74 @@ public final class UserGlobalConfigParser {
                 ? resolveConfigRelativePath(rawDir, configPath)
                 : expandUserHome(Path.of("~/.zolt/build-cache"));
         int maxSizeMb = positiveIntOrDefault(table, "buildCache", "maxSizeMb", DEFAULT_BUILD_CACHE_MAX_SIZE_MB);
-        return new BuildCacheConfig(true, Optional.of(directory), (long) maxSizeMb * 1024L * 1024L);
+        return new BuildCacheConfig(
+                true, Optional.of(directory), (long) maxSizeMb * 1024L * 1024L, buildCacheRemote(table));
+    }
+
+    private static Optional<RemoteBuildCacheConfig> buildCacheRemote(TomlTable buildCacheTable) {
+        TomlTable table = buildCacheTable.getTable(List.of("remote"));
+        if (table == null) {
+            return Optional.empty();
+        }
+        validateKeys("buildCache.remote", table, BUILD_CACHE_REMOTE_KEYS);
+        String url = stringOrNull(table, "buildCache.remote", "url");
+        if (url == null) {
+            throw new UserGlobalConfigException(
+                    "Missing required url in [buildCache.remote] in user global config. Add `url = \"https://...\"`.");
+        }
+        Optional<String> credentials = Optional.ofNullable(stringOrNull(table, "buildCache.remote", "credentials"));
+        boolean push = booleanOrDefault(table, "buildCache.remote", "push", false);
+        return Optional.of(new RemoteBuildCacheConfig(url, credentials, push));
+    }
+
+    private static void validateRemoteCredentialReference(
+            BuildCacheConfig buildCache,
+            Map<String, RepositoryCredentialSettings> credentials) {
+        buildCache.remote().flatMap(RemoteBuildCacheConfig::credentials).ifPresent(id -> {
+            if (!credentials.containsKey(id)) {
+                throw new UserGlobalConfigException(
+                        "[buildCache.remote] references undefined credential `" + id
+                                + "` in user global config. Define [repositoryCredentials." + id + "].");
+            }
+        });
+    }
+
+    private static Map<String, RepositoryCredentialSettings> repositoryCredentials(TomlTable table) {
+        if (table == null) {
+            return Map.of();
+        }
+        Map<String, RepositoryCredentialSettings> credentials = new LinkedHashMap<>();
+        for (String id : table.keySet()) {
+            TomlTable credentialTable = table.getTable(List.of(id));
+            if (credentialTable == null) {
+                throw new UserGlobalConfigException(
+                        "Invalid value for [repositoryCredentials]." + id
+                                + " in user global config. Use a table with usernameEnv and passwordEnv, or tokenEnv.");
+            }
+            validateKeys("repositoryCredentials." + id, credentialTable, CREDENTIAL_KEYS);
+            credentials.put(id, credential(id, credentialTable));
+        }
+        return credentials;
+    }
+
+    private static RepositoryCredentialSettings credential(String id, TomlTable table) {
+        String section = "repositoryCredentials." + id;
+        String tokenEnv = stringOrNull(table, section, "tokenEnv");
+        String usernameEnv = stringOrNull(table, section, "usernameEnv");
+        String passwordEnv = stringOrNull(table, section, "passwordEnv");
+        if (tokenEnv != null) {
+            if (usernameEnv != null || passwordEnv != null) {
+                throw new UserGlobalConfigException(
+                        "[" + section + "] sets tokenEnv together with usernameEnv/passwordEnv in user global config. "
+                                + "Use tokenEnv for bearer auth, or usernameEnv and passwordEnv for basic auth, not both.");
+            }
+            return RepositoryCredentialSettings.token(id, tokenEnv);
+        }
+        if (usernameEnv == null || passwordEnv == null) {
+            throw new UserGlobalConfigException(
+                    "[" + section + "] must set tokenEnv, or both usernameEnv and passwordEnv, in user global config.");
+        }
+        return RepositoryCredentialSettings.basic(id, usernameEnv, passwordEnv);
     }
 
     private static NetworkConfig network(TomlTable table, Path configPath, NetworkConfig defaultValue) {

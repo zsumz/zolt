@@ -30,6 +30,11 @@ public record BuildCacheKey(BuildCacheScope scope, String hash) {
         return new BuildCacheKey(scope, sha256Hex(material));
     }
 
+    /** Repository-relative object path for this key, e.g. {@code ab/abcdef...&lt;suffix&gt;}. */
+    public String shardedPath(String suffix) {
+        return hash.substring(0, 2) + "/" + hash + suffix;
+    }
+
     private static String sha256Hex(String material) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

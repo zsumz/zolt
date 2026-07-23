@@ -176,6 +176,53 @@ final class UserGlobalConfigParserTest {
     }
 
     @Test
+    void parsesBuildCacheRemoteAndUserLevelCredentials() throws IOException {
+        Path configPath = tempDir.resolve("zolt/config.toml");
+        Files.createDirectories(configPath.getParent());
+        Files.writeString(configPath, """
+                version = 1
+
+                [buildCache]
+                enabled = true
+
+                [buildCache.remote]
+                url = "https://cache.example.com/generic"
+                credentials = "cache"
+                push = true
+
+                [repositoryCredentials.cache]
+                tokenEnv = "CACHE_TOKEN"
+                """);
+
+        UserGlobalConfig config = new UserGlobalConfigParser().read(configPath);
+
+        assertTrue(config.buildCache().remote().isPresent());
+        assertEquals("https://cache.example.com/generic", config.buildCache().remote().orElseThrow().url());
+        assertEquals("cache", config.buildCache().remote().orElseThrow().credentials().orElseThrow());
+        assertTrue(config.buildCache().remote().orElseThrow().push());
+        assertTrue(config.repositoryCredentials().get("cache").usesToken());
+    }
+
+    @Test
+    void rejectsBuildCacheRemoteReferencingUndefinedCredential() {
+        Path configPath = tempDir.resolve("zolt/config.toml");
+        assertThrows(UserGlobalConfigException.class, () -> {
+            Files.createDirectories(configPath.getParent());
+            Files.writeString(configPath, """
+                    version = 1
+
+                    [buildCache]
+                    enabled = true
+
+                    [buildCache.remote]
+                    url = "https://cache.example.com/generic"
+                    credentials = "missing"
+                    """);
+            new UserGlobalConfigParser().read(configPath);
+        });
+    }
+
+    @Test
     void tracksBuiltInSourcesForOmittedKeysInExistingConfig() {
         UserGlobalConfig config = new UserGlobalConfigParser().parse("""
                 version = 1
