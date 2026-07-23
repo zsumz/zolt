@@ -289,7 +289,7 @@ public final class TestCommand implements Runnable {
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
         TestRunService projectTestRunService =
                 testRunServiceFactory.create(toolchainOptions.jdkChecker(projectRoot, config, "test"))
-                        .withBuildCache(CommandBuildCache.service(noBuildCache));
+                        .withBuildCache(CommandBuildCache.service(noBuildCache, false));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         progress.start("Testing project");
         CommandHumanOutput output = CommandHumanOutput.of(spec);

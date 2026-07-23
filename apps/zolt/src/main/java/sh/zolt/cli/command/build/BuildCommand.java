@@ -7,6 +7,7 @@ import sh.zolt.build.GroovyCompileException;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.ResourceCopyException;
 import sh.zolt.build.SourceDiscoveryException;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.cache.ArtifactCacheException;
 import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandHumanOutput;
@@ -121,12 +122,13 @@ public final class BuildCommand implements Runnable {
         ProgressWriter progress = CommandProgress.human(spec);
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         Path projectRoot = projectDirectory.path();
+        BuildCacheService buildCache = CommandBuildCache.service(noBuildCache, offline);
         try {
             if (workspace) {
                 WorkspaceBuildService projectWorkspaceBuildService =
                         workspaceBuildService
                                 .withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build"))
-                                .withBuildCache(CommandBuildCache.service(noBuildCache));
+                                .withBuildCache(buildCache);
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt build --workspace");
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
@@ -192,7 +194,7 @@ public final class BuildCommand implements Runnable {
                     "compile main",
                     () -> buildService
                             .withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "build"))
-                            .withBuildCache(CommandBuildCache.service(noBuildCache))
+                            .withBuildCache(buildCache)
                             .build(
                                     projectRoot,
                                     config,
@@ -251,6 +253,7 @@ public final class BuildCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
+            CommandBuildCache.surfaceWarnings(output, buildCache);
             CommandTimings.print(spec, "build", projectRoot, timingOptions, timings);
         }
     }

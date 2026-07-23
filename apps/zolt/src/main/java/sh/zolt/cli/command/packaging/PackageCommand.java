@@ -285,7 +285,7 @@ public final class PackageCommand implements Runnable {
                                             projectRoot,
                                             config,
                                             "package"))
-                                    .withBuildCache(CommandBuildCache.service(noBuildCache))
+                                    .withBuildCache(CommandBuildCache.service(noBuildCache, false))
                                     .buildWithClasspaths(
                                     projectRoot,
                                     config,
