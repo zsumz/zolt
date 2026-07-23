@@ -321,9 +321,11 @@ version-less:
 
 `zolt sbom` on a BOM emits a metadata-only CycloneDX document (a BOM has no
 resolved dependency graph) with a note on stderr, never an error. `zolt explain`
-detects an existing Maven `dependencyManagement` BOM (`maven.bom.detected`) and
-`zolt explain --emit-toml` drafts a `[bom]` member from it, routing import-scope
-BOMs to `[bom.imports]` and plain pins to `[bom.versions]`.
+detects an existing Maven `dependencyManagement` BOM (`maven.bom.detected`) or a
+Gradle `java-platform` project (`gradle.bom.detected`) and `zolt explain
+--emit-toml` drafts a `[bom]` member from it, routing import-scope BOMs /
+`platform(...)` imports to `[bom.imports]` and plain pins / `constraints { }` to
+`[bom.versions]`.
 
 Migration and integration commands:
 
@@ -1293,6 +1295,23 @@ literals, so inherited `[dependencies]` and `[platforms]` resolve in the report
 and in `--emit-toml`; anything dynamic (ranges, SNAPSHOT parents, unresolved
 `${...}`) is surfaced as a review item instead of being guessed, and every
 fetched coordinate is recorded in the audit.
+
+Gradle BOM shapes map like their Maven counterparts. A `platform('g:a:v')` or
+`enforcedPlatform(...)` import — Groovy or Kotlin DSL, a string coordinate or a
+`platform(libs.x)` version-catalog reference, in any configuration — is emitted
+under `[platforms]` rather than as a classpath dependency, and a version-less
+dependency in a build file that imports a platform is drafted as platform-managed
+`{}` with a review item to confirm the platform manages it. `enforcedPlatform`
+maps like `platform` plus a note that Gradle's version-override semantics are only
+approximated — the Zolt analog for a hard pin is a `[dependencyConstraints]` entry
+with `kind = "strict"`, which the draft points at rather than auto-generates. A
+`java-platform` project is recognized as a BOM (`gradle.bom.detected`), and
+`zolt explain --emit-toml` drafts a `[bom]` member from it: `platform(...)` imports
+become `[bom.imports]`, `constraints { }` pins (`api`/`runtime`) become
+`[bom.versions]`, and a plain dependency declared under `allowDependencies()`
+becomes a review item because a Zolt BOM carries no dependencies. Constraints the
+static regexes cannot resolve (interpolated or computed versions) raise a signal
+rather than being dropped.
 
 ### Verify a migration
 
