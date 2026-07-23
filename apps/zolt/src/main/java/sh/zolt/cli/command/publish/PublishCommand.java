@@ -153,6 +153,13 @@ public final class PublishCommand implements Callable<Integer> {
                 return 1;
             }
             if (workspace) {
+                if (sbom) {
+                    CommandFailures.printUser(
+                            spec,
+                            "--sbom is not yet supported with --workspace. "
+                                    + "Next: publish without --sbom, or generate per-member SBOMs with `zolt sbom`.");
+                    return 1;
+                }
                 return runWorkspacePublish(projectRoot);
             }
             Optional<Path> sbomFile = generateSbom(projectRoot);

@@ -31,6 +31,14 @@ final class PublishCommandCentralWaitTest {
     }
 
     @Test
+    void sbomWithWorkspaceIsRejected() {
+        CommandResult result = execute("publish", "--workspace", "--sbom", "--cwd", tempDir.toString());
+
+        assertEquals(1, result.exitCode());
+        assertTrue(result.stderr().contains("--sbom is not yet supported with --workspace"), result.stderr());
+    }
+
+    @Test
     void nonPositiveWaitTimeoutIsRejected() {
         CommandResult result = execute(
                 "publish", "--wait", "--central", "--wait-timeout", "0", "--cwd", tempDir.toString());
