@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 final class IncrementalCompileStateEncoding {
-    static final String VERSION = "2";
+    static final String VERSION = "3";
 
     private IncrementalCompileStateEncoding() {
     }

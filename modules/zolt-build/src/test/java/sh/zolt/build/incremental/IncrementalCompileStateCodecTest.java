@@ -35,7 +35,10 @@ final class IncrementalCompileStateCodecTest {
                         "com.example",
                         List.of("com.example.App"),
                         List.of(project.resolve("target/classes/com/example/App.class")),
-                        List.of("com.example.Dependency"))),
+                        List.of("com.example.Dependency"),
+                        List.of(project.resolve("target/generated/sources/annotations/com/example/AppMeta.java")),
+                        List.of(project.resolve("target/classes/com/example/AppMeta.class")),
+                        List.of(project.resolve("target/classes/com/example/App.meta")))),
                 List.of(new IncrementalCompileState.ClassRecord(
                         "com.example.App",
                         project.resolve("target/classes/com/example/App.class"),

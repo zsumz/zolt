@@ -48,26 +48,35 @@ final class IncrementalGeneratedOutputAttributor {
             SourceGenerated generated,
             Map<String, List<Path>> classesByTopLevel) {
         if (generated == null) {
-            return withGenerated(base, List.of(), List.of());
+            return withGenerated(base, List.of(), List.of(), List.of());
         }
         Set<Path> classes = new LinkedHashSet<>();
         for (String type : generated.generatedTypes()) {
             classes.addAll(classesByTopLevel.getOrDefault(type, List.of()));
         }
-        return withGenerated(base, new ArrayList<>(generated.generatedSourceFiles()), new ArrayList<>(classes));
+        return withGenerated(
+                base,
+                new ArrayList<>(generated.generatedSourceFiles()),
+                new ArrayList<>(classes),
+                new ArrayList<>(generated.generatedResourceFiles()));
     }
 
     private static SourceRecord carriedForward(SourceRecord base, SourceRecord previous) {
         if (previous == null) {
             return base;
         }
-        return withGenerated(base, previous.generatedSources(), previous.generatedClasses());
+        return withGenerated(
+                base,
+                previous.generatedSources(),
+                previous.generatedClasses(),
+                previous.generatedResources());
     }
 
     private static SourceRecord withGenerated(
             SourceRecord base,
             List<Path> generatedSources,
-            List<Path> generatedClasses) {
+            List<Path> generatedClasses,
+            List<Path> generatedResources) {
         return new SourceRecord(
                 base.path(),
                 base.sourceRoot(),
@@ -78,7 +87,8 @@ final class IncrementalGeneratedOutputAttributor {
                 base.classOutputs(),
                 base.referencedClasses(),
                 generatedSources,
-                generatedClasses);
+                generatedClasses,
+                generatedResources);
     }
 
     private static Map<String, Path> handwrittenTypeToSource(List<SourceRecord> baseRecords) {

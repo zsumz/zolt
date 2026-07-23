@@ -76,7 +76,8 @@ public record IncrementalCompileState(
             List<Path> classOutputs,
             List<String> referencedClasses,
             List<Path> generatedSources,
-            List<Path> generatedClasses) {
+            List<Path> generatedClasses,
+            List<Path> generatedResources) {
         public SourceRecord(
                 Path path,
                 Path sourceRoot,
@@ -96,6 +97,7 @@ public record IncrementalCompileState(
                     classOutputs,
                     referencedClasses,
                     List.of(),
+                    List.of(),
                     List.of());
         }
 
@@ -111,6 +113,7 @@ public record IncrementalCompileState(
             referencedClasses = sortedStrings(referencedClasses);
             generatedSources = sortedPaths(generatedSources);
             generatedClasses = sortedPaths(generatedClasses);
+            generatedResources = sortedPaths(generatedResources);
         }
     }
 

@@ -38,6 +38,7 @@ final class IncrementalCompileStateFormatter {
             source.referencedClasses().forEach(reference -> encodedRecord(content, "sourceReference", source.path().toString(), reference));
             source.generatedSources().forEach(generated -> encodedRecord(content, "sourceGeneratedSource", source.path().toString(), generated.toString()));
             source.generatedClasses().forEach(generated -> encodedRecord(content, "sourceGeneratedClass", source.path().toString(), generated.toString()));
+            source.generatedResources().forEach(generated -> encodedRecord(content, "sourceGeneratedResource", source.path().toString(), generated.toString()));
         }
         for (IncrementalCompileState.ClassRecord classRecord : state.classes()) {
             encodedRecord(

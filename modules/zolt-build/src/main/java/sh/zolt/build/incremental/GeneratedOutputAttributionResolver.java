@@ -12,8 +12,10 @@ import java.util.Set;
  * outputs. Each generated file names the originating top-level types the processor declared for it;
  * an originating type is either a handwritten source (resolved directly) or another generated type
  * (resolved transitively until a handwritten root is reached). Attribution is only usable when every
- * generated output resolves to exactly one handwritten root — zero, many, cyclic, unresolvable, or
- * resource outputs all mark the resolution incomplete so the caller falls back to a full recompile.
+ * generated output — source, class, or resource — resolves to exactly one handwritten root; zero,
+ * many, cyclic, or unresolvable roots mark the resolution incomplete so the caller falls back to a
+ * full recompile. Resources are attributed by their single root just like sources; only their
+ * originating types drive resolution (a resource declares no created type).
  */
 final class GeneratedOutputAttributionResolver {
     Resolution resolve(
@@ -29,13 +31,15 @@ final class GeneratedOutputAttributionResolver {
         boolean complete = true;
         for (GeneratedOutputAttribution.Entry entry : entries) {
             Path root = singleRoot(entry, handwrittenTypeToSource, createdTypeToEntry);
-            if (root == null || entry.kind() == GeneratedOutputAttribution.KIND_RESOURCE) {
+            if (root == null) {
                 complete = false;
                 continue;
             }
             SourceGenerated generated = bySource.computeIfAbsent(root, ignored -> new SourceGenerated());
             if (entry.kind() == GeneratedOutputAttribution.KIND_SOURCE) {
                 generated.generatedSourceFiles.add(entry.path());
+            } else if (entry.kind() == GeneratedOutputAttribution.KIND_RESOURCE) {
+                generated.generatedResourceFiles.add(entry.path());
             }
             if (!entry.createdType().isBlank()) {
                 generated.generatedTypes.add(entry.createdType());
@@ -88,10 +92,15 @@ final class GeneratedOutputAttributionResolver {
 
     static final class SourceGenerated {
         private final Set<Path> generatedSourceFiles = new LinkedHashSet<>();
+        private final Set<Path> generatedResourceFiles = new LinkedHashSet<>();
         private final Set<String> generatedTypes = new LinkedHashSet<>();
 
         Set<Path> generatedSourceFiles() {
             return generatedSourceFiles;
+        }
+
+        Set<Path> generatedResourceFiles() {
+            return generatedResourceFiles;
         }
 
         Set<String> generatedTypes() {

@@ -109,17 +109,19 @@ public record IncrementalCompilePlan(
     }
 
     /**
-     * The generated sources and generated classes attributed to the given handwritten sources in the
-     * previous state. On the isolating fast path these must be deleted before recompiling the dirty
-     * sources so a removed annotation cannot leave a stale generated output behind.
+     * The generated sources, generated classes, and generated resources attributed to the given
+     * handwritten sources in the previous state. On the isolating fast path these must be deleted before
+     * recompiling the dirty sources so a removed annotation cannot leave a stale generated output behind.
      */
     public List<Path> previousGeneratedOutputs(List<Path> sources) {
         return sources.stream()
                 .map(source -> previousSources.get(source.toAbsolutePath().normalize()))
                 .filter(java.util.Objects::nonNull)
-                .flatMap(record -> java.util.stream.Stream.concat(
-                        record.generatedSources().stream(),
-                        record.generatedClasses().stream()))
+                .flatMap(record -> java.util.stream.Stream.of(
+                                record.generatedSources(),
+                                record.generatedClasses(),
+                                record.generatedResources())
+                        .flatMap(List::stream))
                 .map(path -> path.toAbsolutePath().normalize())
                 .distinct()
                 .toList();

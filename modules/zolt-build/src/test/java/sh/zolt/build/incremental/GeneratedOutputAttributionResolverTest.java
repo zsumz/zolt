@@ -68,11 +68,39 @@ final class GeneratedOutputAttributionResolverTest {
     }
 
     @Test
-    void marksGeneratedResourceIncomplete() {
+    void resolvesAGeneratedResourceToItsHandwrittenOriginatingType() {
         GeneratedOutputAttribution.Entry entry = new GeneratedOutputAttribution.Entry(
                 Path.of("/gen/service.txt"), GeneratedOutputAttribution.KIND_RESOURCE, "", List.of("com.example.Widget"));
 
+        Resolution resolution = resolver.resolve(List.of(entry), Map.of("com.example.Widget", widget));
+
+        assertTrue(resolution.complete());
+        SourceGenerated generated = resolution.bySource().get(widget);
+        assertEquals(Set.of(entry.path()), generated.generatedResourceFiles());
+        assertTrue(generated.generatedSourceFiles().isEmpty());
+        assertTrue(generated.generatedTypes().isEmpty());
+    }
+
+    @Test
+    void marksGeneratedResourceWithoutOriginatingElementIncomplete() {
+        GeneratedOutputAttribution.Entry entry = new GeneratedOutputAttribution.Entry(
+                Path.of("/gen/service.txt"), GeneratedOutputAttribution.KIND_RESOURCE, "", List.of());
+
         assertFalse(resolver.resolve(List.of(entry), Map.of("com.example.Widget", widget)).complete());
+    }
+
+    @Test
+    void marksGeneratedResourceWithMultipleDistinctRootsIncomplete() {
+        GeneratedOutputAttribution.Entry entry = new GeneratedOutputAttribution.Entry(
+                Path.of("/gen/service.txt"),
+                GeneratedOutputAttribution.KIND_RESOURCE,
+                "",
+                List.of("com.example.Widget", "com.example.Root"));
+
+        Resolution resolution = resolver.resolve(
+                List.of(entry), Map.of("com.example.Widget", widget, "com.example.Root", root));
+
+        assertFalse(resolution.complete());
     }
 
     private static GeneratedOutputAttribution.Entry source(String path, String createdType, String... originating) {

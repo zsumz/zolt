@@ -94,7 +94,7 @@ final class BuildFingerprintFileHasherTest {
 
     private String incrementalState(Path outputDirectory) {
         Path project = tempDir.toAbsolutePath().normalize();
-        return "version=2\n"
+        return "version=3\n"
                 + "scope=main\n"
                 + encodedLine("projectDirectory", project.toString())
                 + encodedLine("outputDirectory", outputDirectory.toAbsolutePath().normalize().toString())

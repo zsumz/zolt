@@ -116,6 +116,8 @@ final class IncrementalCompileStateParser {
                     .generatedSources.add(pathPart(parts, 2, 3));
             case "sourceGeneratedClass" -> source(sources, pathPart(parts, 1, 3))
                     .generatedClasses.add(pathPart(parts, 2, 3));
+            case "sourceGeneratedResource" -> source(sources, pathPart(parts, 1, 3))
+                    .generatedResources.add(pathPart(parts, 2, 3));
             case "class" -> classes.computeIfAbsent(decodedPart(parts, 1, 8), ClassBuilder::new)
                     .set(
                             decodedPart(parts, 1, 8),
@@ -177,6 +179,7 @@ final class IncrementalCompileStateParser {
         private final List<String> referencedClasses = new ArrayList<>();
         private final List<Path> generatedSources = new ArrayList<>();
         private final List<Path> generatedClasses = new ArrayList<>();
+        private final List<Path> generatedResources = new ArrayList<>();
 
         private SourceBuilder(Path path) {
             this.path = path;
@@ -205,7 +208,8 @@ final class IncrementalCompileStateParser {
                     classOutputs,
                     referencedClasses,
                     generatedSources,
-                    generatedClasses);
+                    generatedClasses,
+                    generatedResources);
         }
     }
 
