@@ -259,8 +259,12 @@ jobs:
         include:
           - target: linux-x64
             runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
           - target: macos-arm64
             runner: macos-15
+          - target: macos-x64
+            runner: macos-15-intel
 
     env:
       AWS_EC2_METADATA_DISABLED: "true"
@@ -446,3 +450,43 @@ jobs:
           ZOLT_RELEASE_UPDATE_PREVIOUS_CHANNEL: ${{ github.workspace }}/target/release-update-smoke/previous-zap.json
           ZOLT_RELEASE_UPDATE_TARGET: linux-x64
         run: scripts/smoke-smoque ci/smoke/release-update.smoke.mts
+
+  windows-smoke:
+    # Discovery lane only, and intentionally non-blocking (continue-on-error).
+    # Zolt has never been compiled or tested on Windows; this runs the bash
+    # bootstrap under the runner's Git Bash to see how far a JVM build plus a
+    # couple of small module test suites get, then uploads the log for triage.
+    # It MUST NOT gate CI: it never builds a Windows native binary and never
+    # publishes to the zap channel. Gate or remove it freely.
+    name: windows smoke (discovery, non-blocking)
+    needs: test
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build workspace via bash bootstrap (Git Bash)
+        run: bash scripts/bootstrap-zolt-jvm --no-progress build --workspace 2>&1 | tee windows-smoke.log
+
+      - name: Smoke-test small members via bash bootstrap (Git Bash)
+        run: bash scripts/bootstrap-zolt-jvm --no-progress test --workspace --member modules/zolt-toml --member modules/zolt-model 2>&1 | tee -a windows-smoke.log
+
+      - name: Upload Windows smoke log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-log
+          path: windows-smoke.log
+          if-no-files-found: warn
