@@ -1,11 +1,9 @@
-package sh.zolt.resolve.materialization.session;
+package sh.zolt.maven.repository;
 
-import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.RepositorySettings;
 import sh.zolt.project.RepositoryUrlPolicy;
-import sh.zolt.resolve.ResolveException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,29 +11,35 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-final class RepositoryAccessPlanner {
+/**
+ * Turns {@code [repositories]} configuration into the ordered, authenticated list of repositories to
+ * query. Order is stable alphabetical-by-id. Shared verbatim by dependency resolution and by
+ * advisory version discovery so both agree on repository order, URL safety, and credential handling.
+ */
+public final class RepositoryAccessPlanner {
     private final Function<String, String> environment;
 
-    RepositoryAccessPlanner() {
+    public RepositoryAccessPlanner() {
         this(System::getenv);
     }
 
-    RepositoryAccessPlanner(Function<String, String> environment) {
+    public RepositoryAccessPlanner(Function<String, String> environment) {
         this.environment = Objects.requireNonNull(environment, "environment");
     }
 
-    List<RepositoryAccess> plan(ProjectConfig config) {
+    public List<RepositoryAccess> plan(ProjectConfig config) {
         List<RepositorySettings> repositories = config.repositorySettings().values().stream()
                 .sorted(Comparator.comparing(RepositorySettings::id))
                 .toList();
         if (repositories.isEmpty()) {
-            throw ResolveException.actionable(
+            throw RepositoryAccessException.actionable(
                     "No repositories are configured in zolt.toml.",
                     "Add [repositories] with at least one Maven-compatible repository URL.");
         }
         List<RepositoryAccess> access = new ArrayList<>();
         for (RepositorySettings repository : repositories) {
             access.add(new RepositoryAccess(
+                    repository.id(),
                     repositoryUri(repository),
                     repository.credentials().map(credentialId -> authentication(config, repository, credentialId))));
         }
@@ -49,7 +53,7 @@ final class RepositoryAccessPlanner {
                     repository.url(),
                     repository.credentials().isPresent());
         } catch (IllegalArgumentException exception) {
-            throw new ResolveException(exception.getMessage(), exception);
+            throw new RepositoryAccessException(exception.getMessage(), exception);
         }
     }
 
@@ -59,7 +63,7 @@ final class RepositoryAccessPlanner {
             String credentialId) {
         RepositoryCredentialSettings credential = config.repositoryCredentials().get(credentialId);
         if (credential == null) {
-            throw new ResolveException(
+            throw new RepositoryAccessException(
                     "Repository `"
                             + repository.id()
                             + "` references credentials `"
@@ -93,11 +97,11 @@ final class RepositoryAccessPlanner {
         return new RepositoryAuthentication(username, password);
     }
 
-    private static ResolveException missingCredentials(
+    private static RepositoryAccessException missingCredentials(
             RepositorySettings repository,
             String credentialId,
             List<String> missing) {
-        return new ResolveException(
+        return new RepositoryAccessException(
                 "Repository `"
                         + repository.id()
                         + "` requires credentials `"

@@ -10,6 +10,8 @@ import sh.zolt.maven.repository.EffectiveRawPom;
 import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RawPom;
 import sh.zolt.maven.repository.RawPomParser;
+import sh.zolt.maven.repository.RepositoryAccess;
+import sh.zolt.maven.repository.RepositoryAccessPlanner;
 import sh.zolt.maven.repository.RepositoryDownloadListener;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveOptions;

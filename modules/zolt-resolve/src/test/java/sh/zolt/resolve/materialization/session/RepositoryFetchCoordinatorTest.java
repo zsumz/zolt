@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.maven.Coordinate;
+import sh.zolt.maven.repository.RepositoryAccess;
 import sh.zolt.maven.repository.RepositoryArtifact;
 import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.maven.repository.RepositoryMissingArtifactException;
@@ -76,7 +77,7 @@ final class RepositoryFetchCoordinatorTest {
     }
 
     private static RepositoryAccess access(String uri) {
-        return new RepositoryAccess(URI.create(uri), Optional.<RepositoryAuthentication>empty());
+        return new RepositoryAccess(uri, URI.create(uri), Optional.<RepositoryAuthentication>empty());
     }
 
     private static RepositoryArtifact artifact(String source) {

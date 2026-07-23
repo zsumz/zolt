@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.maven.repository.RepositoryAccessException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.materialization.RepositoryOverlay;
 import sh.zolt.toml.ZoltTomlParser;
@@ -139,8 +140,8 @@ final class ResolveServiceOverlayTest extends ResolveServiceTestSupport {
                 "com.example:app" = "1.0.0"
                 """.formatted(baseUri));
 
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> resolveService.resolve(projectDir, config, cacheRoot));
 
         assertTrue(exception.getMessage().contains("Repository `company` requires credentials `company-artifactory`"));

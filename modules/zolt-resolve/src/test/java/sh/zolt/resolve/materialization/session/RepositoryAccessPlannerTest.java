@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.maven.repository.RepositoryAccess;
+import sh.zolt.maven.repository.RepositoryAccessException;
+import sh.zolt.maven.repository.RepositoryAccessPlanner;
 import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.resolve.ResolveException;
 import sh.zolt.toml.ZoltTomlParser;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -70,8 +72,8 @@ final class RepositoryAccessPlannerTest {
 
     @Test
     void rejectsRepositoryUrlUserinfoBeforeResolution() {
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> new RepositoryAccessPlanner().plan(config("""
                         [repositories]
                         company = "https://user:super-secret@repo.example/company"
@@ -91,8 +93,8 @@ final class RepositoryAccessPlannerTest {
                 "REPOSITORY_PASSWORD",
                 "secret")::get);
 
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> planner.plan(config("""
                         [repositories]
                         company = { url = "http://repo.example/company", credentials = "company-artifactory" }
@@ -108,8 +110,8 @@ final class RepositoryAccessPlannerTest {
 
     @Test
     void rejectsNonLocalHttpRepository() {
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> new RepositoryAccessPlanner().plan(config("""
                         [repositories]
                         company = "http://repo.example/company"
@@ -140,8 +142,8 @@ final class RepositoryAccessPlannerTest {
                 passwordEnv = "REPOSITORY_PASSWORD"
                 """));
 
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> new RepositoryAccessPlanner().plan(config));
 
         assertTrue(exception.getMessage().contains("Repository `company` references credentials `company-artifactory`"));
@@ -154,8 +156,8 @@ final class RepositoryAccessPlannerTest {
                 "REPOSITORY_USERNAME",
                 "user")::get);
 
-        ResolveException exception = assertThrows(
-                ResolveException.class,
+        RepositoryAccessException exception = assertThrows(
+                RepositoryAccessException.class,
                 () -> planner.plan(config("""
                         [repositories]
                         company = { url = "https://repo.example/company", credentials = "company-artifactory" }
