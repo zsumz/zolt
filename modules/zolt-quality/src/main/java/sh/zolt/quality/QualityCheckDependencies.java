@@ -19,18 +19,21 @@ final class QualityCheckDependencies {
     private final QualityExecutionContextRunner executionContextRunner;
     private final PackageQualityCheck packageQualityCheck;
     private final DependencyQualityCheck dependencyQualityCheck;
+    private final LicensePolicyQualityCheck licensePolicyQualityCheck;
 
     private QualityCheckDependencies(
             GeneratedSourceQualityCheck generatedSourceQualityCheck,
             LockfileQualityCheck lockfileQualityCheck,
             QualityExecutionContextRunner executionContextRunner,
             PackageQualityCheck packageQualityCheck,
-            DependencyQualityCheck dependencyQualityCheck) {
+            DependencyQualityCheck dependencyQualityCheck,
+            LicensePolicyQualityCheck licensePolicyQualityCheck) {
         this.generatedSourceQualityCheck = generatedSourceQualityCheck;
         this.lockfileQualityCheck = lockfileQualityCheck;
         this.executionContextRunner = executionContextRunner;
         this.packageQualityCheck = packageQualityCheck;
         this.dependencyQualityCheck = dependencyQualityCheck;
+        this.licensePolicyQualityCheck = licensePolicyQualityCheck;
     }
 
     static QualityCheckDependencies create(Function<String, String> environment) {
@@ -44,7 +47,8 @@ final class QualityCheckDependencies {
                         environment,
                         new PublishDryRunService()),
                 new PackageQualityCheck(new PackagePlanService(), new PackageEvidenceManifestReader()),
-                new DependencyQualityCheck(lockfileReader, new DependencyPolicyReportService()));
+                new DependencyQualityCheck(lockfileReader, new DependencyPolicyReportService()),
+                new LicensePolicyQualityCheck(lockfileReader));
     }
 
     GeneratedSourceQualityCheck generatedSourceQualityCheck() {
@@ -65,5 +69,9 @@ final class QualityCheckDependencies {
 
     DependencyQualityCheck dependencyQualityCheck() {
         return dependencyQualityCheck;
+    }
+
+    LicensePolicyQualityCheck licensePolicyQualityCheck() {
+        return licensePolicyQualityCheck;
     }
 }

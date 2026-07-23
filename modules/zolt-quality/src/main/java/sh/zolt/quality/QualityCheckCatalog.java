@@ -16,6 +16,7 @@ final class QualityCheckCatalog {
     static final String PROJECT_MODEL = "project-model";
     static final String DEPENDENCY_METADATA = "dependency-metadata";
     static final String DEPENDENCY_POLICY = "dependency-policy";
+    static final String LICENSE_POLICY = "license-policy";
     static final String PACKAGE_METADATA = "package-metadata";
     static final String PACKAGE_CONTENTS = "package-contents";
     static final String MANIFEST_METADATA = "manifest-metadata";
@@ -30,6 +31,7 @@ final class QualityCheckCatalog {
             PROJECT_MODEL,
             DEPENDENCY_METADATA,
             DEPENDENCY_POLICY,
+            LICENSE_POLICY,
             PACKAGE_METADATA,
             PACKAGE_CONTENTS,
             MANIFEST_METADATA,
@@ -40,6 +42,7 @@ final class QualityCheckCatalog {
             PROJECT_MODEL,
             DEPENDENCY_METADATA,
             DEPENDENCY_POLICY,
+            LICENSE_POLICY,
             GENERATED_SOURCES,
             PACKAGE_CONTENTS);
     private static final Map<String, String> PLANNED_CHECK_NOTES = Map.of();

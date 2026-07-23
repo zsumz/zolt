@@ -28,6 +28,7 @@ public final class QualityCheckService {
     public static final String PROJECT_MODEL = QualityCheckCatalog.PROJECT_MODEL;
     public static final String DEPENDENCY_METADATA = QualityCheckCatalog.DEPENDENCY_METADATA;
     public static final String DEPENDENCY_POLICY = QualityCheckCatalog.DEPENDENCY_POLICY;
+    public static final String LICENSE_POLICY = QualityCheckCatalog.LICENSE_POLICY;
     public static final String PACKAGE_METADATA = QualityCheckCatalog.PACKAGE_METADATA;
     public static final String PACKAGE_CONTENTS = QualityCheckCatalog.PACKAGE_CONTENTS;
     public static final String MANIFEST_METADATA = QualityCheckCatalog.MANIFEST_METADATA;
@@ -43,6 +44,7 @@ public final class QualityCheckService {
     private final ProjectModelQualityCheck projectModelQualityCheck;
     private final PackageQualityCheck packageQualityCheck;
     private final DependencyQualityCheck dependencyQualityCheck;
+    private final LicensePolicyQualityCheck licensePolicyQualityCheck;
 
     public QualityCheckService() {
         this(QualityCheckDependencies.create(System::getenv));
@@ -74,6 +76,7 @@ public final class QualityCheckService {
         this.projectModelQualityCheck = new ProjectModelQualityCheck();
         this.packageQualityCheck = dependencies.packageQualityCheck();
         this.dependencyQualityCheck = dependencies.dependencyQualityCheck();
+        this.licensePolicyQualityCheck = dependencies.licensePolicyQualityCheck();
     }
 
     public QualityCheckReport check(QualityCheckRequest request) {
@@ -162,6 +165,13 @@ public final class QualityCheckService {
                         config,
                         request.projectRoot().resolve("zolt.lock"),
                         false));
+                case LICENSE_POLICY -> results.addAll(licensePolicyQualityCheck.check(
+                        Optional.empty(),
+                        request.projectRoot(),
+                        config,
+                        request.projectRoot().resolve("zolt.lock"),
+                        false,
+                        request.cacheRoot()));
                 case PACKAGE_METADATA -> results.add(packageQualityCheck.checkMetadata(
                         Optional.empty(),
                         request.projectRoot(),
@@ -222,6 +232,18 @@ public final class QualityCheckService {
                                 member.config(),
                                 workspace.root().resolve("zolt.lock"),
                                 true));
+                    }
+                }
+                case LICENSE_POLICY -> {
+                    for (String memberPath : selection.includedMembers()) {
+                        WorkspaceMember member = members.get(memberPath);
+                        results.addAll(licensePolicyQualityCheck.check(
+                                Optional.of(member.path()),
+                                member.directory(),
+                                member.config(),
+                                workspace.root().resolve("zolt.lock"),
+                                true,
+                                request.cacheRoot()));
                     }
                 }
                 case PACKAGE_METADATA -> {

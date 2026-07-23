@@ -1,0 +1,130 @@
+package sh.zolt.quality;
+
+import static sh.zolt.quality.QualityCheckService.LICENSE_POLICY;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import sh.zolt.lockfile.LockPackage;
+import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.lockfile.toml.LockfileReadException;
+import sh.zolt.lockfile.toml.ZoltLockfileReader;
+import sh.zolt.project.LicensePolicySettings;
+import sh.zolt.project.ProjectConfig;
+import sh.zolt.sbom.LicenseIndex;
+import sh.zolt.sbom.LicensePolicyEvaluator;
+import sh.zolt.sbom.LicensePolicyFinding;
+import sh.zolt.sbom.LicenseVerdict;
+import sh.zolt.sbom.LockSbomAssembler;
+import sh.zolt.sbom.PomLicenseResolver;
+import sh.zolt.sbom.SbomComponent;
+import sh.zolt.sbom.SbomScopeGroup;
+import sh.zolt.sbom.SbomScopeSelection;
+
+/**
+ * Offline license-policy gate for {@code zolt check}. Reads {@code [dependencyPolicy.licenses]},
+ * resolves the compile/runtime dependency licenses from cached POMs, and evaluates them: deny/allow
+ * violations fail, UNKNOWN follows the configured strictness. Every failure names the dependency, the
+ * license, and the policy line, with an actionable {@code Next:}.
+ */
+final class LicensePolicyQualityCheck {
+    private final ZoltLockfileReader lockfileReader;
+    private final LockSbomAssembler assembler;
+    private final LicensePolicyEvaluator evaluator;
+
+    LicensePolicyQualityCheck(ZoltLockfileReader lockfileReader) {
+        this(lockfileReader, new LockSbomAssembler(), new LicensePolicyEvaluator());
+    }
+
+    LicensePolicyQualityCheck(
+            ZoltLockfileReader lockfileReader,
+            LockSbomAssembler assembler,
+            LicensePolicyEvaluator evaluator) {
+        this.lockfileReader = lockfileReader;
+        this.assembler = assembler;
+        this.evaluator = evaluator;
+    }
+
+    List<QualityCheckResult> check(
+            Optional<String> member,
+            Path root,
+            ProjectConfig config,
+            Path lockfilePath,
+            boolean workspaceLockfile,
+            Path cacheRoot) {
+        LicensePolicySettings policy = config.dependencyPolicy().licenses();
+        if (policy.isDefault()) {
+            return List.of(QualityCheckResult.skipped(
+                    LICENSE_POLICY,
+                    member,
+                    "[dependencyPolicy.licenses]",
+                    "No license policy configured; nothing to enforce.",
+                    "Add [dependencyPolicy.licenses] allow/deny/unknown to enforce license compliance."));
+        }
+        if (!Files.isRegularFile(lockfilePath)) {
+            return List.of(QualityCheckResult.failed(
+                    LICENSE_POLICY,
+                    member,
+                    "zolt.lock",
+                    "License policy diagnostics require zolt.lock.",
+                    workspaceLockfile ? "Run `zolt resolve --workspace`." : "Run `zolt resolve`."));
+        }
+
+        ZoltLockfile lockfile;
+        try {
+            lockfile = lockfileReader.read(lockfilePath);
+        } catch (LockfileReadException exception) {
+            return List.of(QualityCheckResult.failed(
+                    LICENSE_POLICY,
+                    member,
+                    "zolt.lock",
+                    exception.getMessage(),
+                    workspaceLockfile
+                            ? "Run `zolt resolve --workspace` to refresh license evidence."
+                            : "Run `zolt resolve` to refresh license evidence."));
+        }
+
+        SbomScopeSelection selection = SbomScopeSelection.requiredOnly();
+        List<LockPackage> external = lockfile.packages().stream()
+                .filter(lockPackage -> selection.includes(SbomScopeGroup.of(lockPackage.scope())))
+                .filter(lockPackage -> lockPackage.pom().isPresent())
+                .toList();
+        LicenseIndex index = new PomLicenseResolver(cacheRoot).index(external);
+        List<SbomComponent> components =
+                assembler.assemble(config, lockfile, selection, Optional.empty(), "zolt", index).components();
+        List<LicensePolicyFinding> findings = evaluator.evaluate(components, index, policy);
+
+        List<QualityCheckResult> results = new ArrayList<>();
+        results.add(summary(member, components.size(), findings));
+        for (LicensePolicyFinding finding : findings) {
+            String message = finding.license() + " — " + finding.reason();
+            if (finding.verdict() == LicenseVerdict.VIOLATION) {
+                results.add(QualityCheckResult.failed(
+                        LICENSE_POLICY, member, finding.coordinate(), message, nextStep(finding)));
+            } else {
+                results.add(QualityCheckResult.warning(
+                        LICENSE_POLICY, member, finding.coordinate(), message, nextStep(finding)));
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    private static QualityCheckResult summary(
+            Optional<String> member, int total, List<LicensePolicyFinding> findings) {
+        long violations = findings.stream()
+                .filter(finding -> finding.verdict() == LicenseVerdict.VIOLATION)
+                .count();
+        long warnings = findings.size() - violations;
+        String message = "Evaluated " + total + " compile/runtime "
+                + QualityCheckText.plural(total, "dependency", "dependencies")
+                + " against [dependencyPolicy.licenses]: " + violations + " violation(s), " + warnings + " warning(s).";
+        return QualityCheckResult.passed(LICENSE_POLICY, member, "[dependencyPolicy.licenses]", message);
+    }
+
+    private static String nextStep(LicensePolicyFinding finding) {
+        return "Remove " + finding.coordinate()
+                + ", add `" + finding.license() + "` to [dependencyPolicy.licenses].allow, or amend the policy.";
+    }
+}

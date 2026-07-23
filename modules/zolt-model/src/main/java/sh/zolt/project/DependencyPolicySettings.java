@@ -8,11 +8,19 @@ import java.util.Map;
 public record DependencyPolicySettings(
         List<DependencyPolicyExclusion> exclusions,
         Map<String, DependencyConstraint> constraints,
-        boolean failOnVersionConflict) {
+        boolean failOnVersionConflict,
+        LicensePolicySettings licenses) {
     public DependencyPolicySettings(
             List<DependencyPolicyExclusion> exclusions,
             Map<String, DependencyConstraint> constraints) {
         this(exclusions, constraints, false);
+    }
+
+    public DependencyPolicySettings(
+            List<DependencyPolicyExclusion> exclusions,
+            Map<String, DependencyConstraint> constraints,
+            boolean failOnVersionConflict) {
+        this(exclusions, constraints, failOnVersionConflict, LicensePolicySettings.defaults());
     }
 
     public DependencyPolicySettings {
@@ -20,9 +28,10 @@ public record DependencyPolicySettings(
         constraints = constraints == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(constraints));
+        licenses = licenses == null ? LicensePolicySettings.defaults() : licenses;
     }
 
     public static DependencyPolicySettings defaults() {
-        return new DependencyPolicySettings(List.of(), Map.of(), false);
+        return new DependencyPolicySettings(List.of(), Map.of(), false, LicensePolicySettings.defaults());
     }
 }

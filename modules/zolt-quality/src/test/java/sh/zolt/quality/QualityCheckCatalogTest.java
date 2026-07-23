@@ -18,6 +18,7 @@ final class QualityCheckCatalogTest {
                         QualityCheckService.PROJECT_MODEL,
                         QualityCheckService.DEPENDENCY_METADATA,
                         QualityCheckService.DEPENDENCY_POLICY,
+                        QualityCheckService.LICENSE_POLICY,
                         QualityCheckService.GENERATED_SOURCES,
                         QualityCheckService.PACKAGE_CONTENTS),
                 QualityCheckCatalog.requestedChecks(request(List.of(), QualityCheckContext.CI)));

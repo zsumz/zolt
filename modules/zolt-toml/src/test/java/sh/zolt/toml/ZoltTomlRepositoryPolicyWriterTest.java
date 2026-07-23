@@ -3,15 +3,18 @@ package sh.zolt.toml;
 import static sh.zolt.toml.ProjectConfigFixture.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.project.DependencyConstraint;
 import sh.zolt.project.DependencyConstraintKind;
 import sh.zolt.project.DependencyPolicyExclusion;
 import sh.zolt.project.DependencyPolicySettings;
+import sh.zolt.project.LicensePolicySettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.RepositorySettings;
+import sh.zolt.project.UnknownLicensePolicy;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,4 +128,71 @@ final class ZoltTomlRepositoryPolicyWriterTest {
         assertEquals("tomcat", constraint.versionRef().orElseThrow());
     }
 
+    @Test
+    void writesAndParsesLicensePolicyRoundTrip() {
+        ProjectConfig config = writer.defaultApplicationConfig("enterprise", "com.acme", "com.acme.Main")
+                .withDependencyPolicy(new DependencyPolicySettings(
+                        List.of(),
+                        Map.of(),
+                        false,
+                        new LicensePolicySettings(
+                                List.of("Apache-2.0", "MIT"),
+                                List.of("GPL-3.0-only"),
+                                UnknownLicensePolicy.FAIL)));
+
+        String toml = writer.write(config);
+        ProjectConfig parsed = parser.parse(toml);
+
+        assertTrue(toml.contains("[dependencyPolicy.licenses]"));
+        assertTrue(toml.contains("allow = [\"Apache-2.0\", \"MIT\"]"));
+        assertTrue(toml.contains("deny = [\"GPL-3.0-only\"]"));
+        assertTrue(toml.contains("unknown = \"fail\""));
+        assertEquals(config.dependencyPolicy(), parsed.dependencyPolicy());
+        assertEquals(UnknownLicensePolicy.FAIL, parsed.dependencyPolicy().licenses().unknown());
+    }
+
+    @Test
+    void defaultsUnknownLicensePolicyToWarnAndOmitsItFromOutput() {
+        ProjectConfig config = parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencyPolicy.licenses]
+                deny = ["GPL-3.0-only"]
+                """);
+
+        assertEquals(UnknownLicensePolicy.WARN, config.dependencyPolicy().licenses().unknown());
+        assertFalse(writer.write(config).contains("unknown ="));
+    }
+
+    @Test
+    void rejectsUnknownLicensePolicyKey() {
+        assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencyPolicy.licenses]
+                bogus = ["x"]
+                """));
+    }
+
+    @Test
+    void rejectsUnsupportedUnknownStrictnessValue() {
+        assertThrows(ZoltConfigException.class, () -> parser.parse("""
+                [project]
+                name = "enterprise"
+                version = "0.1.0"
+                group = "com.acme"
+                java = "21"
+
+                [dependencyPolicy.licenses]
+                unknown = "explode"
+                """));
+    }
 }
