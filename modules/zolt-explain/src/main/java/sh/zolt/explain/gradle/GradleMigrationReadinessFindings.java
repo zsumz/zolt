@@ -19,6 +19,22 @@ public final class GradleMigrationReadinessFindings {
                     "explicit Zolt project model",
                     "",
                     signal.nextStep());
+            case "gradle.exec-mappable" -> MigrationReadinessFindings.finding(
+                    "generated-sources",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "Gradle Exec/JavaExec single-command task",
+                    "[generated.execTools] exec step",
+                    "",
+                    signal.nextStep());
+            case "gradle.exec-unmappable" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "Gradle scripted Exec/JavaExec task",
+                    "[commands.tasks] or CI",
+                    "",
+                    signal.nextStep());
             case "gradle.project.missing-build-file" -> MigrationReadinessFindings.finding(
                     "dependencies",
                     MigrationReadinessCategory.BLOCKED,

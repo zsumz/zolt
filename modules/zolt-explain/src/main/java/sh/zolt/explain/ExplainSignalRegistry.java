@@ -58,7 +58,9 @@ final class ExplainSignalRegistry {
             ExplainSignals.GRADLE_PUBLICATION_DETECTED,
             ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED,
             ExplainSignals.GRADLE_ANDROID_UNSUPPORTED,
-            ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED);
+            ExplainSignals.GRADLE_FRAMEWORK_NATIVE_UNSUPPORTED,
+            ExplainSignals.GRADLE_EXEC_MAPPABLE,
+            ExplainSignals.GRADLE_EXEC_UNMAPPABLE);
     private static final Comparator<ExplainSignal> COMPARATOR = Comparator
             .comparingInt((ExplainSignal signal) -> severityRank(signal.severity()))
             .thenComparingInt(signal -> categoryRank(signal.category()))

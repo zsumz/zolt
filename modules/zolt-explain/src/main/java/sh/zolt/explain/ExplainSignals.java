@@ -286,6 +286,18 @@ public final class ExplainSignals {
             ExplainSignal.Severity.BLOCK,
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Do not execute Gradle framework-native or dev-mode tasks; migrate supported cases to typed Zolt framework settings such as `[framework.springBoot.native] enabled = true`.");
+    public static final ExplainSignalDefinition GRADLE_EXEC_MAPPABLE = new ExplainSignalDefinition(
+            "gradle.exec-mappable",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Model this single-command Exec/JavaExec task as a Zolt exec step under [generated.execTools];"
+                    + " declare its tool, inputs, and output by hand (Zolt reads the task shape, not its full command).");
+    public static final ExplainSignalDefinition GRADLE_EXEC_UNMAPPABLE = new ExplainSignalDefinition(
+            "gradle.exec-unmappable",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Exec steps run one pinned tool over declared inputs with no shell or task actions;"
+                    + " keep this scripted Exec/JavaExec task in [commands.tasks] or CI.");
 
     private ExplainSignals() {
     }

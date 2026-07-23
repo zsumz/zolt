@@ -90,6 +90,51 @@ final class GradleSignalPatterns {
         return ranges;
     }
 
+    private static final Pattern EXEC_TASK = Pattern.compile(
+            "\\b(?:register|create)\\s*\\(\\s*['\"][^'\"]+['\"]\\s*,\\s*(Exec|JavaExec)\\b"
+                    + "|\\btask\\s+\\w+\\s*\\(\\s*type\\s*[:=]\\s*(Exec|JavaExec)\\b"
+                    + "|\\bregister\\s*<\\s*(Exec|JavaExec)\\s*>"
+                    + "|\\btype\\s*=\\s*(Exec|JavaExec)\\b");
+
+    /**
+     * Finds {@code Exec}/{@code JavaExec} task declarations and classifies each by its body: a single
+     * command (mappable to a Zolt exec step) versus a scripted body with task actions, control flow, or
+     * shell operators (unmappable). Detection stays within the regex/known-shape idiom — it reads the
+     * task type and a coarse shape, never the full command.
+     */
+    static List<ExecTask> execTasks(String content) {
+        List<ExecTask> tasks = new ArrayList<>();
+        Matcher matcher = EXEC_TASK.matcher(content);
+        while (matcher.find()) {
+            String type = matchedType(matcher);
+            int openBrace = content.indexOf('{', matcher.end());
+            String block = openBrace >= 0
+                    ? content.substring(openBrace + 1, matchingBraceEnd(content, openBrace))
+                    : "";
+            tasks.add(new ExecTask(type, hasExecScriptBody(block)));
+        }
+        return tasks;
+    }
+
+    private static String matchedType(Matcher matcher) {
+        for (int group = 1; group <= matcher.groupCount(); group++) {
+            if (matcher.group(group) != null) {
+                return matcher.group(group);
+            }
+        }
+        return "Exec";
+    }
+
+    private static boolean hasExecScriptBody(String block) {
+        if (containsAny(block, "doFirst", "doLast", "providers.exec", "project.exec", "exec {", "exec(")) {
+            return true;
+        }
+        if (Pattern.compile("\\b(?:if|for|while)\\s*\\(").matcher(block).find()) {
+            return true;
+        }
+        return containsAny(block, "&&", "||", "$(", "`", "| ");
+    }
+
     static boolean isInsideAny(int index, List<Range> ranges) {
         for (Range range : ranges) {
             if (index >= range.start() && index < range.end()) {
@@ -137,5 +182,8 @@ final class GradleSignalPatterns {
     }
 
     record Range(int start, int end) {
+    }
+
+    record ExecTask(String type, boolean unmappable) {
     }
 }

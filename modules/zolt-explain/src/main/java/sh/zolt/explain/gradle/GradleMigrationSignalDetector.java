@@ -21,6 +21,24 @@ final class GradleMigrationSignalDetector {
         signals.addAll(dependencySignals(project, dependencies));
         signals.addAll(pluginSignals(project, plugins));
         signals.addAll(enterpriseSignals(project, content));
+        signals.addAll(execTaskSignals(project, content));
+        return signals;
+    }
+
+    private static List<ExplainSignal> execTaskSignals(String project, String content) {
+        List<ExplainSignal> signals = new ArrayList<>();
+        for (GradleSignalPatterns.ExecTask task : GradleSignalPatterns.execTasks(content)) {
+            if (task.unmappable()) {
+                signals.add(ExplainSignals.GRADLE_EXEC_UNMAPPABLE.signal(
+                        project,
+                        "Gradle " + task.type() + " task uses task actions, control flow, or a shell command"
+                                + " outside the single-command exec surface."));
+            } else {
+                signals.add(ExplainSignals.GRADLE_EXEC_MAPPABLE.signal(
+                        project,
+                        "Gradle " + task.type() + " task runs a single command that maps to a Zolt exec step."));
+            }
+        }
         return signals;
     }
 
