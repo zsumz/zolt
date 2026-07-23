@@ -1,6 +1,9 @@
 package sh.zolt.toml.generated;
 
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.ExecGenerationSettings;
+import sh.zolt.project.ExecToolCoordinate;
+import sh.zolt.project.ExecToolSettings;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.OpenApiGenerationSettings;
@@ -17,7 +20,8 @@ import java.util.TreeMap;
 import org.tomlj.TomlTable;
 
 public final class GeneratedSectionCodec {
-    private static final Set<String> GENERATED_KEYS = Set.of("main", "test", "openapiTool", "openapiPresets", "protobufTool");
+    private static final Set<String> GENERATED_KEYS =
+            Set.of("main", "test", "openapiTool", "openapiPresets", "protobufTool", "execTools");
     private static final Set<String> GENERATED_DECLARED_SOURCE_KEYS =
             Set.of("kind", "language", "output", "inputs", "required", "clean");
 
@@ -38,13 +42,18 @@ public final class GeneratedSectionCodec {
                 OpenApiGeneratedSourceParser.parsePresets(optionalTable(table, "openapiPresets"));
         ProtobufGenerationSettings protobufTool =
                 ProtobufGeneratedSourceParser.parseTool(optionalTable(table, "protobufTool"), versionAliases);
+        Map<String, ExecToolSettings> execTools =
+                ExecGeneratedSourceParser.parseTools(optionalTable(table, "execTools"), versionAliases);
         return build.withGeneratedSources(
-                parseGeneratedSourceScope(optionalTable(table, "main"), "generated.main", tool, presets, protobufTool),
-                parseGeneratedSourceScope(optionalTable(table, "test"), "generated.test", tool, presets, protobufTool));
+                parseGeneratedSourceScope(
+                        optionalTable(table, "main"), "generated.main", tool, presets, protobufTool, execTools),
+                parseGeneratedSourceScope(
+                        optionalTable(table, "test"), "generated.test", tool, presets, protobufTool, execTools));
     }
 
     public static void write(StringBuilder toml, BuildSettings build) {
         writeOpenApiTool(toml, build);
+        writeExecTools(toml, build);
         writeGeneratedSourceScope(toml, "generated.main", build.generatedMainSources());
         writeGeneratedSourceScope(toml, "generated.test", build.generatedTestSources());
     }
@@ -54,7 +63,8 @@ public final class GeneratedSectionCodec {
             String section,
             OpenApiGeneratedSourceParser.Tool tool,
             Map<String, OpenApiGenerationSettings> presets,
-            ProtobufGenerationSettings protobufTool) {
+            ProtobufGenerationSettings protobufTool,
+            Map<String, ExecToolSettings> execTools) {
         if (table == null) {
             return List.of();
         }
@@ -74,6 +84,10 @@ public final class GeneratedSectionCodec {
                                     + "` in zolt.toml. Supported generated source kinds are: "
                                     + GeneratedSourceKind.supportedValues()
                                     + "."));
+            if (kind == GeneratedSourceKind.EXEC) {
+                steps.add(ExecGeneratedSourceParser.parseStep(id, stepTable, stepSection, execTools));
+                continue;
+            }
             String language = TomlScalars.requiredString(stepTable, stepSection, "language");
             if (!"java".equals(language)) {
                 throw new ZoltConfigException(
@@ -151,15 +165,19 @@ public final class GeneratedSectionCodec {
                 if (!step.protobuf().grpc()) {
                     writeAssignment(toml, "grpc", false);
                 }
+            } else if (step.kind() == GeneratedSourceKind.EXEC) {
+                writeExecSettings(toml, step);
             } else {
                 writeStringArray(toml, "inputs", step.inputs());
             }
             if (!step.required()) {
                 writeAssignment(toml, "required", false);
             }
-            if (step.kind() == GeneratedSourceKind.OPENAPI && !step.clean()) {
+            boolean cleanDefaultsTrue = step.kind() == GeneratedSourceKind.OPENAPI
+                    || step.kind() == GeneratedSourceKind.EXEC;
+            if (cleanDefaultsTrue && !step.clean()) {
                 writeAssignment(toml, "clean", false);
-            } else if (step.kind() != GeneratedSourceKind.OPENAPI && step.clean()) {
+            } else if (!cleanDefaultsTrue && step.clean()) {
                 writeAssignment(toml, "clean", true);
             }
         }
@@ -191,6 +209,52 @@ public final class GeneratedSectionCodec {
         }
         if (!settings.importMappings().isEmpty()) {
             writeInlineStringMap(toml, "importMappings", settings.importMappings());
+        }
+    }
+
+    private static void writeExecTools(StringBuilder toml, BuildSettings build) {
+        Map<String, ExecToolSettings> tools = new TreeMap<>();
+        java.util.stream.Stream
+                .concat(build.generatedMainSources().stream(), build.generatedTestSources().stream())
+                .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
+                .forEach(step -> tools.putIfAbsent(step.exec().toolName(), step.exec().tool()));
+        for (Map.Entry<String, ExecToolSettings> entry : tools.entrySet()) {
+            ExecToolSettings tool = entry.getValue();
+            toml.append("\n[generated.execTools.").append(entry.getKey()).append("]\n");
+            writeAssignment(toml, "runner", tool.runner());
+            writeExecCoordinates(toml, tool.coordinates());
+            writeAssignment(toml, "mainClass", tool.mainClass());
+        }
+    }
+
+    private static void writeExecCoordinates(StringBuilder toml, List<ExecToolCoordinate> coordinates) {
+        toml.append("coordinates = [\n");
+        for (ExecToolCoordinate coordinate : coordinates) {
+            toml.append("    { coordinate = ").append(quote(coordinate.coordinate()));
+            if (coordinate.versionRef().isPresent()) {
+                toml.append(", versionRef = ").append(quote(coordinate.versionRef().orElseThrow()));
+            } else {
+                coordinate.version().ifPresent(version -> toml.append(", version = ").append(quote(version)));
+            }
+            toml.append(" },\n");
+        }
+        toml.append("]\n");
+    }
+
+    private static void writeExecSettings(StringBuilder toml, GeneratedSourceStep step) {
+        ExecGenerationSettings exec = step.exec();
+        writeAssignment(toml, "tool", exec.toolName());
+        if (!exec.args().isEmpty()) {
+            writeStringArray(toml, "args", exec.args());
+        }
+        writeStringArray(toml, "inputs", step.inputs());
+        writeAssignment(toml, "produces", exec.produces().configValue());
+        exec.into().ifPresent(value -> writeAssignment(toml, "into", value));
+        if (!"content".equals(exec.cache())) {
+            writeAssignment(toml, "cache", exec.cache());
+        }
+        if (!exec.env().isEmpty()) {
+            writeInlineStringMap(toml, "env", exec.env());
         }
     }
 
