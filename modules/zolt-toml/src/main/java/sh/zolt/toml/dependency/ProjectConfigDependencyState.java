@@ -164,10 +164,47 @@ record ProjectConfigDependencyState(
         Map<String, DependencyMetadata> retained = new LinkedHashMap<>();
         for (DependencyMetadata value : metadata.values()) {
             if (value.publishOnly() || containsDependency(value.section(), value.coordinate())) {
-                retained.put(DependencyMetadata.key(value.section(), value.coordinate()), value);
+                retained.put(DependencyMetadata.key(value.section(), value.coordinate()), syncVersion(value));
             }
         }
         return retained;
+    }
+
+    private DependencyMetadata syncVersion(DependencyMetadata metadata) {
+        if (metadata.versionRef() != null || metadata.version() == null) {
+            return metadata;
+        }
+        String version = versionOf(metadata.section(), metadata.coordinate());
+        if (version == null || version.equals(metadata.version())) {
+            return metadata;
+        }
+        return new DependencyMetadata(
+                metadata.section(),
+                metadata.coordinate(),
+                version,
+                metadata.versionRef(),
+                metadata.managed(),
+                metadata.workspace(),
+                metadata.optional(),
+                metadata.publishOnly(),
+                metadata.exclusions(),
+                metadata.classifier(),
+                metadata.type());
+    }
+
+    private String versionOf(String section, String coordinate) {
+        return switch (section) {
+            case "platforms" -> platforms.get(coordinate);
+            case "api.dependencies" -> api.versioned().get(coordinate);
+            case "dependencies" -> main.versioned().get(coordinate);
+            case "runtime.dependencies" -> runtime.versioned().get(coordinate);
+            case "provided.dependencies" -> provided.versioned().get(coordinate);
+            case "dev.dependencies" -> dev.versioned().get(coordinate);
+            case "test.dependencies" -> test.versioned().get(coordinate);
+            case "annotationProcessors" -> processors.versioned().get(coordinate);
+            case "test.annotationProcessors" -> testProcessors.versioned().get(coordinate);
+            default -> null;
+        };
     }
 
     private boolean containsDependency(String section, String coordinate) {

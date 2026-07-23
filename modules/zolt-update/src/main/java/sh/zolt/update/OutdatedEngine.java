@@ -26,7 +26,7 @@ public final class OutdatedEngine {
             .thenComparing(OutdatedEntry::identifier)
             .thenComparing(OutdatedEntry::section);
 
-    private final VersionDiscovery discovery;
+    private final SurfaceDiscovery surfaceDiscovery;
     private final RepositoryAccessPlanner planner;
     private final SurfaceCollector collector = new SurfaceCollector();
     private final VersionClassifier classifier = new VersionClassifier();
@@ -36,7 +36,7 @@ public final class OutdatedEngine {
     }
 
     public OutdatedEngine(VersionDiscovery discovery, RepositoryAccessPlanner planner) {
-        this.discovery = discovery;
+        this.surfaceDiscovery = new SurfaceDiscovery(discovery);
         this.planner = planner;
     }
 
@@ -67,7 +67,7 @@ public final class OutdatedEngine {
             List<RepositoryAccess> repositories,
             OutdatedOptions options,
             Map<String, MetadataDiscovery> memo) {
-        MetadataDiscovery discovered = discover(surface, repositories, options.offline(), memo);
+        MetadataDiscovery discovered = surfaceDiscovery.discover(surface, repositories, options.offline(), memo);
         if (!discovered.resolved()) {
             return entry(surface, OutdatedStatus.UNKNOWN, OutdatedCandidates.none(), Optional.empty(), discovered.notes());
         }
@@ -76,61 +76,6 @@ public final class OutdatedEngine {
         OutdatedStatus status = candidates.updateAvailable() ? OutdatedStatus.UPDATE_AVAILABLE : OutdatedStatus.CURRENT;
         Optional<String> source = candidates.selectedLatest().flatMap(discovered::source);
         return entry(surface, status, toCandidates(surface.currentVersion(), candidates), source, discovered.notes());
-    }
-
-    private MetadataDiscovery discover(
-            SurfaceRequest surface,
-            List<RepositoryAccess> repositories,
-            boolean offline,
-            Map<String, MetadataDiscovery> memo) {
-        if (surface.queryCoordinates().isEmpty()) {
-            return new MetadataDiscovery(false, List.of(), Map.of(), List.of());
-        }
-        if (!surface.intersect()) {
-            return discoverCoordinate(surface.queryCoordinates().get(0), repositories, offline, memo);
-        }
-        return intersect(surface.queryCoordinates(), repositories, offline, memo);
-    }
-
-    private MetadataDiscovery intersect(
-            List<DiscoveryCoordinate> coordinates,
-            List<RepositoryAccess> repositories,
-            boolean offline,
-            Map<String, MetadataDiscovery> memo) {
-        List<String> intersection = null;
-        Map<String, String> sourceByVersion = new LinkedHashMap<>();
-        List<String> notes = new ArrayList<>();
-        boolean allResolved = true;
-        for (DiscoveryCoordinate coordinate : coordinates) {
-            MetadataDiscovery discovered = discoverCoordinate(coordinate, repositories, offline, memo);
-            notes.addAll(discovered.notes());
-            if (!discovered.resolved()) {
-                allResolved = false;
-                continue;
-            }
-            intersection = intersection == null
-                    ? new ArrayList<>(discovered.versions())
-                    : retain(intersection, discovered.versions());
-            discovered.sourceByVersion().forEach(sourceByVersion::putIfAbsent);
-        }
-        List<String> versions = intersection == null ? List.of() : List.copyOf(intersection);
-        return new MetadataDiscovery(allResolved && intersection != null, versions, sourceByVersion, notes);
-    }
-
-    private static List<String> retain(List<String> current, List<String> candidate) {
-        List<String> retained = new ArrayList<>(current);
-        retained.retainAll(candidate);
-        return retained;
-    }
-
-    private MetadataDiscovery discoverCoordinate(
-            DiscoveryCoordinate coordinate,
-            List<RepositoryAccess> repositories,
-            boolean offline,
-            Map<String, MetadataDiscovery> memo) {
-        return memo.computeIfAbsent(
-                coordinate.coordinate(),
-                ignored -> discovery.discover(repositories, coordinate.groupId(), coordinate.artifactId(), offline));
     }
 
     private OutdatedCandidates toCandidates(String current, VersionCandidates candidates) {
@@ -167,16 +112,7 @@ public final class OutdatedEngine {
         if (!options.includeUpToDate() && entry.status() == OutdatedStatus.CURRENT) {
             return false;
         }
-        return options.selectors().isEmpty()
-                || options.selectors().stream().anyMatch(selector -> matchesSelector(entry, selector));
-    }
-
-    private static boolean matchesSelector(OutdatedEntry entry, String selector) {
-        String sectionToken = entry.section().replace("[", "").replace("]", "");
-        return entry.identifier().equals(selector)
-                || entry.surface().jsonName().equals(selector)
-                || sectionToken.equals(selector)
-                || sectionToken.startsWith(selector + ".");
+        return Selectors.matches(entry.identifier(), entry.section(), entry.surface().jsonName(), options.selectors());
     }
 
     private OutdatedReport applyWorkspaceDedup(List<OutdatedScopeReport> scopeReports) {
