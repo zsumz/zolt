@@ -15,7 +15,9 @@ public record BuildResult(
         String mainIncrementalFallbackReason,
         CompileDiagnostics mainCompileDiagnostics,
         long mainFingerprintCheckNanos,
-        long mainFingerprintWriteNanos) {
+        long mainFingerprintWriteNanos,
+        int mainRestoredClassCount,
+        String mainBuildCacheOutcome) {
     public BuildResult(
             Optional<ResolveResult> resolveResult,
             int sourceCount,
@@ -33,7 +35,9 @@ public record BuildResult(
                 "",
                 CompileDiagnostics.legacy(sourceCount, false),
                 0L,
-                0L);
+                0L,
+                0,
+                "");
     }
 
     public BuildResult(
@@ -54,7 +58,9 @@ public record BuildResult(
                 "",
                 CompileDiagnostics.legacy(sourceCount, mainCompilationSkipped),
                 0L,
-                0L);
+                0L,
+                0,
+                "");
     }
 
     public BuildResult(
@@ -77,7 +83,9 @@ public record BuildResult(
                 "",
                 CompileDiagnostics.legacy(sourceCount, mainCompilationSkipped),
                 mainFingerprintCheckNanos,
-                mainFingerprintWriteNanos);
+                mainFingerprintWriteNanos,
+                0,
+                "");
     }
 
     public BuildResult {
@@ -87,6 +95,13 @@ public record BuildResult(
         mainCompileDiagnostics = mainCompileDiagnostics == null ? CompileDiagnostics.empty() : mainCompileDiagnostics;
         mainFingerprintCheckNanos = Math.max(0L, mainFingerprintCheckNanos);
         mainFingerprintWriteNanos = Math.max(0L, mainFingerprintWriteNanos);
+        mainRestoredClassCount = Math.max(0, mainRestoredClassCount);
+        mainBuildCacheOutcome = mainBuildCacheOutcome == null ? "" : mainBuildCacheOutcome;
+    }
+
+    /** Whether this module's compiled output was restored from the build cache instead of compiled. */
+    public boolean mainCompilationRestored() {
+        return "restored".equals(mainCompilationMode);
     }
 
     public boolean resolvedLockfile() {

@@ -1,5 +1,6 @@
 package sh.zolt.build;
 
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.compile.JavacRunner;
 import sh.zolt.build.compile.MainCompileSourceExecutor;
@@ -33,11 +34,14 @@ final class BuildServiceDependencies {
     private final SpringBootAotGenerationService springBootAotGenerationService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
+    private final BuildCacheService buildCacheService;
 
     private BuildServiceDependencies(
             ResolveDependencies resolveDependencies,
             OutputDependencies outputDependencies,
-            GeneratedSourceDependencies generatedSourceDependencies) {
+            GeneratedSourceDependencies generatedSourceDependencies,
+            BuildCacheService buildCacheService) {
+        this.buildCacheService = buildCacheService;
         this.resolveService = resolveDependencies.resolveService();
         this.lockfileReader = resolveDependencies.lockfileReader();
         this.classpathBuilder = resolveDependencies.classpathBuilder();
@@ -84,7 +88,8 @@ final class BuildServiceDependencies {
                         new MainCompileSourceExecutor(
                                 javacRunner,
                                 incrementalCompileStateRecorder,
-                        new IncrementalCompilePlanner())));
+                        new IncrementalCompilePlanner())),
+                BuildCacheService.disabled());
     }
 
     BuildServiceDependencies withJdkChecker(JdkChecker jdkDetector) {
@@ -110,7 +115,31 @@ final class BuildServiceDependencies {
                         new MainCompileSourceExecutor(
                                 javacRunner,
                                 incrementalCompileStateRecorder,
-                                new IncrementalCompilePlanner())));
+                                new IncrementalCompilePlanner())),
+                buildCacheService);
+    }
+
+    BuildServiceDependencies withBuildCache(BuildCacheService buildCacheService) {
+        return new BuildServiceDependencies(
+                new ResolveDependencies(resolveService, lockfileReader, classpathBuilder),
+                new OutputDependencies(
+                        sourceDiscoverer,
+                        resourceCopier,
+                        buildMetadataGenerator,
+                        buildFingerprintService),
+                new GeneratedSourceDependencies(
+                        jdkDetector,
+                        openApiGeneratedSourceService,
+                        protobufGeneratedSourceService,
+                        execGeneratedSourceService,
+                        springBootAotGenerationService,
+                        incrementalCompileStateRecorder,
+                        sourceExecutor),
+                buildCacheService);
+    }
+
+    BuildCacheService buildCacheService() {
+        return buildCacheService;
     }
 
     ResolveService resolveService() {

@@ -29,6 +29,6 @@ final class BuildCommandProcessorFallbackTest {
     private static BuildResult result(String mode, String reason) {
         return new BuildResult(
                 Optional.empty(), 1, 0, Path.of("target/classes"), "", false, mode, reason,
-                CompileDiagnostics.empty(), 0L, 0L);
+                CompileDiagnostics.empty(), 0L, 0L, 0, "");
     }
 }

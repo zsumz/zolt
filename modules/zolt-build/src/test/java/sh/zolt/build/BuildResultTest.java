@@ -23,7 +23,9 @@ final class BuildResultTest {
                 null,
                 null,
                 -25L,
-                2_999_999L);
+                2_999_999L,
+                -4,
+                null);
 
         assertFalse(result.resolvedLockfile());
         assertEquals("full", result.mainCompilationMode());
@@ -33,6 +35,9 @@ final class BuildResultTest {
         assertEquals(0L, result.mainFingerprintCheckMillis());
         assertEquals(2_999_999L, result.mainFingerprintWriteNanos());
         assertEquals(2L, result.mainFingerprintWriteMillis());
+        assertEquals(0, result.mainRestoredClassCount());
+        assertEquals("", result.mainBuildCacheOutcome());
+        assertFalse(result.mainCompilationRestored());
     }
 
     @Test

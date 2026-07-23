@@ -165,6 +165,95 @@ public final class BuildFingerprintService {
                 TEST_FILE_NAME);
     }
 
+    /**
+     * The inputs-only fingerprint SHA-256 for the main compile scope: the content component of a
+     * build-output cache key. Computed from the same input sections the skip-gate hashes, minus the
+     * {@code [expectedClasses]} output section. Stable across the compile it keys (inputs do not change
+     * while javac runs), so the value taken before a compile matches the one implied after it.
+     */
+    public String mainInputsFingerprintSha256(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            ClasspathSet classpaths,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        return inputsFingerprintSha256(
+                projectDirectory,
+                config,
+                lockfilePath,
+                mainSourceRoots(config.build()),
+                config.build().resourceRoots(),
+                "[resources].main",
+                sources.mainSources(),
+                config.build().generatedMainSources(),
+                classpaths.compile(),
+                classpaths.processor(),
+                outputDirectory,
+                config.build().output(),
+                generatedSourcesDirectory);
+    }
+
+    /** The inputs-only fingerprint SHA-256 for the test compile scope. See {@link #mainInputsFingerprintSha256}. */
+    public String testInputsFingerprintSha256(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory) {
+        return inputsFingerprintSha256(
+                projectDirectory,
+                config,
+                lockfilePath,
+                testSourceRoots(config.build()),
+                config.build().testResourceRoots(),
+                "[resources].test",
+                sources.allTestSources(),
+                config.build().generatedTestSources(),
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                config.build().testOutput(),
+                generatedSourcesDirectory);
+    }
+
+    private String inputsFingerprintSha256(
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            List<String> sourceRoots,
+            List<String> resourceRoots,
+            String resourceRootKey,
+            List<Path> sources,
+            List<GeneratedSourceStep> generatedSteps,
+            Classpath compileClasspath,
+            Classpath processorClasspath,
+            Path outputDirectory,
+            String outputDirectoryName,
+            Path generatedSourcesDirectory) {
+        String fingerprint = content.fingerprint(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sourceRoots,
+                resourceRoots,
+                resourceRootKey,
+                sources,
+                generatedSteps,
+                compileClasspath,
+                processorClasspath,
+                outputDirectory,
+                outputDirectoryName,
+                generatedSourcesDirectory,
+                null,
+                null);
+        return BuildFingerprintInputs.inputsSha256(fingerprint);
+    }
+
     private static List<String> testSourceRoots(BuildSettings settings) {
         List<String> roots = new ArrayList<>();
         roots.addAll(settings.testSources());

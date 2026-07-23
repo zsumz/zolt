@@ -206,7 +206,9 @@ final class WorkspaceResultSummaryTest {
                 fallbackReason,
                 diagnostics,
                 fingerprintCheckNanos,
-                fingerprintWriteNanos);
+                fingerprintWriteNanos,
+                0,
+                "");
     }
 
     private static ClasspathSet emptyClasspaths() {
