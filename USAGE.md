@@ -891,6 +891,28 @@ Test commands support class/method selection, glob patterns, JUnit tags, JVM
 arguments, XML reports, deterministic shards, named suites, and optional profile
 history used for shard balancing.
 
+### Coverage Floors
+
+A `[coverage]` section declares the minimum Jacoco coverage a project accepts.
+Each floor is an optional percentage (`0`–`100`); omit a metric to leave it
+ungated:
+
+```toml
+[coverage]
+minLine = 88.0
+minBranch = 74.0
+# minInstruction and minMethod are also supported.
+```
+
+After `zolt coverage` writes its report, floors are checked against the report's
+totals; any metric below its floor fails the command with a non-zero exit and an
+actionable message naming the metric, its actual coverage, and the floor. With no
+`[coverage]` section, coverage behavior is unchanged. `zolt check --context ci`
+applies the same floors when a `jacoco.xml` report is present under the coverage
+directory. In a workspace, floors in the root `zolt.toml` gate the aggregate
+`zolt coverage --workspace --all` report, while a member's own `[coverage]`
+governs that member's solo `zolt coverage` run.
+
 ## Frameworks and Generated Sources
 
 Zolt has project-model support for common Java application shapes:
