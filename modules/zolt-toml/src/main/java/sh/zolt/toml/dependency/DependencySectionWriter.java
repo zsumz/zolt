@@ -2,6 +2,7 @@ package sh.zolt.toml.dependency;
 
 import sh.zolt.project.DependencyExclusionSpec;
 import sh.zolt.project.DependencyMetadata;
+import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,10 @@ final class DependencySectionWriter {
     }
 
     static void write(StringBuilder toml, ProjectConfig config) {
+        if (config.packageSettings().mode() == PackageMode.BOM) {
+            // A BOM declares no dependencies; it carries only [bom.versions]/[bom.imports].
+            return;
+        }
         writeOptionalDependencies(
                 toml,
                 "api.dependencies",

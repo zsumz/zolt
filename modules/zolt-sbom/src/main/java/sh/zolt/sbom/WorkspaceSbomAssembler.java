@@ -168,6 +168,7 @@ public final class WorkspaceSbomAssembler {
         String version = config.project().version();
         String extension = switch (config.packageSettings().mode()) {
             case WAR, SPRING_BOOT_WAR -> "war";
+            case BOM -> "pom";
             case THIN, SPRING_BOOT, QUARKUS, UBER -> "jar";
         };
         String purl = PurlWriter.purl(group, name, version, extension, Optional.empty());

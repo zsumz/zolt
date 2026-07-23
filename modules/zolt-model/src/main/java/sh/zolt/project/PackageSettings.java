@@ -11,7 +11,8 @@ public record PackageSettings(
         boolean tests,
         PublicationMetadata metadata,
         Map<String, String> manifestAttributes,
-        UberDuplicatePolicy uberDuplicates) {
+        UberDuplicatePolicy uberDuplicates,
+        BomSettings bom) {
     public PackageSettings {
         mode = mode == null ? PackageMode.THIN : mode;
         metadata = metadata == null ? PublicationMetadata.empty() : metadata;
@@ -19,6 +20,18 @@ public record PackageSettings(
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(manifestAttributes));
         uberDuplicates = uberDuplicates == null ? UberDuplicatePolicy.FAIL : uberDuplicates;
+        bom = bom == null ? BomSettings.none() : bom;
+    }
+
+    public PackageSettings(
+            PackageMode mode,
+            boolean sources,
+            boolean javadoc,
+            boolean tests,
+            PublicationMetadata metadata,
+            Map<String, String> manifestAttributes,
+            UberDuplicatePolicy uberDuplicates) {
+        this(mode, sources, javadoc, tests, metadata, manifestAttributes, uberDuplicates, BomSettings.none());
     }
 
     public PackageSettings(
@@ -46,5 +59,9 @@ public record PackageSettings(
 
     public static PackageSettings defaults() {
         return new PackageSettings(PackageMode.THIN, false, false, false, PublicationMetadata.empty(), Map.of());
+    }
+
+    public PackageSettings withBom(BomSettings bom) {
+        return new PackageSettings(mode, sources, javadoc, tests, metadata, manifestAttributes, uberDuplicates, bom);
     }
 }

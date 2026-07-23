@@ -127,6 +127,7 @@ public record PackageResult(
             case SPRING_BOOT -> "BOOT-INF/classes";
             case WAR, SPRING_BOOT_WAR -> "WEB-INF/classes";
             case QUARKUS -> "framework package output";
+            case BOM -> throw new IllegalStateException("BOM projects publish a POM and produce no package archive.");
         };
     }
 }

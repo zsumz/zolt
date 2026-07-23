@@ -95,6 +95,14 @@ final class PackageSectionCodec {
         if (settings == null || settings.equals(PackageSettings.defaults())) {
             return;
         }
+        if (settings.mode() == PackageMode.BOM) {
+            // A [bom] section implies mode = "bom"; emit only the metadata a BOM may carry, then [bom].
+            if (!settings.metadata().emptyMetadata()) {
+                writePublicationMetadata(toml, settings.metadata());
+            }
+            BomSectionCodec.write(toml, settings.bom());
+            return;
+        }
         toml.append("\n[package]\n");
         if (settings.mode() != PackageMode.THIN) {
             writeAssignment(toml, "mode", settings.mode().configValue());

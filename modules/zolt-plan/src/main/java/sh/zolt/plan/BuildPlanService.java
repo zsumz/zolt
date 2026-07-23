@@ -305,6 +305,7 @@ public final class BuildPlanService {
     private static List<String> packageOutputs(ProjectConfig config) {
         String extension = switch (config.packageSettings().mode()) {
             case WAR, SPRING_BOOT_WAR -> ".war";
+            case BOM -> ".pom";
             default -> ".jar";
         };
         String base = outputRoot(config.build()) + "/" + config.project().name() + "-" + config.project().version();

@@ -10,7 +10,8 @@ public enum PackageMode {
     WAR("war"),
     SPRING_BOOT_WAR("spring-boot-war"),
     QUARKUS("quarkus"),
-    UBER("uber");
+    UBER("uber"),
+    BOM("bom");
 
     private final String configValue;
 

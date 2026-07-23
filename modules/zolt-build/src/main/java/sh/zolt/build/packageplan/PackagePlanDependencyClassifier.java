@@ -34,6 +34,7 @@ final class PackagePlanDependencyClassifier {
                     .map(rules -> dependency(rules.dependency(lockPackage, config)))
                     .orElseGet(() -> unsupportedFrameworkDependency(mode, lockPackage));
             case UBER -> uberDependency(lockPackage);
+            case BOM -> throw new IllegalStateException("BOM projects publish a POM and package no dependencies.");
         };
     }
 

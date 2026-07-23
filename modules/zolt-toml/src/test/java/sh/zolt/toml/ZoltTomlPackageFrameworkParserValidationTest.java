@@ -44,7 +44,7 @@ final class ZoltTomlPackageFrameworkParserValidationTest {
                         """));
 
         assertEquals(
-                "Unsupported package mode `ear` in zolt.toml. Supported package modes are: thin, spring-boot, war, spring-boot-war, quarkus, uber.",
+                "Unsupported package mode `ear` in zolt.toml. Supported package modes are: thin, spring-boot, war, spring-boot-war, quarkus, uber, bom.",
                 exception.getMessage());
     }
 

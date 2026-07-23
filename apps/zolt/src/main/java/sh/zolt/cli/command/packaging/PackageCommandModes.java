@@ -62,7 +62,7 @@ final class PackageCommandModes {
             case QUARKUS -> Optional.of("Run with Zolt: zolt run");
             case THIN -> Optional.of("Run with dependencies: zolt run-package -- [args]");
             case UBER -> Optional.of("Run as a self-contained jar: java -jar " + result.jarPath() + " [args]");
-            case WAR -> Optional.empty();
+            case WAR, BOM -> Optional.empty();
         };
     }
 

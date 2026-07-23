@@ -2,6 +2,7 @@ package sh.zolt.publish;
 
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.project.BomSettings;
 import sh.zolt.project.DependencyExclusionSpec;
 import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.DeveloperEntry;
@@ -19,6 +20,17 @@ import java.util.Map;
 public final class PublishPomGenerator {
     public String generate(ProjectConfig config, ZoltLockfile lockfile) {
         StringBuilder xml = new StringBuilder();
+        writeProjectHeader(xml, config);
+        if (config.packageSettings().mode() == PackageMode.BOM) {
+            writeDependencyManagement(xml, config, lockfile);
+        } else {
+            writeDependencies(xml, config, lockfile);
+        }
+        xml.append("</project>\n");
+        return xml.toString();
+    }
+
+    private static void writeProjectHeader(StringBuilder xml, ProjectConfig config) {
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         xml.append("<project xmlns=\"http://maven.apache.org/POM/4.0.0\" ")
                 .append("xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" ")
@@ -87,17 +99,32 @@ public final class PublishPomGenerator {
             element(xml, 2, "url", metadata.issues());
             indent(xml, 1).append("</issueManagement>\n");
         }
+    }
 
+    private static void writeDependencies(StringBuilder xml, ProjectConfig config, ZoltLockfile lockfile) {
         List<PublishPomDependency> dependencies = dependencies(config, lockfile);
-        if (!dependencies.isEmpty()) {
-            indent(xml, 1).append("<dependencies>\n");
-            for (PublishPomDependency dependency : dependencies) {
-                dependency(xml, dependency);
-            }
-            indent(xml, 1).append("</dependencies>\n");
+        if (dependencies.isEmpty()) {
+            return;
         }
-        xml.append("</project>\n");
-        return xml.toString();
+        indent(xml, 1).append("<dependencies>\n");
+        for (PublishPomDependency dependency : dependencies) {
+            dependency(xml, 2, dependency);
+        }
+        indent(xml, 1).append("</dependencies>\n");
+    }
+
+    private static void writeDependencyManagement(StringBuilder xml, ProjectConfig config, ZoltLockfile lockfile) {
+        List<PublishPomDependency> managed = managedDependencies(config, lockfile);
+        if (managed.isEmpty()) {
+            return;
+        }
+        indent(xml, 1).append("<dependencyManagement>\n");
+        indent(xml, 2).append("<dependencies>\n");
+        for (PublishPomDependency dependency : managed) {
+            dependency(xml, 3, dependency);
+        }
+        indent(xml, 2).append("</dependencies>\n");
+        indent(xml, 1).append("</dependencyManagement>\n");
     }
 
     private static List<PublishPomDependency> dependencies(ProjectConfig config, ZoltLockfile lockfile) {
@@ -111,7 +138,9 @@ public final class PublishPomGenerator {
             dependencies.put(coordinate, new PublishPomDependency(
                     lockPackage.packageId().groupId(),
                     lockPackage.packageId().artifactId(),
+                    metadata == null ? null : metadata.classifier(),
                     lockPackage.version(),
+                    metadata == null ? null : metadata.type(),
                     mavenScope(lockPackage.scope()),
                     metadata != null && metadata.optional(),
                     metadata == null ? List.of() : metadata.exclusions()));
@@ -124,13 +153,64 @@ public final class PublishPomGenerator {
             dependencies.put(metadata.coordinate(), new PublishPomDependency(
                     packageId.groupId(),
                     packageId.artifactId(),
+                    metadata.classifier(),
                     metadata.version(),
+                    metadata.type(),
                     mavenScope(metadata.section()),
                     metadata.optional(),
                     metadata.exclusions()));
         }
         return dependencies.values().stream()
                 .sorted(Comparator.comparing(PublishPomDependency::coordinate))
+                .toList();
+    }
+
+    private static List<PublishPomDependency> managedDependencies(ProjectConfig config, ZoltLockfile lockfile) {
+        List<PublishPomDependency> managed = new ArrayList<>();
+        // Workspace family members: real GAV at the locked version (fact 5).
+        for (LockPackage lockPackage : lockfile.packages()) {
+            if (lockPackage.workspace().isEmpty()) {
+                continue;
+            }
+            managed.add(new PublishPomDependency(
+                    lockPackage.packageId().groupId(),
+                    lockPackage.packageId().artifactId(),
+                    null,
+                    lockPackage.version(),
+                    null,
+                    "compile",
+                    false,
+                    List.of()));
+        }
+        BomSettings bom = config.packageSettings().bom();
+        for (BomSettings.ManagedVersion pin : bom.versions()) {
+            PackageId packageId = packageId(pin.coordinate());
+            managed.add(new PublishPomDependency(
+                    packageId.groupId(),
+                    packageId.artifactId(),
+                    pin.classifier(),
+                    pin.version(),
+                    pin.type(),
+                    "compile",
+                    false,
+                    List.of()));
+        }
+        for (BomSettings.ImportedBom imported : bom.imports()) {
+            PackageId packageId = packageId(imported.coordinate());
+            managed.add(new PublishPomDependency(
+                    packageId.groupId(),
+                    packageId.artifactId(),
+                    null,
+                    imported.version(),
+                    "pom",
+                    "import",
+                    false,
+                    List.of()));
+        }
+        return managed.stream()
+                .sorted(Comparator.comparing(PublishPomDependency::groupId)
+                        .thenComparing(PublishPomDependency::artifactId)
+                        .thenComparing(dependency -> dependency.classifier() == null ? "" : dependency.classifier()))
                 .toList();
     }
 
@@ -177,6 +257,7 @@ public final class PublishPomGenerator {
     private static String packaging(PackageMode mode) {
         return switch (mode) {
             case WAR, SPRING_BOOT_WAR -> "war";
+            case BOM -> "pom";
             default -> "jar";
         };
     }
@@ -201,30 +282,36 @@ public final class PublishPomGenerator {
         indent(xml, 2).append("</developer>\n");
     }
 
-    private static void dependency(StringBuilder xml, PublishPomDependency dependency) {
-        indent(xml, 2).append("<dependency>\n");
-        element(xml, 3, "groupId", dependency.groupId());
-        element(xml, 3, "artifactId", dependency.artifactId());
+    private static void dependency(StringBuilder xml, int level, PublishPomDependency dependency) {
+        indent(xml, level).append("<dependency>\n");
+        element(xml, level + 1, "groupId", dependency.groupId());
+        element(xml, level + 1, "artifactId", dependency.artifactId());
+        if (dependency.classifier() != null && !dependency.classifier().isBlank()) {
+            element(xml, level + 1, "classifier", dependency.classifier());
+        }
         if (dependency.version() != null && !dependency.version().isBlank()) {
-            element(xml, 3, "version", dependency.version());
+            element(xml, level + 1, "version", dependency.version());
+        }
+        if (dependency.type() != null && !dependency.type().isBlank()) {
+            element(xml, level + 1, "type", dependency.type());
         }
         if (!dependency.scope().equals("compile")) {
-            element(xml, 3, "scope", dependency.scope());
+            element(xml, level + 1, "scope", dependency.scope());
         }
         if (dependency.optional()) {
-            element(xml, 3, "optional", "true");
+            element(xml, level + 1, "optional", "true");
         }
         if (!dependency.exclusions().isEmpty()) {
-            indent(xml, 3).append("<exclusions>\n");
+            indent(xml, level + 1).append("<exclusions>\n");
             for (DependencyExclusionSpec exclusion : dependency.exclusions()) {
-                indent(xml, 4).append("<exclusion>\n");
-                element(xml, 5, "groupId", exclusion.group());
-                element(xml, 5, "artifactId", exclusion.artifact());
-                indent(xml, 4).append("</exclusion>\n");
+                indent(xml, level + 2).append("<exclusion>\n");
+                element(xml, level + 3, "groupId", exclusion.group());
+                element(xml, level + 3, "artifactId", exclusion.artifact());
+                indent(xml, level + 2).append("</exclusion>\n");
             }
-            indent(xml, 3).append("</exclusions>\n");
+            indent(xml, level + 1).append("</exclusions>\n");
         }
-        indent(xml, 2).append("</dependency>\n");
+        indent(xml, level).append("</dependency>\n");
     }
 
     private static void element(StringBuilder xml, int level, String name, String value) {
@@ -257,7 +344,9 @@ public final class PublishPomGenerator {
     private record PublishPomDependency(
             String groupId,
             String artifactId,
+            String classifier,
             String version,
+            String type,
             String scope,
             boolean optional,
             List<DependencyExclusionSpec> exclusions) {

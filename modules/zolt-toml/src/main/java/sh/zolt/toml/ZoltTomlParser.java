@@ -8,6 +8,7 @@ import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.DependencyPolicySettings;
 import sh.zolt.project.FrameworkSettings;
 import sh.zolt.project.NativeSettings;
+import sh.zolt.project.PackageMode;
 import sh.zolt.project.PackageSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectMetadata;
@@ -48,6 +49,7 @@ public final class ZoltTomlParser {
             "generated",
             "compiler",
             "package",
+            "bom",
             "publish",
             "framework",
             "native",
@@ -138,7 +140,14 @@ public final class ZoltTomlParser {
         build = BuildSectionCodec.parseResourceRoots(optionalTable(result, "resources"), build);
         build = GeneratedSectionCodec.parse(optionalTable(result, "generated"), build, versionAliases);
         CompilerSettings compilerSettings = CompilerSectionCodec.parse(optionalTable(result, "compiler"), build);
-        PackageSettings packageSettings = PackageSectionCodec.parse(optionalTable(result, "package"));
+        TomlTable packageTable = optionalTable(result, "package");
+        TomlTable bomTable = optionalTable(result, "bom");
+        PackageSettings packageSettings = PackageSectionCodec.parse(packageTable);
+        packageSettings = BomSectionCodec.reconcile(
+                packageSettings, packageTable, bomTable, BomSectionCodec.parse(bomTable, versionAliases));
+        if (packageSettings.mode() == PackageMode.BOM) {
+            BomSectionCodec.validateNoDependencySections(parsedDependencies);
+        }
         FrameworkSettings frameworkSettings = FrameworkSectionCodec.parse(optionalTable(result, "framework"));
         NativeSettings nativeSettings = NativeSectionCodec.parse(optionalTable(result, "native"), project.name(), build);
 

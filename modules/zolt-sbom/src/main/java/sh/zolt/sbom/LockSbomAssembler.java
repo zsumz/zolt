@@ -186,13 +186,14 @@ public final class LockSbomAssembler {
         }
         return switch (config.packageSettings().mode()) {
             case SPRING_BOOT, SPRING_BOOT_WAR, WAR, QUARKUS, UBER -> SbomComponentType.APPLICATION;
-            case THIN -> SbomComponentType.LIBRARY;
+            case THIN, BOM -> SbomComponentType.LIBRARY;
         };
     }
 
     private static String rootExtension(ProjectConfig config) {
         return switch (config.packageSettings().mode()) {
             case WAR, SPRING_BOOT_WAR -> "war";
+            case BOM -> "pom";
             case THIN, SPRING_BOOT, QUARKUS, UBER -> "jar";
         };
     }

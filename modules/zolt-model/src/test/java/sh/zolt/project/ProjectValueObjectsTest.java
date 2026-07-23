@@ -331,7 +331,7 @@ final class ProjectValueObjectsTest {
 
         assertEquals(Optional.of(PackageMode.SPRING_BOOT_WAR), PackageMode.fromConfigValue("spring-boot-war"));
         assertEquals(Optional.empty(), PackageMode.fromConfigValue(null));
-        assertEquals("thin, spring-boot, war, spring-boot-war, quarkus, uber", PackageMode.supportedValues());
+        assertEquals("thin, spring-boot, war, spring-boot-war, quarkus, uber, bom", PackageMode.supportedValues());
 
         assertEquals(Optional.of(DependencyConstraintKind.STRICT), DependencyConstraintKind.fromConfigValue("strict"));
         assertEquals(Optional.empty(), DependencyConstraintKind.fromConfigValue("STRICT"));
