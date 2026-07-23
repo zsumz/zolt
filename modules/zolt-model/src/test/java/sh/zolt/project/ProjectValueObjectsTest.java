@@ -324,8 +324,10 @@ final class ProjectValueObjectsTest {
         assertEquals("declared-root, openapi, protobuf, exec", GeneratedSourceKind.supportedValues());
 
         assertEquals(Optional.of(ProducesLane.RESOURCES), ProducesLane.fromConfigValue("resources"));
-        assertEquals(Optional.empty(), ProducesLane.fromConfigValue("intermediate"));
-        assertEquals("java-sources, test-sources, resources", ProducesLane.supportedValues());
+        assertEquals(Optional.of(ProducesLane.INTERMEDIATE), ProducesLane.fromConfigValue("intermediate"));
+        assertEquals(Optional.of(ProducesLane.TEST_RESOURCES), ProducesLane.fromConfigValue("test-resources"));
+        assertEquals(Optional.empty(), ProducesLane.fromConfigValue("sideways"));
+        assertEquals("java-sources, test-sources, resources, test-resources, intermediate", ProducesLane.supportedValues());
 
         assertEquals(Optional.of(PackageMode.SPRING_BOOT_WAR), PackageMode.fromConfigValue("spring-boot-war"));
         assertEquals(Optional.empty(), PackageMode.fromConfigValue(null));
