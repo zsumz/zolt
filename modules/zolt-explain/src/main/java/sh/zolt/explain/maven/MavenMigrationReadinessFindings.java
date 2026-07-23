@@ -60,6 +60,30 @@ public final class MavenMigrationReadinessFindings {
                     signal,
                     MigrationReadinessCategory.PLANNED,
                     "Maven plugin declared for static migration review");
+            case "maven.plugin.exec-mappable" -> MigrationReadinessFindings.finding(
+                    "generated-sources",
+                    MigrationReadinessCategory.PLANNED,
+                    signal,
+                    "Maven exec-shaped plugin (exec/frontend/antrun)",
+                    "[generated.execTools] exec step",
+                    "",
+                    signal.nextStep());
+            case "maven.plugin.exec-nondeterministic" -> MigrationReadinessFindings.finding(
+                    "generated-sources",
+                    MigrationReadinessCategory.NON_DETERMINISTIC,
+                    signal,
+                    "Maven database-backed codegen plugin",
+                    "committed DDL or cache = \"none\"",
+                    "",
+                    signal.nextStep());
+            case "maven.plugin.exec-unmappable" -> MigrationReadinessFindings.finding(
+                    "ci",
+                    MigrationReadinessCategory.BLOCKED,
+                    signal,
+                    "Maven exec plugin with shell or control flow",
+                    "[commands.tasks] or CI",
+                    "",
+                    signal.nextStep());
             case "maven.reactor.detected" -> MigrationReadinessFindings.finding(
                     "dependencies",
                     MigrationReadinessCategory.PLANNED,

@@ -38,6 +38,24 @@ public final class ExplainSignals {
             ExplainSignal.Severity.WARN,
             ExplainSignal.Category.BUILDABILITY,
             "Review whether this plugin changes compilation, resources, tests, packaging, or generated outputs.");
+    public static final ExplainSignalDefinition MAVEN_PLUGIN_EXEC_MAPPABLE = new ExplainSignalDefinition(
+            "maven.plugin.exec-mappable",
+            ExplainSignal.Severity.WARN,
+            ExplainSignal.Category.BUILDABILITY,
+            "Review the drafted exec step: declare its real input closure and owned output directory"
+                    + " (Zolt cannot infer them statically) and confirm the pinned tool identity before building.");
+    public static final ExplainSignalDefinition MAVEN_PLUGIN_EXEC_NONDETERMINISTIC = new ExplainSignalDefinition(
+            "maven.plugin.exec-nondeterministic",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.NON_DETERMINISM,
+            "Generate from committed DDL/schema so the step is reproducible, or set cache = \"none\" to accept"
+                    + " always-run, non-hermetic generation that is excluded from offline builds.");
+    public static final ExplainSignalDefinition MAVEN_PLUGIN_EXEC_UNMAPPABLE = new ExplainSignalDefinition(
+            "maven.plugin.exec-unmappable",
+            ExplainSignal.Severity.BLOCK,
+            ExplainSignal.Category.MIGRATION_BLOCKER,
+            "Exec steps run one pinned tool over declared inputs with no shell; keep shell scripts and"
+                    + " multi-step build logic in [commands.tasks] or CI.");
     public static final ExplainSignalDefinition MAVEN_PROFILE_DETECTED = new ExplainSignalDefinition(
             "maven.profile.detected",
             ExplainSignal.Severity.BLOCK,

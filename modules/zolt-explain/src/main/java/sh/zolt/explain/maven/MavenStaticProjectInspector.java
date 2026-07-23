@@ -220,6 +220,8 @@ public final class MavenStaticProjectInspector {
                 signals.add(ExplainSignals.MAVEN_FRAMEWORK_NATIVE_UNSUPPORTED.signal(
                         project,
                         "Plugin `" + plugin.coordinate() + "` declares framework AOT/native behavior that Zolt does not execute as Maven lifecycle behavior; migrate supported cases to typed Zolt framework settings."));
+            } else if (!plugin.execInvocations().isEmpty()) {
+                signals.addAll(MavenExecPluginSignals.signals(project, plugin));
             } else if (MavenSignalRules.knownPlugin(plugin.coordinate()) && (!plugin.phases().isEmpty() || !plugin.goals().isEmpty())) {
                 signals.add(ExplainSignals.MAVEN_PLUGIN_STATIC_SIGNAL.signal(
                         project,
