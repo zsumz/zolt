@@ -34,6 +34,10 @@ public final class MavenRepositoryPathBuilder {
         return coordinate.groupId().replace('.', '/');
     }
 
+    public String metadataPath(String groupId, String artifactId) {
+        return groupId.replace('.', '/') + "/" + artifactId + "/maven-metadata.xml";
+    }
+
     private String artifactPath(Coordinate coordinate, String extension) {
         return artifactPath(new ArtifactDescriptor(coordinate, Optional.empty(), extension));
     }

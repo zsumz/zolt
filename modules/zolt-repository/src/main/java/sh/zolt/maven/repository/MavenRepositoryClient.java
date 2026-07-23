@@ -108,6 +108,31 @@ public final class MavenRepositoryClient {
                 downloadListener);
     }
 
+    /**
+     * Fetches a coordinate's {@code maven-metadata.xml} version listing. Advisory-only: used by
+     * version discovery, never by resolution. Returns empty on 404 (the artifact is not hosted by
+     * this repository); other transient failures throw per the existing retry policy.
+     */
+    public Optional<byte[]> fetchMetadata(
+            URI repositoryBaseUri,
+            String groupId,
+            String artifactId,
+            Optional<RepositoryAuthentication> authentication) {
+        Coordinate coordinate = new Coordinate(groupId, artifactId, Optional.empty());
+        ArtifactDescriptor descriptor = new ArtifactDescriptor(coordinate, Optional.empty(), "xml");
+        try {
+            RepositoryArtifact artifact = fetch(
+                    repositoryBaseUri,
+                    descriptor,
+                    pathBuilder.metadataPath(groupId, artifactId),
+                    authentication,
+                    RepositoryDownloadListener.NOOP);
+            return Optional.of(artifact.bytes());
+        } catch (RepositoryMissingArtifactException exception) {
+            return Optional.empty();
+        }
+    }
+
     public void uploadPom(URI repositoryBaseUri, Coordinate coordinate, Path source) {
         uploadPom(repositoryBaseUri, coordinate, source, RepositoryAuthentication.none());
     }
