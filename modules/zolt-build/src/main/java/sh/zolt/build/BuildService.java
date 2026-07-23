@@ -5,11 +5,6 @@ import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.build.classpath.LockfileClasspathPackageConverter;
 import sh.zolt.classpath.ResolvedClasspathPackage;
-import sh.zolt.build.cache.BuildCacheJdkIdentity;
-import sh.zolt.build.cache.BuildCacheKey;
-import sh.zolt.build.cache.BuildCacheModulePolicy;
-import sh.zolt.build.cache.BuildCacheRestoreResult;
-import sh.zolt.build.cache.BuildCacheScope;
 import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.build.compile.MainCompileSourceExecutor;
 import sh.zolt.build.discovery.SourceDiscoverer;
@@ -18,7 +13,6 @@ import sh.zolt.build.fingerprint.BuildFingerprintCheck;
 import sh.zolt.build.fingerprint.BuildFingerprintService;
 import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
-import sh.zolt.build.incremental.IncrementalCompileState;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.build.metadata.BuildMetadataGenerator;
 import sh.zolt.build.metadata.BuildMetadataResult;
@@ -60,7 +54,7 @@ public final class BuildService {
     private final SpringBootAotGenerationService springBootAotGenerationService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
-    private final BuildCacheService buildCacheService;
+    private final MainBuildCacheGate mainBuildCacheGate;
 
     public BuildService() {
         this(new JdkDetector());
@@ -105,7 +99,8 @@ public final class BuildService {
         this.springBootAotGenerationService = dependencies.springBootAotGenerationService();
         this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = dependencies.sourceExecutor();
-        this.buildCacheService = dependencies.buildCacheService();
+        this.mainBuildCacheGate =
+                new MainBuildCacheGate(dependencies.buildCacheService(), dependencies.buildFingerprintService());
     }
 
     public BuildService withJdkChecker(JdkChecker jdkChecker) {
@@ -222,7 +217,7 @@ public final class BuildService {
         // of running javac. A restore is a real (non-skipped) outcome: it still stamps the skip-gate
         // fingerprint below, but leaves no incremental state so the next source edit does one full
         // recompile (the documented v1 tradeoff).
-        BuildCacheAttempt cacheAttempt = attemptMainCacheRestore(
+        MainBuildCacheGate.Attempt cacheAttempt = mainBuildCacheGate.attemptRestore(
                 compileSkipped,
                 projectDirectory,
                 config,
@@ -283,7 +278,7 @@ public final class BuildService {
                         generatedSourcesDirectory,
                         javacResult.attribution(),
                         javacResult.compiledSources());
-                buildCacheOutcome = storeMainToCache(cacheAttempt, outputDirectory);
+                buildCacheOutcome = mainBuildCacheGate.store(cacheAttempt, outputDirectory);
             }
         }
         return new BuildResult(
@@ -300,62 +295,6 @@ public final class BuildService {
                 fingerprintWriteNanos,
                 restored ? cacheAttempt.restore().classCount() : 0,
                 buildCacheOutcome);
-    }
-
-    private BuildCacheAttempt attemptMainCacheRestore(
-            boolean compileSkipped,
-            Path projectDirectory,
-            ProjectConfig config,
-            Path lockfilePath,
-            SourceDiscoveryResult sources,
-            ClasspathSet classpaths,
-            Path outputDirectory,
-            Path generatedSourcesDirectory,
-            JdkStatus jdkStatus) {
-        if (compileSkipped || !buildCacheService.enabled()) {
-            return BuildCacheAttempt.inactive();
-        }
-        if (Files.exists(IncrementalCompileState.mainStatePath(outputDirectory))) {
-            // Warm incremental state present: the incremental compiler is already the fast path. The
-            // build cache serves cold/clean/CI builds; consulting it under warm state only adds overhead.
-            return BuildCacheAttempt.inactive();
-        }
-        if (!BuildCacheModulePolicy.cacheable(config)) {
-            return BuildCacheAttempt.uncacheable();
-        }
-        String inputsSha = buildFingerprintService.mainInputsFingerprintSha256(
-                projectDirectory, config, lockfilePath, sources, classpaths, outputDirectory, generatedSourcesDirectory);
-        BuildCacheKey key = BuildCacheKey.of(BuildCacheScope.MAIN, inputsSha, BuildCacheJdkIdentity.of(jdkStatus));
-        return BuildCacheAttempt.active(key, buildCacheService.restore(key, outputDirectory));
-    }
-
-    private String storeMainToCache(BuildCacheAttempt attempt, Path outputDirectory) {
-        if (attempt.key().isEmpty()) {
-            return attempt.moduleTainted() ? "uncacheable" : "";
-        }
-        buildCacheService.store(attempt.key().orElseThrow(), outputDirectory);
-        return "stored";
-    }
-
-    private record BuildCacheAttempt(
-            Optional<BuildCacheKey> key,
-            BuildCacheRestoreResult restore,
-            boolean moduleTainted) {
-        boolean restored() {
-            return restore.restored();
-        }
-
-        static BuildCacheAttempt inactive() {
-            return new BuildCacheAttempt(Optional.empty(), BuildCacheRestoreResult.miss(), false);
-        }
-
-        static BuildCacheAttempt uncacheable() {
-            return new BuildCacheAttempt(Optional.empty(), BuildCacheRestoreResult.miss(), true);
-        }
-
-        static BuildCacheAttempt active(BuildCacheKey key, BuildCacheRestoreResult restore) {
-            return new BuildCacheAttempt(Optional.of(key), restore, false);
-        }
     }
 
     private static Classpath springBootAotClasspath(
