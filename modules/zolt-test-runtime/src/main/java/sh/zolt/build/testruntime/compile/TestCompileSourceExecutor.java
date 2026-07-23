@@ -1,28 +1,25 @@
 package sh.zolt.build.testruntime.compile;
 
-import sh.zolt.build.BuildException;
 import sh.zolt.build.CompileDiagnostics;
 import sh.zolt.build.compile.CompilerPlatformApi;
 import sh.zolt.build.compile.GroovyCompilerRunner;
 import sh.zolt.build.JavacException;
+import sh.zolt.build.compile.IncrementalJavacExecution;
 import sh.zolt.build.compile.JavacOptions;
 import sh.zolt.build.compile.JavacResult;
 import sh.zolt.build.compile.JavacRunner;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
+import sh.zolt.build.incremental.GeneratedOutputAttribution;
 import sh.zolt.build.incremental.IncrementalCompilePlan;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.build.incremental.IncrementalCompileWaveResult;
-import sh.zolt.build.incremental.IncrementalDependentCompiler;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.doctor.JdkStatus;
 import sh.zolt.project.CompilerSettings;
 import sh.zolt.project.ProjectConfig;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 final class TestCompileSourceExecutor {
@@ -30,6 +27,7 @@ final class TestCompileSourceExecutor {
     private final GroovyCompilerRunner groovyCompilerRunner;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final IncrementalCompilePlanner incrementalCompilePlanner;
+    private final IncrementalJavacExecution incrementalJavacExecution;
 
     TestCompileSourceExecutor(
             JavacRunner javacRunner,
@@ -40,6 +38,7 @@ final class TestCompileSourceExecutor {
         this.groovyCompilerRunner = groovyCompilerRunner;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
         this.incrementalCompilePlanner = incrementalCompilePlanner;
+        this.incrementalJavacExecution = new IncrementalJavacExecution(javacRunner, incrementalCompilePlanner);
     }
 
     Attempt compile(
@@ -89,7 +88,7 @@ final class TestCompileSourceExecutor {
                     platformApiWarning);
         }
         incrementalCompileStateRecorder.deleteTestState(outputDirectory);
-        deleteOwnedOutputs(plan);
+        IncrementalJavacExecution.deleteOutputs(plan.outputsToDelete());
         return withPlatformApiWarning(
                 fullTestCompile(
                         jdkStatus,
@@ -101,7 +100,8 @@ final class TestCompileSourceExecutor {
                         classpaths,
                         options,
                         plan.fallbackReason(),
-                        plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size())),
+                        plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()),
+                        plan.captureProcessorAttribution()),
                 platformApiWarning);
     }
 
@@ -114,11 +114,13 @@ final class TestCompileSourceExecutor {
                 new JavacResult(
                         javacResult.sourceCount(),
                         javacResult.outputDirectory(),
-                        combinedOutput(warning, javacResult.output())),
+                        IncrementalJavacExecution.combinedOutput(warning, javacResult.output())),
                 attempt.groovyResult(),
                 attempt.mode(),
                 attempt.fallbackReason(),
-                attempt.diagnostics());
+                attempt.diagnostics(),
+                attempt.attribution(),
+                attempt.compiledSources());
     }
 
     private Attempt incrementalCompile(
@@ -131,33 +133,16 @@ final class TestCompileSourceExecutor {
             ClasspathSet classpaths,
             JavacOptions options,
             IncrementalCompilePlan plan) {
-        JavacResult javacResult;
-        IncrementalCompileWaveResult waves;
+        IncrementalJavacExecution.Result execution;
         try {
-            deleteStaleOutputs(plan, plan.sourcesToCompile());
-            javacResult = javacRunner.compile(
+            execution = incrementalJavacExecution.run(
                     jdkStatus.javac().orElseThrow(),
-                    plan.sourcesToCompile(),
-                    incrementalClasspath(testCompileClasspath, outputDirectory),
+                    plan,
+                    testCompileClasspath,
                     outputDirectory,
                     classpaths.testProcessor(),
                     generatedSourcesDirectory,
                     options);
-            waves = incrementalCompilePlanner.validateAndCompileDependents(
-                    plan,
-                    dependentSources -> {
-                        deleteStaleOutputs(plan, dependentSources);
-                        JavacResult dependentResult = javacRunner.compile(
-                                jdkStatus.javac().orElseThrow(),
-                                dependentSources,
-                                incrementalClasspath(testCompileClasspath, outputDirectory),
-                                outputDirectory,
-                                classpaths.testProcessor(),
-                                generatedSourcesDirectory,
-                                options);
-                        return new IncrementalDependentCompiler.Outcome(
-                                dependentResult.sourceCount(), dependentResult.output());
-                    });
         } catch (JavacException exception) {
             incrementalCompileStateRecorder.deleteTestState(outputDirectory);
             return fullTestCompile(
@@ -170,22 +155,48 @@ final class TestCompileSourceExecutor {
                     classpaths,
                     options,
                     "incremental-javac-failed",
-                    plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()));
+                    plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()),
+                    plan.captureProcessorAttribution());
         }
-        if (!waves.hasFallback()) {
-            JavacResult combined = new JavacResult(
-                    javacResult.sourceCount() + waves.dependentSourceCount(),
-                    outputDirectory,
-                    combinedOutput(javacResult.output(), waves.dependentOutput()));
-            return new Attempt(
-                    combined,
-                    new JavacResult(0, outputDirectory, ""),
-                    "incremental",
-                    "",
-                    plan.diagnostics(combined.sourceCount(), waves.validation()));
+        IncrementalCompileWaveResult waves = execution.waves();
+        GeneratedOutputAttribution attribution = execution.attribution();
+        if (waves.hasFallback()) {
+            return fullTestFallback(
+                    jdkStatus, sources, testCompileClasspath, groovyCompileClasspath, outputDirectory,
+                    generatedSourcesDirectory, classpaths, options, plan, waves.validation().fallbackReason());
         }
+        if (attribution.present() && attribution.unattributed()) {
+            return fullTestFallback(
+                    jdkStatus, sources, testCompileClasspath, groovyCompileClasspath, outputDirectory,
+                    generatedSourcesDirectory, classpaths, options, plan, "processor-unattributed-output");
+        }
+        JavacResult combined = new JavacResult(
+                execution.primary().sourceCount() + waves.dependentSourceCount(),
+                outputDirectory,
+                IncrementalJavacExecution.combinedOutput(execution.primary().output(), waves.dependentOutput()));
+        return new Attempt(
+                combined,
+                new JavacResult(0, outputDirectory, ""),
+                "incremental",
+                "",
+                plan.diagnostics(combined.sourceCount(), waves.validation()),
+                attribution,
+                execution.compiledSources());
+    }
+
+    private Attempt fullTestFallback(
+            JdkStatus jdkStatus,
+            SourceDiscoveryResult sources,
+            Classpath testCompileClasspath,
+            Classpath groovyCompileClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            ClasspathSet classpaths,
+            JavacOptions options,
+            IncrementalCompilePlan plan,
+            String fallbackReason) {
         incrementalCompileStateRecorder.deleteTestState(outputDirectory);
-        deleteOwnedOutputs(plan);
+        IncrementalJavacExecution.deleteOutputs(plan.outputsToDelete());
         return fullTestCompile(
                 jdkStatus,
                 sources,
@@ -195,8 +206,9 @@ final class TestCompileSourceExecutor {
                 generatedSourcesDirectory,
                 classpaths,
                 options,
-                waves.validation().fallbackReason(),
-                plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()));
+                fallbackReason,
+                plan.fullDiagnostics(sources.testSources().size() + sources.groovyTestSources().size()),
+                plan.captureProcessorAttribution());
     }
 
     private Attempt fullTestCompile(
@@ -209,7 +221,8 @@ final class TestCompileSourceExecutor {
             ClasspathSet classpaths,
             JavacOptions options,
             String fallbackReason,
-            CompileDiagnostics diagnostics) {
+            CompileDiagnostics diagnostics,
+            boolean captureAttribution) {
         JavacResult javacResult = javacRunner.compile(
                 jdkStatus.javac().orElseThrow(),
                 sources.testSources(),
@@ -217,26 +230,21 @@ final class TestCompileSourceExecutor {
                 outputDirectory,
                 classpaths.testProcessor(),
                 generatedSourcesDirectory,
-                options);
+                options,
+                captureAttribution);
         JavacResult groovyResult = groovyCompilerRunner.compile(
                 jdkStatus.java().orElseThrow(),
                 sources.groovyTestSources(),
                 groovyCompileClasspath,
                 outputDirectory);
-        return new Attempt(javacResult, groovyResult, "full", fallbackReason, diagnostics);
-    }
-
-    private static String combinedOutput(String first, String second) {
-        if (first == null || first.isEmpty()) {
-            return second == null ? "" : second;
-        }
-        if (second == null || second.isEmpty()) {
-            return first;
-        }
-        if (first.endsWith("\n")) {
-            return first + second;
-        }
-        return first + "\n" + second;
+        return new Attempt(
+                javacResult,
+                groovyResult,
+                "full",
+                fallbackReason,
+                diagnostics,
+                javacResult.attribution(),
+                sources.testSources());
     }
 
     private static JavacOptions javacOptions(ProjectConfig config, boolean hostMode) {
@@ -254,40 +262,22 @@ final class TestCompileSourceExecutor {
         return compilerRelease.isBlank() ? config.project().java() : compilerRelease;
     }
 
-    private static Classpath incrementalClasspath(Classpath classpath, Path outputDirectory) {
-        List<Path> entries = new ArrayList<>();
-        entries.add(outputDirectory);
-        entries.addAll(classpath.entries());
-        return new Classpath(entries);
-    }
-
-    private static void deleteOwnedOutputs(IncrementalCompilePlan plan) {
-        deleteOutputs(plan.outputsToDelete());
-    }
-
-    private static void deleteStaleOutputs(IncrementalCompilePlan plan, List<Path> sources) {
-        deleteOutputs(plan.previousClassOutputs(sources));
-    }
-
-    private static void deleteOutputs(List<Path> outputs) {
-        for (Path output : outputs) {
-            try {
-                Files.deleteIfExists(output);
-            } catch (IOException exception) {
-                throw new BuildException(
-                        "Could not delete stale compiled test class "
-                                + output
-                                + ". Check that the test output directory is writable.",
-                        exception);
-            }
-        }
-    }
-
     record Attempt(JavacResult javacResult,
             JavacResult groovyResult,
             String mode,
             String fallbackReason,
-            CompileDiagnostics diagnostics) {
+            CompileDiagnostics diagnostics,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources) {
+        Attempt(JavacResult javacResult,
+                JavacResult groovyResult,
+                String mode,
+                String fallbackReason,
+                CompileDiagnostics diagnostics) {
+            this(javacResult, groovyResult, mode, fallbackReason, diagnostics,
+                    GeneratedOutputAttribution.absent(), List.of());
+        }
+
         int sourceCount() {
             return javacResult.sourceCount() + groovyResult.sourceCount();
         }
@@ -297,7 +287,7 @@ final class TestCompileSourceExecutor {
         }
 
         String output() {
-            return combinedOutput(javacResult.output(), groovyResult.output());
+            return IncrementalJavacExecution.combinedOutput(javacResult.output(), groovyResult.output());
         }
     }
 }

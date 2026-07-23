@@ -212,7 +212,9 @@ public final class TestCompileService {
                     testCompileClasspath,
                     classpaths.testProcessor(),
                     outputDirectory,
-                    generatedSourcesDirectory);
+                    generatedSourcesDirectory,
+                    compileAttempt.attribution(),
+                    compileAttempt.compiledSources());
         }
         return new TestCompileResult(
                 buildResult,

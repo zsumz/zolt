@@ -1,6 +1,5 @@
 package sh.zolt.build.compile;
 
-import sh.zolt.build.BuildException;
 import sh.zolt.build.CompileDiagnostics;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
@@ -9,21 +8,17 @@ import sh.zolt.build.incremental.IncrementalCompilePlan;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.build.incremental.IncrementalCompileWaveResult;
-import sh.zolt.build.incremental.IncrementalDependentCompiler;
-import sh.zolt.classpath.Classpath;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.doctor.JdkStatus;
 import sh.zolt.project.ProjectConfig;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 
 public final class MainCompileSourceExecutor {
     private final JavacRunner javacRunner;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final IncrementalCompilePlanner incrementalCompilePlanner;
+    private final IncrementalJavacExecution incrementalJavacExecution;
 
     public MainCompileSourceExecutor(
             JavacRunner javacRunner,
@@ -32,6 +27,7 @@ public final class MainCompileSourceExecutor {
         this.javacRunner = javacRunner;
         this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
         this.incrementalCompilePlanner = incrementalCompilePlanner;
+        this.incrementalJavacExecution = new IncrementalJavacExecution(javacRunner, incrementalCompilePlanner);
     }
 
     public Attempt compile(
@@ -100,7 +96,7 @@ public final class MainCompileSourceExecutor {
                     platformApiWarning);
         }
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
-        deleteOwnedOutputs(plan);
+        IncrementalJavacExecution.deleteOutputs(plan.outputsToDelete());
         return withPlatformApiWarning(
                 fullCompile(
                         jdkStatus,
@@ -123,7 +119,7 @@ public final class MainCompileSourceExecutor {
                 new JavacResult(
                         attempt.result().sourceCount(),
                         attempt.result().outputDirectory(),
-                        combinedOutput(warning, attempt.result().output())),
+                        IncrementalJavacExecution.combinedOutput(warning, attempt.result().output())),
                 attempt.mode(),
                 attempt.fallbackReason(),
                 attempt.diagnostics(),
@@ -139,43 +135,16 @@ public final class MainCompileSourceExecutor {
             Path generatedSourcesDirectory,
             JavacOptions options,
             IncrementalCompilePlan plan) {
-        boolean captureAttribution = plan.captureProcessorAttribution();
-        List<Path> compiledSources = new ArrayList<>(plan.sourcesToCompile());
-        GeneratedOutputAttribution[] attribution = {GeneratedOutputAttribution.absent()};
-        JavacResult result;
-        IncrementalCompileWaveResult waves;
+        IncrementalJavacExecution.Result execution;
         try {
-            deleteStaleOutputs(plan, plan.sourcesToCompile());
-            deleteOutputs(plan.previousGeneratedOutputs(plan.sourcesToCompile()));
-            result = javacRunner.compile(
+            execution = incrementalJavacExecution.run(
                     jdkStatus.javac().orElseThrow(),
-                    plan.sourcesToCompile(),
-                    incrementalClasspath(classpaths.compile(), outputDirectory),
+                    plan,
+                    classpaths.compile(),
                     outputDirectory,
                     classpaths.processor(),
                     generatedSourcesDirectory,
-                    options,
-                    captureAttribution);
-            attribution[0] = result.attribution();
-            waves = incrementalCompilePlanner.validateAndCompileDependents(
-                    plan,
-                    dependentSources -> {
-                        deleteStaleOutputs(plan, dependentSources);
-                        deleteOutputs(plan.previousGeneratedOutputs(dependentSources));
-                        JavacResult dependentResult = javacRunner.compile(
-                                jdkStatus.javac().orElseThrow(),
-                                dependentSources,
-                                incrementalClasspath(classpaths.compile(), outputDirectory),
-                                outputDirectory,
-                                classpaths.processor(),
-                                generatedSourcesDirectory,
-                                options,
-                                captureAttribution);
-                        attribution[0] = attribution[0].merge(dependentResult.attribution());
-                        compiledSources.addAll(dependentSources);
-                        return new IncrementalDependentCompiler.Outcome(
-                                dependentResult.sourceCount(), dependentResult.output());
-                    });
+                    options);
         } catch (JavacException exception) {
             incrementalCompileStateRecorder.deleteMainState(outputDirectory);
             return fullCompile(
@@ -187,30 +156,32 @@ public final class MainCompileSourceExecutor {
                     options,
                     "incremental-javac-failed",
                     plan.fullDiagnostics(sources.mainSources().size()),
-                    captureAttribution);
+                    plan.captureProcessorAttribution());
         }
+        IncrementalCompileWaveResult waves = execution.waves();
+        GeneratedOutputAttribution attribution = execution.attribution();
         if (waves.hasFallback()) {
             return fullFallback(
                     jdkStatus, sources, classpaths, outputDirectory, generatedSourcesDirectory,
                     options, plan, waves.validation().fallbackReason());
         }
-        if (attribution[0].present() && attribution[0].unattributed()) {
+        if (attribution.present() && attribution.unattributed()) {
             return fullFallback(
                     jdkStatus, sources, classpaths, outputDirectory, generatedSourcesDirectory,
                     options, plan, "processor-unattributed-output");
         }
         JavacResult combined = new JavacResult(
-                result.sourceCount() + waves.dependentSourceCount(),
+                execution.primary().sourceCount() + waves.dependentSourceCount(),
                 outputDirectory,
-                combinedOutput(result.output(), waves.dependentOutput()),
-                attribution[0]);
+                IncrementalJavacExecution.combinedOutput(execution.primary().output(), waves.dependentOutput()),
+                attribution);
         return new Attempt(
                 combined,
                 "incremental",
                 "",
                 plan.diagnostics(combined.sourceCount(), waves.validation()),
-                attribution[0],
-                compiledSources);
+                attribution,
+                execution.compiledSources());
     }
 
     private Attempt fullFallback(
@@ -223,7 +194,7 @@ public final class MainCompileSourceExecutor {
             IncrementalCompilePlan plan,
             String fallbackReason) {
         incrementalCompileStateRecorder.deleteMainState(outputDirectory);
-        deleteOwnedOutputs(plan);
+        IncrementalJavacExecution.deleteOutputs(plan.outputsToDelete());
         return fullCompile(
                 jdkStatus,
                 sources,
@@ -262,48 +233,6 @@ public final class MainCompileSourceExecutor {
                 diagnostics,
                 result.attribution(),
                 sources.mainSources());
-    }
-
-    private static String combinedOutput(String first, String second) {
-        if (first == null || first.isEmpty()) {
-            return second == null ? "" : second;
-        }
-        if (second == null || second.isEmpty()) {
-            return first;
-        }
-        if (first.endsWith("\n")) {
-            return first + second;
-        }
-        return first + "\n" + second;
-    }
-
-    private static Classpath incrementalClasspath(Classpath classpath, Path outputDirectory) {
-        List<Path> entries = new ArrayList<>();
-        entries.add(outputDirectory);
-        entries.addAll(classpath.entries());
-        return new Classpath(entries);
-    }
-
-    private static void deleteOwnedOutputs(IncrementalCompilePlan plan) {
-        deleteOutputs(plan.outputsToDelete());
-    }
-
-    private static void deleteStaleOutputs(IncrementalCompilePlan plan, List<Path> sources) {
-        deleteOutputs(plan.previousClassOutputs(sources));
-    }
-
-    private static void deleteOutputs(List<Path> outputs) {
-        for (Path output : outputs) {
-            try {
-                Files.deleteIfExists(output);
-            } catch (IOException exception) {
-                throw new BuildException(
-                        "Could not delete stale compiled class "
-                                + output
-                                + ". Check that the build output directory is writable.",
-                        exception);
-            }
-        }
     }
 
     public record Attempt(

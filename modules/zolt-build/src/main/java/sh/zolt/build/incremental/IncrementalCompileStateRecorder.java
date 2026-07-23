@@ -121,7 +121,9 @@ public final class IncrementalCompileStateRecorder {
             Classpath compileClasspath,
             Classpath processorClasspath,
             Path outputDirectory,
-            Path generatedSourcesDirectory) {
+            Path generatedSourcesDirectory,
+            GeneratedOutputAttribution attribution,
+            List<Path> compiledSources) {
         List<String> fallbackReasons = new ArrayList<>(processorFallbackReasons(processorClasspath));
         if (!sources.groovyTestSources().isEmpty()) {
             fallbackReasons.add("groovy-test-sources");
@@ -140,8 +142,8 @@ public final class IncrementalCompileStateRecorder {
                 IncrementalCompileState.testStatePath(outputDirectory),
                 outputDirectory.resolve(TEST_FINGERPRINT_FILE),
                 fallbackReasons,
-                GeneratedOutputAttribution.absent(),
-                List.of());
+                attribution,
+                compiledSources);
     }
 
     private void record(
