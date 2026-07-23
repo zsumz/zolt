@@ -143,6 +143,63 @@ final class BuildServiceProcessorIncrementalTest {
         assertEquals("processor-aggregating", second.mainIncrementalFallbackReason());
     }
 
+    @Test
+    void editingAnnotatedSourceRegeneratesItsResourceOutput() throws Exception {
+        setUpProject(AnnotationProcessorFixture.attributingResourceProcessorJar(projectDir.resolve("processor-work")));
+
+        BuildResult first = buildService.build(projectDir, config(), cache());
+        assertEquals("full", first.mainCompilationMode());
+        assertTrue(Files.exists(generatedResource("Widget")));
+        assertTrue(Files.exists(generatedResource("Gadget")));
+        assertTrue(readState().processorAttributionComplete());
+
+        source("src/main/java/com/example/Widget.java", trackedClass("Widget", "\"changed\""));
+        BuildResult second = buildService.build(projectDir, config(), cache());
+
+        assertEquals("incremental", second.mainCompilationMode());
+        assertEquals("", second.mainIncrementalFallbackReason());
+        assertTrue(Files.exists(generatedResource("Widget")), "regenerated resource must exist");
+        assertTrue(Files.exists(generatedResource("Gadget")), "untouched resource must remain");
+    }
+
+    @Test
+    void removingAnAnnotationDeletesItsStaleResourceOutput() throws Exception {
+        setUpProject(AnnotationProcessorFixture.attributingResourceProcessorJar(projectDir.resolve("processor-work")));
+
+        assertEquals("full", buildService.build(projectDir, config(), cache()).mainCompilationMode());
+        assertTrue(Files.exists(generatedResource("Widget")));
+
+        source("src/main/java/com/example/Widget.java", """
+                package com.example;
+
+                public final class Widget {
+                    public static String name() {
+                        return "widget";
+                    }
+                }
+                """);
+        BuildResult second = buildService.build(projectDir, config(), cache());
+
+        assertEquals("incremental", second.mainCompilationMode());
+        assertFalse(Files.exists(generatedResource("Widget")), "stale generated resource must be deleted");
+        assertTrue(Files.exists(generatedResource("Gadget")), "untouched generated resource must remain");
+    }
+
+    @Test
+    void unattributedResourceOutputForcesFullRecompile() throws Exception {
+        setUpProject(AnnotationProcessorFixture.nonOriginatingResourceProcessorJar(projectDir.resolve("processor-work")));
+
+        BuildResult first = buildService.build(projectDir, config(), cache());
+        assertEquals("full", first.mainCompilationMode());
+        assertFalse(readState().processorAttributionComplete());
+
+        source("src/main/java/com/example/Widget.java", trackedClass("Widget", "\"changed\""));
+        BuildResult second = buildService.build(projectDir, config(), cache());
+
+        assertEquals("full", second.mainCompilationMode());
+        assertEquals("processor-unattributed-output", second.mainIncrementalFallbackReason());
+    }
+
     private void setUpProject(Path processorJar) throws IOException {
         Path cached = cache().resolve("com/example/processor/1.0.0/processor-1.0.0.jar");
         Files.createDirectories(cached.getParent());
@@ -192,6 +249,10 @@ final class BuildServiceProcessorIncrementalTest {
 
     private Path generatedClass(String type) {
         return projectDir.resolve("target/classes/com/example/" + type + "Meta.class");
+    }
+
+    private Path generatedResource(String type) {
+        return projectDir.resolve("target/classes/meta/" + type + ".properties");
     }
 
     private IncrementalCompileState readState() {
