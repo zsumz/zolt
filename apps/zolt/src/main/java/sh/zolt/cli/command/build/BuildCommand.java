@@ -150,6 +150,10 @@ public final class BuildCommand implements Runnable {
                                         + member.result().sourceCount()
                                         + " main source files in "
                                         + member.member());
+                        if (processorFullCompile(member.result())) {
+                            output.detail("full compile: " + member.result().mainIncrementalFallbackReason()
+                                    + " in " + member.member());
+                        }
                     }
                 }
                 if (result.mainCompilationExecutedCount() == 0) {
@@ -189,6 +193,9 @@ public final class BuildCommand implements Runnable {
             } else {
                 output.summary("Compiled " + result.sourceCount() + " main source files");
             }
+            if (processorFullCompile(result)) {
+                output.detail("full compile: " + result.mainIncrementalFallbackReason());
+            }
             output.pointer("wrote", result.outputDirectory().toString());
             output.provenance(CommandBuildProvenance.read(projectRoot));
             progress.result("Built " + result.sourceCount() + " main source files");
@@ -224,5 +231,15 @@ public final class BuildCommand implements Runnable {
         } finally {
             CommandTimings.print(spec, "build", projectRoot, timingOptions, timings);
         }
+    }
+
+    /**
+     * A main compile that went full specifically because an annotation processor is not isolating
+     * (dynamic/aggregating, or missing incremental metadata). Surfaced as a subtle build detail so the
+     * reason an incremental fast path was skipped is visible without reading the JSON attributes.
+     */
+    static boolean processorFullCompile(BuildResult result) {
+        return "full".equals(result.mainCompilationMode())
+                && result.mainIncrementalFallbackReason().startsWith("processor");
     }
 }
