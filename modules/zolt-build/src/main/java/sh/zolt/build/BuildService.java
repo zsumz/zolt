@@ -26,7 +26,6 @@ import sh.zolt.generated.GeneratedSourceException;
 import sh.zolt.generated.ProtobufGeneratedSourceService;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
-import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.provenance.BuildProvenanceSource;
 import sh.zolt.resolve.ResolveResult;
@@ -136,7 +135,10 @@ public final class BuildService {
                     false,
                     ResolveOptions.offline(request.offline()).withRetryCommand("zolt build")));
         }
-        if (openApiToolingMissing(request) || execToolingMissing(request)) {
+        if (GeneratedSourceToolingGate.openApiToolingMissing(
+                        lockfileReader, request.projectDirectory(), request.config(), request.offline())
+                || GeneratedSourceToolingGate.execToolingMissing(
+                        lockfileReader, request.projectDirectory(), request.config(), request.offline())) {
             resolveResult = Optional.of(resolveService.resolve(
                     request.projectDirectory(),
                     request.config(),
@@ -161,66 +163,6 @@ public final class BuildService {
                 build(request.projectDirectory(), request.config(), classpaths, resolveResult, classpathPackages),
                 classpaths,
                 classpathPackages);
-    }
-
-    private boolean openApiToolingMissing(BuildRequest request) {
-        if (!hasOpenApiGeneratedSources(request.config())) {
-            return false;
-        }
-        Path lockfilePath = request.projectDirectory().resolve("zolt.lock");
-        if (!Files.isRegularFile(lockfilePath)) {
-            return false;
-        }
-        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        boolean hasTool = lockfile.packages().stream()
-                .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_OPENAPI);
-        if (hasTool) {
-            return false;
-        }
-        if (request.offline()) {
-            throw BuildException.actionable(
-                    "OpenAPI generation requires locked tool artifacts in scope `tool-openapi`, "
-                            + "but zolt.lock does not contain them.",
-                    "Run `zolt resolve` without --offline to seed the OpenAPI generator tooling, then retry.");
-        }
-        return true;
-    }
-
-    private static boolean hasOpenApiGeneratedSources(ProjectConfig config) {
-        return config.build().generatedMainSources().stream()
-                .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI)
-                || config.build().generatedTestSources().stream()
-                        .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI);
-    }
-
-    private boolean execToolingMissing(BuildRequest request) {
-        if (!hasExecGeneratedSources(request.config())) {
-            return false;
-        }
-        Path lockfilePath = request.projectDirectory().resolve("zolt.lock");
-        if (!Files.isRegularFile(lockfilePath)) {
-            return false;
-        }
-        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-        boolean hasTool = lockfile.packages().stream()
-                .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_EXEC);
-        if (hasTool) {
-            return false;
-        }
-        if (request.offline()) {
-            throw BuildException.actionable(
-                    "Exec generation requires locked tool artifacts in scope `tool-exec`, "
-                            + "but zolt.lock does not contain them.",
-                    "Run `zolt resolve` without --offline to seed the exec tooling, then retry.");
-        }
-        return true;
-    }
-
-    private static boolean hasExecGeneratedSources(ProjectConfig config) {
-        return config.build().generatedMainSources().stream()
-                .anyMatch(step -> step.kind() == GeneratedSourceKind.EXEC)
-                || config.build().generatedTestSources().stream()
-                        .anyMatch(step -> step.kind() == GeneratedSourceKind.EXEC);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {
