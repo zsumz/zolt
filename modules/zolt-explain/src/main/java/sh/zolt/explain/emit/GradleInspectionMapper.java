@@ -66,6 +66,11 @@ final class GradleInspectionMapper {
             WorkspaceMemberRegistry registry,
             List<GradleVersionCatalogAlias> aliases,
             List<String> notes) {
+        // A standalone java-platform project drafts a [bom] member. Workspace members keep the existing
+        // platform/dependency routing so multi-project emit stays stable.
+        if (registry == null && GradleBomDraftMapper.isBom(primary)) {
+            return GradleBomDraftMapper.map(primary, notes);
+        }
         Map<String, String> platforms = new TreeMap<>();
         Map<String, String> apiDependencies = new TreeMap<>();
         Map<String, String> dependencies = new TreeMap<>();
@@ -102,7 +107,7 @@ final class GradleInspectionMapper {
         addRepositoryNotes(primary.repositories(), notes);
 
         String group = emittedGroup(primary);
-        String version = primary.version().filter(value -> !value.isBlank()).orElse("0.1.0");
+        String version = emittedVersion(primary);
         String javaVersion = javaVersion(primary.javaVersion(), notes, commentedProjectKeys);
         ProjectMetadata metadata = new ProjectMetadata(
                 primary.name(),
@@ -110,21 +115,7 @@ final class GradleInspectionMapper {
                 group,
                 javaVersion,
                 primary.mainClass().filter(value -> !value.isBlank()));
-        boolean groupMissing = primary.group().filter(value -> !value.isBlank()).isEmpty();
-        boolean versionMissing = primary.version().filter(value -> !value.isBlank()).isEmpty();
-        if (groupMissing && versionMissing) {
-            notes.add(
-                    "Project group and version are placeholders; the static Gradle audit could not read them."
-                            + " Set `group` and `version` to your real coordinates.");
-        } else if (groupMissing) {
-            notes.add(
-                    "Project group is a placeholder; the static Gradle audit could not read it."
-                            + " Set `group` to your real coordinate.");
-        } else if (versionMissing) {
-            notes.add(
-                    "Project version is a placeholder; the static Gradle audit could not read it."
-                            + " Set `version` to your real coordinate.");
-        }
+        addCoordinatePlaceholderNotes(primary, notes);
         BuildSettings defaultBuild = BuildSettings.defaults();
 
         ProjectConfig config = ProjectConfigs.withAllDependencySections(
@@ -163,11 +154,34 @@ final class GradleInspectionMapper {
         return new DraftZoltToml(config, notes, List.copyOf(commentedProjectKeys));
     }
 
-    private static String emittedGroup(GradleProjectInspection project) {
+    static String emittedGroup(GradleProjectInspection project) {
         return project.group().filter(value -> !value.isBlank()).orElse("com.example");
     }
 
-    private static String javaVersion(
+    static String emittedVersion(GradleProjectInspection project) {
+        return project.version().filter(value -> !value.isBlank()).orElse("0.1.0");
+    }
+
+    /** Adds the group/version placeholder review notes when the static audit could not read them. */
+    static void addCoordinatePlaceholderNotes(GradleProjectInspection project, List<String> notes) {
+        boolean groupMissing = project.group().filter(value -> !value.isBlank()).isEmpty();
+        boolean versionMissing = project.version().filter(value -> !value.isBlank()).isEmpty();
+        if (groupMissing && versionMissing) {
+            notes.add(
+                    "Project group and version are placeholders; the static Gradle audit could not read them."
+                            + " Set `group` and `version` to your real coordinates.");
+        } else if (groupMissing) {
+            notes.add(
+                    "Project group is a placeholder; the static Gradle audit could not read it."
+                            + " Set `group` to your real coordinate.");
+        } else if (versionMissing) {
+            notes.add(
+                    "Project version is a placeholder; the static Gradle audit could not read it."
+                            + " Set `version` to your real coordinate.");
+        }
+    }
+
+    static String javaVersion(
             String inspected,
             List<String> notes,
             Set<String> commentedProjectKeys) {
@@ -406,7 +420,7 @@ final class GradleInspectionMapper {
         }
     }
 
-    private static String coordinateOf(String resolved) {
+    static String coordinateOf(String resolved) {
         String[] parts = resolved.split(":");
         if (parts.length >= 2) {
             return parts[0] + ":" + parts[1];
@@ -414,7 +428,7 @@ final class GradleInspectionMapper {
         return resolved;
     }
 
-    private static String versionOf(String resolved) {
+    static String versionOf(String resolved) {
         String[] parts = resolved.split(":");
         if (parts.length >= 3 && !parts[2].isBlank()) {
             return parts[2];

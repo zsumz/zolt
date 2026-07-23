@@ -303,6 +303,11 @@ public final class ExplainSignals {
             ExplainSignal.Category.MIGRATION_BLOCKER,
             "Exec steps run one pinned tool over declared inputs with no shell or task actions;"
                     + " keep this scripted Exec/JavaExec task in [commands.tasks] or CI.");
+    public static final ExplainSignalDefinition GRADLE_BOM_DETECTED = new ExplainSignalDefinition(
+            "gradle.bom.detected",
+            ExplainSignal.Severity.OK,
+            ExplainSignal.Category.BUILDABILITY,
+            "This is a java-platform BOM; `zolt explain --emit-toml` drafts a [bom] member (platform() imports to [bom.imports], constraints to [bom.versions]).");
 
     private ExplainSignals() {
     }

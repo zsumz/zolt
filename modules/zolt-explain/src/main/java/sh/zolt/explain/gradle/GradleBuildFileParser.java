@@ -105,6 +105,16 @@ final class GradleBuildFileParser {
         return GradleDependencyParser.dependencies(content, versionCatalog, catalogBundles, properties, project, signals);
     }
 
+    List<GradleDependencyInspection> constraints(
+            String content,
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            Map<String, String> properties,
+            String project,
+            List<ExplainSignal> signals) {
+        return GradleDependencyParser.constraints(content, versionCatalog, catalogBundles, properties, project, signals);
+    }
+
     Map<String, String> extProperties(String content) {
         return GradleDependencyParser.extProperties(content);
     }

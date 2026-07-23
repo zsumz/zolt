@@ -129,7 +129,18 @@ public final class GradleStaticProjectInspector {
         dependencyProperties.putAll(buildFileParser.extProperties(content));
         List<GradleDependencyInspection> dependencies =
                 buildFileParser.dependencies(content, versionCatalog, catalogBundles, dependencyProperties, project, signals);
+        boolean javaPlatform = plugins.stream().anyMatch(plugin -> "java-platform".equals(plugin.id()));
+        List<GradleDependencyInspection> constraints = javaPlatform
+                ? buildFileParser.constraints(content, versionCatalog, catalogBundles, dependencyProperties, project, signals)
+                : List.of();
         signals.addAll(signalDetector.signals(project, content, dependencies, plugins));
+        if (javaPlatform) {
+            long imports = dependencies.stream().filter(GradleDependencyInspection::isPlatform).count();
+            signals.add(ExplainSignals.GRADLE_BOM_DETECTED.signal(
+                    project,
+                    "java-platform BOM detected: " + constraints.size() + " version constraint(s), "
+                            + imports + " platform import(s)."));
+        }
         if (hasGroovyMainSources(projectDirectory, content)) {
             signals.add(ExplainSignals.GRADLE_LANGUAGE_UNSUPPORTED.signal(
                     project,
@@ -161,7 +172,8 @@ public final class GradleStaticProjectInspector {
                         content,
                         "test",
                         "src/test/groovy",
-                        hasGroovyTestSources(projectDirectory, content)));
+                        hasGroovyTestSources(projectDirectory, content)),
+                constraints);
     }
 
     private List<GradleRepositoryInspection> repositories(

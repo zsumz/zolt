@@ -18,7 +18,8 @@ public record GradleProjectInspection(
         List<GradleDependencyInspection> dependencies,
         List<String> sourceRoots,
         List<String> testSourceRoots,
-        List<String> groovyTestSourceRoots) {
+        List<String> groovyTestSourceRoots,
+        List<GradleDependencyInspection> constraints) {
     public GradleProjectInspection {
         group = group == null ? Optional.empty() : group;
         version = version == null ? Optional.empty() : version;
@@ -29,5 +30,25 @@ public record GradleProjectInspection(
         sourceRoots = List.copyOf(sourceRoots);
         testSourceRoots = List.copyOf(testSourceRoots);
         groovyTestSourceRoots = List.copyOf(groovyTestSourceRoots);
+        constraints = constraints == null ? List.of() : List.copyOf(constraints);
+    }
+
+    public GradleProjectInspection(
+            Path path,
+            String name,
+            String buildFile,
+            String dsl,
+            String javaVersion,
+            Optional<String> group,
+            Optional<String> version,
+            Optional<String> mainClass,
+            List<GradlePluginInspection> plugins,
+            List<GradleRepositoryInspection> repositories,
+            List<GradleDependencyInspection> dependencies,
+            List<String> sourceRoots,
+            List<String> testSourceRoots,
+            List<String> groovyTestSourceRoots) {
+        this(path, name, buildFile, dsl, javaVersion, group, version, mainClass, plugins, repositories,
+                dependencies, sourceRoots, testSourceRoots, groovyTestSourceRoots, List.of());
     }
 }

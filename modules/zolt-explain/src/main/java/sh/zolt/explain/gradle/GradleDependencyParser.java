@@ -23,6 +23,8 @@ final class GradleDependencyParser {
             "testRuntimeOnly",
             "annotationProcessor",
             "testAnnotationProcessor");
+    // The java-platform plugin declares constraints only in its api/runtime configurations.
+    private static final List<String> CONSTRAINT_CONFIGURATIONS = List.of("api", "runtime");
     private static final Pattern PROPERTY_PLACEHOLDER =
             Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_.-]*)}|\\$([A-Za-z][A-Za-z0-9_.-]*)");
     private static final Pattern QUOTED_PATTERN = Pattern.compile("['\"]([^'\"]+)['\"]");
@@ -39,12 +41,52 @@ final class GradleDependencyParser {
             Map<String, String> properties,
             String project,
             List<ExplainSignal> signals) {
+        return parseBlocks(
+                GradleScriptBlocks.topLevelBlocks(content, "dependencies"),
+                DEPENDENCY_CONFIGURATIONS,
+                versionCatalog,
+                catalogBundles,
+                properties,
+                project,
+                signals);
+    }
+
+    /**
+     * Parses the {@code api}/{@code runtime} pins declared inside a {@code dependencies { constraints { } }}
+     * block. The outer dependency parser blanks nested blocks, so constraints are otherwise invisible; a
+     * {@code java-platform} producer routes these into {@code [bom.versions]}. Interpolated or otherwise
+     * unresolvable pins raise the same signals as regular dependencies rather than vanishing.
+     */
+    static List<GradleDependencyInspection> constraints(
+            String content,
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            Map<String, String> properties,
+            String project,
+            List<ExplainSignal> signals) {
+        return parseBlocks(
+                GradleScriptBlocks.blocksAtPath(content, List.of("dependencies", "constraints")),
+                CONSTRAINT_CONFIGURATIONS,
+                versionCatalog,
+                catalogBundles,
+                properties,
+                project,
+                signals);
+    }
+
+    private static List<GradleDependencyInspection> parseBlocks(
+            List<String> blocks,
+            List<String> configurations,
+            Map<String, String> versionCatalog,
+            Map<String, List<String>> catalogBundles,
+            Map<String, String> properties,
+            String project,
+            List<ExplainSignal> signals) {
         List<GradleDependencyInspection> dependencies = new ArrayList<>();
-        List<String> dependencyBlocks = GradleScriptBlocks.topLevelBlocks(content, "dependencies");
-        for (String configuration : DEPENDENCY_CONFIGURATIONS) {
+        for (String configuration : configurations) {
             Pattern pattern = Pattern.compile(
                     "(?m)(?:^|[{;])[\\t ]*" + Pattern.quote(configuration) + "(?![A-Za-z0-9_])\\s*(?:\\(([^\\n]+?)\\)|([^\\n]+))");
-            for (String block : dependencyBlocks) {
+            for (String block : blocks) {
                 String topLevelStatements = GradleScriptBlocks.withoutNestedBlocks(block);
                 Matcher matcher = pattern.matcher(topLevelStatements);
                 while (matcher.find()) {
