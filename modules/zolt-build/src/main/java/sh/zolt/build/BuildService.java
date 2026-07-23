@@ -158,15 +158,17 @@ public final class BuildService {
         } catch (GeneratedSourceException exception) {
             throw new BuildException(exception.getMessage(), exception);
         }
-        execGeneratedSourceService.generateMain(request.projectDirectory(), request.config(), classpathPackages);
+        execGeneratedSourceService.generateMain(
+                request.projectDirectory(), request.config(), classpathPackages, request.offline());
         return new BuildResultWithClasspaths(
-                build(request.projectDirectory(), request.config(), classpaths, resolveResult, classpathPackages),
+                build(request.projectDirectory(), request.config(), classpaths, resolveResult, classpathPackages,
+                        request.offline()),
                 classpaths,
                 classpathPackages);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {
-        return build(projectDirectory, config, classpaths, Optional.empty(), List.of());
+        return build(projectDirectory, config, classpaths, Optional.empty(), List.of(), false);
     }
 
     private BuildResult build(
@@ -174,7 +176,8 @@ public final class BuildService {
             ProjectConfig config,
             ClasspathSet classpaths,
             Optional<ResolveResult> resolveResult,
-            List<ResolvedClasspathPackage> classpathPackages) {
+            List<ResolvedClasspathPackage> classpathPackages,
+            boolean offline) {
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
@@ -205,6 +208,10 @@ public final class BuildService {
                 outputDirectory,
                 generatedSourcesDirectory,
                 jdkStatus);
+        // Post-compile exec steps (tool = "project" / inputs under compiled classes) run here, after
+        // compilation produces the classes they read, and before resource copy/packaging consumes their
+        // outputs. Their outputs are fenced by package/test evidence, not the compile fingerprint.
+        execGeneratedSourceService.generateMainPostCompile(projectDirectory, config, classpathPackages, offline);
         ResourceCopyResult resourceResult = resourceCopier.copyMainResources(projectDirectory, config);
         BuildMetadataResult metadataResult = buildMetadataGenerator.generate(projectDirectory, config, outputDirectory);
         springBootAotGenerationService.generate(

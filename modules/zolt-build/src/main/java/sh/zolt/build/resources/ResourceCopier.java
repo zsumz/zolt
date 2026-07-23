@@ -150,9 +150,10 @@ public final class ResourceCopier {
         List<GeneratedSourceStep> steps = testResources
                 ? settings.generatedTestSources()
                 : settings.generatedMainSources();
+        ProducesLane lane = testResources ? ProducesLane.TEST_RESOURCES : ProducesLane.RESOURCES;
         return steps.stream()
                 .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
-                .filter(step -> step.exec().produces() == ProducesLane.RESOURCES)
+                .filter(step -> step.exec().produces() == lane)
                 .toList();
     }
 

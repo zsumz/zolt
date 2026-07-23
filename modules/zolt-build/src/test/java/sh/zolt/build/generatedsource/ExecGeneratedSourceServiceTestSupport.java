@@ -42,7 +42,7 @@ final class ExecGeneratedSourceServiceTestSupport {
 
     /** A runner that writes one generated Java file into the step's ZOLT_OUTPUT_DIR and exits 0. */
     static ExecGeneratedSourceService.ProcessRunner generatingRunner(List<List<String>> commands) {
-        return (command, directory, environment) -> {
+        return (command, directory, environment, timeout) -> {
             commands.add(command);
             try {
                 Path output = Path.of(environment.get("ZOLT_OUTPUT_DIR"));
@@ -56,7 +56,7 @@ final class ExecGeneratedSourceServiceTestSupport {
             } catch (IOException exception) {
                 throw new AssertionError(exception);
             }
-            return new ExecGeneratedSourceService.ProcessResult(0, "generated\n");
+            return new ExecGeneratedSourceService.ProcessResult(0, "generated\n", false);
         };
     }
 

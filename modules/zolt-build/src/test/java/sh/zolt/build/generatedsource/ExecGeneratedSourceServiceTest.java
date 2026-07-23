@@ -107,14 +107,14 @@ final class ExecGeneratedSourceServiceTest {
     void buildsCuratedEnvironmentWithoutAmbientInheritance() throws IOException {
         writeProjectFiles(projectDir);
         List<java.util.Map<String, String>> environments = new ArrayList<>();
-        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment) -> {
+        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment, timeout) -> {
             environments.add(environment);
             try {
                 Files.createDirectories(Path.of(environment.get("ZOLT_OUTPUT_DIR")));
             } catch (IOException exception) {
                 throw new AssertionError(exception);
             }
-            return new ExecGeneratedSourceService.ProcessResult(0, "ok\n");
+            return new ExecGeneratedSourceService.ProcessResult(0, "ok\n", false);
         });
 
         service.generateMain(projectDir, config("[generated.main.model.env]\nBUILD_MODE = \"release\""), packages(projectDir));
@@ -133,13 +133,13 @@ final class ExecGeneratedSourceServiceTest {
     @Test
     void failsWithActionableErrorAndLogPathOnNonZeroExit() throws IOException {
         writeProjectFiles(projectDir);
-        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment) -> {
+        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment, timeout) -> {
             try {
                 Files.createDirectories(Path.of(environment.get("ZOLT_OUTPUT_DIR")));
             } catch (IOException exception) {
                 throw new AssertionError(exception);
             }
-            return new ExecGeneratedSourceService.ProcessResult(2, "tool exploded\n");
+            return new ExecGeneratedSourceService.ProcessResult(2, "tool exploded\n", false);
         });
 
         BuildException exception = assertThrows(
@@ -156,7 +156,7 @@ final class ExecGeneratedSourceServiceTest {
         Files.createDirectories(projectDir.resolve("src/main/seed"));
         Files.writeString(projectDir.resolve("src/main/seed/seed.txt"), "seed\n");
         List<String> stepOrder = new ArrayList<>();
-        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment) -> {
+        ExecGeneratedSourceService service = service(projectDir, (command, directory, environment, timeout) -> {
             stepOrder.add(environment.get("ZOLT_STEP_ID"));
             try {
                 Path output = Path.of(environment.get("ZOLT_OUTPUT_DIR"));
@@ -165,7 +165,7 @@ final class ExecGeneratedSourceServiceTest {
             } catch (IOException exception) {
                 throw new AssertionError(exception);
             }
-            return new ExecGeneratedSourceService.ProcessResult(0, "ok\n");
+            return new ExecGeneratedSourceService.ProcessResult(0, "ok\n", false);
         });
 
         service.generateMain(projectDir, twoStepChainConfig(), packages(projectDir));

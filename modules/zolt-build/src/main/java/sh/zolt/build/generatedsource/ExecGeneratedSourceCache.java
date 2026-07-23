@@ -15,13 +15,16 @@ import java.util.List;
 import java.util.TreeMap;
 
 /**
- * Content-fingerprint producer skip-gate for exec steps. The fingerprint hashes tool jar bytes, argv,
- * the expanded input content, env names + configured literal values, and produces/into/cwd. Sidecar
- * files live OUTSIDE the declared output directory so the consumer fence hashes only tool-produced
- * bytes and the resources lane never copies build metadata into a package.
+ * Content-fingerprint producer skip-gate for exec steps. The fingerprint hashes the runner-specific
+ * tool identity (jvm/project: classpath jar/class bytes + mainClass; process: binary name + probed
+ * version), argv, the expanded input content, env names + configured literal values, secretEnv/
+ * inheritEnv names (never secret values), cwd, and produces/into/cache. Sidecar files live OUTSIDE the
+ * declared output directory so the consumer fence hashes only tool-produced bytes and the resources
+ * lane never copies build metadata into a package. For {@code cache = "none"} the fingerprint is
+ * written as provenance only; the service never consults it as a skip gate.
  */
 final class ExecGeneratedSourceCache {
-    private static final String FINGERPRINT_VERSION = "1";
+    private static final String FINGERPRINT_VERSION = "2";
 
     private final Path metadataDirectory;
 
@@ -31,15 +34,16 @@ final class ExecGeneratedSourceCache {
 
     GenerationCacheState state(
             Path projectRoot,
-            Path output,
-            List<Path> toolClasspath,
+            Path cwd,
+            List<Path> classpath,
+            ExecToolIdentity toolIdentity,
             String scope,
             GeneratedSourceStep step) {
         String base = "exec-" + scope + "-" + step.id();
         return new GenerationCacheState(
                 metadataDirectory.resolve(base + ".fingerprint"),
                 metadataDirectory.resolve(base + ".log"),
-                fingerprint(projectRoot, toolClasspath, scope, step));
+                fingerprint(projectRoot, cwd, classpath, toolIdentity, scope, step));
     }
 
     boolean isCurrent(Path output, GenerationCacheState state) {
@@ -73,7 +77,9 @@ final class ExecGeneratedSourceCache {
 
     private static String fingerprint(
             Path projectRoot,
-            List<Path> toolClasspath,
+            Path cwd,
+            List<Path> classpath,
+            ExecToolIdentity toolIdentity,
             String scope,
             GeneratedSourceStep step) {
         ExecGenerationSettings exec = step.exec();
@@ -84,19 +90,27 @@ final class ExecGeneratedSourceCache {
         content.append("tool=").append(exec.toolName()).append('\n');
         content.append("runner=").append(exec.tool().runner()).append('\n');
         content.append("mainClass=").append(exec.tool().mainClass()).append('\n');
+        content.append("binary=").append(toolIdentity.binary()).append('\n');
+        content.append("probedVersion=").append(toolIdentity.probedVersion()).append('\n');
+        content.append("versionExpect=").append(exec.tool().versionExpect().orElse("")).append('\n');
         content.append("produces=").append(exec.produces() == null ? "" : exec.produces().configValue()).append('\n');
         content.append("into=").append(exec.into().orElse("")).append('\n');
         content.append("cache=").append(exec.cache()).append('\n');
-        content.append("cwd=").append(relative(projectRoot, projectRoot)).append('\n');
+        content.append("cwd=").append(relative(projectRoot, cwd)).append('\n');
         content.append("[args]\n");
         exec.args().forEach(argument -> content.append(argument).append('\n'));
         content.append("[env]\n");
         new TreeMap<>(exec.env()).forEach((name, value) -> content.append(name).append('=').append(value).append('\n'));
+        content.append("[secretEnv]\n");
+        new TreeMap<>(exec.secretEnv()).forEach((target, source) ->
+                content.append(target).append('=').append(source).append('\n'));
+        content.append("[inheritEnv]\n");
+        exec.inheritEnv().stream().sorted().forEach(name -> content.append(name).append('\n'));
         content.append("[coordinates]\n");
         exec.tool().coordinates().forEach(coordinate -> content
                 .append(coordinate.coordinate()).append(':').append(coordinate.version().orElse("")).append('\n'));
-        content.append("[toolClasspath]\n");
-        toolClasspath.stream()
+        content.append("[classpath]\n");
+        classpath.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .sorted()
                 .forEach(path -> content.append(relative(projectRoot, path)).append('|').append(fileHash(path)).append('\n'));
@@ -114,6 +128,13 @@ final class ExecGeneratedSourceCache {
             return Files.readString(fingerprint);
         } catch (IOException exception) {
             return "";
+        }
+    }
+
+    /** The non-classpath tool identity that also enters the fingerprint (process runner only). */
+    record ExecToolIdentity(String binary, String probedVersion) {
+        static ExecToolIdentity none() {
+            return new ExecToolIdentity("", "");
         }
     }
 

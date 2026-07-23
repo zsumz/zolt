@@ -191,6 +191,8 @@ public final class TestCompileService {
                 outputDirectory,
                 generatedSourcesDirectory,
                 jdkStatus);
+        // Post-compile exec steps run after test compilation, before test resource copy consumes them.
+        execGeneratedSourceService.generateTestPostCompile(projectDirectory, config, classpathPackages, false);
         ResourceCopyResult resourceResult = resourceCopier.copyTestResources(projectDirectory, config);
         long fingerprintWriteNanos = 0L;
         if (!compileSkipped) {

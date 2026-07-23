@@ -45,8 +45,10 @@ public final class SourceDiscoverer {
         List<SourceRoot> roots = new ArrayList<>();
         for (GeneratedSourceStep step : steps) {
             if (step.kind() == GeneratedSourceKind.EXEC
-                    && step.exec().produces() == ProducesLane.RESOURCES) {
-                // exec resources outputs join resource copying, not the compile source roots.
+                    && step.exec().produces() != ProducesLane.JAVA_SOURCES
+                    && step.exec().produces() != ProducesLane.TEST_SOURCES) {
+                // Only the source lanes join the compile source roots; resources/test-resources join
+                // resource copying and intermediate is consumed by other steps via IO edges.
                 continue;
             }
             if (step.kind() != GeneratedSourceKind.DECLARED_ROOT

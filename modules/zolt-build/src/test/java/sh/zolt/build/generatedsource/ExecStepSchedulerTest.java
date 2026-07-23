@@ -55,23 +55,58 @@ final class ExecStepSchedulerTest {
     }
 
     @Test
-    void rejectsInputUnderCompiledClasses() {
+    void allowsInputUnderCompiledClassesForPostCompileScheduling() {
         GeneratedSourceStep step = step("meta", "target/generated/meta", List.of("target/classes/app/Main.class"));
 
-        BuildException exception = assertThrows(
-                BuildException.class, () -> ExecStepScheduler.order(ROOT, "target", "main", List.of(step)));
+        List<GeneratedSourceStep> ordered = ExecStepScheduler.order(ROOT, "target", "main", List.of(step));
 
-        assertTrue(exception.getMessage().contains("target/classes"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("later stage"), exception.getMessage());
+        assertEquals(List.of("meta"), ordered.stream().map(GeneratedSourceStep::id).toList());
+    }
+
+    @Test
+    void rejectsPostCompileProducerFeedingPreCompileConsumer() {
+        GeneratedSourceStep post = projectStep("gen", "target/generated/gen", List.of("target/classes"));
+        GeneratedSourceStep pre = step("weave", "target/generated/weave", List.of("target/generated/gen/out.txt"));
+
+        BuildException exception = assertThrows(
+                BuildException.class, () -> ExecStepScheduler.order(ROOT, "target", "main", List.of(post, pre)));
+
+        assertTrue(exception.getMessage().contains("post-compile"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("weave") && exception.getMessage().contains("gen"));
     }
 
     private static GeneratedSourceStep step(String id, String output, List<String> inputs) {
+        return execStep(id, output, inputs, new ExecToolSettings(
+                "jvm",
+                List.of(new ExecToolCoordinate("com.example:tool", Optional.of("1.0.0"), Optional.empty())),
+                "com.example.Main"));
+    }
+
+    private static GeneratedSourceStep projectStep(String id, String output, List<String> inputs) {
+        return new GeneratedSourceStep(
+                id,
+                GeneratedSourceKind.EXEC,
+                "java",
+                output,
+                inputs,
+                true,
+                true,
+                OpenApiGenerationSettings.empty(),
+                ProtobufGenerationSettings.empty(),
+                new ExecGenerationSettings(
+                        "project",
+                        ExecToolSettings.project("com.example.Gen"),
+                        List.of(),
+                        ProducesLane.RESOURCES,
+                        Optional.empty(),
+                        Map.of(),
+                        "content"));
+    }
+
+    private static GeneratedSourceStep execStep(String id, String output, List<String> inputs, ExecToolSettings tool) {
         ExecGenerationSettings exec = new ExecGenerationSettings(
-                "tool",
-                new ExecToolSettings(
-                        "jvm",
-                        List.of(new ExecToolCoordinate("com.example:tool", Optional.of("1.0.0"), Optional.empty())),
-                        "com.example.Main"),
+                tool.runner(),
+                tool,
                 List.of(),
                 ProducesLane.JAVA_SOURCES,
                 Optional.empty(),

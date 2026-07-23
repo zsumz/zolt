@@ -13,6 +13,7 @@ import sh.zolt.build.PackageException;
 import sh.zolt.build.packageplan.PackagePlan;
 import sh.zolt.build.packageplan.PackagePlanDependency;
 import sh.zolt.build.packaging.PackageResult;
+import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ResourceFilteringSettings;
 import sh.zolt.provenance.BuildProvenance;
@@ -170,8 +171,20 @@ public final class PackageEvidenceManifestWriter {
         stringField(json, 2, "applicationLayout", plan.applicationLayout(), true);
         nullablePathField(json, 2, "runtimeClasspath", projectRoot, result.runtimeClasspathPath(), true);
         nullableStringField(json, 2, "startClass", config.project().main(), true);
-        stringField(json, 2, "archiveSha256", PackageEvidenceChecksums.sha256(result.jarPath()), false);
+        stringField(json, 2, "archiveSha256", PackageEvidenceChecksums.sha256(result.jarPath()), true);
+        booleanField(json, 2, "hermetic", hermetic(config), false);
         indent(json, 1).append("}");
+    }
+
+    /**
+     * An artifact is hermetic unless a {@code cache = "none"} main-scope exec step contributed to it:
+     * such a step always runs against an oracle Zolt cannot hash, so the build is not provably
+     * reproducible. Over-approximating taint is the safe direction for a reproducibility claim.
+     */
+    private static boolean hermetic(ProjectConfig config) {
+        return config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
+                .noneMatch(step -> "none".equals(step.exec().cache()));
     }
 
     private static void dependencies(StringBuilder json, List<PackagePlanDependency> dependencies) {

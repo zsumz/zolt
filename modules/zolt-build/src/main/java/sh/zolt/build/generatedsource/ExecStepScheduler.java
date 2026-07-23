@@ -13,8 +13,9 @@ import java.util.TreeMap;
 /**
  * Derives a deterministic, serial execution order for exec steps purely from declared IO: an input
  * equal to or under another step's declared output creates an ordering edge. The result is the
- * topological sort of those edges with ties broken alphabetically by id. Cycles and (stage 1)
- * {@code target/classes} inputs are actionable errors.
+ * topological sort of those edges with ties broken alphabetically by id. Steps declaring inputs under
+ * the compile output (or using the {@code project} pseudo-tool) run after compilation; a post-compile
+ * step may not be the producer for a pre-compile consumer, and cycles are actionable errors.
  */
 final class ExecStepScheduler {
     private ExecStepScheduler() {
@@ -25,8 +26,6 @@ final class ExecStepScheduler {
             String outputRoot,
             String scope,
             List<GeneratedSourceStep> steps) {
-        rejectCompiledClassInputs(projectRoot, outputRoot, scope, steps);
-
         Map<String, Path> outputs = new LinkedHashMap<>();
         for (GeneratedSourceStep step : steps) {
             outputs.put(step.id(), projectRoot.resolve(step.output()).normalize());
@@ -38,6 +37,8 @@ final class ExecStepScheduler {
             successors.put(step.id(), new ArrayList<>());
             indegree.put(step.id(), 0);
         }
+        Map<String, GeneratedSourceStep> byId = new LinkedHashMap<>();
+        steps.forEach(step -> byId.put(step.id(), step));
         for (GeneratedSourceStep consumer : steps) {
             for (String input : consumer.inputs()) {
                 Path inputBase = projectRoot.resolve(ExecInputExpander.literalBase(input)).normalize();
@@ -47,6 +48,7 @@ final class ExecStepScheduler {
                     }
                     if (inputBase.startsWith(outputs.get(producer.id()))
                             && successors.get(producer.id()).stream().noneMatch(consumer.id()::equals)) {
+                        rejectPostFeedingPre(projectRoot, outputRoot, scope, producer, consumer);
                         successors.get(producer.id()).add(consumer.id());
                         indegree.merge(consumer.id(), 1, Integer::sum);
                     }
@@ -54,8 +56,6 @@ final class ExecStepScheduler {
             }
         }
 
-        Map<String, GeneratedSourceStep> byId = new LinkedHashMap<>();
-        steps.forEach(step -> byId.put(step.id(), step));
         List<String> ready = new ArrayList<>();
         indegree.forEach((id, degree) -> {
             if (degree == 0) {
@@ -90,23 +90,19 @@ final class ExecStepScheduler {
         return List.copyOf(ordered);
     }
 
-    private static void rejectCompiledClassInputs(
+    private static void rejectPostFeedingPre(
             Path projectRoot,
             String outputRoot,
             String scope,
-            List<GeneratedSourceStep> steps) {
-        Path classesRoot = projectRoot.resolve(outputRoot).resolve("classes").normalize();
-        for (GeneratedSourceStep step : steps) {
-            for (String input : step.inputs()) {
-                Path inputBase = projectRoot.resolve(ExecInputExpander.literalBase(input)).normalize();
-                if (inputBase.startsWith(classesRoot)) {
-                    throw BuildException.actionable(
-                            "Exec step [generated." + scope + "." + step.id() + "] declares input `" + input
-                                    + "` under " + outputRoot + "/classes.",
-                            "Inputs under compiled classes need tool = \"project\" and post-compile scheduling, which "
-                                    + "arrive in a later stage. Remove the input or point it at a source path.");
-                }
-            }
+            GeneratedSourceStep producer,
+            GeneratedSourceStep consumer) {
+        if (ExecStepClassification.isPostCompile(producer, projectRoot, outputRoot)
+                && !ExecStepClassification.isPostCompile(consumer, projectRoot, outputRoot)) {
+            throw BuildException.actionable(
+                    "Exec step [generated." + scope + "." + consumer.id() + "] consumes the output of post-compile step ["
+                            + "generated." + scope + "." + producer.id() + "], but runs before compilation.",
+                    "A step that consumes a post-compile step's output must itself be post-compile (produce "
+                            + "resources, test-resources, or intermediate).");
         }
     }
 }

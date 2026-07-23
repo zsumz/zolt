@@ -1,6 +1,7 @@
 package sh.zolt.build.fingerprint;
 
 import sh.zolt.build.BuildException;
+import sh.zolt.build.generatedsource.ExecStepClassification;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.GeneratedSourceKind;
@@ -56,7 +57,7 @@ final class BuildFingerprintContent {
         section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
         section(content, "resources", resourceEntries(projectRoot, resourceRoots, resourceRootKey, config.build(), cachedState, collectedState));
         section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory, cachedState, collectedState));
-        section(content, "execOutputs", execOutputEntries(projectRoot, generatedSteps, cachedState, collectedState));
+        section(content, "execOutputs", execOutputEntries(projectRoot, config.build().outputRoot(), generatedSteps, cachedState, collectedState));
         section(content, "expectedClasses", expectedClasses.entries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
     }
@@ -162,12 +163,19 @@ final class BuildFingerprintContent {
 
     private List<String> execOutputEntries(
             Path projectRoot,
+            String outputRoot,
             List<GeneratedSourceStep> steps,
             BuildFingerprintState cachedState,
             Map<Path, BuildFingerprintCachedFileHash> collectedState) {
         List<Path> files = new ArrayList<>();
         for (GeneratedSourceStep step : steps) {
             if (step.kind() != GeneratedSourceKind.EXEC) {
+                continue;
+            }
+            // Post-compile exec outputs (project runner / inputs under compiled classes) are produced
+            // AFTER compile; hashing them into the compile fingerprint that gates compile would create a
+            // cycle and break the double-build skip. Their consumer fence lives in package/test evidence.
+            if (ExecStepClassification.isPostCompile(step, projectRoot, outputRoot)) {
                 continue;
             }
             Path output = outputPath(projectRoot, "[generated." + step.id() + "].output", step.output());
