@@ -139,6 +139,60 @@ final class BuildPlanServiceTest {
     }
 
     @Test
+    void surfacesReadyTestRuntimeToolchainInRunTestsNode() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "17", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults());
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.TEST,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(new TestRuntimePlan("17", true, Optional.empty(), Optional.empty())));
+
+        assertFalse(plan.blocked());
+        PlanNode runTests = node(plan, "run-tests");
+        assertEquals(PlanNodeStatus.READY, runTests.status());
+        assertTrue(runTests.details().contains("testRuntimeJava: 17 ([toolchain.java.test])"));
+    }
+
+    @Test
+    void blocksTestRuntimeToolchainThatIsNotReady() throws IOException {
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        ProjectConfig config = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                BuildSettings.defaults());
+
+        BuildPlan plan = service.plan(
+                projectDir,
+                config,
+                PlanTarget.TEST,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(new TestRuntimePlan(
+                        "17",
+                        false,
+                        Optional.of("Test runtime Java 17 is older than the compiled [project].java release 21;"
+                                + " tests would fail with UnsupportedClassVersionError."),
+                        Optional.of("Set [toolchain.java.test].version to 21 or newer, or lower [project].java."))));
+
+        assertTrue(plan.blocked());
+        PlanNode runTests = node(plan, "run-tests");
+        assertEquals(PlanNodeStatus.BLOCKED, runTests.status());
+        PlanBlocker blocker = blocker(runTests, "test-runtime-toolchain");
+        assertTrue(blocker.message().contains("UnsupportedClassVersionError"));
+    }
+
+    @Test
     void plansCoveragePackageAndPublishOutputsUnderConfiguredOutputRoot() {
         ProjectConfig config = ProjectConfigs.withDirectDependencies(
                         new ProjectMetadata("demo", "1.0.0", "com.example", "21", Optional.empty()),

@@ -50,7 +50,7 @@ public final class BuildPlanService {
     }
 
     public BuildPlan plan(Path projectRoot, ProjectConfig config, PlanTarget target, Optional<Path> reportsDir) {
-        return plan(projectRoot, config, target, reportsDir, Optional.empty());
+        return plan(projectRoot, config, target, reportsDir, Optional.empty(), Optional.empty());
     }
 
     public BuildPlan plan(
@@ -59,6 +59,16 @@ public final class BuildPlanService {
             PlanTarget target,
             Optional<Path> reportsDir,
             Optional<Path> nativeImageExecutable) {
+        return plan(projectRoot, config, target, reportsDir, nativeImageExecutable, Optional.empty());
+    }
+
+    public BuildPlan plan(
+            Path projectRoot,
+            ProjectConfig config,
+            PlanTarget target,
+            Optional<Path> reportsDir,
+            Optional<Path> nativeImageExecutable,
+            Optional<TestRuntimePlan> testRuntime) {
         Path root = projectRoot.toAbsolutePath().normalize();
         List<PlanNode> nodes = new ArrayList<>();
         List<GeneratedSourceEvidence> generatedSources =
@@ -67,7 +77,7 @@ public final class BuildPlanService {
         addLockfileNode(nodes, root);
         addBuildNodes(nodes, root, config, generatedSources, execToolLocked);
         if (target.includesTests()) {
-            addTestNodes(nodes, root, config, reportsDir, generatedSources, execToolLocked);
+            addTestNodes(nodes, root, config, reportsDir, generatedSources, execToolLocked, testRuntime);
         }
         if (target.includesCoverage()) {
             addCoverageNode(nodes, config.build());
@@ -146,7 +156,8 @@ public final class BuildPlanService {
             ProjectConfig config,
             Optional<Path> reportsDir,
             List<GeneratedSourceEvidence> generatedSources,
-            boolean execToolLocked) {
+            boolean execToolLocked,
+            Optional<TestRuntimePlan> testRuntime) {
         BuildSettings build = config.build();
         nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "test"));
         nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "test", outputRoot(build), execToolLocked));
@@ -179,6 +190,8 @@ public final class BuildPlanService {
         TestRuntimeSettings runtime = build.testRuntime();
         List<String> outputs = reportsDir.map(path -> List.of(path.toString())).orElseGet(List::of);
         List<String> details = new ArrayList<>();
+        testRuntime.ifPresent(toolchain ->
+                details.add("testRuntimeJava: " + toolchain.version() + " ([toolchain.java.test])"));
         if (!runtime.jvmArgs().isEmpty()) {
             details.add("jvmArgs: " + runtime.jvmArgs().size());
         }
@@ -191,15 +204,20 @@ public final class BuildPlanService {
         if (!runtime.events().isEmpty()) {
             details.add("events: " + String.join(",", runtime.events()));
         }
+        List<PlanBlocker> blockers = new ArrayList<>();
+        testRuntime.filter(toolchain -> !toolchain.ready()).ifPresent(toolchain -> blockers.add(new PlanBlocker(
+                "test-runtime-toolchain",
+                toolchain.problem().orElse("Test runtime toolchain " + toolchain.version() + " is not ready."),
+                toolchain.remediation().orElse("Run `zolt toolchain sync`."))));
         nodes.add(new PlanNode(
                 "run-tests",
                 "test",
-                PlanNodeStatus.READY,
+                blockers.isEmpty() ? PlanNodeStatus.READY : PlanNodeStatus.BLOCKED,
                 "Run tests through Zolt's JUnit Platform path.",
                 List.of(build.testOutput(), build.output(), "zolt.lock"),
                 outputs,
                 details,
-                List.of()));
+                blockers));
     }
 
     private static void addResourceNode(

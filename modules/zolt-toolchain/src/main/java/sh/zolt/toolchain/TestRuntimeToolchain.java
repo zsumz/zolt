@@ -63,27 +63,43 @@ public record TestRuntimeToolchain(
         return ready() ? status.resolved().java() : Optional.empty();
     }
 
+    /** A human-readable problem when the test runtime toolchain is not ready, for diagnostics/plan. */
+    public Optional<String> problem() {
+        Optional<String> release = releaseProblem();
+        if (release.isPresent()) {
+            return release;
+        }
+        if (ready()) {
+            return Optional.empty();
+        }
+        return Optional.of("Test runtime Java toolchain " + request.version() + " is not installed"
+                + mismatchSuffix() + ".");
+    }
+
+    /** The remediation matching {@link #problem()}; empty when ready. */
+    public Optional<String> remediation() {
+        if (releaseProblem().isPresent()) {
+            return Optional.of("Set [toolchain.java.test].version to " + projectRelease
+                    + " or newer, or lower [project].java.");
+        }
+        if (ready()) {
+            return Optional.empty();
+        }
+        return Optional.of("Run `zolt toolchain sync` to install Java " + request.version()
+                + " for the test runtime, or remove [toolchain.java.test].");
+    }
+
     /**
      * The resolved java executable, or an {@link ActionableException} explaining how to make the
      * test runtime toolchain ready. The not-installed guidance mirrors the main toolchain's
      * {@code zolt toolchain sync} remediation.
      */
     public Path requireJava() {
-        Optional<String> release = releaseProblem();
-        if (release.isPresent()) {
-            throw new ActionableException(
-                    release.orElseThrow(),
-                    "Set [toolchain.java.test].version to " + projectRelease
-                            + " or newer, or lower [project].java.");
+        Optional<String> problem = problem();
+        if (problem.isPresent()) {
+            throw new ActionableException(problem.orElseThrow(), remediation().orElseThrow());
         }
-        if (ready()) {
-            return status.resolved().java().orElseThrow();
-        }
-        throw new ActionableException(
-                "Test runtime Java toolchain " + request.version() + " is not installed"
-                        + mismatchSuffix() + ".",
-                "Run `zolt toolchain sync` to install Java " + request.version()
-                        + " for the test runtime, or remove [toolchain.java.test].");
+        return status.resolved().java().orElseThrow();
     }
 
     private String mismatchSuffix() {

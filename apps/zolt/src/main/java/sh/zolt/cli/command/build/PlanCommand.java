@@ -9,10 +9,16 @@ import sh.zolt.plan.BuildPlan;
 import sh.zolt.plan.BuildPlanFormatter;
 import sh.zolt.plan.BuildPlanService;
 import sh.zolt.plan.PlanTarget;
+import sh.zolt.plan.TestRuntimePlan;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.toolchain.TestRuntimeToolchain;
+import sh.zolt.toolchain.TestRuntimeToolchainResolver;
+import sh.zolt.toolchain.platform.HostPlatform;
+import sh.zolt.toolchain.store.ToolchainStore;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Mixin;
@@ -73,7 +79,8 @@ public final class PlanCommand implements Callable<Integer> {
                     config,
                     target,
                     reportSettings.projectRelativeReportsDirectory(projectRoot),
-                    java.util.Optional.ofNullable(nativeImageExecutable));
+                    Optional.ofNullable(nativeImageExecutable),
+                    testRuntimePlan(projectRoot, config));
             if (format == Format.JSON) {
                 CommandOutput.printAndFlush(spec, buildPlanFormatter.json(plan));
             } else {
@@ -83,5 +90,22 @@ public final class PlanCommand implements Callable<Integer> {
         } catch (TestRunException | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         }
+    }
+
+    private Optional<TestRuntimePlan> testRuntimePlan(Path projectRoot, ProjectConfig config) {
+        if (!target.includesTests()) {
+            return Optional.empty();
+        }
+        return new TestRuntimeToolchainResolver()
+                .resolve(projectRoot, projectRoot, config, HostPlatform.current(), ToolchainStore.defaults())
+                .map(PlanCommand::toTestRuntimePlan);
+    }
+
+    private static TestRuntimePlan toTestRuntimePlan(TestRuntimeToolchain toolchain) {
+        return new TestRuntimePlan(
+                toolchain.request().version(),
+                toolchain.ready(),
+                toolchain.problem(),
+                toolchain.remediation());
     }
 }
