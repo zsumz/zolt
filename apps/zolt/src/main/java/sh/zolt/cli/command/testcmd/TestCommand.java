@@ -102,6 +102,11 @@ public final class TestCommand implements Runnable {
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
+    @Option(
+            names = "--no-build-cache",
+            description = "Bypass the build-output cache for this run (neither restore nor store).")
+    private boolean noBuildCache;
+
     @Mixin
     private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
 
@@ -283,7 +288,8 @@ public final class TestCommand implements Runnable {
                 "config read",
                 () -> tomlParser.parse(projectRoot.resolve("zolt.toml")));
         TestRunService projectTestRunService =
-                testRunServiceFactory.create(toolchainOptions.jdkChecker(projectRoot, config, "test"));
+                testRunServiceFactory.create(toolchainOptions.jdkChecker(projectRoot, config, "test"))
+                        .withBuildCache(CommandBuildCache.service(noBuildCache));
         lockfiles.requireFreshLockfile(projectRoot, config, cacheRoot, false);
         progress.start("Testing project");
         CommandHumanOutput output = CommandHumanOutput.of(spec);

@@ -8,6 +8,12 @@ import sh.zolt.build.fingerprint.BuildFingerprintService;
 import sh.zolt.build.BuildResult;
 import sh.zolt.build.BuildResultWithClasspaths;
 import sh.zolt.build.BuildService;
+import sh.zolt.build.cache.BuildCacheJdkIdentity;
+import sh.zolt.build.cache.BuildCacheKey;
+import sh.zolt.build.cache.BuildCacheModulePolicy;
+import sh.zolt.build.cache.BuildCacheRestoreResult;
+import sh.zolt.build.cache.BuildCacheScope;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.build.compile.GroovyCompilerRunner;
 import sh.zolt.build.compile.JavacRunner;
 import sh.zolt.build.resources.ResourceCopier;
@@ -16,6 +22,7 @@ import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
 import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
+import sh.zolt.build.incremental.IncrementalCompileState;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.doctor.JdkChecker;
 import sh.zolt.doctor.JdkDetector;
@@ -24,6 +31,7 @@ import sh.zolt.generated.GeneratedSourceException;
 import sh.zolt.generated.ProtobufGeneratedSourceService;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveService;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +47,7 @@ public final class TestCompileService {
     private final ExecGeneratedSourceService execGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final TestCompileSourceExecutor sourceExecutor;
+    private final BuildCacheService buildCacheService;
 
     public TestCompileService() {
         this(new JdkDetector());
@@ -73,16 +82,62 @@ public final class TestCompileService {
     }
 
     TestCompileService(TestCompileServiceDependencies dependencies) {
-        this.buildService = dependencies.buildService();
-        this.sourceDiscoverer = dependencies.sourceDiscoverer();
-        this.resourceCopier = dependencies.resourceCopier();
-        this.buildFingerprintService = dependencies.buildFingerprintService();
-        this.jdkDetector = dependencies.jdkDetector();
-        this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
-        this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
-        this.execGeneratedSourceService = new ExecGeneratedSourceService(dependencies.jdkDetector());
-        this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
-        this.sourceExecutor = dependencies.sourceExecutor();
+        this(
+                dependencies.buildService(),
+                dependencies.sourceDiscoverer(),
+                dependencies.resourceCopier(),
+                dependencies.buildFingerprintService(),
+                dependencies.jdkDetector(),
+                dependencies.openApiGeneratedSourceService(),
+                dependencies.protobufGeneratedSourceService(),
+                new ExecGeneratedSourceService(dependencies.jdkDetector()),
+                dependencies.incrementalCompileStateRecorder(),
+                dependencies.sourceExecutor(),
+                BuildCacheService.disabled());
+    }
+
+    private TestCompileService(
+            BuildService buildService,
+            SourceDiscoverer sourceDiscoverer,
+            ResourceCopier resourceCopier,
+            BuildFingerprintService buildFingerprintService,
+            JdkChecker jdkDetector,
+            OpenApiGeneratedSourceService openApiGeneratedSourceService,
+            ProtobufGeneratedSourceService protobufGeneratedSourceService,
+            ExecGeneratedSourceService execGeneratedSourceService,
+            IncrementalCompileStateRecorder incrementalCompileStateRecorder,
+            TestCompileSourceExecutor sourceExecutor,
+            BuildCacheService buildCacheService) {
+        this.buildService = buildService;
+        this.sourceDiscoverer = sourceDiscoverer;
+        this.resourceCopier = resourceCopier;
+        this.buildFingerprintService = buildFingerprintService;
+        this.jdkDetector = jdkDetector;
+        this.openApiGeneratedSourceService = openApiGeneratedSourceService;
+        this.protobufGeneratedSourceService = protobufGeneratedSourceService;
+        this.execGeneratedSourceService = execGeneratedSourceService;
+        this.incrementalCompileStateRecorder = incrementalCompileStateRecorder;
+        this.sourceExecutor = sourceExecutor;
+        this.buildCacheService = buildCacheService;
+    }
+
+    /**
+     * Returns a service that uses the given build-output cache for both the main build it triggers and
+     * the test-class compile. The default is a disabled no-op, so existing callers are unaffected.
+     */
+    public TestCompileService withBuildCache(BuildCacheService cache) {
+        return new TestCompileService(
+                buildService.withBuildCache(cache),
+                sourceDiscoverer,
+                resourceCopier,
+                buildFingerprintService,
+                jdkDetector,
+                openApiGeneratedSourceService,
+                protobufGeneratedSourceService,
+                execGeneratedSourceService,
+                incrementalCompileStateRecorder,
+                sourceExecutor,
+                cache);
     }
 
     TestCompileService(
@@ -180,8 +235,22 @@ public final class TestCompileService {
                 outputDirectory,
                 generatedSourcesDirectory);
         long fingerprintCheckNanos = elapsedSince(fingerprintCheckStarted);
+
+        // On a fingerprint miss, restore test classes from the build cache instead of recompiling. Same
+        // discipline as the main scope: cold builds only, hermetic modules only, no incremental state
+        // left behind (the next edit does one full recompile that re-stores).
+        BuildCacheKey cacheKey = testCacheKey(
+                compileSkipped, projectDirectory, config, lockfilePath, sources,
+                testCompileClasspath, classpaths.testProcessor(), outputDirectory, generatedSourcesDirectory, jdkStatus);
+        boolean restored = false;
+        if (cacheKey != null) {
+            BuildCacheRestoreResult restore = buildCacheService.restore(cacheKey, outputDirectory);
+            restored = restore.restored();
+        }
+        boolean runCompile = !compileSkipped && !restored;
+
         TestCompileSourceExecutor.Attempt compileAttempt = sourceExecutor.compile(
-                compileSkipped,
+                !runCompile,
                 projectDirectory,
                 config,
                 sources,
@@ -207,16 +276,23 @@ public final class TestCompileService {
                     outputDirectory,
                     generatedSourcesDirectory);
             fingerprintWriteNanos = elapsedSince(fingerprintWriteStarted);
-            incrementalCompileStateRecorder.recordTest(
-                    projectDirectory,
-                    config,
-                    sources,
-                    testCompileClasspath,
-                    classpaths.testProcessor(),
-                    outputDirectory,
-                    generatedSourcesDirectory,
-                    compileAttempt.attribution(),
-                    compileAttempt.compiledSources());
+            if (restored) {
+                incrementalCompileStateRecorder.deleteTestState(outputDirectory);
+            } else {
+                incrementalCompileStateRecorder.recordTest(
+                        projectDirectory,
+                        config,
+                        sources,
+                        testCompileClasspath,
+                        classpaths.testProcessor(),
+                        outputDirectory,
+                        generatedSourcesDirectory,
+                        compileAttempt.attribution(),
+                        compileAttempt.compiledSources());
+                if (cacheKey != null) {
+                    buildCacheService.store(cacheKey, outputDirectory);
+                }
+            }
         }
         return new TestCompileResult(
                 buildResult,
@@ -225,11 +301,43 @@ public final class TestCompileService {
                 compileAttempt.outputDirectory(),
                 compileAttempt.output(),
                 compileSkipped,
-                compileSkipped ? "skipped" : compileAttempt.mode(),
-                compileSkipped ? "" : compileAttempt.fallbackReason(),
+                compileSkipped ? "skipped" : (restored ? "restored" : compileAttempt.mode()),
+                runCompile ? compileAttempt.fallbackReason() : "",
                 compileAttempt.diagnostics(),
                 fingerprintCheckNanos,
                 fingerprintWriteNanos);
+    }
+
+    private BuildCacheKey testCacheKey(
+            boolean compileSkipped,
+            Path projectDirectory,
+            ProjectConfig config,
+            Path lockfilePath,
+            SourceDiscoveryResult sources,
+            Classpath testCompileClasspath,
+            Classpath testProcessorClasspath,
+            Path outputDirectory,
+            Path generatedSourcesDirectory,
+            JdkStatus jdkStatus) {
+        if (compileSkipped || !buildCacheService.enabled()) {
+            return null;
+        }
+        if (Files.exists(IncrementalCompileState.testStatePath(outputDirectory))) {
+            return null;
+        }
+        if (!BuildCacheModulePolicy.cacheable(config)) {
+            return null;
+        }
+        String inputsSha = buildFingerprintService.testInputsFingerprintSha256(
+                projectDirectory,
+                config,
+                lockfilePath,
+                sources,
+                testCompileClasspath,
+                testProcessorClasspath,
+                outputDirectory,
+                generatedSourcesDirectory);
+        return BuildCacheKey.of(BuildCacheScope.TEST, inputsSha, BuildCacheJdkIdentity.of(jdkStatus));
     }
 
     private static long elapsedSince(long started) {

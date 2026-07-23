@@ -3,6 +3,7 @@ package sh.zolt.workspace.service;
 import sh.zolt.build.BuildException;
 import sh.zolt.build.BuildService;
 import sh.zolt.build.JavacException;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.classpath.ResolvedClasspathPackage;
 import java.util.ArrayList;
@@ -19,18 +20,32 @@ final class WorkspaceMemberBuildExecutor {
     private final BuildService buildService;
     private final WorkspaceJdkCheckerResolver jdkCheckers;
     private final WorkspaceBuildBatchPlanner batchPlanner;
+    private final BuildCacheService buildCacheService;
 
     WorkspaceMemberBuildExecutor(
             BuildService buildService,
             WorkspaceJdkCheckerResolver jdkCheckers,
             WorkspaceBuildBatchPlanner batchPlanner) {
+        this(buildService, jdkCheckers, batchPlanner, BuildCacheService.disabled());
+    }
+
+    private WorkspaceMemberBuildExecutor(
+            BuildService buildService,
+            WorkspaceJdkCheckerResolver jdkCheckers,
+            WorkspaceBuildBatchPlanner batchPlanner,
+            BuildCacheService buildCacheService) {
         this.buildService = buildService;
         this.jdkCheckers = jdkCheckers;
         this.batchPlanner = batchPlanner;
+        this.buildCacheService = buildCacheService;
     }
 
     WorkspaceMemberBuildExecutor withJdkCheckers(WorkspaceJdkCheckerResolver jdkCheckers) {
-        return new WorkspaceMemberBuildExecutor(buildService, jdkCheckers, batchPlanner);
+        return new WorkspaceMemberBuildExecutor(buildService, jdkCheckers, batchPlanner, buildCacheService);
+    }
+
+    WorkspaceMemberBuildExecutor withBuildCache(BuildCacheService buildCacheService) {
+        return new WorkspaceMemberBuildExecutor(buildService, jdkCheckers, batchPlanner, buildCacheService);
     }
 
     Result build(
@@ -83,10 +98,13 @@ final class WorkspaceMemberBuildExecutor {
             try {
                 return new WorkspaceBuildResult.MemberBuildResult(
                         member.path(),
-                        buildService.withJdkChecker(jdkCheckers.forMember(workspace, member)).build(
-                                member.directory(),
-                                member.config(),
-                                classpaths),
+                        buildService
+                                .withJdkChecker(jdkCheckers.forMember(workspace, member))
+                                .withBuildCache(buildCacheService)
+                                .build(
+                                        member.directory(),
+                                        member.config(),
+                                        classpaths),
                         classpaths,
                         classpathPackagesByMember.get(member.path()));
             } catch (JavacException exception) {

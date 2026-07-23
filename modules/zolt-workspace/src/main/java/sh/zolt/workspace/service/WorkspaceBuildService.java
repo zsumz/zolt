@@ -1,6 +1,7 @@
 package sh.zolt.workspace.service;
 
 import sh.zolt.build.BuildService;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.classpath.ClasspathSet;
 import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.doctor.JdkChecker;
@@ -89,6 +90,16 @@ public final class WorkspaceBuildService {
                 workspaceClasspathService,
                 memberSelector,
                 memberBuildExecutor.withJdkCheckers(jdkCheckers));
+    }
+
+    public WorkspaceBuildService withBuildCache(BuildCacheService buildCacheService) {
+        return new WorkspaceBuildService(
+                workspaceDiscoveryService,
+                workspaceResolveService,
+                lockfileReader,
+                workspaceClasspathService,
+                memberSelector,
+                memberBuildExecutor.withBuildCache(buildCacheService));
     }
 
     public WorkspaceBuildResult build(Path startDirectory, Path cacheRoot, boolean offline) {

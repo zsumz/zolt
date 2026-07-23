@@ -124,7 +124,9 @@ public final class BuildCommand implements Runnable {
         try {
             if (workspace) {
                 WorkspaceBuildService projectWorkspaceBuildService =
-                        workspaceBuildService.withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build"));
+                        workspaceBuildService
+                                .withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build"))
+                                .withBuildCache(CommandBuildCache.service(noBuildCache));
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt build --workspace");
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(

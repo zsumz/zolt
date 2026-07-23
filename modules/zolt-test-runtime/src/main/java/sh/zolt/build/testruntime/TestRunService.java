@@ -6,6 +6,7 @@ import sh.zolt.build.BuildResultWithClasspaths;
 import sh.zolt.build.run.JavaRunner;
 import sh.zolt.build.testruntime.compile.TestCompileResult;
 import sh.zolt.build.testruntime.compile.TestCompileResultWithClasspaths;
+import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.build.testruntime.compile.TestCompileService;
 import sh.zolt.build.testruntime.execution.CompiledTestExecutionRunner;
 import sh.zolt.build.testruntime.execution.CompiledTestRunner;
@@ -78,6 +79,18 @@ public final class TestRunService {
                 plainJunitWorkerRunner,
                 plainJunitWorkerEnabled,
                 pathSeparator));
+    }
+
+    private TestRunService(
+            TestCompileService testCompileService,
+            CompiledTestExecutionRunner compiledTestExecutionRunner) {
+        this.testCompileService = testCompileService;
+        this.compiledTestExecutionRunner = compiledTestExecutionRunner;
+    }
+
+    /** Returns a service that restores the main build and test classes from the build cache. */
+    public TestRunService withBuildCache(BuildCacheService buildCacheService) {
+        return new TestRunService(testCompileService.withBuildCache(buildCacheService), compiledTestExecutionRunner);
     }
 
     public TestRunResult runTests(Path projectDirectory, ProjectConfig config, Path cacheRoot) {

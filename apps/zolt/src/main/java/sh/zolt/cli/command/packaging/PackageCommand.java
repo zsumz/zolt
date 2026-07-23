@@ -82,6 +82,11 @@ public final class PackageCommand implements Runnable {
     @Option(names = "--cache-root", hidden = true)
     private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
+    @Option(
+            names = "--no-build-cache",
+            description = "Bypass the build-output cache for this run (neither restore nor store).")
+    private boolean noBuildCache;
+
     @Mixin
     private CommandToolchainOptions toolchainOptions = new CommandToolchainOptions();
 
@@ -280,6 +285,7 @@ public final class PackageCommand implements Runnable {
                                             projectRoot,
                                             config,
                                             "package"))
+                                    .withBuildCache(CommandBuildCache.service(noBuildCache))
                                     .buildWithClasspaths(
                                     projectRoot,
                                     config,
