@@ -7,13 +7,11 @@ import sh.zolt.build.GroovyCompileException;
 import sh.zolt.build.JavacException;
 import sh.zolt.build.ResourceCopyException;
 import sh.zolt.build.SourceDiscoveryException;
-import sh.zolt.build.cache.BuildCacheService;
 import sh.zolt.cache.ArtifactCacheException;
 import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandHumanOutput;
 import sh.zolt.cli.CommandProgress;
 import sh.zolt.cli.ZoltCli;
-import sh.zolt.cli.command.CommandBuildCache;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandBuildProvenance;
 import sh.zolt.cli.command.CommandFrameworkServices;
@@ -122,13 +120,11 @@ public final class BuildCommand implements Runnable {
         ProgressWriter progress = CommandProgress.human(spec);
         CommandHumanOutput output = CommandHumanOutput.of(spec);
         Path projectRoot = projectDirectory.path();
-        BuildCacheService buildCache = CommandBuildCache.service(noBuildCache, offline);
+        CommandBuildCacheSupport buildCache = CommandBuildCacheSupport.create(noBuildCache, offline);
         try {
             if (workspace) {
-                WorkspaceBuildService projectWorkspaceBuildService =
-                        workspaceBuildService
-                                .withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build"))
-                                .withBuildCache(buildCache);
+                WorkspaceBuildService projectWorkspaceBuildService = buildCache.applyTo(
+                        workspaceBuildService.withJdkCheckers(toolchainOptions.workspaceJdkCheckers("build")));
                 lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt build --workspace");
                 progress.start("Building workspace");
                 WorkspaceBuildResult result = timings.measure(
@@ -192,9 +188,9 @@ public final class BuildCommand implements Runnable {
             output.work("Building " + config.project().name());
             BuildResult result = timings.measure(
                     "compile main",
-                    () -> buildService
-                            .withJdkChecker(toolchainOptions.jdkChecker(projectRoot, config, "build"))
-                            .withBuildCache(buildCache)
+                    () -> buildCache
+                            .applyTo(buildService.withJdkChecker(
+                                    toolchainOptions.jdkChecker(projectRoot, config, "build")))
                             .build(
                                     projectRoot,
                                     config,
@@ -253,7 +249,7 @@ public final class BuildCommand implements Runnable {
                 | ZoltConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } finally {
-            CommandBuildCache.surfaceWarnings(output, buildCache);
+            buildCache.surfaceWarnings(output);
             CommandTimings.print(spec, "build", projectRoot, timingOptions, timings);
         }
     }
