@@ -662,8 +662,9 @@ Zolt has project-model support for common Java application shapes:
 - Vert.x applications with platform BOMs and dependency exclusions.
 - OpenAPI generated Java sources with tool versioning and presets.
 - Protobuf/gRPC generated Java sources.
-- Generic exec steps that run a pinned jvm tool to produce Java sources or
-  resources consumed by the build.
+- Generic exec steps that run a pinned tool — a resolver-locked `jvm` tool, a
+  PATH `process` tool, or the member's own `project` classpath — to produce Java
+  sources or resources consumed by the build.
 - Library-style canaries such as Commons CLI, HikariCP, and SLF4J workspace
   modules.
 
@@ -757,9 +758,104 @@ into the module build fingerprint so a changed output invalidates exactly its
 consumers. `args` is an argv array Zolt never interprets as a shell string, and
 every declared path is real-path-contained under the project root. `zolt plan`
 shows each step's derived position, tool identity, inputs/outputs, and cache
-policy, and `zolt check` validates the steps. Inputs under `target/classes`, the
-`process` runner, `tool = "project"`, `secretEnv`, timeouts, and
-`cache = "none"` are later stages.
+policy, and `zolt check` validates the steps.
+
+Beyond the resolver-locked `jvm` runner, a tool can run a PATH binary. A
+`process` tool runs a `binary` discovered on the curated PATH; because PATH
+bytes are unprovable it must set `allowUnpinnedTool = true`, and its identity in
+the fingerprint is the binary name plus the probed `versionCommand` stdout (an
+optional `versionExpect` semver range fails fast on a wrong version). `cwd`
+sandboxes the working directory, `timeoutSeconds` bounds the run (default 600),
+and `secretEnv` injects a value read from a named ambient variable at run time
+without ever writing that value to config, the lockfile, fingerprints, or logs.
+
+```toml
+[generated.execTools.node]
+runner = "process"
+binary = "npm"
+versionCommand = ["npm", "--version"]   # probed stdout enters the fingerprint
+versionExpect = ">=10 <11"              # optional fail-fast guard
+allowUnpinnedTool = true                # required: PATH bytes are unprovable
+
+[generated.main.frontend-build]
+kind = "exec"
+tool = "node"
+cwd = "web"                             # sandboxed, project-relative working directory
+args = ["run", "build"]
+inputs = ["web/package-lock.json", "web/src/**", "web/vite.config.ts"]
+output = "web/dist"
+produces = "resources"
+into = "static"
+timeoutSeconds = 900                    # per-step wall-clock bound (default 600)
+[generated.main.frontend-build.env]
+NODE_ENV = "production"
+[generated.main.frontend-build.secretEnv]
+NPM_TOKEN = "CI_NPM_TOKEN"              # target env name = source var; the value is never written down
+```
+
+`tool = "project"` is a built-in pseudo-tool: it launches `mainClass` on the
+member's own compiled classes plus resolved runtime classpath (Maven
+`exec:java` parity). Declaring an input under `target/classes` — or using
+`tool = "project"`, which always does — schedules the step after compile, so it
+may produce only `resources`, `test-resources`, or `intermediate`; producing
+main sources from main classes is a cycle and a plan blocker. `cache = "none"`
+is the honest non-determinism escape for a step Zolt cannot fingerprint (a live
+database, a network call): it always runs, is a hard error under `--offline`,
+fails `zolt check --require-offline-ready`, and stamps `hermetic = false` into
+package evidence.
+
+```toml
+[generated.main.build-info]
+kind = "exec"
+tool = "project"
+mainClass = "com.example.build.BuildInfoWriter"
+inputs = ["target/classes"]             # under the compile output: scheduled after compile
+output = "target/generated/resources/build-info"
+produces = "resources"
+cache = "none"                          # always-run; excluded from --offline; hermetic = false
+```
+
+## Generated Producer Contract
+
+Every generated-source producer — the OpenAPI and protobuf built-ins and the
+generic exec step — obeys one contract, documented here the way resolution is,
+because a build tool that runs third-party tools must be explicit about what
+those tools may read and produce:
+
+- Inputs are exactly the declared closure. Zolt expands the `inputs` globs
+  itself, sorts them, and hashes their content into the step fingerprint;
+  nothing outside that closure is an input, and a step never treats the network
+  or ambient state as a hidden input.
+- Output is exactly the owned directory. A step writes only under its single
+  declared `output`. After a cacheable step runs, any file whose mtime advanced
+  under the step's `cwd` but outside that output is an undeclared-output error
+  naming the path.
+- Tool identity is pinned or probed-advisory, and the fingerprint records which.
+  A `jvm` tool is pinned: its coordinates resolve into the locked `tool-exec`
+  scope, never onto application classpaths, and the SHA-256 of each jar is in
+  `zolt.lock` and the fingerprint. A `process` tool is probed-advisory: PATH
+  bytes are unprovable, so its identity is the binary name plus the probed
+  `versionCommand` stdout, and it requires `allowUnpinnedTool = true` to say so.
+- Skip is fingerprint-exact. A step re-runs only when its fingerprint changes —
+  tool identity, argv, expanded input content, env names and literal values,
+  `cwd`, and `produces`/`into` — and its output bytes are hashed into the module
+  build fingerprint, so a changed output invalidates exactly its consumers while
+  stable output lets them skip even after an always-run step.
+- `cache = "none"` is honest non-determinism, not a cache miss. It always runs,
+  is excluded from `--offline` as a hard error, fails `zolt check
+  --require-offline-ready`, and stamps `hermetic = false` into package evidence.
+  Zolt never fabricates a cache key for an oracle it cannot hash; the sanctioned
+  reproducible paths are committed DDL/schema or `cache = "none"`.
+- Environment is curated, never inherited. A step sees only OS essentials
+  (`PATH`, `HOME`), the explicit `inheritEnv` allowlist, the literal `env`
+  table, and `secretEnv` indirection. `secretEnv` carries only names
+  (`TARGET_NAME = "SOURCE_ENV_NAME"`); the secret value is read at run time and
+  never appears in config, `zolt.lock`, fingerprints, plans, or logs.
+- The refusals are the product. No shell strings or `sh -c` (argv arrays only,
+  Zolt owns glob expansion); no lifecycle hooks or phase attachment; no in-place
+  source mutation (formatters route to `zolt task` plus a dirty-tree check); no
+  build-time network fetch as an input mechanism (a step that reaches the
+  network owns `cache = "none"`); and no user classes in the build JVM.
 
 ## Quality and CI
 
