@@ -323,6 +323,10 @@ final class ProjectValueObjectsTest {
         assertEquals(Optional.empty(), GeneratedSourceKind.fromConfigValue("OpenAPI"));
         assertEquals("declared-root, openapi, protobuf, exec", GeneratedSourceKind.supportedValues());
 
+        assertEquals(Optional.of(ProducesLane.RESOURCES), ProducesLane.fromConfigValue("resources"));
+        assertEquals(Optional.empty(), ProducesLane.fromConfigValue("intermediate"));
+        assertEquals("java-sources, test-sources, resources", ProducesLane.supportedValues());
+
         assertEquals(Optional.of(PackageMode.SPRING_BOOT_WAR), PackageMode.fromConfigValue("spring-boot-war"));
         assertEquals(Optional.empty(), PackageMode.fromConfigValue(null));
         assertEquals("thin, spring-boot, war, spring-boot-war, quarkus, uber", PackageMode.supportedValues());
@@ -342,6 +346,38 @@ final class ProjectValueObjectsTest {
                         DependencySection.PROCESSOR,
                         DependencySection.TEST_PROCESSOR),
                 List.of(DependencySection.values()));
+    }
+
+    @Test
+    void execGenerationSettingsNormalizeNullsSortEnvAndDefaultCache() {
+        Map<String, String> env = new LinkedHashMap<>();
+        env.put("ZETA", "2");
+        env.put("ALPHA", "1");
+
+        ExecGenerationSettings settings = new ExecGenerationSettings(
+                "jooq",
+                new ExecToolSettings(
+                        "jvm",
+                        List.of(new ExecToolCoordinate("org.jooq:jooq-codegen", Optional.of("3.19.15"), Optional.of("jooq"))),
+                        "org.jooq.codegen.GenerationTool"),
+                List.of("src/main/jooq/config.xml"),
+                ProducesLane.JAVA_SOURCES,
+                null,
+                env,
+                "");
+
+        assertEquals("jooq", settings.toolName());
+        assertEquals("jvm", settings.tool().runner());
+        assertEquals("org.jooq.codegen.GenerationTool", settings.tool().mainClass());
+        assertEquals(List.of("ALPHA", "ZETA"), List.copyOf(settings.env().keySet()));
+        assertEquals(Optional.empty(), settings.into());
+        assertEquals("content", settings.cache());
+        assertThrows(UnsupportedOperationException.class, () -> settings.args().add("x"));
+
+        ExecGenerationSettings empty = ExecGenerationSettings.empty();
+        assertEquals("content", empty.cache());
+        assertTrue(empty.env().isEmpty());
+        assertTrue(empty.tool().coordinates().isEmpty());
     }
 
     @Test
