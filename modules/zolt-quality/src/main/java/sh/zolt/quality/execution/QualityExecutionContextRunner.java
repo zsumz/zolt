@@ -115,12 +115,14 @@ public final class QualityExecutionContextRunner {
                     memberName,
                     member.config(),
                     request.context()));
-            results.addAll(publishDryRunQualityCheck.check(
-                    memberName,
-                    member.directory(),
-                    request.context(),
-                    request.requirePublishDryRun()));
         }
+        // The publish dry-run runs once as a family preflight, not per member.
+        results.addAll(publishDryRunQualityCheck.checkWorkspaceFamily(
+                workspace.root(),
+                request.cacheRoot(),
+                request.workspaceSelection(),
+                request.context(),
+                request.requirePublishDryRun()));
         for (String memberPath : selection.selectedMembers()) {
             WorkspaceMember member = members.get(memberPath);
             Optional<String> memberName = Optional.of(member.path());

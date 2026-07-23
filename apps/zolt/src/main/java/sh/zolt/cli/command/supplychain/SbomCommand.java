@@ -158,6 +158,21 @@ public final class SbomCommand implements Runnable {
 
     private Assembled assembleProject(SbomScopeSelection selection, Optional<String> timestampValue) {
         Path projectRoot = projectDirectory.path();
+        ProjectConfig configForMode = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+        if (configForMode.packageSettings().mode() == sh.zolt.project.PackageMode.BOM) {
+            // A BOM has no resolved dependency graph; emit metadata only, never an error.
+            CommandHumanOutput.errors(spec).detail(
+                    "This project is a BOM; its SBOM contains only BOM metadata (a BOM has no resolved "
+                            + "dependency graph, so listing components would be misleading).");
+            SbomModel model = assembler.assemble(
+                    configForMode,
+                    new ZoltLockfile(1, List.of(), List.of()),
+                    selection,
+                    timestampValue,
+                    toolVersion,
+                    LicenseIndex.empty());
+            return new Assembled(model, LicenseIndex.empty());
+        }
         Path lockfilePath = projectRoot.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath)) {
             throw new ActionableException(ActionableError.of(

@@ -32,19 +32,11 @@ final class PublishDryRunQualityCheckTest {
     }
 
     @Test
-    void rejectsWorkspaceMemberDryRunWithMemberScopedNextStep() {
-        QualityCheckResult result = check.check(
-                Optional.of("modules/api"),
-                tempDir,
-                QualityCheckContext.CI,
-                true).getFirst();
-
-        assertResult(
-                result,
-                "publish-dry-run",
-                "CI publish dry-run preflight is not available for workspace members yet.",
-                "Run `zolt publish --dry-run` from the publishable member project, or omit --require-publish-dry-run for workspace checks.");
-        assertEquals(Optional.of("modules/api"), result.member());
+    void workspaceMemberDryRunDefersToTheOneShotFamilyPreflight() {
+        // The per-member path no longer hard-fails; the family preflight (checkWorkspaceFamily) is the gate.
+        assertEquals(
+                List.of(),
+                check.check(Optional.of("modules/api"), tempDir, QualityCheckContext.CI, true));
     }
 
     @Test

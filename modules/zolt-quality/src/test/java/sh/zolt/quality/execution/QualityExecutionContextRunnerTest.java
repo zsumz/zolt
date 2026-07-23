@@ -116,8 +116,13 @@ final class QualityExecutionContextRunnerTest {
                 .toList();
         assertTrue(summaries.contains("<root>|ci|CI context policy is active. Policy source: built-in ci context. Locked model checks, generated-source checks, package diagnostics, local overlay rejection, and credential preflight are enabled."));
         assertTrue(summaries.contains("modules/core|[repositoryCredentials.company-creds]|CI context requires environment variables COMPANY_USER, COMPANY_TOKEN for repository `private` credentials `company-creds` before resolve/build work starts."));
-        assertTrue(summaries.contains("modules/core|publish-dry-run|CI publish dry-run preflight is not available for workspace members yet."));
-        assertTrue(summaries.contains("apps/api|publish-dry-run|CI publish dry-run preflight is not available for workspace members yet."));
+        // The publish dry-run runs once as a family preflight (not per member).
+        assertTrue(summaries.stream().anyMatch(
+                summary -> summary.startsWith("<root>|publish-dry-run|CI workspace publish dry-run preflight")));
+        assertFalse(summaries.stream().anyMatch(
+                summary -> summary.startsWith("modules/core|publish-dry-run")));
+        assertFalse(summaries.stream().anyMatch(
+                summary -> summary.startsWith("apps/api|publish-dry-run")));
         assertTrue(summaries.contains("apps/api|target/test-reports/apps/api|CI context expected JUnit XML reports, but the report directory is missing."));
         assertTrue(summaries.contains("apps/api|target/coverage|CI context expected coverage reports, but the coverage directory is missing."));
         assertFalse(summaries.stream().anyMatch(summary -> summary.startsWith("modules/core|target/test-reports")));
