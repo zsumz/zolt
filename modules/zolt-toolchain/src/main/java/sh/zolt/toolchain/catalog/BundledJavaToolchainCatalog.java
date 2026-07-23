@@ -13,6 +13,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
     private static final String GRAALVM_JDK_21 = "21.0.2";
@@ -22,13 +23,20 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
             new HostPlatform(OperatingSystem.LINUX, Architecture.AARCH64),
             new HostPlatform(OperatingSystem.MACOS, Architecture.X64),
             new HostPlatform(OperatingSystem.MACOS, Architecture.AARCH64));
+    // windows-x64 is lockable on request (so a Windows host can `toolchain sync` a checksum-verified
+    // JDK) but is intentionally NOT part of the default multi-platform set enumerated by locks()/
+    // available(); promoting it into the committed multi-platform lockfile is a separate change.
+    private static final List<HostPlatform> LOCKABLE_PLATFORMS = Stream.concat(
+                    SUPPORTED_PLATFORMS.stream(),
+                    Stream.of(new HostPlatform(OperatingSystem.WINDOWS, Architecture.X64)))
+            .toList();
 
     @Override
     public Optional<LockedJavaToolchain> lock(JavaToolchainRequest request, HostPlatform platform) {
         if (!"21".equals(request.version()) || request.distribution().isEmpty()) {
             return Optional.empty();
         }
-        if (!SUPPORTED_PLATFORMS.contains(platform)) {
+        if (!LOCKABLE_PLATFORMS.contains(platform)) {
             return Optional.empty();
         }
         JavaDistribution distribution = request.distribution().orElseThrow();
@@ -116,18 +124,23 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
             JavaDistribution distribution,
             JavaToolchainRequest request,
             HostPlatform platform) {
+        boolean windows = platform.os() == OperatingSystem.WINDOWS;
+        String exe = windows ? ".exe" : "";
         String javaHome = platform.os() == OperatingSystem.MACOS ? "Contents/Home" : ".";
         String nativeImage = "";
         if (request.features().contains(JavaFeature.NATIVE_IMAGE)) {
-            nativeImage = distribution == JavaDistribution.GRAALVM_COMMUNITY
-                    ? "lib/svm/bin/native-image"
-                    : "bin/native-image";
+            if (distribution == JavaDistribution.GRAALVM_COMMUNITY) {
+                // GraalVM ships native-image under lib/svm/bin; on Windows it is a .cmd launcher.
+                nativeImage = windows ? "lib/svm/bin/native-image.cmd" : "lib/svm/bin/native-image";
+            } else {
+                nativeImage = "bin/native-image" + exe;
+            }
         }
         return new JavaToolchainLayout(
                 javaHome,
-                "bin/java",
-                "bin/javac",
-                "bin/jar",
+                "bin/java" + exe,
+                "bin/javac" + exe,
+                "bin/jar" + exe,
                 nativeImage);
     }
 
@@ -147,7 +160,7 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
             case MACOS -> platform.arch() == Architecture.X64
                     ? "OpenJDK21U-jdk_x64_mac_hotspot_21.0.11_10.tar.gz"
                     : "OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.11_10.tar.gz";
-            case WINDOWS -> "";
+            case WINDOWS -> "OpenJDK21U-jdk_x64_windows_hotspot_21.0.11_10.zip";
         };
         if (platformPath.isBlank()) {
             return Optional.empty();
@@ -157,6 +170,7 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
             case "linux-aarch64" -> "8d498ec88e1c1989fab95c6784240ab92d011e29c54d20a3f9c324b13476f9ad";
             case "macos-x64" -> "34180eb03e6d207c388cce3da668f6cc7cd7508c185c24782fadac2c9c0e66f9";
             case "macos-aarch64" -> "6ebcf221c9b41507b14c098e93c6ead6440b8d9bd154f8ec666c4c73abbdb201";
+            case "windows-x64" -> "d3625e7cadf23787ea540229544b6e2ab494b3b54da1801879e583e1dfee0a64";
             default -> "";
         };
         if (sha256.isBlank()) {
@@ -170,7 +184,7 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
     }
 
     private static Optional<PinnedArtifact> graalVmCommunityArtifact(HostPlatform platform) {
-        if (!SUPPORTED_PLATFORMS.contains(platform)) {
+        if (!LOCKABLE_PLATFORMS.contains(platform)) {
             return Optional.empty();
         }
         String sha256 = switch (platform.id()) {
@@ -178,6 +192,7 @@ public final class BundledJavaToolchainCatalog implements JavaToolchainCatalog {
             case "linux-aarch64" -> "a34be691ce68f0acf4655c7c6c63a9a49ed276a11859d7224fd94fc2f657cd7a";
             case "macos-x64" -> "7a8aa93fa45d1721908477abf4732a32637d420ffcb66ada9fb6456440b0d9e1";
             case "macos-aarch64" -> "515e3a93acc7e1938daba83eda4272e5495fd302d7cdd99ec7ebf408ed505ab7";
+            case "windows-x64" -> "e17b7bead097bf372a5c75df17815b0a2f30b777a019d25eff7706b21421f7fa";
             default -> "";
         };
         if (sha256.isBlank()) {

@@ -67,22 +67,34 @@ final class BundledJavaToolchainCatalogTest {
                         ToolchainPolicy.PREFER_MANAGED),
                 HostPlatform.parse("macos-aarch64"));
 
+        // windows-x64 is lockable on request but intentionally absent from the default matrix.
         assertEquals(List.of("linux-x64", "linux-aarch64", "macos-x64", "macos-aarch64"), locked.stream()
                 .map(java -> java.platform().id())
                 .toList());
     }
 
     @Test
-    void rejectsUnsupportedWindowsToolchainTargetsForNow() {
-        Optional<LockedJavaToolchain> locked = catalog.lock(
+    void locksWindowsGraalVmNativeImageToolchainWithExeLayout() {
+        LockedJavaToolchain locked = catalog.lock(
                 new JavaToolchainRequest(
                         "21",
                         JavaDistribution.GRAALVM_COMMUNITY,
                         Set.of(JavaFeature.NATIVE_IMAGE),
                         ToolchainPolicy.PREFER_MANAGED),
-                HostPlatform.parse("windows-x64"));
+                HostPlatform.parse("windows-x64")).orElseThrow();
 
-        assertTrue(locked.isEmpty());
+        assertEquals("bin/java.exe", locked.layout().java());
+        assertEquals("bin/javac.exe", locked.layout().javac());
+        assertEquals("bin/jar.exe", locked.layout().jar());
+        assertEquals("lib/svm/bin/native-image.cmd", locked.layout().nativeImage());
+        assertTrue(locked.artifactUri().endsWith("graalvm-community-jdk-21.0.2_windows-x64_bin.zip"));
+        assertEquals(
+                "e17b7bead097bf372a5c75df17815b0a2f30b777a019d25eff7706b21421f7fa",
+                locked.artifactSha256());
+
+        JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow();
+        assertEquals(JavaToolchainArchiveFormat.ZIP, artifact.format());
+        assertEquals(locked.artifactUri(), artifact.uri().toString());
     }
 
     @Test
@@ -118,6 +130,29 @@ final class BundledJavaToolchainCatalogTest {
                 artifact.uri().toString());
         assertEquals(
                 "6ebcf221c9b41507b14c098e93c6ead6440b8d9bd154f8ec666c4c73abbdb201",
+                artifact.sha256().orElseThrow());
+    }
+
+    @Test
+    void resolvesTemurinWindowsArtifactToPinnedZip() {
+        LockedJavaToolchain locked = catalog.lock(
+                        new JavaToolchainRequest(
+                                "21",
+                                JavaDistribution.TEMURIN,
+                                Set.of(),
+                                ToolchainPolicy.PREFER_MANAGED),
+                        HostPlatform.parse("windows-x64"))
+                .orElseThrow();
+
+        JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow();
+
+        assertEquals("bin/java.exe", locked.layout().java());
+        assertEquals(JavaToolchainArchiveFormat.ZIP, artifact.format());
+        assertEquals(
+                "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_windows_hotspot_21.0.11_10.zip",
+                artifact.uri().toString());
+        assertEquals(
+                "d3625e7cadf23787ea540229544b6e2ab494b3b54da1801879e583e1dfee0a64",
                 artifact.sha256().orElseThrow());
     }
 
