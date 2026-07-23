@@ -120,7 +120,13 @@ zolt package --mode quarkus
 zolt package --mode uber
 zolt package --plan --format json
 zolt publish --dry-run
+zolt publish --dry-run --sbom
 zolt publish --context release
+zolt sbom
+zolt sbom --workspace --output sbom.json
+zolt licenses
+zolt licenses --format json
+zolt licenses --notices THIRD_PARTY.txt
 zolt native
 zolt native --workspace --member apps/zolt
 zolt release-archive --target linux-x64 --binary target/native/zolt
@@ -1113,6 +1119,66 @@ zolt --quiet test
 zolt --color never --progress never check --format json
 zolt --timings --timings-format json package
 ```
+
+## Supply Chain
+
+Zolt reads the resolved dependency graph straight from `zolt.lock` to produce a
+software bill of materials and license reports. Both commands are fully offline:
+a missing cached POM is reported as `UNKNOWN`, never fetched.
+
+`zolt sbom` writes a CycloneDX 1.5 BOM to stdout (or to `--output <path>`). The
+graph, hashes, and per-member attribution all come from the lockfile — there is
+no re-resolution. Output is byte-reproducible: the `serialNumber` is a
+deterministic UUIDv5 of the lockfile fingerprint, and `metadata.timestamp` is
+omitted by default (set it with `--timestamp <iso8601>`, `--timestamp now`, or
+`SOURCE_DATE_EPOCH`).
+
+```sh
+zolt sbom
+zolt sbom --output sbom.json
+zolt sbom --include-test --include-provided --include-tools --include-dev
+zolt sbom --workspace
+```
+
+Compile and runtime dependencies are included by default as CycloneDX
+`required`; provided, dev, test, and tooling scopes are opt-in via the
+`--include-*` flags and emitted as `optional`. `--workspace` aggregates the whole
+workspace into one BOM: a root workspace component, each member as a library
+component, and external dependencies deduped with member→dependency edges from
+the lockfile.
+
+`zolt licenses` groups dependencies by license, normalizing raw Maven license
+names and URLs to SPDX identifiers. Unrecognized licenses stay `UNMAPPED` (raw
+name kept, never guessed); dependencies with no readable license are `UNKNOWN`.
+`--notices <path>` writes a deterministic `THIRD_PARTY` notices file.
+
+```sh
+zolt licenses
+zolt licenses --format json
+zolt licenses --notices THIRD_PARTY.txt
+```
+
+Enforce a license policy under `[dependencyPolicy.licenses]`. A license is
+permitted iff its id is not in `deny` and (`allow` is empty or its id is in
+`allow`) — deny always wins, and a non-empty allow-list is authoritative. The
+`unknown` strictness (`fail`, `warn`, or `allow`; default `warn`) governs
+dependencies with unresolved licenses.
+
+```toml
+[dependencyPolicy.licenses]
+allow = ["Apache-2.0", "MIT", "BSD-3-Clause"]
+deny = ["GPL-3.0-only"]
+unknown = "warn"
+```
+
+`zolt check --check license-policy` (also part of the CI context) fails the build
+when a compile/runtime dependency violates the policy, naming the dependency, the
+license, and the policy line.
+
+`zolt publish --sbom` attaches a CycloneDX SBOM to the publish as a supplemental
+artifact (classifier `cyclonedx`, extension `json`). It rides the existing
+supplemental planner, so checksums and signing apply to it uniformly; it is off
+by default.
 
 ## Migration Explain
 
