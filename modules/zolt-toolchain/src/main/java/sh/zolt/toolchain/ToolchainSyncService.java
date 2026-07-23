@@ -15,6 +15,7 @@ import sh.zolt.toolchain.lock.ToolchainLockfileService;
 import sh.zolt.toolchain.platform.HostPlatform;
 import sh.zolt.toolchain.store.ToolchainStore;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -73,7 +74,8 @@ public final class ToolchainSyncService {
                     "Toolchain sync needs [toolchain.java].distribution.",
                     "Set distribution to graalvm-community or temurin, then rerun `zolt toolchain sync`.");
         }
-        return sync(request, projectRoot.resolve("zolt.lock"), platform, store);
+        Optional<JavaToolchainRequest> testRequest = configReader.readJavaTest(projectRoot.resolve("zolt.toml"));
+        return sync(request, testRequest, projectRoot.resolve("zolt.lock"), platform, store);
     }
 
     public ToolchainSyncResult sync(
@@ -81,32 +83,78 @@ public final class ToolchainSyncService {
             Path lockfile,
             HostPlatform platform,
             ToolchainStore store) {
+        return sync(request, Optional.empty(), lockfile, platform, store);
+    }
+
+    /**
+     * Syncs the main toolchain plus the optional {@code [toolchain.java.test]} runtime toolchain.
+     * Every distinct request's per-platform matrix is written to the lock as additive
+     * {@code [[toolchain.java]]} entries in one deterministic {@code writeJava}, and the current-host
+     * archive is installed for each. An equal-version test request dedups against the main entry, so
+     * it neither duplicates the lock nor triggers a second download. Returns the main toolchain's
+     * install result.
+     */
+    public ToolchainSyncResult sync(
+            JavaToolchainRequest request,
+            Optional<JavaToolchainRequest> testRequest,
+            Path lockfile,
+            HostPlatform platform,
+            ToolchainStore store) {
         HostPlatform effectivePlatform = platform == null ? HostPlatform.current() : platform;
+        ToolchainStore effectiveStore = store == null ? ToolchainStore.defaults() : store;
+        requireDistribution(request);
+        testRequest.ifPresent(this::requireDistribution);
+
+        LinkedHashSet<JavaToolchainRequest> requests = new LinkedHashSet<>();
+        requests.add(request);
+        testRequest.ifPresent(requests::add);
+
+        LinkedHashSet<LockedJavaToolchain> allLocks = new LinkedHashSet<>();
+        for (JavaToolchainRequest each : requests) {
+            allLocks.addAll(catalog.locks(each, effectivePlatform));
+        }
+        lockfiles.writeJava(lockfile, List.copyOf(allLocks));
+
+        ToolchainSyncResult mainResult = null;
+        for (JavaToolchainRequest each : requests) {
+            ToolchainSyncResult result = install(each, effectivePlatform, effectiveStore, lockfile);
+            if (mainResult == null) {
+                mainResult = result;
+            }
+        }
+        return mainResult;
+    }
+
+    private ToolchainSyncResult install(
+            JavaToolchainRequest request,
+            HostPlatform platform,
+            ToolchainStore store,
+            Path lockfile) {
+        LockedJavaToolchain locked = catalog.locks(request, platform).stream()
+                .filter(candidate -> candidate.platform().equals(platform))
+                .findFirst()
+                .orElseThrow(() -> new ActionableException(
+                        "No bundled Java toolchain catalog entry matches this request for "
+                                + platform.id()
+                                + ".",
+                        "Use Java 21 with distribution graalvm-community for native-image, or temurin for JVM-only sync on linux-x64, linux-aarch64, macos-x64, or macos-aarch64."));
+        JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow(() -> new ActionableException(
+                "No downloadable Java toolchain artifact matches this request.",
+                "Update Zolt's bundled toolchain catalog or choose a supported [toolchain.java] distribution."));
+        boolean downloaded = installer.install(locked, artifact, store);
+        return new ToolchainSyncResult(
+                lockfile,
+                locked,
+                store.javaHome(locked),
+                store.installed(locked),
+                downloaded);
+    }
+
+    private void requireDistribution(JavaToolchainRequest request) {
         if (request.distribution().isEmpty()) {
             throw new ActionableException(
                     "Toolchain sync needs a Java distribution.",
                     "Set distribution to graalvm-community or temurin, then rerun `zolt toolchain sync`.");
         }
-        List<LockedJavaToolchain> lockedToolchains = catalog.locks(request, effectivePlatform);
-        LockedJavaToolchain locked = lockedToolchains.stream()
-                .filter(candidate -> candidate.platform().equals(effectivePlatform))
-                .findFirst()
-                .orElseThrow(() -> new ActionableException(
-                        "No bundled Java toolchain catalog entry matches this request for "
-                                + effectivePlatform.id()
-                                + ".",
-                        "Use Java 21 with distribution graalvm-community for native-image, or temurin for JVM-only sync on linux-x64, linux-aarch64, macos-x64, or macos-aarch64."));
-        lockfiles.writeJava(lockfile, lockedToolchains);
-        ToolchainStore effectiveStore = store == null ? ToolchainStore.defaults() : store;
-        JavaToolchainArtifact artifact = catalog.artifact(locked).orElseThrow(() -> new ActionableException(
-                "No downloadable Java toolchain artifact matches this request.",
-                "Update Zolt's bundled toolchain catalog or choose a supported [toolchain.java] distribution."));
-        boolean downloaded = installer.install(locked, artifact, effectiveStore);
-        return new ToolchainSyncResult(
-                lockfile,
-                locked,
-                effectiveStore.javaHome(locked),
-                effectiveStore.installed(locked),
-                downloaded);
     }
 }

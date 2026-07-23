@@ -167,6 +167,83 @@ final class ToolchainSyncServiceTest {
         assertTrue(exception.getMessage().contains("No downloadable Java toolchain artifact"));
     }
 
+    @Test
+    void syncInstallsMainAndTestRuntimeToolchainsAsAdditiveLockEntries() throws IOException {
+        Path project = writeProjectWithTestToolchain("additive-sync", "17");
+        Path archive = fakeJdkArchive(tempDir.resolve("jdk.zip"), false);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        ToolchainSyncService service = new ToolchainSyncService(
+                new ToolchainConfigReader(),
+                new VersionAwareCatalog(archive),
+                new ToolchainLockfileService(),
+                new JavaToolchainInstaller());
+
+        service.sync(project, null, HostPlatform.parse("linux-x64"), store);
+
+        String lock = Files.readString(project.resolve("zolt.lock"));
+        assertEquals(2, countOccurrences(lock, "[[toolchain.java]]"));
+        assertTrue(lock.contains("request.version = \"21\""));
+        assertTrue(lock.contains("request.version = \"17\""));
+        assertTrue(store.installed(new VersionAwareCatalog(archive)
+                .lock(temurin("21"), HostPlatform.parse("linux-x64")).orElseThrow()));
+        assertTrue(store.installed(new VersionAwareCatalog(archive)
+                .lock(temurin("17"), HostPlatform.parse("linux-x64")).orElseThrow()));
+    }
+
+    @Test
+    void syncDedupsEqualVersionTestRuntimeToolchain() throws IOException {
+        Path project = writeProjectWithTestToolchain("dedup-sync", "21");
+        Path archive = fakeJdkArchive(tempDir.resolve("jdk.zip"), false);
+        ToolchainStore store = new ToolchainStore(tempDir.resolve("toolchains"));
+        ToolchainSyncService service = new ToolchainSyncService(
+                new ToolchainConfigReader(),
+                new VersionAwareCatalog(archive),
+                new ToolchainLockfileService(),
+                new JavaToolchainInstaller());
+
+        service.sync(project, null, HostPlatform.parse("linux-x64"), store);
+
+        String lock = Files.readString(project.resolve("zolt.lock"));
+        assertEquals(1, countOccurrences(lock, "[[toolchain.java]]"));
+    }
+
+    private static JavaToolchainRequest temurin(String version) {
+        return new JavaToolchainRequest(version, JavaDistribution.TEMURIN, Set.of(), ToolchainPolicy.REQUIRE_MANAGED);
+    }
+
+    private static int countOccurrences(String content, String token) {
+        int count = 0;
+        int index = content.indexOf(token);
+        while (index >= 0) {
+            count++;
+            index = content.indexOf(token, index + token.length());
+        }
+        return count;
+    }
+
+    private Path writeProjectWithTestToolchain(String name, String testVersion) throws IOException {
+        Path project = tempDir.resolve(name);
+        Files.createDirectories(project);
+        Files.writeString(project.resolve("zolt.toml"), """
+                [project]
+                name = "%s"
+                version = "0.1.0"
+                group = "com.example"
+                java = "17"
+
+                [toolchain.java]
+                version = "21"
+                distribution = "temurin"
+                features = []
+                policy = "require-managed"
+
+                [toolchain.java.test]
+                version = "%s"
+                """.formatted(name, testVersion));
+        Files.writeString(project.resolve("zolt.lock"), "version = 1\n\n");
+        return project;
+    }
+
     private Path writeProject(String name) throws IOException {
         Path project = tempDir.resolve(name);
         Files.createDirectories(project);
@@ -276,6 +353,34 @@ final class ToolchainSyncServiceTest {
         @Override
         public Optional<JavaToolchainArtifact> artifact(LockedJavaToolchain locked) {
             return artifact;
+        }
+    }
+
+    /** Catalog that mints a distinct lock entry per requested version, so additive multi-version syncs can be exercised. */
+    private record VersionAwareCatalog(Path archive) implements JavaToolchainCatalog {
+        @Override
+        public Optional<LockedJavaToolchain> lock(JavaToolchainRequest request, HostPlatform platform) {
+            boolean nativeImage = request.features().contains(JavaFeature.NATIVE_IMAGE);
+            JavaDistribution distribution = request.distribution().orElseThrow();
+            String id = "java-" + distribution.id() + "-" + request.version()
+                    + (nativeImage ? "-native-image" : "");
+            return Optional.of(new LockedJavaToolchain(
+                    id,
+                    request,
+                    platform,
+                    request.version(),
+                    distribution,
+                    "test:" + id,
+                    JavaToolchainLayout.standard(nativeImage)));
+        }
+
+        @Override
+        public Optional<JavaToolchainArtifact> artifact(LockedJavaToolchain locked) {
+            return Optional.of(new JavaToolchainArtifact(
+                    archive.toUri(),
+                    JavaToolchainArchiveFormat.ZIP,
+                    Optional.empty(),
+                    true));
         }
     }
 }
