@@ -2,12 +2,18 @@ package sh.zolt.quality.execution;
 
 import static sh.zolt.quality.QualityCheckService.EXECUTION_CONTEXT;
 
+import sh.zolt.project.CoverageSettings;
 import sh.zolt.project.ProjectPathException;
 import sh.zolt.project.ProjectPaths;
 import sh.zolt.quality.QualityCheckContext;
 import sh.zolt.quality.QualityCheckResult;
 import sh.zolt.quality.QualityCheckText;
+import sh.zolt.quality.coverage.CoverageFloorEvaluation;
+import sh.zolt.quality.coverage.CoverageMeasurement;
+import sh.zolt.quality.coverage.CoverageReportException;
+import sh.zolt.quality.coverage.JacocoCoverageReport;
 import sh.zolt.quality.execution.ExecutionSplitEvidence.ShardEvidenceManifest;
+import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,9 +24,11 @@ import java.util.stream.Stream;
 
 final class ExecutionCoverageEvidenceCheck {
     private final ExecutionSplitEvidence splitEvidence;
+    private final ZoltTomlParser tomlParser;
 
-    ExecutionCoverageEvidenceCheck(ExecutionSplitEvidence splitEvidence) {
+    ExecutionCoverageEvidenceCheck(ExecutionSplitEvidence splitEvidence, ZoltTomlParser tomlParser) {
         this.splitEvidence = splitEvidence;
+        this.tomlParser = tomlParser;
     }
 
     List<QualityCheckResult> check(
@@ -103,6 +111,15 @@ final class ExecutionCoverageEvidenceCheck {
             if (!splitCoverageFailures.isEmpty()) {
                 return splitCoverageFailures;
             }
+            List<QualityCheckResult> floorFailures = coverageFloorFailures(
+                    member,
+                    root,
+                    projectRoot,
+                    absoluteCoverageDir,
+                    commandCoverageDir);
+            if (!floorFailures.isEmpty()) {
+                return floorFailures;
+            }
             return List.of(QualityCheckResult.passed(
                     EXECUTION_CONTEXT,
                     member,
@@ -131,6 +148,53 @@ final class ExecutionCoverageEvidenceCheck {
                     exception.getMessage(),
                     "Remove symlinked coverage entries that escape the project, then rerun `zolt check --context ci --coverage-dir " + commandCoverageDir + "`."));
         }
+    }
+
+    private List<QualityCheckResult> coverageFloorFailures(
+            Optional<String> member,
+            Path root,
+            Path projectRoot,
+            Path absoluteCoverageDir,
+            Path commandCoverageDir) {
+        CoverageSettings floors = tomlParser.parseCoverageFloors(root.resolve("zolt.toml"));
+        if (!floors.hasAnyFloor()) {
+            return List.of();
+        }
+        Path jacocoXml = absoluteCoverageDir.resolve("jacoco.xml");
+        if (!ProjectPaths.isRegularFileInsideProject(root, "--coverage-dir", jacocoXml)) {
+            // Floors are configured but no aggregate XML report is present (for example split-only
+            // coverage); keep the existing evidence behavior rather than inventing a new requirement.
+            return List.of();
+        }
+        CoverageMeasurement measurement;
+        try {
+            measurement = JacocoCoverageReport.read(jacocoXml);
+        } catch (CoverageReportException exception) {
+            return List.of(QualityCheckResult.failed(
+                    EXECUTION_CONTEXT,
+                    member,
+                    QualityCheckText.displayPath(projectRoot, jacocoXml),
+                    "Could not read the Jacoco coverage report: " + exception.getMessage(),
+                    "Rerun `zolt coverage` to regenerate " + commandCoverageDir
+                            + "/jacoco.xml, then rerun `zolt check --context ci --coverage-dir "
+                            + commandCoverageDir + "`."));
+        }
+        CoverageFloorEvaluation evaluation = CoverageFloorEvaluation.evaluate(floors, measurement);
+        if (evaluation.passed()) {
+            return List.of();
+        }
+        return List.of(QualityCheckResult.failed(
+                EXECUTION_CONTEXT,
+                member,
+                "coverage-floors",
+                evaluation.summary(),
+                coverageFloorNextStep(member, commandCoverageDir)));
+    }
+
+    private static String coverageFloorNextStep(Optional<String> member, Path commandCoverageDir) {
+        String workspace = member.isPresent() ? " --workspace" : "";
+        return "Raise coverage to the configured floors or adjust the [coverage] floors in zolt.toml, then rerun "
+                + "`zolt check" + workspace + " --context ci --coverage-dir " + commandCoverageDir + "`.";
     }
 
     private static String coverageReportsNextStep(Optional<String> member, Path commandCoverageDir) {
