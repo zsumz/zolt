@@ -224,6 +224,60 @@ final class GeneratedSourceQualityCheckTest extends QualityCheckServiceTestSuppo
                 "Use language = \"java\" for MVP generated-source steps.");
     }
 
+    @Test
+    void passesForFreshExecStep() throws IOException {
+        Path projectDir = tempDir.resolve("fresh-exec");
+        Path inputFile = projectDir.resolve("src/main/jooq/config.xml");
+        Path outputFile = projectDir.resolve("target/generated/sources/jooq/com/example/Model.java");
+        Files.createDirectories(inputFile.getParent());
+        Files.createDirectories(outputFile.getParent());
+        Files.writeString(inputFile, "<configuration/>\n");
+        Files.writeString(outputFile, "package com.example; public final class Model {}\n");
+        Files.setLastModifiedTime(inputFile, FileTime.fromMillis(1_000));
+        Files.setLastModifiedTime(outputFile, FileTime.fromMillis(2_000));
+        ProjectConfig config = parseProject(projectDir, execConfig("java-sources"));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertEquals(QualityCheckStatus.PASSED, result.status());
+        assertEquals("[generated.main.model]", result.subject());
+    }
+
+    @Test
+    void reportsExecLaneMismatch() throws IOException {
+        Path projectDir = tempDir.resolve("exec-lane-mismatch");
+        ProjectConfig config = parseProject(projectDir, execConfig("test-sources"));
+
+        QualityCheckResult result = check.check(Optional.empty(), projectDir, config).getFirst();
+
+        assertResult(
+                result,
+                QualityCheckStatus.FAILED,
+                "[generated.main.model]",
+                "Exec step produces test-sources but is declared in the main lane.",
+                "Move it to [generated.test.model] or set produces = \"java-sources\".");
+    }
+
+    private static String execConfig(String produces) {
+        return """
+
+                [versions]
+                jooq = "3.19.15"
+
+                [generated.execTools.jooq]
+                runner = "jvm"
+                coordinates = [{ coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" }]
+                mainClass = "org.jooq.codegen.GenerationTool"
+
+                [generated.main.model]
+                kind = "exec"
+                tool = "jooq"
+                inputs = ["src/main/jooq/config.xml"]
+                output = "target/generated/sources/jooq"
+                produces = "%s"
+                """.formatted(produces);
+    }
+
     private static void assertResult(
             QualityCheckResult result,
             QualityCheckStatus status,

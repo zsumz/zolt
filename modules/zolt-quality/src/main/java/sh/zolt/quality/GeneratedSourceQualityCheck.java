@@ -5,6 +5,7 @@ import sh.zolt.generated.GeneratedSourceEvidenceService;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.project.ProducesLane;
 import sh.zolt.project.ProjectConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -148,13 +149,20 @@ final class GeneratedSourceQualityCheck {
         String subject = generatedSection(checkStep);
         if (step.kind() != GeneratedSourceKind.DECLARED_ROOT
                 && step.kind() != GeneratedSourceKind.OPENAPI
-                && step.kind() != GeneratedSourceKind.PROTOBUF) {
+                && step.kind() != GeneratedSourceKind.PROTOBUF
+                && step.kind() != GeneratedSourceKind.EXEC) {
             return Optional.of(QualityCheckResult.failed(
                     QualityCheckService.GENERATED_SOURCES,
                     member,
                     subject,
                     "Unsupported generated source kind `" + step.kind().configValue() + "`.",
                     "Use declared-root for already generated Java sources."));
+        }
+        if (step.kind() == GeneratedSourceKind.EXEC) {
+            Optional<QualityCheckResult> invalidExec = invalidExecStep(member, checkStep);
+            if (invalidExec.isPresent()) {
+                return invalidExec;
+            }
         }
         if (!"java".equals(step.language())) {
             return Optional.of(QualityCheckResult.failed(
@@ -183,6 +191,41 @@ final class GeneratedSourceQualityCheck {
             if (invalidInput.isPresent()) {
                 return invalidInput;
             }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<QualityCheckResult> invalidExecStep(
+            Optional<String> member,
+            GeneratedSourceCheckStep checkStep) {
+        GeneratedSourceStep step = checkStep.step();
+        String subject = generatedSection(checkStep);
+        if (!"jvm".equals(step.exec().tool().runner())
+                || step.exec().tool().mainClass().isBlank()
+                || step.exec().tool().coordinates().isEmpty()) {
+            return Optional.of(QualityCheckResult.failed(
+                    QualityCheckService.GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Exec step references tool `" + step.exec().toolName() + "` that is not a resolvable jvm tool.",
+                    "Declare [generated.execTools." + step.exec().toolName()
+                            + "] with runner = \"jvm\", coordinates, and mainClass."));
+        }
+        if ("main".equals(checkStep.scope()) && step.exec().produces() == ProducesLane.TEST_SOURCES) {
+            return Optional.of(QualityCheckResult.failed(
+                    QualityCheckService.GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Exec step produces test-sources but is declared in the main lane.",
+                    "Move it to [generated.test." + step.id() + "] or set produces = \"java-sources\"."));
+        }
+        if ("test".equals(checkStep.scope()) && step.exec().produces() == ProducesLane.JAVA_SOURCES) {
+            return Optional.of(QualityCheckResult.failed(
+                    QualityCheckService.GENERATED_SOURCES,
+                    member,
+                    subject,
+                    "Exec step produces java-sources but is declared in the test lane.",
+                    "Move it to [generated.main." + step.id() + "] or set produces = \"test-sources\"."));
         }
         return Optional.empty();
     }
