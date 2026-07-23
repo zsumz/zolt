@@ -4,6 +4,7 @@ import sh.zolt.build.SourceDiscoveryException;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.project.ProducesLane;
 import sh.zolt.project.ProjectPathException;
 import sh.zolt.project.ProjectPaths;
 import java.io.IOException;
@@ -43,9 +44,15 @@ public final class SourceDiscoverer {
             String scope) {
         List<SourceRoot> roots = new ArrayList<>();
         for (GeneratedSourceStep step : steps) {
+            if (step.kind() == GeneratedSourceKind.EXEC
+                    && step.exec().produces() == ProducesLane.RESOURCES) {
+                // exec resources outputs join resource copying, not the compile source roots.
+                continue;
+            }
             if (step.kind() != GeneratedSourceKind.DECLARED_ROOT
                     && step.kind() != GeneratedSourceKind.OPENAPI
-                    && step.kind() != GeneratedSourceKind.PROTOBUF) {
+                    && step.kind() != GeneratedSourceKind.PROTOBUF
+                    && step.kind() != GeneratedSourceKind.EXEC) {
                 throw new SourceDiscoveryException(
                         "Unsupported generated source kind `"
                                 + step.kind().configValue()

@@ -10,6 +10,7 @@ import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
 import sh.zolt.build.fingerprint.BuildFingerprintCheck;
 import sh.zolt.build.fingerprint.BuildFingerprintService;
+import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.build.metadata.BuildMetadataGenerator;
@@ -49,6 +50,7 @@ public final class BuildService {
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
+    private final ExecGeneratedSourceService execGeneratedSourceService;
     private final SpringBootAotGenerationService springBootAotGenerationService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
@@ -92,6 +94,7 @@ public final class BuildService {
         this.jdkDetector = dependencies.jdkDetector();
         this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
         this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
+        this.execGeneratedSourceService = dependencies.execGeneratedSourceService();
         this.springBootAotGenerationService = dependencies.springBootAotGenerationService();
         this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = dependencies.sourceExecutor();
@@ -133,7 +136,7 @@ public final class BuildService {
                     false,
                     ResolveOptions.offline(request.offline()).withRetryCommand("zolt build")));
         }
-        if (openApiToolingMissing(request)) {
+        if (openApiToolingMissing(request) || execToolingMissing(request)) {
             resolveResult = Optional.of(resolveService.resolve(
                     request.projectDirectory(),
                     request.config(),
@@ -153,6 +156,7 @@ public final class BuildService {
         } catch (GeneratedSourceException exception) {
             throw new BuildException(exception.getMessage(), exception);
         }
+        execGeneratedSourceService.generateMain(request.projectDirectory(), request.config(), classpathPackages);
         return new BuildResultWithClasspaths(
                 build(request.projectDirectory(), request.config(), classpaths, resolveResult, classpathPackages),
                 classpaths,
@@ -187,6 +191,36 @@ public final class BuildService {
                 .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI)
                 || config.build().generatedTestSources().stream()
                         .anyMatch(step -> step.kind() == GeneratedSourceKind.OPENAPI);
+    }
+
+    private boolean execToolingMissing(BuildRequest request) {
+        if (!hasExecGeneratedSources(request.config())) {
+            return false;
+        }
+        Path lockfilePath = request.projectDirectory().resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            return false;
+        }
+        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        boolean hasTool = lockfile.packages().stream()
+                .anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_EXEC);
+        if (hasTool) {
+            return false;
+        }
+        if (request.offline()) {
+            throw BuildException.actionable(
+                    "Exec generation requires locked tool artifacts in scope `tool-exec`, "
+                            + "but zolt.lock does not contain them.",
+                    "Run `zolt resolve` without --offline to seed the exec tooling, then retry.");
+        }
+        return true;
+    }
+
+    private static boolean hasExecGeneratedSources(ProjectConfig config) {
+        return config.build().generatedMainSources().stream()
+                .anyMatch(step -> step.kind() == GeneratedSourceKind.EXEC)
+                || config.build().generatedTestSources().stream()
+                        .anyMatch(step -> step.kind() == GeneratedSourceKind.EXEC);
     }
 
     public BuildResult build(Path projectDirectory, ProjectConfig config, ClasspathSet classpaths) {

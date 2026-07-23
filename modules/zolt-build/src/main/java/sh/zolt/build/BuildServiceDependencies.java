@@ -4,6 +4,7 @@ import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.compile.JavacRunner;
 import sh.zolt.build.compile.MainCompileSourceExecutor;
 import sh.zolt.build.fingerprint.BuildFingerprintService;
+import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import sh.zolt.build.incremental.IncrementalCompilePlanner;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
@@ -28,6 +29,7 @@ final class BuildServiceDependencies {
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
+    private final ExecGeneratedSourceService execGeneratedSourceService;
     private final SpringBootAotGenerationService springBootAotGenerationService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final MainCompileSourceExecutor sourceExecutor;
@@ -46,6 +48,7 @@ final class BuildServiceDependencies {
         this.jdkDetector = generatedSourceDependencies.jdkDetector();
         this.openApiGeneratedSourceService = generatedSourceDependencies.openApiGeneratedSourceService();
         this.protobufGeneratedSourceService = generatedSourceDependencies.protobufGeneratedSourceService();
+        this.execGeneratedSourceService = generatedSourceDependencies.execGeneratedSourceService();
         this.springBootAotGenerationService = generatedSourceDependencies.springBootAotGenerationService();
         this.incrementalCompileStateRecorder = generatedSourceDependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = generatedSourceDependencies.sourceExecutor();
@@ -75,6 +78,7 @@ final class BuildServiceDependencies {
                         jdkDetector,
                         new OpenApiGeneratedSourceService(jdkDetector),
                         new ProtobufGeneratedSourceService(),
+                        new ExecGeneratedSourceService(jdkDetector),
                         new SpringBootAotGenerationService(javacRunner),
                         incrementalCompileStateRecorder,
                         new MainCompileSourceExecutor(
@@ -100,6 +104,7 @@ final class BuildServiceDependencies {
                         jdkDetector,
                         new OpenApiGeneratedSourceService(jdkDetector),
                         protobufGeneratedSourceService,
+                        new ExecGeneratedSourceService(jdkDetector),
                         new SpringBootAotGenerationService(javacRunner),
                         incrementalCompileStateRecorder,
                         new MainCompileSourceExecutor(
@@ -148,6 +153,10 @@ final class BuildServiceDependencies {
         return protobufGeneratedSourceService;
     }
 
+    ExecGeneratedSourceService execGeneratedSourceService() {
+        return execGeneratedSourceService;
+    }
+
     SpringBootAotGenerationService springBootAotGenerationService() {
         return springBootAotGenerationService;
     }
@@ -177,6 +186,7 @@ final class BuildServiceDependencies {
             JdkChecker jdkDetector,
             OpenApiGeneratedSourceService openApiGeneratedSourceService,
             ProtobufGeneratedSourceService protobufGeneratedSourceService,
+            ExecGeneratedSourceService execGeneratedSourceService,
             SpringBootAotGenerationService springBootAotGenerationService,
             IncrementalCompileStateRecorder incrementalCompileStateRecorder,
             MainCompileSourceExecutor sourceExecutor) {

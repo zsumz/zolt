@@ -14,6 +14,7 @@ import sh.zolt.build.resources.ResourceCopier;
 import sh.zolt.build.resources.ResourceCopyResult;
 import sh.zolt.build.discovery.SourceDiscoverer;
 import sh.zolt.build.discovery.SourceDiscoveryResult;
+import sh.zolt.build.generatedsource.ExecGeneratedSourceService;
 import sh.zolt.build.generatedsource.OpenApiGeneratedSourceService;
 import sh.zolt.build.incremental.IncrementalCompileStateRecorder;
 import sh.zolt.doctor.JdkChecker;
@@ -35,6 +36,7 @@ public final class TestCompileService {
     private final JdkChecker jdkDetector;
     private final OpenApiGeneratedSourceService openApiGeneratedSourceService;
     private final ProtobufGeneratedSourceService protobufGeneratedSourceService;
+    private final ExecGeneratedSourceService execGeneratedSourceService;
     private final IncrementalCompileStateRecorder incrementalCompileStateRecorder;
     private final TestCompileSourceExecutor sourceExecutor;
 
@@ -78,6 +80,7 @@ public final class TestCompileService {
         this.jdkDetector = dependencies.jdkDetector();
         this.openApiGeneratedSourceService = dependencies.openApiGeneratedSourceService();
         this.protobufGeneratedSourceService = dependencies.protobufGeneratedSourceService();
+        this.execGeneratedSourceService = new ExecGeneratedSourceService(dependencies.jdkDetector());
         this.incrementalCompileStateRecorder = dependencies.incrementalCompileStateRecorder();
         this.sourceExecutor = dependencies.sourceExecutor();
     }
@@ -148,6 +151,7 @@ public final class TestCompileService {
         } catch (GeneratedSourceException exception) {
             throw new BuildException(exception.getMessage(), exception);
         }
+        execGeneratedSourceService.generateTest(projectDirectory, config, classpathPackages);
         SourceDiscoveryResult sources = sourceDiscoverer.discover(projectDirectory, config.build());
         JdkStatus jdkStatus = jdkDetector.detect(config.project().java());
         if (!jdkStatus.ok()) {
