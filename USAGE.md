@@ -262,6 +262,69 @@ release it from the Portal. `--wait-timeout <seconds>` bounds the wait (default
 `300`); on timeout the command errors with the deployment id so you can check its
 progress later in the Central Portal.
 
+### Publishing a BOM and a workspace family
+
+A BOM (bill of materials) publishes a curated version set — workspace members at
+their locked versions plus chosen third-party pins — as the platform other teams
+import. Author it as a dedicated workspace member whose `zolt.toml` has a `[bom]`
+section; the section's presence implies `[package].mode = "bom"`.
+
+```toml
+[project]
+name = "platform-bom"
+group = "com.acme.platform"
+version = "1.4.0"
+
+[bom]
+members = true                 # every workspace member, or an explicit ["core", "http"] list
+
+[bom.versions]                 # mirrors [versions]: fixed literals or { versionRef = "netty" }
+"org.postgresql:postgresql" = "42.7.4"
+
+[bom.imports]                  # mirrors [platforms]: emitted as <type>pom</type><scope>import</scope>
+"com.fasterxml.jackson:jackson-bom" = { versionRef = "jackson" }
+```
+
+A BOM does not compile and has no jar: its artifact is the generated
+`<dependencyManagement>` POM. `zolt build`/`package --workspace` skip its compile
+wave and write `target/publish/<name>-<version>.pom` with package evidence.
+Declaring dependencies, sources, javadoc, tests, or a manifest on a BOM is a
+config error, and `zolt run`/`run-package` error actionably.
+
+`zolt publish --workspace` publishes the whole family in one operation. It runs an
+offline Phase 1 first — per member it resolves config, projects a per-member lock,
+generates and validates the POM (inter-member dependencies render at their locked
+versions), and checks readiness — aggregating every blocker into one report. If
+anything is blocked, nothing uploads. Phase 2 then uploads: Maven Central receives
+one atomic family bundle (one deployment id), while a plain repository receives a
+dependency-ordered sequential upload (providers first, the BOM last) that fails
+fast with an exact `--member` resume command. Members publish at a uniform family
+version by default; `--allow-mixed-versions` pins each member at its own version.
+
+```sh
+zolt publish --workspace --dry-run          # family Phase-1 preflight, no upload
+zolt publish --workspace                     # publish the family to the plain repo
+zolt publish --workspace --central --wait    # one atomic Central bundle
+zolt check --workspace --context ci --require-publish-dry-run   # CI gate
+```
+
+Consumers import the BOM through `[platforms]` and declare its members
+version-less:
+
+```toml
+[platforms]
+"com.acme.platform:acme-bom" = "1.4.0"
+
+[dependencies]
+"com.acme:acme-http" = {}     # version supplied by the imported BOM
+```
+
+`zolt sbom` on a BOM emits a metadata-only CycloneDX document (a BOM has no
+resolved dependency graph) with a note on stderr, never an error. `zolt explain`
+detects an existing Maven `dependencyManagement` BOM (`maven.bom.detected`) and
+`zolt explain --emit-toml` drafts a `[bom]` member from it, routing import-scope
+BOMs to `[bom.imports]` and plain pins to `[bom.versions]`.
+
 Migration and integration commands:
 
 ```sh
