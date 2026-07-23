@@ -466,6 +466,46 @@ machine under `~/.zolt/toolchains`; only the current host's archive is downloade
 when it is missing. Managed downloads are pinned to exact artifact URLs and
 verified with SHA-256 checksums from the lock.
 
+### Test-runtime toolchain
+
+`javac --release N` guarantees your code only calls APIs that exist in Java N, but
+`zolt test` still executes on the build toolchain — so a project that targets 17
+while building on 21 never proves its code actually *runs* on 17. Pin a test-runtime
+toolchain to close that gap: `--release` catches API misuse at compile time, and
+running the tests on the target JRE catches everything else, completing the
+cross-version story.
+
+```toml
+[project]
+java = "17"
+
+[toolchain.java]
+version = "21"
+distribution = "temurin"
+
+[toolchain.java.test]
+version = "17"
+# distribution = "temurin"   # optional; defaults to [toolchain.java].distribution
+```
+
+`[toolchain.java.test]` sets its own `version` (and optional `distribution`),
+inheriting `features` and `policy` from `[toolchain.java]`. It resolves, installs,
+and locks through the same managed-toolchain machinery: `zolt toolchain sync`
+installs it beside the build toolchain, `zolt toolchain status` and `zolt toolchain
+list` show it, and it is recorded as an additive `[[toolchain.java]]` entry in
+`zolt.lock` in the same per-platform, SHA-256-pinned format. An equal-version test
+entry deduplicates against the main entry, so it neither grows the lock nor triggers
+a second download.
+
+When declared, `zolt test`, `zolt coverage`, and `zolt integration-test` compile on
+the build toolchain but **run** the tests on the test-runtime JDK (the Jacoco agent
+attaches on that JRE too). Without the section, tests run on the build toolchain and
+nothing changes. Zolt rejects a test-runtime version older than `[project].java`
+(it would fail with `UnsupportedClassVersionError`) and, when the toolchain is not
+installed, points you at `zolt toolchain sync` — both surfaced by `zolt plan
+--target test` and `zolt doctor`. Integration tests are the strongest use case:
+exercise your build on the JDK your users actually run.
+
 Build, run, test, package, and native commands use the resolved toolchain
 automatically. `zolt exec -- ...` runs an arbitrary command with `JAVA_HOME` and
 `PATH` pointed at the resolved JDK:
