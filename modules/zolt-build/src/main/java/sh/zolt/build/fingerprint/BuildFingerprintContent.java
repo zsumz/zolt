@@ -3,6 +3,7 @@ package sh.zolt.build.fingerprint;
 import sh.zolt.build.BuildException;
 import sh.zolt.classpath.Classpath;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectPathException;
@@ -55,6 +56,7 @@ final class BuildFingerprintContent {
         section(content, "generatedSourceInputs", generatedSourceInputEntries(projectRoot, generatedSteps, cachedState, collectedState));
         section(content, "resources", resourceEntries(projectRoot, resourceRoots, resourceRootKey, config.build(), cachedState, collectedState));
         section(content, "generatedSources", generatedSourceEntries(projectRoot, generatedSourcesDirectory, cachedState, collectedState));
+        section(content, "execOutputs", execOutputEntries(projectRoot, generatedSteps, cachedState, collectedState));
         section(content, "expectedClasses", expectedClasses.entries(projectRoot, sourceRoots, sources, outputDirectory));
         return content.toString();
     }
@@ -156,6 +158,31 @@ final class BuildFingerprintContent {
                             + ". Check that the directory is readable.",
                     exception);
         }
+    }
+
+    private List<String> execOutputEntries(
+            Path projectRoot,
+            List<GeneratedSourceStep> steps,
+            BuildFingerprintState cachedState,
+            Map<Path, BuildFingerprintCachedFileHash> collectedState) {
+        List<Path> files = new ArrayList<>();
+        for (GeneratedSourceStep step : steps) {
+            if (step.kind() != GeneratedSourceKind.EXEC) {
+                continue;
+            }
+            Path output = outputPath(projectRoot, "[generated." + step.id() + "].output", step.output());
+            if (!Files.isDirectory(output)) {
+                continue;
+            }
+            try (Stream<Path> paths = Files.walk(output)) {
+                paths.filter(Files::isRegularFile).map(Path::normalize).forEach(files::add);
+            } catch (IOException exception) {
+                throw new BuildException(
+                        "Could not fingerprint exec output under " + output + ". Check that the directory is readable.",
+                        exception);
+            }
+        }
+        return fileEntries(projectRoot, files, cachedState, collectedState);
     }
 
     private static void section(StringBuilder content, String name, List<String> entries) {

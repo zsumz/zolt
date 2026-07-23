@@ -2,6 +2,9 @@ package sh.zolt.build.resources;
 
 import sh.zolt.build.ResourceCopyException;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.GeneratedSourceKind;
+import sh.zolt.project.GeneratedSourceStep;
+import sh.zolt.project.ProducesLane;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.project.ProjectPathException;
@@ -133,7 +136,66 @@ public final class ResourceCopier {
                 throw new ResourceCopyException(exception.getMessage(), exception);
             }
         }
+        copyExecResources(
+                outputDirectory,
+                projectRoot,
+                execResourceSteps(settings, testResources),
+                targetRelativePaths,
+                copiedResources,
+                skippedResources);
         return new ResourceCopyResult(copiedResources, skippedResources);
+    }
+
+    private static List<GeneratedSourceStep> execResourceSteps(BuildSettings settings, boolean testResources) {
+        List<GeneratedSourceStep> steps = testResources
+                ? settings.generatedTestSources()
+                : settings.generatedMainSources();
+        return steps.stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
+                .filter(step -> step.exec().produces() == ProducesLane.RESOURCES)
+                .toList();
+    }
+
+    private static void copyExecResources(
+            Path outputDirectory,
+            Path projectRoot,
+            List<GeneratedSourceStep> steps,
+            Set<Path> targetRelativePaths,
+            List<Path> copiedResources,
+            List<Path> skippedResources) {
+        for (GeneratedSourceStep step : steps) {
+            Path output = outputPath(projectRoot, "[generated." + step.id() + "].output", step.output());
+            if (!Files.isDirectory(output)) {
+                continue;
+            }
+            Optional<Path> into = step.exec().into().map(Path::of);
+            try (Stream<Path> paths = Files.walk(output)) {
+                List<Path> files = paths.filter(Files::isRegularFile).map(Path::normalize).sorted().toList();
+                for (Path file : files) {
+                    Path relativePath = output.relativize(file).normalize();
+                    Path targetRelativePath = into.map(prefix -> prefix.resolve(relativePath)).orElse(relativePath).normalize();
+                    if (!targetRelativePaths.add(targetRelativePath)) {
+                        throw new ResourceCopyException(
+                                "Duplicate resource path `" + targetRelativePath.toString().replace('\\', '/')
+                                        + "` from exec step [generated." + step.id()
+                                        + "]. Choose a distinct into subtree or output path.");
+                    }
+                    Path target = outputDirectory.resolve(targetRelativePath).normalize();
+                    Files.createDirectories(target.getParent());
+                    if (isCurrent(file, target, Optional.empty())) {
+                        skippedResources.add(file);
+                    } else {
+                        Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+                        copiedResources.add(file);
+                    }
+                }
+            } catch (IOException exception) {
+                throw new ResourceCopyException(
+                        "Could not copy exec resources from " + output + " to " + outputDirectory
+                                + ". Check that the project directories are readable and writable.",
+                        exception);
+            }
+        }
     }
 
     private static boolean isCurrent(Path source, Path target, Optional<byte[]> filteredContent) throws IOException {
