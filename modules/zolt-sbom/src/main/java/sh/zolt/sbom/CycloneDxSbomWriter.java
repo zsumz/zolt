@@ -92,16 +92,28 @@ public final class CycloneDxSbomWriter {
     }
 
     private void component(StringBuilder json, int level, SbomComponent component, boolean includeScope) {
+        boolean hasGroup = !component.group().isBlank();
+        boolean hasVersion = !component.version().isBlank();
+        boolean hasPurl = !component.purl().isBlank();
+        boolean hasScope = includeScope;
         boolean hasHashes = !component.hashes().isEmpty();
         boolean hasLicenses = !component.licenses().isEmpty();
         json.append("{\n");
         stringField(json, level + 1, "type", component.type().jsonValue(), true);
         stringField(json, level + 1, "bom-ref", component.bomRef(), true);
-        stringField(json, level + 1, "group", component.group(), true);
-        stringField(json, level + 1, "name", component.name(), true);
-        stringField(json, level + 1, "version", component.version(), true);
-        stringField(json, level + 1, "purl", component.purl(), includeScope || hasHashes || hasLicenses);
-        if (includeScope) {
+        if (hasGroup) {
+            stringField(json, level + 1, "group", component.group(), true);
+        }
+        stringField(json, level + 1, "name", component.name(),
+                hasVersion || hasPurl || hasScope || hasHashes || hasLicenses);
+        if (hasVersion) {
+            stringField(json, level + 1, "version", component.version(),
+                    hasPurl || hasScope || hasHashes || hasLicenses);
+        }
+        if (hasPurl) {
+            stringField(json, level + 1, "purl", component.purl(), hasScope || hasHashes || hasLicenses);
+        }
+        if (hasScope) {
             stringField(json, level + 1, "scope", component.scope().jsonValue(), hasHashes || hasLicenses);
         }
         if (hasHashes) {

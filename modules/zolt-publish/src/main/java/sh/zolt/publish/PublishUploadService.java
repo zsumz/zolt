@@ -50,8 +50,12 @@ public final class PublishUploadService {
     }
 
     public PublishUploadResult upload(Path projectRoot) {
+        return upload(projectRoot, Optional.empty());
+    }
+
+    public PublishUploadResult upload(Path projectRoot, Optional<Path> sbomFile) {
         Path root = projectRoot.toAbsolutePath().normalize();
-        PublishDryRunPlan plan = dryRunService.plan(root);
+        PublishDryRunPlan plan = dryRunService.plan(root, true, sbomFile);
         if (!plan.ok()) {
             throw new PublishException("Publish is blocked. Run `zolt publish --dry-run` and resolve the reported blockers before uploading.");
         }

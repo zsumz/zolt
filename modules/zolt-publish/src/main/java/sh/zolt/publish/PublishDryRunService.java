@@ -112,12 +112,20 @@ public final class PublishDryRunService {
         return plan(projectRoot, true);
     }
 
+    public PublishDryRunPlan plan(Path projectRoot, boolean requireRepository) {
+        return plan(projectRoot, requireRepository, Optional.empty());
+    }
+
     /**
      * Plans a publish. When {@code requireRepository} is false (used for Maven Central publishing,
      * where the Portal is the target rather than a Maven repository), a repository need not be
      * configured; if none is, the plan reports {@code maven-central} as the routing target.
+     *
+     * <p>{@code sbomFile}, when present, attaches a CycloneDX SBOM as a supplemental artifact
+     * (classifier {@code cyclonedx}, extension {@code json}). It rides the existing supplemental
+     * planner, so checksums and signing apply to it uniformly.
      */
-    public PublishDryRunPlan plan(Path projectRoot, boolean requireRepository) {
+    public PublishDryRunPlan plan(Path projectRoot, boolean requireRepository, Optional<Path> sbomFile) {
         Path root = projectRoot.toAbsolutePath().normalize();
         ProjectConfig config = projectParser.parse(root.resolve("zolt.toml"));
         PublishSettings publish = publishSettingsReader.read(root.resolve("zolt.toml"), config.repositoryCredentials());
@@ -176,11 +184,13 @@ public final class PublishDryRunService {
                 artifactPath,
                 evidencePath,
                 blockers);
+        List<PublishArtifactPlan> supplementalArtifacts = new ArrayList<>(artifactEvidence.supplementalArtifacts());
+        sbomFile.ifPresent(file -> supplementalArtifacts.add(sbomArtifact(root, coordinate, file)));
         List<PublishChecksumSidecar> checksumSidecars = PublishChecksumSidecarPlanner.plan(
                 root,
                 artifactPath,
                 artifactUploadPath,
-                artifactEvidence.supplementalArtifacts(),
+                supplementalArtifacts,
                 pomPath,
                 pomUploadPath);
 
@@ -193,7 +203,7 @@ public final class PublishDryRunService {
                 PublishDryRunArtifactEvidencePlanner.display(root, artifactPath),
                 artifactEvidence.artifactSha256(),
                 artifactUploadPath,
-                artifactEvidence.supplementalArtifacts(),
+                List.copyOf(supplementalArtifacts),
                 PublishDryRunArtifactEvidencePlanner.display(root, evidencePath),
                 PublishDryRunArtifactEvidencePlanner.display(root, pomPath),
                 pomSha256,
@@ -201,6 +211,17 @@ public final class PublishDryRunService {
                 checksumSidecars,
                 "",
                 blockers);
+    }
+
+    private PublishArtifactPlan sbomArtifact(Path root, Coordinate coordinate, Path sbomFile) {
+        String uploadPath = repositoryPathBuilder.artifactPath(
+                new ArtifactDescriptor(coordinate, Optional.of("cyclonedx"), "json"));
+        return new PublishArtifactPlan(
+                "cyclonedx",
+                Optional.of("cyclonedx"),
+                PublishDryRunArtifactEvidencePlanner.display(root, sbomFile),
+                PublishChecksum.sha256(sbomFile),
+                uploadPath);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {

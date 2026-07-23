@@ -1,0 +1,239 @@
+package sh.zolt.sbom;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import sh.zolt.lockfile.LockPackage;
+import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.project.ProjectConfig;
+
+/**
+ * Aggregates a whole workspace into ONE CycloneDX BOM: a root workspace component, each member as a
+ * library component, and external dependencies deduped across members. Member→dependency edges come
+ * from the lockfile {@code members} attribution; external→external edges from {@code dependencies}.
+ *
+ * <p>Member licenses are authoritative from each member's config; external licenses are resolved from
+ * cached POMs (passed in as a {@link LicenseIndex}). The assembler is a pure read of already-parsed
+ * inputs — no filesystem, no network.
+ */
+public final class WorkspaceSbomAssembler {
+    private final SpdxLicenseMapping licenseMapping = new SpdxLicenseMapping();
+
+    public SbomModel assemble(
+            String workspaceName,
+            List<SbomWorkspaceMember> members,
+            ZoltLockfile lockfile,
+            SbomScopeSelection selection,
+            Optional<String> timestamp,
+            String toolVersion,
+            LicenseIndex externalLicenses) {
+        SbomComponent root = rootComponent(workspaceName);
+
+        // Member components (first-party). Coordinate and path both map to the member bom-ref.
+        Map<String, String> coordinateToRef = new TreeMap<>();
+        Map<String, String> memberPathToRef = new LinkedHashMap<>();
+        List<SbomComponent> memberComponents = new ArrayList<>();
+        for (SbomWorkspaceMember member : members) {
+            SbomComponent component = memberComponent(member);
+            memberComponents.add(component);
+            memberPathToRef.put(member.path(), component.bomRef());
+        }
+
+        // External components (scope-filtered, deduped).
+        Map<String, ExternalAccumulator> externals = new LinkedHashMap<>();
+        for (LockPackage lockPackage : lockfile.packages()) {
+            if (lockPackage.workspace().isPresent() || lockPackage.jar().isEmpty()) {
+                continue;
+            }
+            SbomScopeGroup group = SbomScopeGroup.of(lockPackage.scope());
+            if (!selection.includes(group)) {
+                continue;
+            }
+            String purl = LockArtifacts.purl(lockPackage);
+            ExternalAccumulator accumulator = externals.computeIfAbsent(
+                    purl,
+                    ref -> new ExternalAccumulator(
+                            lockPackage.packageId().groupId(),
+                            lockPackage.packageId().artifactId(),
+                            lockPackage.version(),
+                            ref));
+            accumulator.raise(group.componentScope());
+            LockArtifacts.hash(lockPackage).ifPresent(accumulator.hashes::add);
+            String coordinate = LockArtifacts.coordinate(lockPackage);
+            if (LockArtifacts.classifier(lockPackage).isEmpty()) {
+                coordinateToRef.put(coordinate, purl);
+            } else {
+                coordinateToRef.putIfAbsent(coordinate, purl);
+            }
+        }
+        // Members win coordinate mapping over any same-coordinate external (first-party identity).
+        for (SbomComponent member : memberComponents) {
+            coordinateToRef.put(member.group() + ":" + member.name() + ":" + member.version(), member.bomRef());
+        }
+
+        List<SbomComponent> externalComponents = externals.values().stream()
+                .map(accumulator -> accumulator.toComponent(
+                        LockSbomAssembler.emittableLicenses(externalLicenses.forCoordinate(accumulator.coordinate()))))
+                .toList();
+
+        List<SbomComponent> components = new ArrayList<>();
+        components.addAll(memberComponents);
+        components.addAll(externalComponents);
+        components.sort(Comparator.comparing(SbomComponent::bomRef));
+
+        List<SbomDependency> dependencies = dependencyGraph(root, memberComponents, components, lockfile,
+                coordinateToRef, memberPathToRef);
+        String serialNumber = serialNumber(root.bomRef(), lockfile, components);
+        return new SbomModel(
+                serialNumber,
+                timestamp,
+                List.of(new SbomTool("zolt", toolVersion)),
+                root,
+                components,
+                dependencies);
+    }
+
+    private List<SbomDependency> dependencyGraph(
+            SbomComponent root,
+            List<SbomComponent> memberComponents,
+            List<SbomComponent> components,
+            ZoltLockfile lockfile,
+            Map<String, String> coordinateToRef,
+            Map<String, String> memberPathToRef) {
+        Map<String, TreeSet<String>> edges = new TreeMap<>();
+        edges.put(root.bomRef(), new TreeSet<>());
+        for (SbomComponent component : components) {
+            edges.computeIfAbsent(component.bomRef(), ref -> new TreeSet<>());
+        }
+
+        // The workspace root contains every member.
+        for (SbomComponent member : memberComponents) {
+            edges.get(root.bomRef()).add(member.bomRef());
+        }
+
+        for (LockPackage lockPackage : lockfile.packages()) {
+            String ref = coordinateToRef.get(LockArtifacts.coordinate(lockPackage));
+            if (ref == null) {
+                continue;
+            }
+            // members attribution: each member that depends on this package.
+            for (String memberPath : lockPackage.members()) {
+                String usingRef = memberPathToRef.get(memberPath);
+                if (usingRef != null) {
+                    edges.get(usingRef).add(ref);
+                }
+            }
+            // external -> external edges from the dependency graph.
+            if (lockPackage.workspace().isEmpty()) {
+                for (String edge : lockPackage.dependencies()) {
+                    String target = coordinateToRef.get(edge);
+                    if (target != null) {
+                        edges.get(ref).add(target);
+                    }
+                }
+            }
+        }
+
+        List<SbomDependency> dependencies = new ArrayList<>();
+        for (var edge : edges.entrySet()) {
+            dependencies.add(new SbomDependency(edge.getKey(), List.copyOf(edge.getValue())));
+        }
+        return dependencies;
+    }
+
+    private SbomComponent rootComponent(String workspaceName) {
+        // A workspace is not a published Maven artifact, so the root carries a non-purl bom-ref and no
+        // group/version/purl (the writer omits blank identity fields).
+        return new SbomComponent(
+                SbomComponentType.APPLICATION,
+                "workspace:" + workspaceName,
+                "",
+                workspaceName,
+                "",
+                "",
+                SbomComponentScope.REQUIRED,
+                List.of(),
+                List.of());
+    }
+
+    private SbomComponent memberComponent(SbomWorkspaceMember member) {
+        ProjectConfig config = member.config();
+        String group = config.project().group();
+        String name = config.project().name();
+        String version = config.project().version();
+        String extension = switch (config.packageSettings().mode()) {
+            case WAR, SPRING_BOOT_WAR -> "war";
+            case THIN, SPRING_BOOT, QUARKUS, UBER -> "jar";
+        };
+        String purl = PurlWriter.purl(group, name, version, extension, Optional.empty());
+        return new SbomComponent(
+                SbomComponentType.LIBRARY,
+                purl,
+                group,
+                name,
+                version,
+                purl,
+                SbomComponentScope.REQUIRED,
+                List.of(),
+                LockSbomAssembler.emittableLicenses(memberLicenses(config)));
+    }
+
+    private List<SbomLicense> memberLicenses(ProjectConfig config) {
+        String license = config.packageSettings().metadata().license();
+        String licenseUrl = config.packageSettings().metadata().licenseUrl();
+        Optional<String> name = license.isBlank() ? Optional.empty() : Optional.of(license);
+        Optional<String> url = licenseUrl.isBlank() ? Optional.empty() : Optional.of(licenseUrl);
+        if (name.isEmpty() && url.isEmpty()) {
+            return List.of();
+        }
+        return List.of(licenseMapping.spdxId(name, url)
+                .map(SbomLicense::spdx)
+                .orElseGet(() -> SbomLicense.unmapped(name, url)));
+    }
+
+    private String serialNumber(String rootRef, ZoltLockfile lockfile, List<SbomComponent> components) {
+        String seed = lockfile.projectResolutionFingerprint()
+                .filter(fingerprint -> !fingerprint.isBlank())
+                .orElseGet(() -> SbomSerialNumber.fallbackSeed(
+                        rootRef, components.stream().map(SbomComponent::purl).toList()));
+        return SbomSerialNumber.serialNumber(seed);
+    }
+
+    private static final class ExternalAccumulator {
+        private final String group;
+        private final String name;
+        private final String version;
+        private final String bomRef;
+        private final TreeSet<SbomHash> hashes = new TreeSet<>(
+                Comparator.comparing(SbomHash::alg).thenComparing(SbomHash::content));
+        private SbomComponentScope scope = SbomComponentScope.OPTIONAL;
+
+        private ExternalAccumulator(String group, String name, String version, String bomRef) {
+            this.group = group;
+            this.name = name;
+            this.version = version;
+            this.bomRef = bomRef;
+        }
+
+        private void raise(SbomComponentScope candidate) {
+            if (candidate == SbomComponentScope.REQUIRED) {
+                scope = SbomComponentScope.REQUIRED;
+            }
+        }
+
+        private String coordinate() {
+            return group + ":" + name + ":" + version;
+        }
+
+        private SbomComponent toComponent(List<SbomLicense> licenses) {
+            return new SbomComponent(
+                    SbomComponentType.LIBRARY, bomRef, group, name, version, bomRef,
+                    scope, List.copyOf(hashes), licenses);
+        }
+    }
+}

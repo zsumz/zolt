@@ -47,6 +47,63 @@ abstract class SbomTestSupport {
                 List.of());
     }
 
+    protected static SbomWorkspaceMember member(String path, String group, String name, String version) {
+        return new SbomWorkspaceMember(path, ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata(name, version, group, "21", Optional.empty()),
+                java.util.Map.of("central", "https://repo.maven.apache.org/maven2"),
+                java.util.Map.of(),
+                java.util.Map.of(),
+                BuildSettings.defaults()));
+    }
+
+    protected static LockPackage workspacePackage(
+            String group, String name, String version, String path, List<String> members) {
+        return new LockPackage(
+                new PackageId(group, name),
+                version,
+                "workspace",
+                DependencyScope.COMPILE,
+                true,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(path),
+                Optional.of("target/classes"),
+                List.of(),
+                members);
+    }
+
+    protected static LockPackage externalWithMembers(
+            String group,
+            String name,
+            String version,
+            DependencyScope scope,
+            String jarSha256,
+            List<String> dependencies,
+            List<String> members) {
+        String base = group.replace('.', '/') + "/" + name + "/" + version + "/" + name + "-" + version;
+        return new LockPackage(
+                new PackageId(group, name),
+                version,
+                "maven-central",
+                scope,
+                false,
+                Optional.of(base + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of(jarSha256),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                members,
+                List.of(),
+                List.of());
+    }
+
     protected static LockPackage maven(
             String group,
             String artifact,

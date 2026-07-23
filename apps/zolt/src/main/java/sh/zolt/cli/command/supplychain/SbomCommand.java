@@ -34,8 +34,13 @@ import sh.zolt.sbom.SbomModel;
 import sh.zolt.sbom.SbomScopeGroup;
 import sh.zolt.sbom.SbomScopeSelection;
 import sh.zolt.sbom.SbomTimestamp;
+import sh.zolt.sbom.SbomWorkspaceMember;
+import sh.zolt.sbom.WorkspaceSbomAssembler;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.ZoltTomlParser;
+import sh.zolt.workspace.WorkspaceConfigException;
+import sh.zolt.workspace.discovery.WorkspaceDiscoveryService;
+import sh.zolt.workspace.service.Workspace;
 
 @Command(name = "sbom", description = "Generate a CycloneDX software bill of materials from zolt.lock.")
 public final class SbomCommand implements Runnable {
@@ -50,9 +55,14 @@ public final class SbomCommand implements Runnable {
     private final Clock clock;
     private final Map<String, String> environment;
     private final String toolVersion;
+    private final WorkspaceDiscoveryService workspaceDiscovery = new WorkspaceDiscoveryService();
+    private final WorkspaceSbomAssembler workspaceAssembler = new WorkspaceSbomAssembler();
 
     @Mixin
     private CommandProjectDirectory projectDirectory = new CommandProjectDirectory();
+
+    @Option(names = "--workspace", description = "Aggregate the discovered workspace into one BOM.")
+    private boolean workspace;
 
     @Option(names = "--format", paramLabel = "<FORMAT>", description = "Output format: cyclonedx.")
     private Format format = Format.CYCLONEDX;
@@ -122,30 +132,21 @@ public final class SbomCommand implements Runnable {
     @Override
     public void run() {
         try {
-            Path projectRoot = projectDirectory.path();
-            Path lockfilePath = projectRoot.resolve("zolt.lock");
-            if (!Files.isRegularFile(lockfilePath)) {
-                throw new ActionableException(ActionableError.of(
-                        "No zolt.lock found at " + lockfilePath + ".",
-                        "Run `zolt resolve` to generate it, then re-run `zolt sbom`."));
-            }
-            ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
-            ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
             Optional<String> resolvedTimestamp =
                     SbomTimestamp.resolve(Optional.ofNullable(timestamp), environment, clock);
             SbomScopeSelection selection =
                     new SbomScopeSelection(includeProvided, includeDev, includeTest, includeTools);
-            LicenseIndex licenses = resolveLicenses(lockfile, selection);
-            SbomModel model =
-                    assembler.assemble(config, lockfile, selection, resolvedTimestamp, toolVersion, licenses);
-            String document = cycloneDxWriter.write(model);
+            Assembled assembled = workspace
+                    ? assembleWorkspace(selection, resolvedTimestamp)
+                    : assembleProject(selection, resolvedTimestamp);
+            String document = cycloneDxWriter.write(assembled.model());
             if (output != null) {
                 writeToFile(document);
             } else {
                 CommandOutput.printAndFlush(spec, document);
             }
-            warnOnUnknownLicenses(licenses);
-        } catch (LockfileReadException | ZoltConfigException | ActionableException exception) {
+            warnOnUnknownLicenses(assembled.licenses());
+        } catch (LockfileReadException | ZoltConfigException | ActionableException | WorkspaceConfigException exception) {
             throw CommandFailures.user(spec, exception);
         } catch (IOException exception) {
             throw CommandFailures.user(
@@ -153,6 +154,45 @@ public final class SbomCommand implements Runnable {
                     "Could not write the SBOM to " + output + ".",
                     exception);
         }
+    }
+
+    private Assembled assembleProject(SbomScopeSelection selection, Optional<String> timestampValue) {
+        Path projectRoot = projectDirectory.path();
+        Path lockfilePath = projectRoot.resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            throw new ActionableException(ActionableError.of(
+                    "No zolt.lock found at " + lockfilePath + ".",
+                    "Run `zolt resolve` to generate it, then re-run `zolt sbom`."));
+        }
+        ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
+        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        LicenseIndex licenses = resolveLicenses(lockfile, selection);
+        SbomModel model = assembler.assemble(config, lockfile, selection, timestampValue, toolVersion, licenses);
+        return new Assembled(model, licenses);
+    }
+
+    private Assembled assembleWorkspace(SbomScopeSelection selection, Optional<String> timestampValue) {
+        Workspace discovered = workspaceDiscovery.discover(projectDirectory.path())
+                .orElseThrow(() -> new ActionableException(ActionableError.of(
+                        "No Zolt workspace was found for `zolt sbom --workspace`.",
+                        "Run from a workspace root, or drop --workspace to build a single-project SBOM.")));
+        Path lockfilePath = discovered.root().resolve("zolt.lock");
+        if (!Files.isRegularFile(lockfilePath)) {
+            throw new ActionableException(ActionableError.of(
+                    "No zolt.lock found at " + lockfilePath + ".",
+                    "Run `zolt resolve --workspace` to generate it, then re-run `zolt sbom --workspace`."));
+        }
+        ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
+        LicenseIndex licenses = resolveLicenses(lockfile, selection);
+        List<SbomWorkspaceMember> members = discovered.members().stream()
+                .map(member -> new SbomWorkspaceMember(member.path(), member.config()))
+                .toList();
+        SbomModel model = workspaceAssembler.assemble(
+                discovered.config().name(), members, lockfile, selection, timestampValue, toolVersion, licenses);
+        return new Assembled(model, licenses);
+    }
+
+    private record Assembled(SbomModel model, LicenseIndex licenses) {
     }
 
     private LicenseIndex resolveLicenses(ZoltLockfile lockfile, SbomScopeSelection selection) {
