@@ -1,10 +1,13 @@
 package sh.zolt.cli.command.publish;
 
 import sh.zolt.build.PackageException;
+import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandProgress;
 import sh.zolt.cli.command.CommandFailures;
+import sh.zolt.cli.command.CommandLockfiles;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
+import sh.zolt.cli.command.CommandWorkspaceSelections;
 import sh.zolt.cli.console.ProgressWriter;
 import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.publish.CentralPortalClient;
@@ -27,6 +30,10 @@ import sh.zolt.publish.PublishUploadService;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.cli.ZoltCli;
 import sh.zolt.toml.ZoltConfigException;
+import sh.zolt.workspace.WorkspaceConfigException;
+import sh.zolt.workspace.publish.WorkspacePublishReport;
+import sh.zolt.workspace.publish.WorkspacePublishService;
+import sh.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -48,7 +55,31 @@ public final class PublishCommand implements Callable<Integer> {
     private final PublishUploadService uploadService;
     private final PublishCentralReadinessService centralReadinessService;
     private final PublishCentralPublishService centralPublishService;
+    private final WorkspacePublishService workspacePublishService;
+    private final CommandLockfiles lockfiles;
     private final PublishSbomArtifactGenerator sbomGenerator = new PublishSbomArtifactGenerator();
+
+    @Option(names = "--workspace", description = "Publish workspace members (and their BOM) as one family in dependency order.")
+    private boolean workspace;
+
+    @Option(names = "--all", description = "Select every workspace member.")
+    private boolean all;
+
+    @Option(names = "--member", description = "Select a workspace member by declared path. May be repeated.")
+    private List<String> members = List.of();
+
+    @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
+    private List<String> memberGroups = List.of();
+
+    @Option(names = "--allow-mixed-versions",
+            description = "Allow workspace family members to publish at divergent versions (default: require a uniform version).")
+    private boolean allowMixedVersions;
+
+    @Option(names = "--offline", description = "Use only artifacts already present in the local cache.")
+    private boolean offline;
+
+    @Option(names = "--cache-root", hidden = true)
+    private Path cacheRoot = LocalArtifactCache.defaultRoot();
 
     @Option(names = "--dry-run", description = "Preview target routing, artifact evidence, and blockers without uploading.")
     private boolean dryRun;
@@ -81,7 +112,9 @@ public final class PublishCommand implements Callable<Integer> {
                 new PublishReleasePolicyService(),
                 new PublishUploadService(CommandNetwork.repositoryClient()),
                 new PublishCentralReadinessService(),
-                new PublishCentralPublishService(new CentralPortalClient(CommandNetwork.defaultTransport())));
+                new PublishCentralPublishService(new CentralPortalClient(CommandNetwork.defaultTransport())),
+                new WorkspacePublishService(),
+                new CommandLockfiles());
     }
 
     PublishCommand(
@@ -89,12 +122,16 @@ public final class PublishCommand implements Callable<Integer> {
             PublishReleasePolicyService releasePolicyService,
             PublishUploadService uploadService,
             PublishCentralReadinessService centralReadinessService,
-            PublishCentralPublishService centralPublishService) {
+            PublishCentralPublishService centralPublishService,
+            WorkspacePublishService workspacePublishService,
+            CommandLockfiles lockfiles) {
         this.dryRunService = dryRunService;
         this.releasePolicyService = releasePolicyService;
         this.uploadService = uploadService;
         this.centralReadinessService = centralReadinessService;
         this.centralPublishService = centralPublishService;
+        this.workspacePublishService = workspacePublishService;
+        this.lockfiles = lockfiles;
     }
 
     @Override
@@ -114,6 +151,9 @@ public final class PublishCommand implements Callable<Integer> {
             if (wait && waitTimeoutSeconds <= 0) {
                 CommandFailures.printUser(spec, "--wait-timeout must be a positive number of seconds.");
                 return 1;
+            }
+            if (workspace) {
+                return runWorkspacePublish(projectRoot);
             }
             Optional<Path> sbomFile = generateSbom(projectRoot);
             if (central && !dryRun) {
@@ -163,13 +203,58 @@ public final class PublishCommand implements Callable<Integer> {
             CommandOutput.printAndFlush(spec, PublishUploadFormatter.text(result));
             progress.result("Published artifacts");
             return 0;
-        } catch (PublishException | ZoltConfigException | PackageException | LockfileReadException exception) {
+        } catch (PublishException | ZoltConfigException | PackageException | LockfileReadException
+                | WorkspaceConfigException exception) {
             CommandFailures.printUser(spec, exception);
             return 1;
         } catch (UncheckedIOException exception) {
             CommandFailures.printUser(spec, "Could not write the SBOM artifact for publishing: " + exception.getMessage());
             return 1;
         }
+    }
+
+    private Integer runWorkspacePublish(Path projectRoot) {
+        if (context != null) {
+            CommandFailures.printUser(spec, "Publish context policy is not yet supported with --workspace.");
+            return 1;
+        }
+        ProgressWriter progress = CommandProgress.human(spec);
+        lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt publish --workspace");
+        WorkspaceSelectionRequest selection = CommandWorkspaceSelections.from(all, members, memberGroups);
+        WorkspacePublishService.Options options =
+                new WorkspacePublishService.Options(dryRun, central, allowMixedVersions, sbom);
+        progress.start(dryRun ? "Preparing workspace publish" : "Publishing workspace family");
+        WorkspacePublishReport report = workspacePublishService.publish(projectRoot, cacheRoot, selection, options);
+        CommandOutput.printAndFlush(spec, formatWorkspaceReport(report));
+        if (!report.ok()) {
+            return 1;
+        }
+        progress.result(report.uploaded() ? "Published workspace family" : "Prepared workspace publish");
+        return 0;
+    }
+
+    private static String formatWorkspaceReport(WorkspacePublishReport report) {
+        StringBuilder output = new StringBuilder();
+        output.append("Workspace publish family (").append(report.members().size()).append(" member(s)):\n");
+        for (WorkspacePublishReport.Member member : report.members()) {
+            output.append("- ").append(member.coordinate());
+            if (member.bom()) {
+                output.append(" [bom]");
+            }
+            output.append(" -> ").append(member.plan().repositoryId()).append('\n');
+        }
+        if (!report.blockers().isEmpty()) {
+            output.append("Blockers:\n");
+            for (String blocker : report.blockers()) {
+                output.append("- ").append(blocker).append('\n');
+            }
+        }
+        report.deploymentId().ifPresent(id -> output.append("Central deployment id: ").append(id).append('\n'));
+        report.resumeCommand().ifPresent(command -> output.append("Resume with: ").append(command).append('\n'));
+        if (report.ok()) {
+            output.append(report.uploaded() ? "Uploaded the family.\n" : "No blockers. Nothing uploaded (dry run).\n");
+        }
+        return output.toString();
     }
 
     private Optional<Path> generateSbom(Path projectRoot) {

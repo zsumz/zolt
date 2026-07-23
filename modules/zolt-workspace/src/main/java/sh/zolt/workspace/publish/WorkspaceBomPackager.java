@@ -9,12 +9,8 @@ import sh.zolt.publish.PublishPomGenerator;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceMember;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,7 +45,7 @@ public final class WorkspaceBomPackager {
         try {
             Files.createDirectories(publishDirectory);
             Files.writeString(pomPath, pomGenerator.generate(config, familyLock));
-            String pomSha256 = "sha256:" + sha256(pomPath);
+            String pomSha256 = "sha256:" + Sha256.hex(pomPath);
             Files.writeString(evidencePath, evidenceJson(config, artifactBase + ".pom", pomSha256));
         } catch (IOException exception) {
             throw new sh.zolt.workspace.WorkspaceConfigException(
@@ -76,13 +72,5 @@ public final class WorkspaceBomPackager {
                 + "  \"pom\": \"" + pomFile + "\",\n"
                 + "  \"pomSha256\": \"" + pomSha256 + "\"\n"
                 + "}\n";
-    }
-
-    private static String sha256(Path path) throws IOException {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(path)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
     }
 }

@@ -33,6 +33,32 @@ public final class PublishCentralBundle {
         Path root = projectRoot.toAbsolutePath().normalize();
         PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
         List<BundleEntry> entries = new ArrayList<>();
+        addPlan(entries, root, plan, signer);
+        entries.sort(Comparator.comparing(BundleEntry::name));
+
+        Path bundlePath = root.resolve(plan.pomPath()).normalize().getParent().resolve("central-bundle.zip");
+        writeZip(bundlePath, entries);
+        return new PublishCentralBundleResult(bundlePath, entries.stream().map(BundleEntry::name).toList());
+    }
+
+    /**
+     * Assembles ONE deterministic bundle for an entire workspace family — every member's artifact,
+     * POM, checksums, and (when signing) {@code .asc} — Central's atomic deployment unit. A family
+     * publish is one bundle and one deployment id, never per-member deployments.
+     */
+    public PublishCentralBundleResult assembleFamily(Path bundleDirectory, List<Member> members) {
+        PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
+        List<BundleEntry> entries = new ArrayList<>();
+        for (Member member : members) {
+            addPlan(entries, member.memberRoot().toAbsolutePath().normalize(), member.plan(), signer);
+        }
+        entries.sort(Comparator.comparing(BundleEntry::name));
+        Path bundlePath = bundleDirectory.toAbsolutePath().normalize().resolve("central-bundle.zip");
+        writeZip(bundlePath, entries);
+        return new PublishCentralBundleResult(bundlePath, entries.stream().map(BundleEntry::name).toList());
+    }
+
+    private void addPlan(List<BundleEntry> entries, Path root, PublishDryRunPlan plan, PublishSigner signer) {
         if (!plan.pomOnly()) {
             addFile(entries, root.resolve(plan.artifactPath()).normalize(), plan.artifactUploadPath(), signer);
         }
@@ -40,11 +66,10 @@ public final class PublishCentralBundle {
             addFile(entries, root.resolve(supplemental.path()).normalize(), supplemental.uploadPath(), signer);
         }
         addFile(entries, root.resolve(plan.pomPath()).normalize(), plan.pomUploadPath(), signer);
-        entries.sort(Comparator.comparing(BundleEntry::name));
+    }
 
-        Path bundlePath = root.resolve(plan.pomPath()).normalize().getParent().resolve("central-bundle.zip");
-        writeZip(bundlePath, entries);
-        return new PublishCentralBundleResult(bundlePath, entries.stream().map(BundleEntry::name).toList());
+    /** One family member's project root and its (possibly pom-only) plan. */
+    public record Member(Path memberRoot, PublishDryRunPlan plan) {
     }
 
     private void addFile(List<BundleEntry> entries, Path localFile, String uploadPath, PublishSigner signer) {
