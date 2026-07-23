@@ -1,6 +1,5 @@
 package sh.zolt.maven.metadata;
 
-import sh.zolt.dependency.VersionComparator;
 import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RepositoryAccess;
 import sh.zolt.maven.repository.RepositoryClientException;
@@ -25,7 +24,6 @@ public final class RepositoryMetadataService implements VersionDiscovery {
     private final MavenRepositoryClient client;
     private final MavenMetadataParser parser;
     private final MetadataCache cache;
-    private final VersionComparator comparator = new VersionComparator();
 
     public RepositoryMetadataService(MavenRepositoryClient client, MetadataCache cache) {
         this(client, new MavenMetadataParser(), cache);
@@ -45,7 +43,7 @@ public final class RepositoryMetadataService implements VersionDiscovery {
         for (RepositoryAccess repository : repositories) {
             contribute(repository, groupId, artifactId, offline, sourceByVersion, notes);
         }
-        List<String> versions = sourceByVersion.keySet().stream().sorted(comparator).toList();
+        List<String> versions = List.copyOf(sourceByVersion.keySet());
         return new MetadataDiscovery(!versions.isEmpty(), versions, sourceByVersion, notes);
     }
 

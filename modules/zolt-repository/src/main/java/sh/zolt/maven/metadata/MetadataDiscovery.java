@@ -9,8 +9,9 @@ import java.util.Optional;
  *
  * <p>{@code resolved} is false when no listing could be obtained from any repository (all missing,
  * or offline with no cache) — the caller reports status unknown. {@code versions} is the union
- * across repositories, deduped by exact version string and sorted ascending. {@code sourceByVersion}
- * attributes each version to the first repository (in query order) that listed it. {@code notes}
+ * across repositories, deduped by exact version string in query order (version-aware ordering is the
+ * classifier's job). {@code sourceByVersion} attributes each version to the first repository (in
+ * query order) that listed it. {@code notes}
  * carries advisory staleness/offline/failure annotations in deterministic order.
  */
 public record MetadataDiscovery(

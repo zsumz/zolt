@@ -95,7 +95,7 @@ final class CliConfigUpdateHelpSectionSurfaceTest {
         assertFalse(result.stdout().contains("\u001B["));
         assertContainsInOrder(
                 result.stdout(),
-                "Update the installer-managed Zolt binary.",
+                "Update dependency, platform, and version-alias versions in zolt.toml.",
                 "Usage:",
                 "Options:",
                 "--color",
