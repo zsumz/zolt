@@ -37,7 +37,8 @@ final class PublishDryRunFormatterTest {
                         new PublishChecksumSidecar(
                                 "pom", "sha1", "com/example/app/1.0.0/app-1.0.0.pom.sha1", "b2b2")),
                 "release",
-                List.of());
+                List.of(),
+                false);
 
         String text = PublishDryRunFormatter.text(plan);
 
@@ -87,7 +88,8 @@ final class PublishDryRunFormatterTest {
                 "upload/app.pom",
                 List.of(),
                 "",
-                List.of("Release repository is not configured.", "Credentials are missing."));
+                List.of("Release repository is not configured.", "Credentials are missing."),
+                false);
 
         String text = PublishDryRunFormatter.text(plan);
 

@@ -29,44 +29,6 @@ public record PublishDryRunPlan(
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
     }
 
-    /** Backward-compatible constructor for the jar/war shape (a separate main archive plus its POM). */
-    public PublishDryRunPlan(
-            String coordinate,
-            String versionKind,
-            String repositoryId,
-            String repositoryUrl,
-            String artifactId,
-            Path artifactPath,
-            String artifactSha256,
-            String artifactUploadPath,
-            List<PublishArtifactPlan> supplementalArtifacts,
-            Path evidencePath,
-            Path pomPath,
-            String pomSha256,
-            String pomUploadPath,
-            List<PublishChecksumSidecar> checksumSidecars,
-            String context,
-            List<String> blockers) {
-        this(
-                coordinate,
-                versionKind,
-                repositoryId,
-                repositoryUrl,
-                artifactId,
-                artifactPath,
-                artifactSha256,
-                artifactUploadPath,
-                supplementalArtifacts,
-                evidencePath,
-                pomPath,
-                pomSha256,
-                pomUploadPath,
-                checksumSidecars,
-                context,
-                blockers,
-                false);
-    }
-
     public boolean ok() {
         return blockers.isEmpty();
     }

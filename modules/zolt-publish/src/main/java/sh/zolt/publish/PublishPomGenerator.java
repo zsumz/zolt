@@ -340,22 +340,4 @@ public final class PublishPomGenerator {
     private static String coordinate(PackageId packageId) {
         return packageId.groupId() + ":" + packageId.artifactId();
     }
-
-    private record PublishPomDependency(
-            String groupId,
-            String artifactId,
-            String classifier,
-            String version,
-            String type,
-            String scope,
-            boolean optional,
-            List<DependencyExclusionSpec> exclusions) {
-        private PublishPomDependency {
-            exclusions = exclusions == null ? List.of() : List.copyOf(new ArrayList<>(exclusions));
-        }
-
-        private String coordinate() {
-            return groupId + ":" + artifactId;
-        }
-    }
 }

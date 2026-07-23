@@ -55,8 +55,8 @@ public final class WorkspacePublishService {
     private final PublishPomGenerator pomGenerator;
     private final PublishSettingsReader publishSettingsReader;
     private final PublishCentralReadinessService centralReadinessService;
-    private final PackageArtifactPathPlanner artifactPathPlanner;
-    private final MavenRepositoryPathBuilder repositoryPathBuilder;
+    private final PackageArtifactPathPlanner artifactPathPlanner = new PackageArtifactPathPlanner();
+    private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
     private final WorkspaceRepositoryUploader uploader;
     private final WorkspaceCentralPublisher centralPublisher;
 
@@ -69,8 +69,6 @@ public final class WorkspacePublishService {
                 new PublishPomGenerator(),
                 new PublishSettingsReader(),
                 new PublishCentralReadinessService(),
-                new PackageArtifactPathPlanner(),
-                new MavenRepositoryPathBuilder(),
                 new WorkspaceRepositoryUploader(),
                 new WorkspaceCentralPublisher());
     }
@@ -83,8 +81,6 @@ public final class WorkspacePublishService {
             PublishPomGenerator pomGenerator,
             PublishSettingsReader publishSettingsReader,
             PublishCentralReadinessService centralReadinessService,
-            PackageArtifactPathPlanner artifactPathPlanner,
-            MavenRepositoryPathBuilder repositoryPathBuilder,
             WorkspaceRepositoryUploader uploader,
             WorkspaceCentralPublisher centralPublisher) {
         this.workspaceBuildService = workspaceBuildService;
@@ -94,8 +90,6 @@ public final class WorkspacePublishService {
         this.pomGenerator = pomGenerator;
         this.publishSettingsReader = publishSettingsReader;
         this.centralReadinessService = centralReadinessService;
-        this.artifactPathPlanner = artifactPathPlanner;
-        this.repositoryPathBuilder = repositoryPathBuilder;
         this.uploader = uploader;
         this.centralPublisher = centralPublisher;
     }

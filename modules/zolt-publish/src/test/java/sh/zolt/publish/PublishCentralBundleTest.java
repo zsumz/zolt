@@ -116,7 +116,8 @@ final class PublishCentralBundleTest {
                 "com/example/app/1.0.0/app-1.0.0.pom",
                 List.of(),
                 "",
-                List.of());
+                List.of(),
+                false);
     }
 
     private Path isolatedGnupgHome() throws IOException {

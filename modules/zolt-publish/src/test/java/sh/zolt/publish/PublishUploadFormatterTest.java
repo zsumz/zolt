@@ -38,7 +38,8 @@ final class PublishUploadFormatterTest {
                 "com/example/app/1.0.0/app-1.0.0.pom",
                 List.of(),
                 "release",
-                List.of());
+                List.of(),
+                false);
 
         String text = PublishUploadFormatter.text(new PublishUploadResult(plan));
 

@@ -12,17 +12,13 @@ import sh.zolt.maven.Coordinate;
 import sh.zolt.maven.repository.MavenRepositoryPathBuilder;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.VersionPolicy;
 import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -150,16 +146,17 @@ public final class PublishDryRunService {
             if (repository == null) {
                 throw new PublishException("Publish repository `" + repositoryId + "` is not defined.");
             }
-            if (hasEmbeddedCredentials(repository.url())) {
+            if (PublishRepositoryBlockers.hasEmbeddedCredentials(repository.url())) {
                 blockers.add("publish repository `"
                         + repository.id()
                         + "` URL contains embedded credentials. Move credentials to [repositoryCredentials] environment references.");
             }
-            blockers.addAll(credentialBlockers(repository, config.repositoryCredentials()));
+            blockers.addAll(PublishRepositoryBlockers.credentialBlockers(
+                    repository, config.repositoryCredentials(), environment));
         }
         String displayRepositoryId = repository != null ? repository.id() : "maven-central";
         String displayRepositoryUrl = repository != null
-                ? redactedRepositoryUrl(repository.url())
+                ? PublishRepositoryBlockers.redactedRepositoryUrl(repository.url())
                 : PublishCentralSettings.DEFAULT_BASE_URL;
         Coordinate coordinate = coordinate(config);
 
@@ -216,7 +213,8 @@ public final class PublishDryRunService {
                 pomUploadPath,
                 checksumSidecars,
                 "",
-                blockers);
+                blockers,
+                false);
     }
 
     private PublishDryRunPlan bomPlan(
@@ -268,28 +266,6 @@ public final class PublishDryRunService {
                 Optional.of(config.project().version()));
     }
 
-    private static boolean hasEmbeddedCredentials(String url) {
-        try {
-            URI uri = new URI(url);
-            return uri.getRawUserInfo() != null && !uri.getRawUserInfo().isBlank();
-        } catch (URISyntaxException exception) {
-            return false;
-        }
-    }
-
-    private static String redactedRepositoryUrl(String url) {
-        try {
-            URI uri = new URI(url);
-            String userInfo = uri.getRawUserInfo();
-            if (userInfo == null || userInfo.isBlank()) {
-                return url;
-            }
-            return url.replace(userInfo + "@", "***@");
-        } catch (URISyntaxException exception) {
-            return url;
-        }
-    }
-
     private static String selectedArtifactId(List<String> artifacts, PackageMode packageMode) {
         if (artifacts.size() != 1) {
             throw new PublishException("zolt publish --dry-run currently supports one package artifact selector. Use [publish].artifacts = [\"main\"] for the configured package output, or [\""
@@ -335,48 +311,6 @@ public final class PublishDryRunService {
         } catch (LockfileReadException exception) {
             throw new PublishException("Could not plan publish artifact: " + exception.getMessage());
         }
-    }
-
-    private List<String> credentialBlockers(
-            PublishRepositorySettings repository,
-            Map<String, RepositoryCredentialSettings> credentialSettings) {
-        if (repository.credentials().isEmpty()) {
-            return List.of();
-        }
-        RepositoryCredentialSettings credential = credentialSettings.get(repository.credentials().orElseThrow());
-        if (credential == null) {
-            return List.of("missing credential metadata for publish repository `" + repository.id() + "`");
-        }
-        List<String> missing = new ArrayList<>();
-        if (credential.usesToken()) {
-            String tokenEnv = credential.tokenEnv().orElseThrow();
-            if (missingEnvironment(tokenEnv)) {
-                missing.add(tokenEnv);
-            }
-        } else {
-            String usernameEnv = credential.usernameEnv().orElseThrow();
-            String passwordEnv = credential.passwordEnv().orElseThrow();
-            if (missingEnvironment(usernameEnv)) {
-                missing.add(usernameEnv);
-            }
-            if (missingEnvironment(passwordEnv)) {
-                missing.add(passwordEnv);
-            }
-        }
-        if (missing.isEmpty()) {
-            return List.of();
-        }
-        return List.of("missing credential environment "
-                + (missing.size() == 1 ? "variable " : "variables ")
-                + String.join(", ", missing)
-                + " for publish repository `"
-                + repository.id()
-                + "`");
-    }
-
-    private boolean missingEnvironment(String name) {
-        String value = environment.apply(name);
-        return value == null || value.isBlank();
     }
 
     private String writePom(Path root, Path pomPath, ProjectConfig config, ZoltLockfile lockfile) {
