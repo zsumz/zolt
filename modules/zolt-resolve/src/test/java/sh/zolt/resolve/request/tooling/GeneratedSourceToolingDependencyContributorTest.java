@@ -21,6 +21,8 @@ final class GeneratedSourceToolingDependencyContributorTest {
             new PackageId("org.openapitools", "openapi-generator-cli");
     private static final PackageId PROTOC = new PackageId("com.google.protobuf", "protoc");
     private static final PackageId GRPC_PLUGIN = new PackageId("io.grpc", "protoc-gen-grpc-java");
+    private static final PackageId JOOQ_CODEGEN = new PackageId("org.jooq", "jooq-codegen");
+    private static final PackageId POSTGRES = new PackageId("org.postgresql", "postgresql");
 
     private final GeneratedSourceToolingDependencyContributor contributor =
             new GeneratedSourceToolingDependencyContributor(new CoordinateParser());
@@ -134,6 +136,67 @@ final class GeneratedSourceToolingDependencyContributorTest {
         assertEquals(1, requests.stream()
                 .filter(request -> request.packageId().equals(OPENAPI_GENERATOR))
                 .count());
+    }
+
+    @Test
+    void addsEachExecToolCoordinateAsDirectToolRequest() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(execConfig(), requests);
+
+        DependencyRequest jooq = onlyRequest(requests, JOOQ_CODEGEN);
+        assertEquals("3.19.15", jooq.requestedVersion());
+        assertEquals(DependencyScope.TOOL_EXEC, jooq.scope());
+        assertEquals(RequestOrigin.DIRECT, jooq.origin());
+
+        DependencyRequest postgres = onlyRequest(requests, POSTGRES);
+        assertEquals("42.7.4", postgres.requestedVersion());
+        assertEquals(DependencyScope.TOOL_EXEC, postgres.scope());
+    }
+
+    @Test
+    void doesNotDuplicateExecToolCoordinatesAcrossSteps() {
+        List<DependencyRequest> requests = new ArrayList<>();
+
+        contributor.contribute(execConfig(), requests);
+
+        assertEquals(1, requests.stream().filter(request -> request.packageId().equals(JOOQ_CODEGEN)).count());
+        assertEquals(1, requests.stream().filter(request -> request.packageId().equals(POSTGRES)).count());
+    }
+
+    private static ProjectConfig execConfig() {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "exec-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                jooq = "3.19.15"
+
+                [generated.execTools.jooq]
+                runner = "jvm"
+                coordinates = [
+                    { coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" },
+                    { coordinate = "org.postgresql:postgresql", version = "42.7.4" },
+                ]
+                mainClass = "org.jooq.codegen.GenerationTool"
+
+                [generated.main.jooq-model]
+                kind = "exec"
+                tool = "jooq"
+                inputs = ["src/main/jooq/config.xml"]
+                output = "target/generated/sources/jooq"
+                produces = "java-sources"
+
+                [generated.main.jooq-extra]
+                kind = "exec"
+                tool = "jooq"
+                inputs = ["src/main/jooq/extra.xml"]
+                output = "target/generated/sources/jooq-extra"
+                produces = "java-sources"
+                """);
     }
 
     private static DependencyRequest onlyRequest(List<DependencyRequest> requests, PackageId packageId) {

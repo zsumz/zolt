@@ -4,6 +4,7 @@ import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.maven.Coordinate;
 import sh.zolt.maven.CoordinateParser;
+import sh.zolt.project.ExecToolCoordinate;
 import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.OpenApiGenerationSettings;
@@ -26,6 +27,22 @@ public final class GeneratedSourceToolingDependencyContributor {
     public void contribute(ProjectConfig config, List<DependencyRequest> requests) {
         addOpenApiToolRequests(config, requests);
         addProtobufToolRequests(config, requests);
+        addExecToolRequests(config, requests);
+    }
+
+    private void addExecToolRequests(
+            ProjectConfig config,
+            List<DependencyRequest> requests) {
+        for (GeneratedSourceStep step : execSteps(config)) {
+            for (ExecToolCoordinate coordinate : step.exec().tool().coordinates()) {
+                String version = coordinate.version()
+                        .filter(value -> !value.isBlank())
+                        .orElseThrow(() -> new ResolveException(
+                                "Exec tool `" + step.exec().toolName() + "` coordinate " + coordinate.coordinate()
+                                        + " requires a version. Add version or versionRef, run `zolt resolve`, then retry."));
+                addToolRequest(requests, coordinate.coordinate(), version, DependencyScope.TOOL_EXEC);
+            }
+        }
     }
 
     private void addOpenApiToolRequests(
@@ -133,6 +150,17 @@ public final class GeneratedSourceToolingDependencyContributor {
                 .forEach(steps::add);
         config.build().generatedTestSources().stream()
                 .filter(step -> step.kind() == GeneratedSourceKind.PROTOBUF)
+                .forEach(steps::add);
+        return steps;
+    }
+
+    private static List<GeneratedSourceStep> execSteps(ProjectConfig config) {
+        List<GeneratedSourceStep> steps = new ArrayList<>();
+        config.build().generatedMainSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
+                .forEach(steps::add);
+        config.build().generatedTestSources().stream()
+                .filter(step -> step.kind() == GeneratedSourceKind.EXEC)
                 .forEach(steps::add);
         return steps;
     }
