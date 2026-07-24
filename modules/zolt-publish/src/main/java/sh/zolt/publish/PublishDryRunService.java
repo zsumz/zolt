@@ -128,6 +128,31 @@ public final class PublishDryRunService {
         if (!publish.configured()) {
             throw new PublishException("No [publish] configuration found. Add release/snapshot publish repositories before running `zolt publish --dry-run`.");
         }
+        ZoltLockfile lockfile = lockfile(root);
+        Path artifactPath = config.packageSettings().mode() == PackageMode.BOM
+                ? null
+                : packagePlan(root, config).archivePath();
+        return planResolved(root, config, publish, lockfile, artifactPath, requireRepository, sbomFile);
+    }
+
+    /**
+     * Plans a publish from already-resolved inputs — the (policy-merged) project config, publish
+     * settings, and the lockfile that drives POM generation — rather than re-reading them from disk.
+     * This is the reuse seam for {@code zolt publish --workspace}: each member plans against its
+     * projected member lock (directness from the member config, versions from the aggregated lock)
+     * while sharing the single-project supplemental/SBOM/checksum planning, repository-credential and
+     * URL-safety policy verbatim. {@code artifactPath} is the main package archive; it is ignored for a
+     * BOM, whose only artifact is the generated dependencyManagement POM.
+     */
+    public PublishDryRunPlan planResolved(
+            Path projectRoot,
+            ProjectConfig config,
+            PublishSettings publish,
+            ZoltLockfile lockfile,
+            Path artifactPath,
+            boolean requireRepository,
+            Optional<Path> sbomFile) {
+        Path root = projectRoot.toAbsolutePath().normalize();
         String versionKind = VersionPolicy.classifyPublishVersion(config.project().version());
         String repositoryId = versionKind.equals("snapshot")
                 ? publish.snapshotRepository()
@@ -162,13 +187,11 @@ public final class PublishDryRunService {
 
         if (config.packageSettings().mode() == PackageMode.BOM) {
             return bomPlan(
-                    root, config, versionKind, displayRepositoryId, displayRepositoryUrl, coordinate, blockers);
+                    root, config, lockfile, versionKind, displayRepositoryId, displayRepositoryUrl, coordinate,
+                    blockers);
         }
 
         String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
-        ZoltLockfile lockfile = lockfile(root);
-        PackagePlan packagePlan = packagePlan(root, config);
-        Path artifactPath = packagePlan.archivePath();
         Path evidencePath = PackageEvidenceManifestWriter.evidenceManifestPath(artifactPath);
         Path pomPath = root.resolve(config.build().outputRoot()).resolve("publish")
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")
@@ -220,6 +243,7 @@ public final class PublishDryRunService {
     private PublishDryRunPlan bomPlan(
             Path root,
             ProjectConfig config,
+            ZoltLockfile lockfile,
             String versionKind,
             String displayRepositoryId,
             String displayRepositoryUrl,
@@ -227,7 +251,6 @@ public final class PublishDryRunService {
             List<String> blockers) {
         // A BOM has no archive: the artifact IS the generated dependencyManagement POM. --sbom is
         // deliberately not attached (a BOM has no resolved graph, so an SBOM would be misleading).
-        ZoltLockfile lockfile = lockfile(root);
         Path pomPath = root.resolve(config.build().outputRoot()).resolve("publish")
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")
                 .normalize();
