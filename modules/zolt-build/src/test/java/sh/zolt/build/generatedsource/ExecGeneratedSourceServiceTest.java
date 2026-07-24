@@ -4,6 +4,7 @@ import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSuppor
 import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSupport.generatingRunner;
 import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSupport.packages;
 import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSupport.service;
+import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSupport.toolPackage;
 import static sh.zolt.build.generatedsource.ExecGeneratedSourceServiceTestSupport.writeProjectFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.build.BuildException;
+import sh.zolt.classpath.ResolvedClasspathPackage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -168,7 +170,7 @@ final class ExecGeneratedSourceServiceTest {
             return new ExecGeneratedSourceService.ProcessResult(0, "ok\n", false);
         });
 
-        service.generateMain(projectDir, twoStepChainConfig(), packages(projectDir));
+        service.generateMain(projectDir, twoStepChainConfig(), packages(projectDir, "t"));
 
         assertEquals(List.of("gen-a", "gen-b"), stepOrder);
     }
@@ -220,7 +222,7 @@ final class ExecGeneratedSourceServiceTest {
             return new ExecGeneratedSourceService.ProcessResult(0, "ok\n", false);
         });
 
-        service.generateMain(projectDir, npmChainConfig(), packages(projectDir));
+        service.generateMain(projectDir, npmChainConfig(), packages(projectDir, "t"));
 
         assertEquals(List.of("install", "build"), order);
     }
@@ -235,6 +237,90 @@ final class ExecGeneratedSourceServiceTest {
                         .generateMain(projectDir, projectSourcesConfig(), packages(projectDir)));
 
         assertTrue(exception.getMessage().contains("Post-compile steps may only produce"), exception.getMessage());
+    }
+
+    @Test
+    void twoToolsWithIncompatibleSharedLibrarySeeOnlyTheirOwnVersion() throws IOException {
+        writeProjectFiles(projectDir);
+        seedJar(projectDir, "cache/com/example/alpha/1.0.0/alpha-1.0.0.jar");
+        seedJar(projectDir, "cache/com/example/beta/1.0.0/beta-1.0.0.jar");
+        seedJar(projectDir, "cache/com/example/shared/1.0.0/shared-1.0.0.jar");
+        seedJar(projectDir, "cache/com/example/shared/2.0.0/shared-2.0.0.jar");
+        // The shared GA is locked at two versions, each tagged for a different tool's isolated closure.
+        List<ResolvedClasspathPackage> packages = List.of(
+                toolPackage(projectDir, "com.example", "alpha", "1.0.0",
+                        "cache/com/example/alpha/1.0.0/alpha-1.0.0.jar", List.of("alpha")),
+                toolPackage(projectDir, "com.example", "shared", "1.0.0",
+                        "cache/com/example/shared/1.0.0/shared-1.0.0.jar", List.of("alpha")),
+                toolPackage(projectDir, "com.example", "beta", "1.0.0",
+                        "cache/com/example/beta/1.0.0/beta-1.0.0.jar", List.of("beta")),
+                toolPackage(projectDir, "com.example", "shared", "2.0.0",
+                        "cache/com/example/shared/2.0.0/shared-2.0.0.jar", List.of("beta")));
+
+        List<List<String>> commands = new ArrayList<>();
+        service(projectDir, generatingRunner(commands)).generateMain(projectDir, twoToolConfig(), packages);
+
+        assertEquals(2, commands.size());
+        String alphaClasspath = classpathFor(commands, "com.example.AlphaTool");
+        String betaClasspath = classpathFor(commands, "com.example.BetaTool");
+
+        assertTrue(alphaClasspath.contains("shared-1.0.0.jar"), alphaClasspath);
+        assertFalse(alphaClasspath.contains("shared-2.0.0.jar"), alphaClasspath);
+        assertTrue(alphaClasspath.contains("alpha-1.0.0.jar"), alphaClasspath);
+        assertFalse(alphaClasspath.contains("beta-1.0.0.jar"), alphaClasspath);
+
+        assertTrue(betaClasspath.contains("shared-2.0.0.jar"), betaClasspath);
+        assertFalse(betaClasspath.contains("shared-1.0.0.jar"), betaClasspath);
+        assertTrue(betaClasspath.contains("beta-1.0.0.jar"), betaClasspath);
+        assertFalse(betaClasspath.contains("alpha-1.0.0.jar"), betaClasspath);
+    }
+
+    private static String classpathFor(List<List<String>> commands, String mainClass) {
+        List<String> command = commands.stream()
+                .filter(argv -> argv.contains(mainClass))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no command ran " + mainClass));
+        return command.get(command.indexOf("-cp") + 1);
+    }
+
+    private static void seedJar(Path projectDir, String relativePath) throws IOException {
+        Path jar = projectDir.resolve(relativePath);
+        Files.createDirectories(jar.getParent());
+        Files.writeString(jar, "jar\n");
+    }
+
+    private static sh.zolt.project.ProjectConfig twoToolConfig() {
+        return new sh.zolt.toml.ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.execTools.alpha]
+                runner = "jvm"
+                coordinates = [{ coordinate = "com.example:alpha", version = "1.0.0" }]
+                mainClass = "com.example.AlphaTool"
+
+                [generated.execTools.beta]
+                runner = "jvm"
+                coordinates = [{ coordinate = "com.example:beta", version = "1.0.0" }]
+                mainClass = "com.example.BetaTool"
+
+                [generated.main.alpha-gen]
+                kind = "exec"
+                tool = "alpha"
+                inputs = ["src/main/jooq/config.xml"]
+                output = "target/generated/sources/alpha"
+                produces = "java-sources"
+
+                [generated.main.beta-gen]
+                kind = "exec"
+                tool = "beta"
+                inputs = ["src/main/jooq/config.xml"]
+                output = "target/generated/sources/beta"
+                produces = "java-sources"
+                """);
     }
 
     private static sh.zolt.project.ProjectConfig npmChainConfig() {

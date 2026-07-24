@@ -193,6 +193,7 @@ final class BuildServiceExecGeneratedSourceTest {
                 scope = "tool-exec"
                 direct = true
                 jar = "com/example/gen-tool/1.0.0/gen-tool-1.0.0.jar"
+                toolGroups = ["gen-tool"]
                 dependencies = []
                 """);
     }

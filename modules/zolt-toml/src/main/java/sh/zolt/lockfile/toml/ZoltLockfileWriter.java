@@ -80,6 +80,11 @@ public final class ZoltLockfileWriter {
             stringArray(output, sortedStrings(lockPackage.policies()));
             output.append('\n');
         }
+        if (!lockPackage.toolGroups().isEmpty()) {
+            output.append("toolGroups = ");
+            stringArray(output, sortedStrings(lockPackage.toolGroups()));
+            output.append('\n');
+        }
         output.append("dependencies = ");
         stringArray(output, sortedStrings(lockPackage.dependencies()));
         output.append("\n\n");

@@ -15,7 +15,9 @@ import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.request.RequestOrigin;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 
 public final class GeneratedSourceToolingDependencyContributor {
     private final CoordinateParser coordinateParser;
@@ -28,6 +30,44 @@ public final class GeneratedSourceToolingDependencyContributor {
         addOpenApiToolRequests(config, requests);
         addProtobufToolRequests(config, requests);
         addExecToolRequests(config, requests);
+    }
+
+    /**
+     * Per-tool direct requests for every jvm-runner exec tool, grouped by tool name. Each named tool is
+     * its own isolated resolution unit so versions mediate <em>within</em> a tool and never across tools
+     * (two tools may pin incompatible versions of the same GA). The returned map is sorted by tool name
+     * for deterministic lock assembly; process/project runners contribute nothing (no locked closure).
+     */
+    public Map<String, List<DependencyRequest>> execToolRequestGroups(ProjectConfig config) {
+        Map<String, List<DependencyRequest>> groups = new TreeMap<>();
+        for (GeneratedSourceStep step : execSteps(config)) {
+            if (step.exec().tool().coordinates().isEmpty()) {
+                continue;
+            }
+            String toolName = step.exec().toolName();
+            List<DependencyRequest> toolRequests = groups.computeIfAbsent(toolName, ignored -> new ArrayList<>());
+            for (ExecToolCoordinate coordinate : step.exec().tool().coordinates()) {
+                String version = coordinate.version()
+                        .filter(value -> !value.isBlank())
+                        .orElseThrow(() -> new ResolveException(
+                                "Exec tool `" + toolName + "` coordinate " + coordinate.coordinate()
+                                        + " requires a version. Add version or versionRef, run `zolt resolve`, then retry."));
+                Coordinate parsed = coordinateParser.parse(coordinate.coordinate() + ":" + version);
+                PackageId packageId = PackageId.from(parsed);
+                boolean already = toolRequests.stream()
+                        .anyMatch(request -> request.packageId().equals(packageId)
+                                && request.requestedVersion().equals(version));
+                if (already) {
+                    continue;
+                }
+                toolRequests.add(new DependencyRequest(
+                        packageId,
+                        version,
+                        DependencyScope.TOOL_EXEC,
+                        RequestOrigin.DIRECT));
+            }
+        }
+        return groups;
     }
 
     private void addExecToolRequests(

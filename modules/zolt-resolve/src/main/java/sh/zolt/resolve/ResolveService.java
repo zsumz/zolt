@@ -1,6 +1,7 @@
 package sh.zolt.resolve;
 
 import sh.zolt.dependency.ConflictSelectionReason;
+import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileWriter;
@@ -12,6 +13,7 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.framework.FrameworkDependencyRequestPlanRequestAssembler;
 import sh.zolt.resolve.framework.FrameworkDependencyRequestPlanner;
 import sh.zolt.resolve.graph.ResolutionGraph;
+import sh.zolt.resolve.lockfile.assembly.ExecToolResolution;
 import sh.zolt.resolve.lockfile.assembly.LockfileAssembler;
 import sh.zolt.resolve.lockfile.persistence.ResolveLockfilePersistence;
 import sh.zolt.resolve.materialization.session.RepositorySession;
@@ -20,6 +22,7 @@ import sh.zolt.resolve.metadata.DependencyMetadataSource;
 import sh.zolt.resolve.metadata.platform.ManagedVersion;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.request.DependencyRequestPlanner;
+import sh.zolt.resolve.request.tooling.GeneratedSourceToolingDependencyContributor;
 import sh.zolt.resolve.traversal.DependencyGraphTraverser;
 import sh.zolt.resolve.traversal.DependencyRelocator;
 import sh.zolt.resolve.version.VersionConflict;
@@ -170,24 +173,32 @@ public final class ResolveService {
                 options.retryCommand(),
                 snapshotAllowance);
         directRequests = relocateDirectRequests(context, directRequests);
+        // Exec tools resolve in isolation (Hole 1): keep TOOL_EXEC out of the shared project graph so a
+        // tool's version line never mediates against another tool's or against compile/runtime, then lock
+        // each tool's closure separately with a per-tool group qualifier.
+        List<DependencyRequest> mainRequests = directRequests.stream()
+                .filter(request -> request.scope() != DependencyScope.TOOL_EXEC)
+                .toList();
+        List<ExecToolResolution> execResolutions = resolveExecTools(
+                context, managedVersionDetails, options, snapshotAllowance);
         DependencyGraphResolution initial = graphResolver.resolve(
                 context,
                 context.config().dependencyPolicy(),
                 managedVersionDetails,
-                directRequests,
+                mainRequests,
                 context,
                 options.retryCommand(),
                 snapshotAllowance);
-        List<DependencyRequest> allRequests = new ArrayList<>(directRequests);
+        List<DependencyRequest> allRequests = new ArrayList<>(mainRequests);
         allRequests.addAll(frameworkDependencyRequestPlanner.plan(frameworkPlanRequestAssembler.assemble(
                 context.config(),
                 initial.graph(),
                 initial.selection(),
-                directRequests,
+                mainRequests,
                 managedVersions,
                 coordinate -> context.getJar(coordinate).cachePath(),
                 context::projectPlatformPropertiesRequests)));
-        DependencyGraphResolution resolved = allRequests.size() == directRequests.size()
+        DependencyGraphResolution resolved = allRequests.size() == mainRequests.size()
                 ? initial
                 : graphResolver.resolve(
                         context,
@@ -198,8 +209,38 @@ public final class ResolveService {
                         options.retryCommand(),
                         snapshotAllowance);
         enforceVersionConflictPolicy(context.config().dependencyPolicy(), resolved.selection(), options.retryCommand());
-        ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests);
+        ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests, execResolutions);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
+    }
+
+    private List<ExecToolResolution> resolveExecTools(
+            RepositorySession context,
+            Map<PackageId, ManagedVersion> managedVersionDetails,
+            ResolveOptions options,
+            SnapshotAllowance snapshotAllowance) {
+        Map<String, List<DependencyRequest>> groups =
+                new GeneratedSourceToolingDependencyContributor(coordinateParser).execToolRequestGroups(context.config());
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+        DependencyRelocator relocator = new DependencyRelocator(context);
+        List<ExecToolResolution> resolutions = new ArrayList<>();
+        for (Map.Entry<String, List<DependencyRequest>> group : groups.entrySet()) {
+            List<DependencyRequest> requests = group.getValue().stream()
+                    .map(relocator::relocate)
+                    .toList();
+            DependencyGraphResolution resolution = graphResolver.resolve(
+                    context,
+                    context.config().dependencyPolicy(),
+                    managedVersionDetails,
+                    requests,
+                    context,
+                    options.retryCommand(),
+                    snapshotAllowance);
+            resolutions.add(new ExecToolResolution(
+                    group.getKey(), resolution.graph(), resolution.selection(), requests));
+        }
+        return resolutions;
     }
 
     private List<DependencyRequest> relocateDirectRequests(
@@ -215,8 +256,9 @@ public final class ResolveService {
             RepositorySession context,
             ResolutionGraph graph,
             VersionSelectionResult selection,
-            List<DependencyRequest> directRequests) {
-        return lockfileAssembler.assemble(context, graph, selection, directRequests);
+            List<DependencyRequest> directRequests,
+            List<ExecToolResolution> execResolutions) {
+        return lockfileAssembler.assemble(context, graph, selection, directRequests, execResolutions);
     }
 
     private static void enforceVersionConflictPolicy(

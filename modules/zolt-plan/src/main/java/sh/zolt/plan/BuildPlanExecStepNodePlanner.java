@@ -29,7 +29,7 @@ final class BuildPlanExecStepNodePlanner {
             List<GeneratedSourceEvidence> generatedSources,
             String scope,
             String outputRoot,
-            boolean toolLocked) {
+            Set<String> lockedToolGroups) {
         List<GeneratedSourceEvidence> execEvidence = generatedSources.stream()
                 .filter(evidence -> evidence.scope().equals(scope))
                 .filter(evidence -> evidence.step().kind() == GeneratedSourceKind.EXEC)
@@ -40,7 +40,7 @@ final class BuildPlanExecStepNodePlanner {
         Set<String> cyclicIds = cyclicStepIds(root, execEvidence.stream().map(GeneratedSourceEvidence::step).toList());
         List<PlanNode> nodes = new ArrayList<>();
         for (GeneratedSourceEvidence evidence : execEvidence) {
-            nodes.add(execNode(root, outputRoot, scope, evidence, toolLocked, cyclicIds));
+            nodes.add(execNode(root, outputRoot, scope, evidence, lockedToolGroups, cyclicIds));
         }
         return List.copyOf(nodes);
     }
@@ -50,18 +50,23 @@ final class BuildPlanExecStepNodePlanner {
             String outputRoot,
             String scope,
             GeneratedSourceEvidence evidence,
-            boolean toolLocked,
+            Set<String> lockedToolGroups,
             Set<String> cyclicIds) {
         GeneratedSourceStep step = evidence.step();
         ExecGenerationSettings exec = step.exec();
         String subject = "[generated." + scope + "." + step.id() + "]";
         boolean postCompile = isPostCompile(step, root, outputRoot);
+        // A jvm tool is "locked" only when its own isolated closure is present in zolt.lock: an entry
+        // tagged with this tool's group. A lock that predates per-tool isolation has no such tag, so the
+        // step is reported unlocked and routed to `zolt resolve` rather than a stale global classpath.
+        boolean toolLocked = lockedToolGroups.contains(exec.toolName());
         List<PlanBlocker> blockers = new ArrayList<>();
         addToolBlockers(blockers, exec, subject);
         if ("jvm".equals(exec.tool().runner()) && !toolLocked) {
             blockers.add(new PlanBlocker(
                     "exec-tool-not-locked",
-                    "Exec tooling for " + subject + " is not present in zolt.lock (scope tool-exec).",
+                    "Exec tooling for " + subject + " (tool `" + exec.toolName()
+                            + "`) is not present in zolt.lock (scope tool-exec).",
                     "Run `zolt resolve` to lock the exec tool coordinates, then rerun `zolt plan`."));
         }
         addInvalidPathBlocker(blockers, root, step.output(), "output");

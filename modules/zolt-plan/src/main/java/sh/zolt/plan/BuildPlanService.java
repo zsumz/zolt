@@ -17,6 +17,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class BuildPlanService {
     private final GeneratedSourceEvidenceService generatedSourceEvidenceService;
@@ -72,11 +74,11 @@ public final class BuildPlanService {
         List<PlanNode> nodes = new ArrayList<>();
         List<GeneratedSourceEvidence> generatedSources =
                 generatedSourceEvidenceService.evidence(root, config.build());
-        boolean execToolLocked = execToolLocked(root);
+        Set<String> lockedExecToolGroups = lockedExecToolGroups(root);
         addLockfileNode(nodes, root);
-        addBuildNodes(nodes, root, config, generatedSources, execToolLocked);
+        addBuildNodes(nodes, root, config, generatedSources, lockedExecToolGroups);
         if (target.includesTests()) {
-            addTestNodes(nodes, root, config, reportsDir, generatedSources, execToolLocked, testRuntime);
+            addTestNodes(nodes, root, config, reportsDir, generatedSources, lockedExecToolGroups, testRuntime);
         }
         if (target.includesCoverage()) {
             addCoverageNode(nodes, config.build());
@@ -126,10 +128,10 @@ public final class BuildPlanService {
             Path root,
             ProjectConfig config,
             List<GeneratedSourceEvidence> generatedSources,
-            boolean execToolLocked) {
+            Set<String> lockedExecToolGroups) {
         BuildSettings build = config.build();
         nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "main"));
-        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "main", outputRoot(build), execToolLocked));
+        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "main", outputRoot(build), lockedExecToolGroups));
         addResourceNode(
                 nodes,
                 "process-main-resources",
@@ -155,11 +157,11 @@ public final class BuildPlanService {
             ProjectConfig config,
             Optional<Path> reportsDir,
             List<GeneratedSourceEvidence> generatedSources,
-            boolean execToolLocked,
+            Set<String> lockedExecToolGroups,
             Optional<TestRuntimePlan> testRuntime) {
         BuildSettings build = config.build();
         nodes.addAll(generatedSourceNodePlanner.nodes(root, generatedSources, "test"));
-        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "test", outputRoot(build), execToolLocked));
+        nodes.addAll(execStepNodePlanner.nodes(root, generatedSources, "test", outputRoot(build), lockedExecToolGroups));
         addResourceNode(
                 nodes,
                 "process-test-resources",
@@ -263,16 +265,19 @@ public final class BuildPlanService {
                 List.of()));
     }
 
-    private boolean execToolLocked(Path root) {
+    private Set<String> lockedExecToolGroups(Path root) {
         Path lockfilePath = root.resolve("zolt.lock");
         if (!Files.isRegularFile(lockfilePath)) {
-            return false;
+            return Set.of();
         }
         try {
             ZoltLockfile lockfile = lockfileReader.read(lockfilePath);
-            return lockfile.packages().stream().anyMatch(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_EXEC);
+            return lockfile.packages().stream()
+                    .filter(lockPackage -> lockPackage.scope() == DependencyScope.TOOL_EXEC)
+                    .flatMap(lockPackage -> lockPackage.toolGroups().stream())
+                    .collect(Collectors.toUnmodifiableSet());
         } catch (LockfileReadException exception) {
-            return false;
+            return Set.of();
         }
     }
 

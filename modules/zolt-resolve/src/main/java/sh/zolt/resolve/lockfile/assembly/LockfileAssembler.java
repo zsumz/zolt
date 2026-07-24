@@ -15,7 +15,6 @@ import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.OpenApiGenerationSettings;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.resolve.DependencyPolicyEffect;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.graph.ResolutionGraph;
@@ -47,32 +46,40 @@ public final class LockfileAssembler {
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests) {
+        return assemble(context, graph, selection, directRequests, List.of());
+    }
+
+    public ZoltLockfile assemble(
+            LockfileAssemblyContext context,
+            ResolutionGraph graph,
+            VersionSelectionResult selection,
+            List<DependencyRequest> directRequests,
+            List<ExecToolResolution> execResolutions) {
         long started = System.nanoTime();
         try {
             Map<PackageId, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
                     graph,
                     selection,
                     directRequests);
-            List<LockPackagePlan> packagePlans = selection.selectedNodes().stream()
+            List<LockPackagePlan> packagePlans = new ArrayList<>(selection.selectedNodes().stream()
                     .flatMap(node -> selectedScopes
                             .getOrDefault(node.packageId(), List.of(new SelectedDependencyScope(DependencyScope.COMPILE, false)))
                             .stream()
-                            .map(scope -> lockPackagePlan(node, scope)))
-                    .toList();
+                            .map(scope -> lockPackagePlan(node, scope, graph, List.of())))
+                    .toList());
+            packagePlans.addAll(execPackagePlans(execResolutions));
             Map<ArtifactDescriptor, CachedArtifact> artifacts = context.getArtifacts(
-                    packagePlans.stream().map(LockPackagePlan::artifactDescriptor).toList());
+                    packagePlans.stream().map(LockPackagePlan::artifactDescriptor).distinct().toList());
             Map<PackageId, List<DependencyScope>> managedDirectScopes = managedDirectScopes(context.config());
             Map<PackageId, ManagedVersion> managedVersionDetails = context.projectManagedVersionDetails();
             List<LockPackage> packages = packagePlans.stream()
                     .map(plan -> lockPackage(
                             context,
                             plan,
-                            graph,
                             artifacts.get(plan.artifactDescriptor()),
                             managedDirectScopes,
                             managedVersionDetails,
-                            context.config().dependencyMetadata(),
-                            graph.policyEffects()))
+                            context.config().dependencyMetadata()))
                     .toList();
             List<LockConflict> conflicts = selection.conflicts().stream()
                     .map(conflict -> new LockConflict(
@@ -195,25 +202,67 @@ public final class LockfileAssembler {
         return value == null ? "" : value;
     }
 
-    private static LockPackagePlan lockPackagePlan(PackageNode node, SelectedDependencyScope selectedScope) {
+    private static LockPackagePlan lockPackagePlan(
+            PackageNode node, SelectedDependencyScope selectedScope, ResolutionGraph graph, List<String> toolGroups) {
         Coordinate coordinate = new Coordinate(
                 node.packageId().groupId(),
                 node.packageId().artifactId(),
                 Optional.of(node.selectedVersion()));
         ArtifactDescriptor descriptor = selectedScope.artifactDescriptor()
                 .orElseGet(() -> ArtifactDescriptor.jar(coordinate));
-        return new LockPackagePlan(node, selectedScope, descriptor);
+        return new LockPackagePlan(node, selectedScope, descriptor, graph, toolGroups);
+    }
+
+    /**
+     * Lock package plans for every jar in every isolated exec-tool closure. A jar shared by two tools at
+     * the same version becomes one plan whose {@code toolGroups} unions both tool names; a jar that
+     * appears at different versions across tools yields distinct plans (keyed by version). Tools arrive
+     * pre-sorted by name, so the first tool alphabetically owns the retained node/graph for determinism.
+     */
+    private List<LockPackagePlan> execPackagePlans(List<ExecToolResolution> execResolutions) {
+        Map<String, LockPackagePlan> merged = new LinkedHashMap<>();
+        for (ExecToolResolution tool : execResolutions) {
+            Map<PackageId, List<SelectedDependencyScope>> toolScopes = SelectedDependencyScopes.from(
+                    tool.graph(), tool.selection(), tool.directRequests());
+            for (PackageNode node : tool.selection().selectedNodes()) {
+                SelectedDependencyScope scope = toolScopes
+                        .getOrDefault(node.packageId(), List.of(new SelectedDependencyScope(DependencyScope.TOOL_EXEC, false)))
+                        .stream()
+                        .findFirst()
+                        .orElse(new SelectedDependencyScope(DependencyScope.TOOL_EXEC, false));
+                LockPackagePlan plan = lockPackagePlan(node, scope, tool.graph(), List.of(tool.toolName()));
+                String key = node.packageId() + " " + node.selectedVersion();
+                merged.merge(key, plan, LockfileAssembler::mergeExecPlan);
+            }
+        }
+        return List.copyOf(merged.values());
+    }
+
+    private static LockPackagePlan mergeExecPlan(LockPackagePlan existing, LockPackagePlan incoming) {
+        List<String> groups = new ArrayList<>(existing.toolGroups());
+        for (String group : incoming.toolGroups()) {
+            if (!groups.contains(group)) {
+                groups.add(group);
+            }
+        }
+        groups.sort(null);
+        SelectedDependencyScope mergedScope = new SelectedDependencyScope(
+                existing.selectedScope().scope(),
+                existing.selectedScope().direct() || incoming.selectedScope().direct(),
+                existing.selectedScope().artifactDescriptor().isPresent()
+                        ? existing.selectedScope().artifactDescriptor()
+                        : incoming.selectedScope().artifactDescriptor());
+        return new LockPackagePlan(
+                existing.node(), mergedScope, existing.artifactDescriptor(), existing.graph(), List.copyOf(groups));
     }
 
     private LockPackage lockPackage(
             LockfileAssemblyContext context,
             LockPackagePlan plan,
-            ResolutionGraph graph,
             CachedArtifact artifact,
             Map<PackageId, List<DependencyScope>> managedDirectScopes,
             Map<PackageId, ManagedVersion> managedVersionDetails,
-            Map<String, DependencyMetadata> dependencyMetadata,
-            List<DependencyPolicyEffect> policyEffects) {
+            Map<String, DependencyMetadata> dependencyMetadata) {
         PackageNode node = plan.node();
         SelectedDependencyScope selectedScope = plan.selectedScope();
         ArtifactDescriptor descriptor = plan.artifactDescriptor();
@@ -232,7 +281,7 @@ public final class LockfileAssembler {
                 jarArtifact ? Optional.empty() : Optional.of(artifact.repositoryPath()),
                 jarArtifact ? Optional.empty() : Optional.of(descriptor.extension()),
                 jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
-                dependenciesFor(node, graph),
+                dependenciesFor(node, plan.graph()),
                 LockfilePolicyPlanner.policiesFor(
                         node,
                         selectedScope,
@@ -240,7 +289,8 @@ public final class LockfileAssembler {
                         managedDirectScopes,
                         managedVersionDetails,
                         dependencyMetadata,
-                        policyEffects));
+                        plan.graph().policyEffects()))
+                .withToolGroups(plan.toolGroups());
     }
 
     private static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
@@ -304,6 +354,8 @@ public final class LockfileAssembler {
     private record LockPackagePlan(
             PackageNode node,
             SelectedDependencyScope selectedScope,
-            ArtifactDescriptor artifactDescriptor) {
+            ArtifactDescriptor artifactDescriptor,
+            ResolutionGraph graph,
+            List<String> toolGroups) {
     }
 }

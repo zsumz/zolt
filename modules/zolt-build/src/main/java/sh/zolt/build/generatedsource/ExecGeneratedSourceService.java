@@ -164,7 +164,7 @@ public final class ExecGeneratedSourceService {
                 config,
                 scope,
                 javaExecutable,
-                ExecStepWorkspace.toolClasspath(packages),
+                packages,
                 ExecStepWorkspace.projectClasspath(root, config, packages, scope),
                 new ExecGeneratedSourceCache(metadataDirectory),
                 metadataDirectory);
@@ -223,15 +223,19 @@ public final class ExecGeneratedSourceService {
         List<String> args = step.exec().args();
         return switch (step.exec().tool().runner()) {
             case "jvm" -> {
-                if (context.toolClasspath().isEmpty()) {
+                List<Path> toolClasspath =
+                        ExecStepWorkspace.toolClasspath(context.packages(), step.exec().toolName());
+                if (toolClasspath.isEmpty()) {
                     throw BuildException.actionable(
-                            "Exec step " + subject + " uses runner jvm but zolt.lock has no tool-exec artifacts.",
-                            "Run `zolt resolve` to refresh zolt.lock, then retry `zolt build`.");
+                            "Exec step " + subject + " uses runner jvm but zolt.lock has no tool-exec artifacts for tool `"
+                                    + step.exec().toolName() + "`.",
+                            "Run `zolt resolve` to refresh zolt.lock so the tool's isolated closure is locked, then "
+                                    + "retry `zolt build`.");
                 }
                 yield new ResolvedCommand(
                         commandBuilder.jvmCommand(
-                                context.javaExecutable(), context.toolClasspath(), step.exec().tool().mainClass(), args),
-                        context.toolClasspath(),
+                                context.javaExecutable(), toolClasspath, step.exec().tool().mainClass(), args),
+                        toolClasspath,
                         ExecToolIdentity.none());
             }
             case "project" -> new ResolvedCommand(
@@ -278,7 +282,7 @@ public final class ExecGeneratedSourceService {
             ProjectConfig config,
             String scope,
             Path javaExecutable,
-            List<Path> toolClasspath,
+            List<ResolvedClasspathPackage> packages,
             List<Path> projectClasspath,
             ExecGeneratedSourceCache cache,
             Path metadataDirectory) {

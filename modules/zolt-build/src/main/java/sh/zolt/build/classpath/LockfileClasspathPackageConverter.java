@@ -43,7 +43,8 @@ public final class LockfileClasspathPackageConverter {
                                     lockPackage.direct(),
                                     lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
                                     classpathPath),
-                            lockPackage.scope());
+                            lockPackage.scope(),
+                            lockPackage.toolGroups());
                 })
                 .toList();
     }
@@ -58,7 +59,8 @@ public final class LockfileClasspathPackageConverter {
                                 lockPackage.direct(),
                                 lockPackage.pom().map(value -> cacheRoot.resolve(value)).orElse(Path.of("")),
                                 cacheRoot.resolve(lockPackage.jar().orElseThrow())),
-                        lockPackage.scope()))
+                        lockPackage.scope(),
+                        lockPackage.toolGroups()))
                 .toList();
     }
 

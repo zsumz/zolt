@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -164,7 +165,7 @@ final class BuildPlanExecStepNodePlannerTest {
                 List.of(evidence("main", a, false, "missing"), evidence("main", b, false, "missing")),
                 "main",
                 "target",
-                true);
+                Set.of("tool"));
 
         assertEquals(2, nodes.size());
         nodes.forEach(node -> assertBlocker(node, "exec-ordering-cycle"));
@@ -176,7 +177,7 @@ final class BuildPlanExecStepNodePlannerTest {
                 List.of(evidence("main", step, outputExists, freshness)),
                 "main",
                 "target",
-                toolLocked);
+                toolLocked ? Set.of("tool") : Set.of());
         assertEquals(1, nodes.size());
         return nodes.getFirst();
     }

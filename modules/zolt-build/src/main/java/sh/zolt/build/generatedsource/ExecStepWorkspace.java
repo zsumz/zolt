@@ -18,10 +18,17 @@ final class ExecStepWorkspace {
     private ExecStepWorkspace() {
     }
 
-    /** The locked tool-exec jars for jvm-runner steps, sorted for a stable classpath. */
-    static List<Path> toolClasspath(List<ResolvedClasspathPackage> packages) {
+    /**
+     * The locked tool-exec jars for a single named jvm-runner tool, sorted for a stable classpath. Only
+     * packages whose {@code toolGroups} qualifier names this tool are selected, so two tools that pin
+     * conflicting versions of a shared library never see each other's jars. An old lock whose tool-exec
+     * entries predate the qualifier carries empty {@code toolGroups} and therefore selects nothing here,
+     * surfacing as the actionable "run zolt resolve" gate rather than a silent wrong-version classpath.
+     */
+    static List<Path> toolClasspath(List<ResolvedClasspathPackage> packages, String toolName) {
         return packages.stream()
                 .filter(dependency -> dependency.scope() == DependencyScope.TOOL_EXEC)
+                .filter(dependency -> dependency.toolGroups().contains(toolName))
                 .map(dependency -> dependency.resolvedPackage().jarPath())
                 .distinct()
                 .sorted()

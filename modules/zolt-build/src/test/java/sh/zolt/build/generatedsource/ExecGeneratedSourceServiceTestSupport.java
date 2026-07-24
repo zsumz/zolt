@@ -91,14 +91,19 @@ final class ExecGeneratedSourceServiceTestSupport {
     }
 
     static List<ResolvedClasspathPackage> packages(Path projectDir) {
+        return packages(projectDir, "jooq");
+    }
+
+    /** Fixture packages whose jvm tool jar is tagged for the named exec tool (its per-tool group). */
+    static List<ResolvedClasspathPackage> packages(Path projectDir, String toolName) {
         return List.of(
-                packageWithScope(
+                toolPackage(
                         projectDir,
                         "org.jooq",
                         "jooq-codegen",
                         "3.19.15",
-                        DependencyScope.TOOL_EXEC,
-                        "cache/org/jooq/jooq-codegen/3.19.15/jooq-codegen-3.19.15.jar"),
+                        "cache/org/jooq/jooq-codegen/3.19.15/jooq-codegen-3.19.15.jar",
+                        List.of(toolName)),
                 packageWithScope(
                         projectDir,
                         "com.example",
@@ -123,5 +128,24 @@ final class ExecGeneratedSourceServiceTestSupport {
                         Path.of(""),
                         projectDir.resolve(jar)),
                 scope);
+    }
+
+    /** A tool-exec package tagged with the named exec tool groups whose isolated closure it belongs to. */
+    static ResolvedClasspathPackage toolPackage(
+            Path projectDir,
+            String group,
+            String artifact,
+            String version,
+            String jar,
+            List<String> toolGroups) {
+        return new ResolvedClasspathPackage(
+                new ResolvedPackage(
+                        new PackageId(group, artifact),
+                        version,
+                        false,
+                        Path.of(""),
+                        projectDir.resolve(jar)),
+                DependencyScope.TOOL_EXEC,
+                toolGroups);
     }
 }
