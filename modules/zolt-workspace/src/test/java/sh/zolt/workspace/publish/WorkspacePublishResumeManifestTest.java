@@ -26,13 +26,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * The transaction-manifest guarantees for a resumed plain-repository publish: an already-uploaded
- * detached signature is reused rather than re-signed to a diverging one, a changed repository or
- * signing setup is refused, an already-landed path is verified (and re-uploaded if it was deleted)
- * rather than skipped blindly, a legacy v1 manifest is refused, and a multi-MB artifact streams
- * through staging and upload without being buffered whole.
- */
 final class WorkspacePublishResumeManifestTest {
     private static final WorkspacePublishService.Options OPTIONS =
             new WorkspacePublishService.Options(false, false, false, false, Optional.empty());
@@ -66,7 +59,7 @@ final class WorkspacePublishResumeManifestTest {
 
             // Resume: re-stage against the manifest (reusing S1), upload only the missing checksum.
             ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
-            assertTrue(outcome.present(), "a v3 transaction manifest was written on failure");
+            assertTrue(outcome.present(), "a v4 transaction manifest was written on failure");
             server.failPutPathSuffix = null;
             WorkspacePublishStaging.Preparation prep2 =
                     staging.materialize(List.of(member), stagingRoot, OPTIONS, outcome.state());
@@ -257,7 +250,7 @@ final class WorkspacePublishResumeManifestTest {
 
         ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
 
-        assertFalse(outcome.present(), "a v1 manifest yields no usable v3 state");
+        assertFalse(outcome.present(), "a v1 manifest yields no usable v4 state");
         assertTrue(outcome.legacy(), "a v1 manifest is recognised as legacy so the service can refuse actionably");
     }
 
@@ -267,6 +260,22 @@ final class WorkspacePublishResumeManifestTest {
         Files.writeString(
                 statePath,
                 "schema=zolt.publish-resume.v2\nplanHash=deadbeef\nmembers=acme-http\n",
+                StandardCharsets.UTF_8);
+
+        ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
+
+        assertFalse(outcome.present());
+        assertTrue(outcome.legacy());
+    }
+
+    @Test
+    void aV3ManifestIsRefusedBecauseItsPlanHashCoveredOnlyTheFailedTail(@TempDir Path tempDir)
+            throws IOException {
+        Path statePath = tempDir.resolve("resume-state");
+        Files.writeString(
+                statePath,
+                "schema=zolt.publish-resume.v3\nplanHash=deadbeef\nmembers=acme-http\n"
+                        + "familyMembers=acme-core,acme-http\n",
                 StandardCharsets.UTF_8);
 
         ResumeState.ReadOutcome outcome = ResumeState.read(statePath);

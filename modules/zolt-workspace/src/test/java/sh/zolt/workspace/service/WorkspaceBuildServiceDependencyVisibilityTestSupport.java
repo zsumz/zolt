@@ -80,13 +80,63 @@ abstract class WorkspaceBuildServiceDependencyVisibilityTestSupport {
             String version,
             String className,
             String source) throws IOException {
-        String base = "/maven2/%s/%s/%s/%s-%s"
-                .formatted(groupId.replace('.', '/'), artifactId, version, artifactId, version);
-        responses.put(base + ".pom", pom(groupId, artifactId, version).getBytes(StandardCharsets.UTF_8));
-        responses.put(base + ".jar", jarBytes(groupId, artifactId, version, className, source));
+        addJarArtifact(groupId, artifactId, version, className, source, null, null, null);
     }
 
-    private byte[] jarBytes(String groupId, String artifactId, String version, String className, String source)
+    final void addJarArtifactWithDependency(
+            String groupId,
+            String artifactId,
+            String version,
+            String className,
+            String source,
+            String dependencyGroupId,
+            String dependencyArtifactId,
+            String dependencyVersion) throws IOException {
+        addJarArtifact(
+                groupId,
+                artifactId,
+                version,
+                className,
+                source,
+                dependencyGroupId,
+                dependencyArtifactId,
+                dependencyVersion);
+    }
+
+    private void addJarArtifact(
+            String groupId,
+            String artifactId,
+            String version,
+            String className,
+            String source,
+            String dependencyGroupId,
+            String dependencyArtifactId,
+            String dependencyVersion) throws IOException {
+        String base = "/maven2/%s/%s/%s/%s-%s"
+                .formatted(groupId.replace('.', '/'), artifactId, version, artifactId, version);
+        String pom = dependencyGroupId == null
+                ? pom(groupId, artifactId, version)
+                : pom(
+                        groupId,
+                        artifactId,
+                        version,
+                        dependencyGroupId,
+                        dependencyArtifactId,
+                        dependencyVersion);
+        Path dependencyJar = dependencyGroupId == null
+                ? null
+                : fixtureJar(dependencyGroupId, dependencyArtifactId, dependencyVersion);
+        responses.put(base + ".pom", pom.getBytes(StandardCharsets.UTF_8));
+        responses.put(base + ".jar", jarBytes(groupId, artifactId, version, className, source, dependencyJar));
+    }
+
+    private byte[] jarBytes(
+            String groupId,
+            String artifactId,
+            String version,
+            String className,
+            String source,
+            Path dependencyJar)
             throws IOException {
         Path fixtureRoot = tempDir.resolve("fixture-jars").resolve(groupId + "." + artifactId + "." + version);
         Path sourceFile = fixtureRoot.resolve("src").resolve(className.replace('.', '/') + ".java");
@@ -98,10 +148,18 @@ abstract class WorkspaceBuildServiceDependencyVisibilityTestSupport {
         if (compiler == null) {
             throw new IllegalStateException("JDK compiler is required for workspace API dependency fixture tests.");
         }
-        if (compiler.run(null, null, null, "-d", classes.toString(), sourceFile.toString()) != 0) {
+        List<String> arguments = new java.util.ArrayList<>();
+        arguments.add("-d");
+        arguments.add(classes.toString());
+        if (dependencyJar != null) {
+            arguments.add("-classpath");
+            arguments.add(dependencyJar.toString());
+        }
+        arguments.add(sourceFile.toString());
+        if (compiler.run(null, null, null, arguments.toArray(String[]::new)) != 0) {
             throw new IllegalStateException("Fixture Java source failed to compile: " + className);
         }
-        Path jar = fixtureRoot.resolve(artifactId + "-" + version + ".jar");
+        Path jar = fixtureJar(groupId, artifactId, version);
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
             List<Path> classFiles;
             try (var stream = Files.walk(classes)) {
@@ -120,6 +178,12 @@ abstract class WorkspaceBuildServiceDependencyVisibilityTestSupport {
         return Files.readAllBytes(jar);
     }
 
+    private Path fixtureJar(String groupId, String artifactId, String version) {
+        return tempDir.resolve("fixture-jars")
+                .resolve(groupId + "." + artifactId + "." + version)
+                .resolve(artifactId + "-" + version + ".jar");
+    }
+
     private static String pom(String groupId, String artifactId, String version) {
         return """
                 <project>
@@ -128,6 +192,35 @@ abstract class WorkspaceBuildServiceDependencyVisibilityTestSupport {
                   <version>%s</version>
                 </project>
                 """.formatted(groupId, artifactId, version);
+    }
+
+    private static String pom(
+            String groupId,
+            String artifactId,
+            String version,
+            String dependencyGroupId,
+            String dependencyArtifactId,
+            String dependencyVersion) {
+        return """
+                <project>
+                  <groupId>%s</groupId>
+                  <artifactId>%s</artifactId>
+                  <version>%s</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>%s</groupId>
+                      <artifactId>%s</artifactId>
+                      <version>%s</version>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """.formatted(
+                groupId,
+                artifactId,
+                version,
+                dependencyGroupId,
+                dependencyArtifactId,
+                dependencyVersion);
     }
 
     private void handle(HttpExchange exchange) throws IOException {

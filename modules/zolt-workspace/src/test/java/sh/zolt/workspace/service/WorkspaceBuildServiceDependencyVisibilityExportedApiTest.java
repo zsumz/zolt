@@ -107,4 +107,95 @@ final class WorkspaceBuildServiceDependencyVisibilityExportedApiTest
         assertEquals(2, result.sourceCount());
         assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
     }
+
+    @Test
+    void downstreamMemberCompilesAgainstExportedApiDependenciesTransitiveCompileClosure() throws IOException {
+        addJarArtifact(
+                "com.example",
+                "api-types",
+                "1.0.0",
+                "com.example.types.ApiType",
+                """
+                package com.example.types;
+
+                public record ApiType(String value) {
+                }
+                """);
+        addJarArtifactWithDependency(
+                "com.example",
+                "api-lib",
+                "1.0.0",
+                "com.example.api.ApiContract",
+                """
+                package com.example.api;
+
+                import com.example.types.ApiType;
+
+                public final class ApiContract {
+                    private ApiContract() {
+                    }
+
+                    public static ApiType value() {
+                        return new ApiType("exported");
+                    }
+                }
+                """,
+                "com.example",
+                "api-types",
+                "1.0.0");
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["modules/core", "apps/api"]
+
+                [repositories]
+                test = "%s"
+                """.formatted(baseUri));
+        member("modules/core", "core", """
+
+                [api.dependencies]
+                "com.example:api-lib" = "1.0.0"
+                """);
+        source("modules/core/src/main/java/com/acme/core/Core.java", """
+                package com.acme.core;
+
+                import com.example.api.ApiContract;
+                import com.example.types.ApiType;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static ApiType type() {
+                        return ApiContract.value();
+                    }
+                }
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        source("apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                import com.acme.core.Core;
+                import com.example.types.ApiType;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String message() {
+                        ApiType type = Core.type();
+                        return type.value();
+                    }
+                }
+                """);
+
+        WorkspaceBuildResult result = service.build(tempDir.resolve("apps/api"), tempDir.resolve("cache"), false);
+
+        assertEquals(2, result.sourceCount());
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
+    }
 }

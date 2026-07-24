@@ -1,6 +1,8 @@
 package sh.zolt.publish;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -21,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -148,6 +151,87 @@ final class PublishUploadServiceSigningTest {
         }
     }
 
+    @Test
+    void normalRetryResumesTheOriginalSignatureAfterItsChecksumUploadFails() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        assumeTrue(generateSigningKey(gnupgHome), "gpg could not generate a throwaway signing key");
+
+        Path projectDir = tempDir.resolve("resumable-signed-lib");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/resumable-signed-lib-0.1.0.jar");
+        Files.writeString(artifact, "resumable signed package\n");
+        Files.writeString(projectDir.resolve("target/resumable-signed-lib-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/resumable-signed-lib-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(prefixedSha256(artifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 2\n");
+
+        try (Recorder recorder = Recorder.start()) {
+            Files.writeString(projectDir.resolve("zolt.toml"), """
+                    [project]
+                    name = "resumable-signed-lib"
+                    version = "0.1.0"
+                    group = "com.example"
+                    java = "%d"
+
+                    [publish]
+                    releaseRepository = "local"
+
+                    [publish.repositories.local]
+                    url = "%s"
+
+                    [publish.signing]
+                    enabled = true
+                    passphraseEnv = "ZOLT_SIGNING_PASS"
+                    """.formatted(Runtime.version().feature(), recorder.baseUri()));
+            Function<String, String> environment = Map.of(
+                    "ZOLT_SIGNING_PASS", PASSPHRASE,
+                    "GNUPGHOME", gnupgHome.toString())::get;
+            PublishUploadService service = new PublishUploadService(
+                    new PublishDryRunService(environment),
+                    new ZoltTomlParser(),
+                    new PublishSettingsReader(),
+                    new MavenRepositoryClient(),
+                    environment);
+            String base = "/com/example/resumable-signed-lib/0.1.0/resumable-signed-lib-0.1.0";
+            String signaturePath = base + ".jar.asc";
+            String signatureChecksumPath = signaturePath + ".sha256";
+            recorder.failPutPathSuffix = signatureChecksumPath;
+
+            assertThrows(PublishException.class, () -> service.upload(projectDir));
+            assertTrue(recorder.received(signaturePath), "the original signature landed before the failure");
+            assertFalse(recorder.received(signatureChecksumPath), "the injected failure kept its checksum absent");
+            assertTrue(
+                    Files.exists(projectDir.resolve("target/publish/publish-staging/publish-resume.manifest")),
+                    "the exact signed transaction remains durable after the failed invocation");
+            byte[] originalSignature = recorder.body(signaturePath);
+            Map<String, Integer> completedPutCounts = recorder.completedPutCounts();
+
+            recorder.failPutPathSuffix = null;
+            service.upload(projectDir);
+
+            assertArrayEquals(originalSignature, recorder.body(signaturePath), "retry retains signature S1");
+            assertEquals(1, recorder.putCount(signaturePath), "the completed signature is verified, not re-PUT");
+            for (Map.Entry<String, Integer> completed : completedPutCounts.entrySet()) {
+                assertEquals(
+                        completed.getValue(),
+                        recorder.putCount(completed.getKey()),
+                        "completed path must not be re-PUT: " + completed.getKey());
+            }
+            assertEquals(
+                    sha256Hex(originalSignature),
+                    new String(recorder.body(signatureChecksumPath), StandardCharsets.UTF_8).trim(),
+                    "the missing checksum is derived from retained signature S1");
+            assertFalse(
+                    Files.exists(projectDir.resolve("target/publish/publish-staging/publish-resume.manifest")),
+                    "the durable transaction is cleared only after the retry completes");
+        }
+    }
+
     private Path isolatedGnupgHome() throws IOException {
         Path gnupgHome = tempDir.resolve("gnupg");
         Files.createDirectories(gnupgHome);
@@ -200,10 +284,21 @@ final class PublishUploadServiceSigningTest {
         }
     }
 
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
     private static final class Recorder implements AutoCloseable {
         private final HttpServer server;
         private final Map<String, byte[]> uploads = new ConcurrentHashMap<>();
+        private final Map<String, AtomicInteger> putCounts = new ConcurrentHashMap<>();
         private final URI baseUri;
+        private volatile String failPutPathSuffix;
 
         private Recorder(HttpServer server) {
             this.server = server;
@@ -240,9 +335,37 @@ final class PublishUploadServiceSigningTest {
             return String.join("\n", uploads.keySet());
         }
 
+        int putCount(String path) {
+            AtomicInteger count = putCounts.get(path);
+            return count == null ? 0 : count.get();
+        }
+
+        Map<String, Integer> completedPutCounts() {
+            Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+            for (String path : uploads.keySet()) {
+                counts.put(path, putCount(path));
+            }
+            return Map.copyOf(counts);
+        }
+
         private void handle(HttpExchange exchange) throws IOException {
-            byte[] body = exchange.getRequestBody().readAllBytes();
+            String path = exchange.getRequestURI().getPath();
+            if ("GET".equals(exchange.getRequestMethod())) {
+                byte[] body = uploads.get(path);
+                if (body == null) {
+                    respond(exchange, 404);
+                } else {
+                    respond(exchange, 200, body);
+                }
+                return;
+            }
             if ("PUT".equals(exchange.getRequestMethod())) {
+                byte[] body = exchange.getRequestBody().readAllBytes();
+                putCounts.computeIfAbsent(path, ignored -> new AtomicInteger()).incrementAndGet();
+                if (failPutPathSuffix != null && path.endsWith(failPutPathSuffix)) {
+                    respond(exchange, 500);
+                    return;
+                }
                 uploads.put(exchange.getRequestURI().getPath(), body);
                 respond(exchange, 201);
                 return;
@@ -251,7 +374,10 @@ final class PublishUploadServiceSigningTest {
         }
 
         private static void respond(HttpExchange exchange, int statusCode) throws IOException {
-            byte[] body = "ok".getBytes(StandardCharsets.UTF_8);
+            respond(exchange, statusCode, "ok".getBytes(StandardCharsets.UTF_8));
+        }
+
+        private static void respond(HttpExchange exchange, int statusCode, byte[] body) throws IOException {
             try (exchange) {
                 exchange.sendResponseHeaders(statusCode, body.length);
                 exchange.getResponseBody().write(body);

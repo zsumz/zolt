@@ -19,15 +19,15 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Durable v3 transaction manifest for an interrupted plain-repository publish, written under the
+ * Durable v4 transaction manifest for an interrupted plain-repository publish, written under the
  * workspace target directory on failure and consulted when a {@code --resume-members} run resumes it.
- * Beyond the resumed members' upload-plan hash and semantic options, it binds the resume to concrete
+ * Beyond the complete family's upload-plan hash and semantic options, it binds the resume to concrete
  * facts so nothing is trusted blindly: for every member in the original family its repository
  * {@code targetIdentity} and {@code signingIdentity}, for every staged file the SHA-256 of the exact
  * staged bytes, and the full set of repository paths that already landed. A resume therefore refuses
  * a changed plan, repository destination, or signing setup; re-verifies completed providers even
  * when the emitted resume selection omits them; and reuses staged signatures instead of re-signing.
- * The schema is {@code zolt.publish-resume.v3}; older manifests are refused rather than guessed at.
+ * The schema is {@code zolt.publish-resume.v4}; older manifests are refused rather than guessed at.
  */
 record ResumeState(
         String planHash,
@@ -38,9 +38,9 @@ record ResumeState(
         Map<String, MemberContext> memberContexts,
         Map<String, String> stagedHashes,
         Set<String> completed) {
-    private static final String SCHEMA = "zolt.publish-resume.v3";
+    private static final String SCHEMA = "zolt.publish-resume.v4";
     private static final Set<String> LEGACY_SCHEMAS =
-            Set.of("zolt.publish-resume.v1", "zolt.publish-resume.v2");
+            Set.of("zolt.publish-resume.v1", "zolt.publish-resume.v2", "zolt.publish-resume.v3");
 
     ResumeState {
         members = List.copyOf(members);
@@ -54,7 +54,7 @@ record ResumeState(
     record MemberContext(String targetIdentity, String signingIdentity) {
     }
 
-    /** The result of reading a manifest: an absent file, an untrusted older file, or a v3 manifest. */
+    /** The result of reading a manifest: an absent file, an untrusted older file, or a v4 manifest. */
     record ReadOutcome(boolean legacy, Optional<ResumeState> state) {
         boolean present() {
             return state.isPresent();
@@ -86,8 +86,8 @@ record ResumeState(
     }
 
     /**
-     * Builds the manifest to persist on a Phase-2 failure. {@code resumeSet} determines the emitted
-     * exact CLI selection and its plan hash, while contexts and exact staged hashes cover
+     * Builds the manifest to persist on a Phase-2 failure. {@code resumeSet} determines only the
+     * emitted exact CLI selection. The plan hash, contexts, and exact staged hashes cover
      * {@code allMembers}, including providers that already completed.
      */
     static ResumeState of(
@@ -96,6 +96,13 @@ record ResumeState(
             WorkspacePublishService.Options options,
             List<String> selection,
             Set<String> completed) {
+        Set<String> resumePaths = new LinkedHashSet<>();
+        for (StagedMember member : resumeSet) {
+            resumePaths.add(member.memberPath());
+        }
+        if (!resumePaths.equals(new LinkedHashSet<>(selection))) {
+            throw new IllegalArgumentException("Resume selection must match the failed-tail member set.");
+        }
         Map<String, MemberContext> contexts = new LinkedHashMap<>();
         Map<String, String> hashes = new LinkedHashMap<>();
         List<String> family = new ArrayList<>();
@@ -107,7 +114,7 @@ record ResumeState(
             }
         }
         return new ResumeState(
-                planHash(resumeSet),
+                planHash(allMembers),
                 options.allowMixedVersions(),
                 options.sbom(),
                 selection,
@@ -117,7 +124,7 @@ record ResumeState(
                 completed);
     }
 
-    /** Reads the manifest at {@code file}: absent when missing/unreadable, legacy when it is a v1 file. */
+    /** Reads the manifest: absent when missing/unreadable, legacy when its schema predates v4. */
     static ReadOutcome read(Path file) {
         if (!Files.isRegularFile(file)) {
             return ReadOutcome.absent();
@@ -265,14 +272,6 @@ record ResumeState(
     List<String> validate(
             List<StagedMember> staged, WorkspacePublishService.Options options, List<String> selection) {
         List<String> blockers = new ArrayList<>();
-        Set<String> resumeMembers = new LinkedHashSet<>(members);
-        List<StagedMember> resumeStaged =
-                staged.stream().filter(member -> resumeMembers.contains(member.memberPath())).toList();
-        if (!planHash.equals(planHash(resumeStaged))) {
-            blockers.add("the publish plan changed since the interrupted publish (artifacts or versions differ); a "
-                    + "stale resume would upload inconsistent bytes. Re-run the full publish: `zolt publish --workspace`.");
-            return blockers;
-        }
         if (!new LinkedHashSet<>(members).equals(new LinkedHashSet<>(selection))) {
             blockers.add("the --resume-members selection does not match the interrupted publish (recorded "
                     + String.join(",", members) + "). Re-run the full publish: `zolt publish --workspace`.");
@@ -310,25 +309,33 @@ record ResumeState(
                         + "`zolt publish --workspace`.");
             }
         }
+        if (!blockers.isEmpty()) {
+            return blockers;
+        }
+        if (!planHash.equals(planHash(staged))) {
+            blockers.add("the publish plan changed since the interrupted publish (artifacts or versions differ); a "
+                    + "stale resume would upload inconsistent bytes. Re-run the full publish: `zolt publish --workspace`.");
+        }
         return blockers;
     }
 
     /**
-     * An order-independent hash of a staged family's upload plan: every PRIMARY artifact's repository
-     * path paired with the SHA-256 of its staged bytes. Checksums and detached signatures are excluded —
-     * they derive from the primary bytes (so are redundant), and without {@code SOURCE_DATE_EPOCH} a
-     * wall-clock signature is non-deterministic and would spuriously fail a legitimate resume. Identical
-     * across the interrupted publish and its resume when the plan is unchanged; any changed artifact,
-     * version, or path shifts it.
+     * An order-independent hash of the complete staged family identity: member, target, signing
+     * identity, repository path, and exact SHA-256 for every primary and derived file. Resume-aware
+     * staging reuses recorded wall-clock signatures before this comparison, so signatures participate
+     * without being regenerated. Any added, removed, renamed, or byte-changed provider file shifts it.
      */
     static String planHash(List<StagedMember> members) {
         List<String> entries = new ArrayList<>();
         for (StagedMember member : members) {
             for (StagedArtifact artifact : member.artifacts()) {
-                if (isDerived(artifact.repositoryPath())) {
-                    continue;
-                }
-                entries.add(artifact.repositoryPath() + " " + artifact.stagedSha256());
+                entries.add(String.join(
+                        "\n",
+                        member.memberPath(),
+                        member.targetIdentity(),
+                        member.signingIdentity(),
+                        artifact.repositoryPath(),
+                        artifact.stagedSha256()));
             }
         }
         Collections.sort(entries);
@@ -339,12 +346,5 @@ record ResumeState(
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }
-    }
-
-    private static boolean isDerived(String repositoryPath) {
-        return repositoryPath.endsWith(".md5")
-                || repositoryPath.endsWith(".sha1")
-                || repositoryPath.endsWith(".sha256")
-                || repositoryPath.endsWith(".asc");
     }
 }

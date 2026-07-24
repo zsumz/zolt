@@ -338,6 +338,68 @@ final class WorkspaceClasspathServiceTest {
         assertTrue(classpaths.compile().entries().contains(linuxJar));
     }
 
+    @Test
+    void downstreamCompileClasspathWalksTheVariantQualifiedExportedApiClosure() throws IOException {
+        Workspace workspace = workspace(
+                List.of("modules/core", "apps/api"),
+                List.of(new WorkspaceProjectEdge(
+                        "apps/api", "modules/core", "compile", "com.acme:core")));
+        Path apiJar = tempDir.resolve("cache/com/example/api-lib/1.0.0/api-lib-1.0.0.jar");
+        Path linuxJar =
+                tempDir.resolve("cache/com/example/fixture/1.0.0/fixture-1.0.0-linux-x86_64.jar");
+        Path plainJar = tempDir.resolve("cache/com/example/fixture/1.0.0/fixture-1.0.0.jar");
+        writeFile(apiJar, "api-lib-bytes");
+        writeFile(linuxJar, "linux-transitive-bytes");
+        writeFile(plainJar, "plain-transitive-bytes");
+        ZoltLockfile lockfile = lockfileReader.read(("""
+                version = 2
+
+                [[package]]
+                id = "com.example:api-lib"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "com/example/api-lib/1.0.0/api-lib-1.0.0.jar"
+                jarSha256 = "API_SHA"
+                members = ["modules/core"]
+                exportedBy = ["modules/core"]
+                dependencies = ["com.example:fixture:1.0.0:jar|linux-x86_64"]
+
+                [[package]]
+                id = "com.example:fixture"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "com/example/fixture/1.0.0/fixture-1.0.0.jar"
+                jarSha256 = "PLAIN_SHA"
+                members = ["modules/core"]
+                dependencies = []
+
+                [[package]]
+                id = "com.example:fixture"
+                version = "1.0.0"
+                source = "maven-central"
+                scope = "compile"
+                direct = false
+                jar = "com/example/fixture/1.0.0/fixture-1.0.0-linux-x86_64.jar"
+                jarSha256 = "LINUX_SHA"
+                members = ["modules/core"]
+                dependencies = []
+                """)
+                .replace("API_SHA", sha256("api-lib-bytes"))
+                .replace("PLAIN_SHA", sha256("plain-transitive-bytes"))
+                .replace("LINUX_SHA", sha256("linux-transitive-bytes")));
+
+        ClasspathSet classpaths =
+                service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/api");
+
+        assertTrue(classpaths.compile().entries().contains(apiJar));
+        assertTrue(classpaths.compile().entries().contains(linuxJar));
+        assertFalse(classpaths.compile().entries().contains(plainJar));
+    }
+
     private Workspace workspace(
             List<String> members,
             List<WorkspaceProjectEdge> edges) throws IOException {

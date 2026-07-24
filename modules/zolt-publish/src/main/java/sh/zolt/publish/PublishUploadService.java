@@ -68,8 +68,22 @@ public final class PublishUploadService {
         staging.preflight(settings.signing());
         List<PublicationSource> sources = publicationSources(root, plan);
         Path stagingRoot = root.resolve(plan.pomPath()).normalize().getParent().resolve("publish-staging");
-        List<StagedPublicationFile> staged =
-                staging.stage(stagingRoot, sources, settings.signing());
+        Path transactionPath = stagingRoot.resolve("publish-resume.manifest");
+        String targetIdentity = repositoryUri.normalize().toString();
+        String signingIdentity = staging.signingIdentity(settings.signing());
+        Optional<PublicationTransactionManifest> interrupted =
+                PublicationTransactionManifest.read(transactionPath);
+        interrupted.ifPresent(manifest -> manifest.requireIdentity(targetIdentity, signingIdentity));
+        List<StagedPublicationFile> staged = staging.stage(
+                stagingRoot,
+                sources,
+                settings.signing(),
+                interrupted.map(PublicationTransactionManifest::resume).orElse(PublicationResume.none()));
+        if (interrupted.isPresent()) {
+            interrupted.orElseThrow().requirePlan(staged);
+        } else {
+            PublicationTransactionManifest.of(targetIdentity, signingIdentity, staged).write(transactionPath);
+        }
         try {
             for (StagedPublicationFile file : staged) {
                 uploadIfNeeded(repositoryUri, file, authentication);
@@ -81,6 +95,7 @@ public final class PublishUploadService {
         } catch (RepositoryClientException exception) {
             throw new PublishException(exception.getMessage(), exception);
         }
+        PublicationTransactionManifest.delete(transactionPath);
         return new PublishUploadResult(plan);
     }
 

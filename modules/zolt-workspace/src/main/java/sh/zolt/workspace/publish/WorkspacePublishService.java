@@ -127,7 +127,7 @@ public final class WorkspacePublishService {
         boolean resumeMode = selectionRequest.exact();
 
         // A `--resume-members` publish is backed by a durable transaction manifest, not a trusted hidden
-        // flag: without matching v3 state we refuse rather than silently treat absent providers as
+        // flag: without matching v4 state we refuse rather than silently treat absent providers as
         // published, and a manifest from an older Zolt is refused outright rather than guessed at.
         Path statePath = WorkspacePublishPaths.resumeStatePath(workspace);
         ResumeState.ReadOutcome outcome = resumeMode ? ResumeState.read(statePath) : ResumeState.ReadOutcome.absent();

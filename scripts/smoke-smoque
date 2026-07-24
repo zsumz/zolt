@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-/tmp/zolt-smoque-npm-cache}"
-SMOQUE_PACKAGE="${SMOQUE_PACKAGE:-smoque@alpha}"
+SMOQUE_PACKAGE="${SMOQUE_PACKAGE:-smoque@0.1.0}"
 export NPM_CONFIG_CACHE
 
 cd "$ROOT"

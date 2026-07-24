@@ -9,6 +9,7 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.NativeSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
@@ -52,6 +53,10 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
             "3333333333333333333333333333333333333333333333333333333333333333";
     private static final String SHA_JUNIT =
             "4444444444444444444444444444444444444444444444444444444444444444";
+    private static final String SHA_FIXTURE_LINUX =
+            "5555555555555555555555555555555555555555555555555555555555555555";
+    private static final String SHA_FIXTURE_PLAIN =
+            "6666666666666666666666666666666666666666666666666666666666666666";
 
     private final WorkspaceMemberPolicyResolver resolver = new WorkspaceMemberPolicyResolver();
 
@@ -178,6 +183,88 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
         assertTrue(json.contains(guavaRef), guavaRef);
     }
 
+    @Test
+    void siblingEdgeUsesItsDeclaredClassifierWhenTheSiblingOwnsBothVariants() throws IOException {
+        String fixture = "com.example:fixture";
+        ProjectConfig config =
+                memberConfig("acme-http", Map.of(), Map.of("com.acme:acme-core", "acme-core"), Map.of());
+        ProjectConfig coreConfig = memberConfig(
+                        "acme-core",
+                        Map.of(fixture, "1.0.0", "com.example:helper", "1.0.0"),
+                        Map.of(),
+                        Map.of())
+                .withDependencyMetadata(Map.of(
+                        DependencyMetadata.key("dependencies", fixture),
+                        new DependencyMetadata(
+                                "dependencies",
+                                fixture,
+                                null,
+                                null,
+                                false,
+                                null,
+                                false,
+                                false,
+                                List.of(),
+                                "linux-x86_64",
+                                null)));
+        Workspace workspace = workspaceOf(member("acme-http", config), member("acme-core", coreConfig));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                2,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        // Order the plain transitive first to prove same-member attribution cannot decide.
+                        externalOwnedBy(
+                                "com.example",
+                                "fixture",
+                                "1.0.0",
+                                DependencyScope.COMPILE,
+                                SHA_FIXTURE_PLAIN,
+                                List.of(),
+                                List.of("acme-core")),
+                        externalOwnedBy(
+                                "com.example",
+                                "helper",
+                                "1.0.0",
+                                DependencyScope.COMPILE,
+                                SHA_GUAVA,
+                                List.of("com.example:fixture:1.0.0"),
+                                List.of("acme-core")),
+                        classifiedExternalOwnedBy(
+                                "com.example",
+                                "fixture",
+                                "1.0.0",
+                                "linux-x86_64",
+                                SHA_FIXTURE_LINUX,
+                                List.of("acme-core"))),
+                List.of());
+
+        ZoltLockfile sbomLock =
+                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
+        SbomModel model = new LockSbomAssembler().assemble(
+                config, sbomLock, SbomScopeSelection.requiredOnly(), Optional.empty(), TOOL_VERSION);
+
+        String coreRef = refByName(model, "acme-core");
+        List<SbomComponent> fixtures = model.components().stream()
+                .filter(component -> component.name().equals("fixture"))
+                .toList();
+        assertEquals(2, fixtures.size(), "both the declared classified artifact and plain transitive survive");
+        SbomComponent linux = fixtures.stream()
+                .filter(component -> component.purl().contains("classifier=linux-x86_64"))
+                .findFirst()
+                .orElseThrow();
+        SbomComponent plain = fixtures.stream()
+                .filter(component -> !component.purl().contains("classifier="))
+                .findFirst()
+                .orElseThrow();
+
+        assertTrue(dependsOn(model, coreRef).contains(linux.bomRef()), "sibling -> declared linux variant");
+        assertFalse(dependsOn(model, coreRef).contains(plain.bomRef()), "sibling must not point at plain transitive");
+        assertTrue(
+                linux.hashes().stream().anyMatch(hash -> hash.content().equals(SHA_FIXTURE_LINUX)),
+                "the classified component carries its own artifact hash");
+    }
+
     private static ProjectConfig memberConfig(
             String name,
             Map<String, String> dependencies,
@@ -277,6 +364,36 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 Optional.empty(),
                 dependencies,
                 members);
+    }
+
+    private static LockPackage classifiedExternalOwnedBy(
+            String group,
+            String artifact,
+            String version,
+            String classifier,
+            String jarSha256,
+            List<String> members) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "maven-central",
+                DependencyScope.COMPILE,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of(jarSha256),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                members,
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     private static LockPackage workspacePackage(String group, String artifact, String version) {

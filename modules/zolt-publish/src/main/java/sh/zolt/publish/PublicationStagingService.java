@@ -83,8 +83,16 @@ public final class PublicationStagingService {
             String repositoryPath,
             Map<String, String> recorded) {
         String expected = recorded.get(repositoryPath);
-        if (expected != null && Files.isRegularFile(staged) && sha256(staged).equals(expected)) {
-            return;
+        if (expected != null) {
+            if (!Files.isRegularFile(source) || !sha256(source).equals(expected)) {
+                throw new PublishException(
+                        "Cannot resume because the current publication input for `"
+                                + repositoryPath
+                                + "` no longer matches the interrupted publish.");
+            }
+            if (Files.isRegularFile(staged) && sha256(staged).equals(expected)) {
+                return;
+            }
         }
         try {
             Files.createDirectories(staged.getParent());

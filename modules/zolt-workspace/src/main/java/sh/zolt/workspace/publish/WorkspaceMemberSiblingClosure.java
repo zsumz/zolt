@@ -2,8 +2,11 @@ package sh.zolt.workspace.publish;
 
 import static sh.zolt.workspace.publish.MemberDependencyVariants.ref;
 
+import sh.zolt.dependency.DependencyScope;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.publish.PublishException;
 import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
 import sh.zolt.workspace.service.Workspace;
 import sh.zolt.workspace.service.WorkspaceMember;
@@ -71,12 +74,18 @@ final class WorkspaceMemberSiblingClosure {
             Set<String> seen = new LinkedHashSet<>();
             // Propagating externals only: api + compile + runtime. provided/dev/test are NOT
             // transitive, so a sibling's provided/test externals never reach the consumer's SBOM.
-            addExternalEdges(edges, seen, member.path(), config.apiDependencies().keySet());
-            addExternalEdges(edges, seen, member.path(), config.managedApiDependencies());
-            addExternalEdges(edges, seen, member.path(), config.dependencies().keySet());
-            addExternalEdges(edges, seen, member.path(), config.managedDependencies());
-            addExternalEdges(edges, seen, member.path(), config.runtimeDependencies().keySet());
-            addExternalEdges(edges, seen, member.path(), config.managedRuntimeDependencies());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.COMPILE, config.apiDependencies().keySet());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.COMPILE, config.managedApiDependencies());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.COMPILE, config.dependencies().keySet());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.COMPILE, config.managedDependencies());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.RUNTIME, config.runtimeDependencies().keySet());
+            addExternalEdges(
+                    edges, seen, member.path(), config, DependencyScope.RUNTIME, config.managedRuntimeDependencies());
             // Siblings-of-siblings: edge to the workspace sibling, and recurse into it the same way.
             addWorkspaceEdges(edges, seen, queue, config.workspaceApiDependencies().keySet());
             addWorkspaceEdges(edges, seen, queue, config.workspaceDependencies().keySet());
@@ -86,9 +95,18 @@ final class WorkspaceMemberSiblingClosure {
     }
 
     private void addExternalEdges(
-            List<String> edges, Set<String> seen, String memberPath, Set<String> coordinates) {
+            List<String> edges,
+            Set<String> seen,
+            String memberPath,
+            ProjectConfig config,
+            DependencyScope scope,
+            Set<String> coordinates) {
         for (String coordinate : coordinates) {
-            LockPackage resolved = resolveExternal(coordinate, memberPath);
+            LockPackage resolved = resolveExternal(
+                    coordinate,
+                    MemberDependencyVariants.declaredVariant(config, coordinate, scope),
+                    scope,
+                    memberPath);
             if (resolved != null && seen.add(ref(resolved))) {
                 edges.add(ref(resolved));
             }
@@ -106,26 +124,47 @@ final class WorkspaceMemberSiblingClosure {
         }
     }
 
-    /**
-     * Member-attribution guard: when variant identity yields multiple lock entries sharing a GA, prefer
-     * the entry attributed to this sibling — the one whose {@code members} list carries the sibling's
-     * workspace path. With a single entry (today) this is exactly first-wins, so it is forward-compatible
-     * with variant identity without depending on it.
-     */
-    private LockPackage resolveExternal(String coordinate, String memberPath) {
+    /** Resolves the exact variant declared by the sibling and confirms that entry is attributed to it. */
+    private LockPackage resolveExternal(
+            String coordinate,
+            LockArtifactVariant declaredVariant,
+            DependencyScope scope,
+            String memberPath) {
         List<LockPackage> candidates = externalCandidates.get(coordinate);
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        if (candidates.size() == 1) {
-            return candidates.get(0);
-        }
+        boolean qualifiedEntryPresent = false;
         for (LockPackage candidate : candidates) {
+            if (!LockArtifactVariant.of(candidate).equals(declaredVariant)
+                    || candidate.scope() != scope) {
+                continue;
+            }
+            qualifiedEntryPresent = true;
             if (candidate.members().contains(memberPath)) {
                 return candidate;
             }
         }
-        return candidates.get(0);
+        if (!qualifiedEntryPresent) {
+            throw new PublishException(
+                    "Workspace zolt.lock does not contain the declared artifact variant `"
+                            + coordinate
+                            + ":"
+                            + declaredVariant.key()
+                            + "` in scope `"
+                            + scope.lockfileName()
+                            + "` for sibling `"
+                            + memberPath
+                            + "`. Run `zolt resolve --workspace` to regenerate the lock before publishing.");
+        }
+        throw new PublishException(
+                "Workspace zolt.lock contains `"
+                        + coordinate
+                        + ":"
+                        + declaredVariant.key()
+                        + "` but does not attribute it to sibling `"
+                        + memberPath
+                        + "`. Run `zolt resolve --workspace` to regenerate the lock before publishing.");
     }
 
     private ProjectConfig effectiveConfig(WorkspaceMember member) {

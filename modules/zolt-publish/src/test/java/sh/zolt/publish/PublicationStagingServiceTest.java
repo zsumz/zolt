@@ -52,7 +52,31 @@ final class PublicationStagingServiceTest {
                                 "com/acme/demo/1.0/demo-1.0.pom",
                                 "0".repeat(64)))));
 
-        assertTrue(exception.getMessage().contains("exact staged bytes"));
+        assertTrue(exception.getMessage().contains("current publication input"));
+    }
+
+    @Test
+    void refusesChangedCurrentInputEvenWhenTheRecordedStagedCopySurvives() throws IOException {
+        Path original = tempDir.resolve("demo.pom");
+        Files.writeString(original, "original pom");
+        Path stagingRoot = tempDir.resolve("staging");
+        String repositoryPath = "com/acme/demo/1.0/demo-1.0.pom";
+        PublicationStagingService service = new PublicationStagingService(name -> null);
+        List<StagedPublicationFile> first = service.stage(
+                stagingRoot,
+                List.of(new PublicationSource(repositoryPath, original)),
+                PublishSigningSettings.disabled());
+        Files.writeString(original, "changed generated pom");
+
+        PublishException exception = assertThrows(
+                PublishException.class,
+                () -> service.stage(
+                        stagingRoot,
+                        List.of(new PublicationSource(repositoryPath, original)),
+                        PublishSigningSettings.disabled(),
+                        new PublicationResume(Map.of(repositoryPath, first.getFirst().sha256()))));
+
+        assertTrue(exception.getMessage().contains("current publication input"));
     }
 
     @Test
