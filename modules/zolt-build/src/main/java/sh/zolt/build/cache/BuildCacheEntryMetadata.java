@@ -21,6 +21,47 @@ public record BuildCacheEntryMetadata(
 
     private static final String VERSION = "1";
 
+    /** A specific way a sidecar can fail to describe a requested entry and its blob. */
+    public enum Mismatch {
+        KEY("key"),
+        SCOPE("scope"),
+        SIZE("size"),
+        SHA("sha256");
+
+        private final String label;
+
+        Mismatch(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+    }
+
+    /**
+     * Verify this sidecar actually describes {@code requestedKey} and the blob whose size and hash are
+     * given, returning the first field that fails or empty when the key, scope, declared size, and
+     * integrity hash all match. Callers treat any mismatch as a miss and never touch build output: this
+     * closes the gap where a restore trusted the archive SHA alone and ignored whether the sidecar even
+     * belonged to the requested entry.
+     */
+    public Optional<Mismatch> mismatchAgainst(BuildCacheKey requestedKey, long actualSizeBytes, String actualSha256) {
+        if (!requestedKey.hash().equals(key)) {
+            return Optional.of(Mismatch.KEY);
+        }
+        if (!requestedKey.scope().id().equals(scope)) {
+            return Optional.of(Mismatch.SCOPE);
+        }
+        if (sizeBytes != actualSizeBytes) {
+            return Optional.of(Mismatch.SIZE);
+        }
+        if (actualSha256 == null || !sha256.equalsIgnoreCase(actualSha256)) {
+            return Optional.of(Mismatch.SHA);
+        }
+        return Optional.empty();
+    }
+
     public String format() {
         return "version=" + VERSION + '\n'
                 + "key=" + key + '\n'
