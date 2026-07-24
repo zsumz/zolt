@@ -1,6 +1,5 @@
 package sh.zolt.resolve;
 
-import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -25,14 +24,11 @@ import sh.zolt.resolve.request.DependencyRequestPlanner;
 import sh.zolt.resolve.request.tooling.GeneratedSourceToolingDependencyContributor;
 import sh.zolt.resolve.traversal.DependencyGraphTraverser;
 import sh.zolt.resolve.traversal.DependencyRelocator;
-import sh.zolt.resolve.version.VersionConflict;
 import sh.zolt.resolve.version.VersionSelectionResult;
 import sh.zolt.resolve.version.VersionSelector;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public final class ResolveService {
@@ -208,7 +204,8 @@ public final class ResolveService {
                         context,
                         options.retryCommand(),
                         snapshotAllowance);
-        enforceVersionConflictPolicy(context.config().dependencyPolicy(), resolved.selection(), options.retryCommand());
+        VersionConflictPolicyEnforcer.enforce(
+                context.config().dependencyPolicy(), resolved.selection(), execResolutions, options.retryCommand());
         ZoltLockfile lockfile = lockfile(context, resolved.graph(), resolved.selection(), allRequests, execResolutions);
         return new ResolveOutput(lockfile, context.downloadCount(), context.metrics());
     }
@@ -259,58 +256,6 @@ public final class ResolveService {
             List<DependencyRequest> directRequests,
             List<ExecToolResolution> execResolutions) {
         return lockfileAssembler.assemble(context, graph, selection, directRequests, execResolutions);
-    }
-
-    private static void enforceVersionConflictPolicy(
-            DependencyPolicySettings dependencyPolicy,
-            VersionSelectionResult selection,
-            String retryCommand) {
-        if (dependencyPolicy == null
-                || !dependencyPolicy.failOnVersionConflict()
-                || selection.conflicts().isEmpty()) {
-            return;
-        }
-        List<String> conflicts = selection.conflicts().stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
-                .map(ResolveService::conflictDescription)
-                .toList();
-        throw ResolveException.actionable(
-                "Dependency version conflicts are disallowed by [dependencyPolicy].failOnVersionConflict.",
-                "Align the conflicting versions with a [platforms] BOM, a direct dependency, or a "
-                        + "[dependencyConstraints] strict constraint, then run `"
-                        + retryCommand
-                        + "` again. Conflicts: "
-                        + String.join("; ", conflicts));
-    }
-
-    private static String conflictDescription(VersionConflict conflict) {
-        return conflict.packageId()
-                + " selected "
-                + conflict.selectedVersion()
-                + " ("
-                + reason(conflict.selectionReason())
-                + "), requested "
-                + requestedVersions(conflict);
-    }
-
-    private static String requestedVersions(VersionConflict conflict) {
-        return String.join(", ", conflict.requests().stream()
-                .map(request -> request.requestedVersion()
-                        + " ["
-                        + request.origin().name().toLowerCase(Locale.ROOT)
-                        + " "
-                        + request.scope().lockfileName()
-                        + "]")
-                .distinct()
-                .sorted()
-                .toList());
-    }
-
-    private static String reason(ConflictSelectionReason reason) {
-        return switch (reason) {
-            case DIRECT_DEPENDENCY -> "direct dependency wins";
-            case NEWEST_VERSION -> "newest version wins";
-        };
     }
 
     @FunctionalInterface
