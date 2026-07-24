@@ -77,6 +77,18 @@ jobs:
       - name: Package javac worker with managed Java
         run: scripts/run-zolt-built package --workspace --member apps/zolt-javac-worker --no-progress --cache-root .zolt/cache
 
+      - name: Assert gpg is available for reproducible-signing tests
+        # The release-quality group runs the zolt-publish reproducible-signing suite, whose tests skip
+        # when gpg is absent. Fail loudly so a runner without gpg is a visible CI failure rather than a
+        # silent skip of a release-critical contract. ubuntu-latest ships gnupg, so no install is needed.
+        if: matrix.name == 'release-quality'
+        run: |
+          if ! command -v gpg >/dev/null 2>&1; then
+            printf 'gpg is required for the zolt-publish reproducible-signing tests but was not found on PATH.\n' >&2
+            exit 1
+          fi
+          gpg --version
+
       - name: Test workspace group with managed Java
         run: scripts/run-zolt-built test --workspace --members "${{ matrix.members }}" --no-progress --cache-root .zolt/cache
 
@@ -128,6 +140,16 @@ jobs:
 
       - name: Package javac worker with managed Java
         run: scripts/run-zolt-built package --workspace --member apps/zolt-javac-worker --no-progress --cache-root .zolt/cache
+
+      - name: Assert gpg is available for reproducible-signing tests
+        # coverage --all executes the zolt-publish reproducible-signing suite, which skips without gpg.
+        # Fail loudly so a missing gpg cannot silently drop that release-critical coverage.
+        run: |
+          if ! command -v gpg >/dev/null 2>&1; then
+            printf 'gpg is required for the zolt-publish reproducible-signing tests but was not found on PATH.\n' >&2
+            exit 1
+          fi
+          gpg --version
 
       - name: Enforce coverage floors across the workspace
         run: scripts/run-zolt-built coverage --workspace --all --no-progress --cache-root .zolt/cache
