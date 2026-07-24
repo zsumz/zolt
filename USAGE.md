@@ -233,6 +233,20 @@ keyId = "3AB1C2D3E4F5A6B7"
 passphraseEnv = "ZOLT_SIGNING_PASSPHRASE"
 ```
 
+The assembled bundle is a deterministic zip — entries are sorted and stamped with a
+fixed time — so an **unsigned** bundle is byte-for-byte reproducible from reproducible
+inputs. GPG signatures embed a creation time, so a **signed** bundle is reproducible
+only when both that time and the key are pinned: set `SOURCE_DATE_EPOCH` (epoch seconds,
+the same reproducible-build anchor Zolt honors for SBOM timestamps and build provenance)
+to freeze each `.asc` signature's creation time, and set `keyId` so the same key signs in
+every environment. When `SOURCE_DATE_EPOCH` is set, publish requires `keyId` and fails
+with an actionable error otherwise, because gpg's default-key selection can differ
+between keyrings. Without `SOURCE_DATE_EPOCH`, signatures carry wall-clock time and signed
+bundles vary between runs, while the artifacts, checksums, and unsigned bundle stay
+reproducible. The frozen signing time must be on or after the signing key's creation —
+normally true of a release commit — or gpg refuses to make a signature that would predate
+the key.
+
 To publish to Maven Central through the Sonatype Central Portal, configure
 `[publish.central]`. `tokenEnv` names an environment variable holding the base64
 `user:password` Portal user token (sent as `Authorization: Bearer <token>`);

@@ -15,8 +15,10 @@ import java.util.zip.ZipOutputStream;
  * Assembles the Sonatype Central Portal upload bundle: a deterministic zip in Maven repository
  * layout containing every artifact and the POM, each accompanied by its {@code .md5}/{@code .sha1}/
  * {@code .sha256} checksums and, when signing is enabled, a {@code .asc} detached signature (with
- * checksums of the signature). Entries are sorted and written with a fixed timestamp so the bundle
- * is byte-for-byte reproducible.
+ * checksums of the signature). Entries are sorted and written with a fixed timestamp, so the bundle
+ * is byte-for-byte reproducible given reproducible inputs. Unsigned bundles are always reproducible;
+ * signatures embed a creation time, so signed bundles are reproducible only when {@code
+ * SOURCE_DATE_EPOCH} freezes that time and {@code keyId} pins the key (see {@link PublishSigner}).
  */
 public final class PublishCentralBundle {
     private static final long DETERMINISTIC_ENTRY_TIME = 0L;
