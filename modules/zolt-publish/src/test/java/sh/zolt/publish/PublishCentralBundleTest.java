@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.function.Function;
 import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,31 @@ final class PublishCentralBundleTest {
                 first,
                 second,
                 "a signed Central bundle must be byte-for-byte reproducible under SOURCE_DATE_EPOCH");
+    }
+
+    @Test
+    void streamsMultiMegabyteArtifactIntoTheZipWithoutBufferingItAndStaysDeterministic() throws IOException {
+        // A multi-MB artifact would dominate heap if assembly read every body into a retained byte[].
+        // Streaming keeps it on disk until it is copied into the zip, so the assertions here confirm
+        // the streamed bytes round-trip intact and the bundle stays byte-for-byte reproducible.
+        Path root = writeProject();
+        byte[] largeArtifact = new byte[8 * 1024 * 1024];
+        new Random(20260724L).nextBytes(largeArtifact);
+        Files.write(root.resolve("target/app-1.0.0.jar"), largeArtifact);
+        PublishDryRunPlan plan = plan();
+        PublishCentralBundle bundle = new PublishCentralBundle(PublishSigningSettings.disabled(), name -> null);
+
+        PublishCentralBundleResult result = bundle.assemble(root, plan);
+
+        String jar = "com/example/app/1.0.0/app-1.0.0.jar";
+        byte[] first = Files.readAllBytes(result.bundlePath());
+        try (ZipFile zip = new ZipFile(result.bundlePath().toFile())) {
+            byte[] stored = zip.getInputStream(zip.getEntry(jar)).readAllBytes();
+            assertArrayEquals(largeArtifact, stored, "the streamed multi-MB artifact must round-trip byte-for-byte");
+        }
+        byte[] second = Files.readAllBytes(new PublishCentralBundle(PublishSigningSettings.disabled(), name -> null)
+                .assemble(root, plan).bundlePath());
+        assertArrayEquals(first, second, "streaming assembly of a large artifact must stay reproducible");
     }
 
     private Path writeProject() throws IOException {

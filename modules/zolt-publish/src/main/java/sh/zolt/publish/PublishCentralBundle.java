@@ -1,6 +1,7 @@
 package sh.zolt.publish;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +20,11 @@ import java.util.zip.ZipOutputStream;
  * is byte-for-byte reproducible given reproducible inputs. Unsigned bundles are always reproducible;
  * signatures embed a creation time, so signed bundles are reproducible only when {@code
  * SOURCE_DATE_EPOCH} freezes that time and {@code keyId} pins the key (see {@link PublishSigner}).
+ *
+ * <p>Artifact, POM, and signature bodies are streamed from their files straight into the zip at
+ * write time (see {@link EntrySource.FileSource}); only small generated checksum bodies are held in
+ * memory. Assembly memory is therefore bounded by the largest checksum sidecar rather than by the
+ * total publication size, so a large family does not read every artifact into heap at once.
  */
 public final class PublishCentralBundle {
     private static final long DETERMINISTIC_ENTRY_TIME = 0L;
@@ -75,29 +81,21 @@ public final class PublishCentralBundle {
     }
 
     private void addFile(List<BundleEntry> entries, Path localFile, String uploadPath, PublishSigner signer) {
-        entries.add(new BundleEntry(uploadPath, read(localFile)));
+        entries.add(BundleEntry.ofFile(uploadPath, localFile));
         addChecksums(entries, localFile, uploadPath);
         if (signer != null) {
             Path signature = signer.sign(localFile);
             String signaturePath = uploadPath + ".asc";
-            entries.add(new BundleEntry(signaturePath, read(signature)));
+            entries.add(BundleEntry.ofFile(signaturePath, signature));
             addChecksums(entries, signature, signaturePath);
         }
     }
 
     private static void addChecksums(List<BundleEntry> entries, Path file, String uploadPath) {
         for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(file)) {
-            entries.add(new BundleEntry(
+            entries.add(BundleEntry.ofInline(
                     uploadPath + "." + sidecar.extension(),
                     sidecar.value().getBytes(StandardCharsets.UTF_8)));
-        }
-    }
-
-    private static byte[] read(Path file) {
-        try {
-            return Files.readAllBytes(file);
-        } catch (IOException exception) {
-            throw new PublishException("Could not read bundle input " + file + ".", exception);
         }
     }
 
@@ -109,7 +107,7 @@ public final class PublishCentralBundle {
                     ZipEntry zipEntry = new ZipEntry(entry.name());
                     zipEntry.setTime(DETERMINISTIC_ENTRY_TIME);
                     zip.putNextEntry(zipEntry);
-                    zip.write(entry.content());
+                    entry.writeContentTo(zip);
                     zip.closeEntry();
                 }
             }
@@ -118,6 +116,45 @@ public final class PublishCentralBundle {
         }
     }
 
-    private record BundleEntry(String name, byte[] content) {
+    /**
+     * A single zip entry: its Maven-layout name plus the source of its bytes. Entries are sorted by
+     * {@link #name()} for determinism before any content is read, then each source is streamed into
+     * the zip in {@link #writeContentTo(OutputStream)}.
+     */
+    private record BundleEntry(String name, EntrySource source) {
+        static BundleEntry ofFile(String name, Path file) {
+            return new BundleEntry(name, new EntrySource.FileSource(file));
+        }
+
+        static BundleEntry ofInline(String name, byte[] bytes) {
+            return new BundleEntry(name, new EntrySource.InlineSource(bytes));
+        }
+
+        void writeContentTo(OutputStream out) throws IOException {
+            source.writeTo(out);
+        }
+    }
+
+    /**
+     * Where an entry's bytes come from. A {@link FileSource} is streamed from disk so the artifact is
+     * never fully resident in heap; an {@link InlineSource} carries a small, already-generated body
+     * (a checksum sidecar) that has nowhere on disk to stream from.
+     */
+    private sealed interface EntrySource {
+        void writeTo(OutputStream out) throws IOException;
+
+        record FileSource(Path file) implements EntrySource {
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+                Files.copy(file, out);
+            }
+        }
+
+        record InlineSource(byte[] bytes) implements EntrySource {
+            @Override
+            public void writeTo(OutputStream out) throws IOException {
+                out.write(bytes);
+            }
+        }
     }
 }
