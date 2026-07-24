@@ -91,4 +91,31 @@ final class DependencyTreeJsonTest extends DependencyTreeTestSupport {
                 }
                 """, output);
     }
+
+    @Test
+    void emitsQualifiedPackageAndConflictVariants() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(classified("io.netty", "netty", "4.1.100.Final", "linux-x86_64")),
+                List.of(new LockConflict(
+                        new PackageId("io.netty", "netty"),
+                        "4.1.100.Final",
+                        List.of("4.1.90.Final", "4.1.100.Final"),
+                        ConflictSelectionReason.NEWEST_VERSION,
+                        Optional.empty(),
+                        Optional.of(new sh.zolt.lockfile.LockArtifactVariant(
+                                "jar", Optional.of("linux-x86_64"))))));
+
+        String output = jsonFormatter.tree(config(), lockfile);
+
+        org.junit.jupiter.api.Assertions.assertTrue(
+                output.contains("\"coordinate\": \"io.netty:netty:4.1.100.Final:jar|linux-x86_64\""));
+        assertEquals(
+                2,
+                output.split(
+                                java.util.regex.Pattern.quote("\"variant\": \"jar|linux-x86_64\""),
+                                -1)
+                        .length
+                        - 1);
+    }
 }

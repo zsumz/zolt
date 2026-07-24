@@ -46,7 +46,7 @@ final class ZoltLockfileWriterTest {
                 List.of());
 
         assertEquals("""
-                version = 1
+                version = 2
                 aliasFingerprint = "sha256:alias-inputs"
 
                 """, writer.write(lockfile));
@@ -64,7 +64,7 @@ final class ZoltLockfileWriterTest {
                 List.of());
 
         assertEquals("""
-                version = 1
+                version = 2
                 projectResolutionFingerprint = "sha256:project-inputs"
                 projectResolutionInputFingerprints = ["dependencies.compile=sha256:compile-inputs", "repositories=sha256:repo-inputs"]
 

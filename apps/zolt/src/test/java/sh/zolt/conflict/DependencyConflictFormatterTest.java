@@ -1,8 +1,10 @@
 package sh.zolt.conflict;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.ConflictSelectionReason;
@@ -85,5 +87,33 @@ final class DependencyConflictFormatterTest {
         String output = formatter.format(new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, List.of(), List.of()));
 
         assertEquals("No dependency conflicts found.\n", output);
+    }
+
+    @Test
+    void rendersAndSortsIndependentVariantConflicts() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(),
+                List.of(
+                        new LockConflict(
+                                new PackageId("com.example", "native"),
+                                "2.0.0",
+                                List.of("1.0.0", "2.0.0"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                Optional.empty(),
+                                Optional.of(new LockArtifactVariant("jar", Optional.of("tests")))),
+                        new LockConflict(
+                                new PackageId("com.example", "native"),
+                                "3.0.0",
+                                List.of("2.0.0", "3.0.0"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                Optional.empty(),
+                                Optional.of(new LockArtifactVariant("zip", Optional.empty())))));
+
+        String output = formatter.format(lockfile);
+
+        assertTrue(output.indexOf("variant: jar|tests") < output.indexOf("variant: zip"));
+        assertTrue(output.contains("variant: jar|tests"));
+        assertTrue(output.contains("variant: zip"));
     }
 }

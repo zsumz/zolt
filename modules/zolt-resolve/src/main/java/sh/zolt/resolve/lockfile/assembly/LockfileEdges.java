@@ -5,6 +5,7 @@ import sh.zolt.lockfile.LockDependencyEdge;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.graph.ResolutionEdge;
 import sh.zolt.resolve.graph.ResolutionGraph;
+import sh.zolt.resolve.version.VersionSelectionResult;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,19 +20,26 @@ final class LockfileEdges {
     private LockfileEdges() {
     }
 
-    static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
+    static List<String> dependenciesFor(
+            PackageNode node, ResolutionGraph graph, VersionSelectionResult selection) {
         return graph.edges().stream()
                 .filter(edge -> edge.from().equals(node))
-                .map(LockfileEdges::edgeRef)
+                .map(edge -> edgeRef(edge, selection))
                 .distinct()
                 .sorted()
                 .toList();
     }
 
-    private static String edgeRef(ResolutionEdge edge) {
+    private static String edgeRef(ResolutionEdge edge, VersionSelectionResult selection) {
         LockArtifactVariant variant = edge.request().artifactDescriptor()
                 .map(descriptor -> new LockArtifactVariant(descriptor.extension(), descriptor.classifier()))
                 .orElseGet(() -> new LockArtifactVariant("jar", Optional.empty()));
-        return LockDependencyEdge.encode(edge.to().packageId(), edge.to().selectedVersion(), variant);
+        String selectedVersion = selection.selectedNodes().stream()
+                .filter(node -> node.packageId().equals(edge.to().packageId()))
+                .filter(node -> node.variant().equals(variant))
+                .map(PackageNode::selectedVersion)
+                .findFirst()
+                .orElse(edge.to().selectedVersion());
+        return LockDependencyEdge.encode(edge.to().packageId(), selectedVersion, variant);
     }
 }

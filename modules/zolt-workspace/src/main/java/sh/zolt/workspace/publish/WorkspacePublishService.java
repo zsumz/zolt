@@ -127,8 +127,8 @@ public final class WorkspacePublishService {
         boolean resumeMode = selectionRequest.exact();
 
         // A `--resume-members` publish is backed by a durable transaction manifest, not a trusted hidden
-        // flag: without matching v2 state we refuse rather than silently treat absent providers as
-        // published, and a manifest from an older Zolt (v1) is refused outright rather than guessed at.
+        // flag: without matching v3 state we refuse rather than silently treat absent providers as
+        // published, and a manifest from an older Zolt is refused outright rather than guessed at.
         Path statePath = WorkspacePublishPaths.resumeStatePath(workspace);
         ResumeState.ReadOutcome outcome = resumeMode ? ResumeState.read(statePath) : ResumeState.ReadOutcome.absent();
         if (resumeMode && !outcome.present()) {
@@ -144,6 +144,20 @@ public final class WorkspacePublishService {
                     List.of(), List.of(message), List.of(), false, Optional.empty(), Optional.empty(), Optional.empty());
         }
         Optional<ResumeState> resumeState = outcome.state();
+        if (resumeState.isPresent()) {
+            // The emitted command names only the failed tail, but the transaction manifest retains the
+            // complete original family. Re-plan that family internally so completed providers are
+            // re-staged from their recorded bytes and re-verified at their recorded targets before any
+            // consumer or BOM can proceed.
+            plan = workspaceBuildService.planBuild(
+                    startDirectory,
+                    cacheRoot,
+                    false,
+                    WorkspaceSelectionRequest.exact(resumeState.orElseThrow().familyMembers()));
+            workspace = plan.workspace();
+            selection = plan.selection();
+            aggregatedLock = plan.lockfile();
+        }
 
         List<WorkspaceMember> publishable =
                 WorkspacePublishSelection.publishable(workspace, selection, publishSettingsReader);
@@ -161,6 +175,12 @@ public final class WorkspacePublishService {
             publications.add(result.publication());
             blockers.addAll(result.blockers());
             notes.addAll(result.notes());
+            if (resumeState.isPresent() && !selectionRequest.members().contains(member.path())) {
+                notes.add("`"
+                        + result.publication().coordinate()
+                        + "` was already published by the interrupted attempt and was reverified at its recorded "
+                        + "repository target.");
+            }
         }
         if (!options.allowMixedVersions()) {
             blockers.addAll(WorkspacePublishSelection.uniformVersionBlockers(publishable));

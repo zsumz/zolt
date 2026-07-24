@@ -66,7 +66,7 @@ final class WorkspacePublishResumeManifestTest {
 
             // Resume: re-stage against the manifest (reusing S1), upload only the missing checksum.
             ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
-            assertTrue(outcome.present(), "a v2 transaction manifest was written on failure");
+            assertTrue(outcome.present(), "a v3 transaction manifest was written on failure");
             server.failPutPathSuffix = null;
             WorkspacePublishStaging.Preparation prep2 =
                     staging.materialize(List.of(member), stagingRoot, OPTIONS, outcome.state());
@@ -110,10 +110,10 @@ final class WorkspacePublishResumeManifestTest {
         StagedArtifact jar = jarArtifact();
         RepositoryTarget target = RepositoryTarget.remote(URI.create("https://repo.example/releases"), Optional.empty());
         ResumeState manifest = ResumeState.of(
-                List.of(stagedMember(target, "key=AAAA1111;sde=false", jar)), OPTIONS, List.of("acme-core"), Set.of());
+                List.of(stagedMember(target, "key=AAAA1111;sde=none", jar)), OPTIONS, List.of("acme-core"), Set.of());
 
         List<String> blockers = manifest.validate(
-                List.of(stagedMember(target, "key=BBBB2222;sde=false", jar)), OPTIONS, List.of("acme-core"));
+                List.of(stagedMember(target, "key=BBBB2222;sde=none", jar)), OPTIONS, List.of("acme-core"));
 
         assertEquals(1, blockers.size(), blockers::toString);
         assertTrue(blockers.get(0).contains("signing configuration"), blockers::toString);
@@ -160,6 +160,96 @@ final class WorkspacePublishResumeManifestTest {
     }
 
     @Test
+    void resumeReuploadsMissingPrimaryEvenWhenItsSha256SidecarSurvives(@TempDir Path tempDir) throws IOException {
+        PublishFixtureRepository server = PublishFixtureRepository.start();
+        try {
+            MemberPublication member = httpJarMember(tempDir, "acme-core", server.baseUri());
+            Path stagingRoot = tempDir.resolve("staging");
+            Path statePath = tempDir.resolve("resume-state");
+            String jar = "/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar";
+            String jarSha256 = jar + ".sha256";
+
+            server.failPutPathSuffix = "/acme-core-1.0.0.pom";
+            WorkspacePublishStaging.Preparation prep1 =
+                    new WorkspacePublishStaging().materialize(List.of(member), stagingRoot, OPTIONS);
+            WorkspacePublishReport first = new WorkspaceRepositoryUploader()
+                    .upload(prep1.members(), OPTIONS, Set.of(), statePath);
+            assertFalse(first.ok());
+            assertTrue(server.has(jarSha256));
+
+            server.store.remove(jar);
+            server.failPutPathSuffix = null;
+            ResumeState state = ResumeState.read(statePath).state().orElseThrow();
+            WorkspacePublishStaging.Preparation prep2 =
+                    new WorkspacePublishStaging().materialize(List.of(member), stagingRoot, OPTIONS, Optional.of(state));
+            WorkspacePublishReport second =
+                    new WorkspaceRepositoryUploader().upload(prep2.members(), OPTIONS, state.completed(), statePath);
+
+            assertTrue(second.ok(), () -> "resume blockers: " + second.blockers());
+            assertEquals(2, server.putCount(jar), "the absent primary must be PUT again");
+            assertEquals(1, server.putCount(jarSha256), "the surviving checksum remains untouched");
+        } finally {
+            server.close();
+        }
+    }
+
+    @Test
+    void resumeReverifiesAndRestoresAnOmittedProviderJar(@TempDir Path tempDir) throws IOException {
+        resumeRestoresOmittedProviderFile(tempDir, ".jar");
+    }
+
+    @Test
+    void resumeReverifiesAndRestoresAnOmittedProviderPom(@TempDir Path tempDir) throws IOException {
+        resumeRestoresOmittedProviderFile(tempDir, ".pom");
+    }
+
+    @Test
+    void providerOnlyTargetChangeIsRefusedEvenThoughTheResumeCommandOmitsIt() {
+        RepositoryTarget original = RepositoryTarget.remote(
+                URI.create("https://repo-a.example/releases"), Optional.empty());
+        RepositoryTarget moved = RepositoryTarget.remote(
+                URI.create("https://repo-b.example/releases"), Optional.empty());
+        StagedMember provider = stagedMember(original, "unsigned", jarArtifact());
+        StagedMember consumer = stagedMember(
+                "acme-http",
+                "com.acme:acme-http:1.0.0",
+                original,
+                "unsigned",
+                new StagedArtifact(
+                        "com/acme/acme-http/1.0.0/acme-http-1.0.0.jar",
+                        Path.of("target/acme-http-1.0.0.jar"),
+                        "def456"));
+        ResumeState manifest =
+                ResumeState.of(List.of(provider, consumer), List.of(consumer), OPTIONS, List.of("acme-http"), Set.of());
+        StagedMember movedProvider = stagedMember(moved, "unsigned", jarArtifact());
+
+        List<String> blockers =
+                manifest.validate(List.of(movedProvider, consumer), OPTIONS, List.of("acme-http"));
+
+        assertEquals(1, blockers.size(), blockers::toString);
+        assertTrue(blockers.getFirst().contains("different publish repository"), blockers::toString);
+        assertTrue(blockers.getFirst().contains("repo-a") && blockers.getFirst().contains("repo-b"));
+    }
+
+    @Test
+    void providerProofRequiresItsCompleteRecordedPublicationSet() {
+        RepositoryTarget target = RepositoryTarget.remote(
+                URI.create("https://repo.example/releases"), Optional.empty());
+        StagedArtifact jar = jarArtifact();
+        StagedArtifact pom = new StagedArtifact(
+                "com/acme/acme-core/1.0.0/acme-core-1.0.0.pom",
+                Path.of("target/acme-core-1.0.0.pom"),
+                "def456");
+        ResumeState partial = ResumeState.of(
+                List.of(stagedMember(target, "unsigned", jar, pom)),
+                OPTIONS,
+                List.of("acme-core"),
+                Set.of(jar.repositoryPath()));
+
+        assertFalse(partial.recordsPublished("com.acme:acme-core"));
+    }
+
+    @Test
     void aLegacyV1ManifestIsRefusedRatherThanGuessedAt(@TempDir Path tempDir) throws IOException {
         Path statePath = tempDir.resolve("resume-state");
         Files.writeString(statePath, "schema=zolt.publish-resume.v1\nplanHash=deadbeef\n"
@@ -167,8 +257,22 @@ final class WorkspacePublishResumeManifestTest {
 
         ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
 
-        assertFalse(outcome.present(), "a v1 manifest yields no usable v2 state");
+        assertFalse(outcome.present(), "a v1 manifest yields no usable v3 state");
         assertTrue(outcome.legacy(), "a v1 manifest is recognised as legacy so the service can refuse actionably");
+    }
+
+    @Test
+    void aV2ManifestIsAlsoRefusedBecauseItDidNotRecordCompletedProviders(@TempDir Path tempDir) throws IOException {
+        Path statePath = tempDir.resolve("resume-state");
+        Files.writeString(
+                statePath,
+                "schema=zolt.publish-resume.v2\nplanHash=deadbeef\nmembers=acme-http\n",
+                StandardCharsets.UTF_8);
+
+        ResumeState.ReadOutcome outcome = ResumeState.read(statePath);
+
+        assertFalse(outcome.present());
+        assertTrue(outcome.legacy());
     }
 
     @Test
@@ -208,9 +312,58 @@ final class WorkspacePublishResumeManifestTest {
     }
 
     private static StagedMember stagedMember(RepositoryTarget target, String signingIdentity, StagedArtifact artifact) {
+        return stagedMember("acme-core", "com.acme:acme-core:1.0.0", target, signingIdentity, artifact);
+    }
+
+    private static StagedMember stagedMember(
+            RepositoryTarget target, String signingIdentity, StagedArtifact... artifacts) {
+        return stagedMember(
+                "acme-core", "com.acme:acme-core:1.0.0", target, signingIdentity, artifacts);
+    }
+
+    private static StagedMember stagedMember(
+            String path,
+            String coordinate,
+            RepositoryTarget target,
+            String signingIdentity,
+            StagedArtifact... artifacts) {
         WorkspacePublishReport.Member reportMember =
-                new WorkspacePublishReport.Member("acme-core", "com.acme:acme-core:1.0.0", false, null);
-        return new StagedMember(reportMember, target, signingIdentity, List.of(artifact));
+                new WorkspacePublishReport.Member(path, coordinate, false, null);
+        return new StagedMember(reportMember, target, signingIdentity, List.of(artifacts));
+    }
+
+    private static void resumeRestoresOmittedProviderFile(Path tempDir, String extension) throws IOException {
+        PublishFixtureRepository server = PublishFixtureRepository.start();
+        try {
+            MemberPublication provider = httpJarMember(tempDir, "acme-core", server.baseUri());
+            MemberPublication consumer = httpJarMember(tempDir, "acme-http", server.baseUri());
+            Path stagingRoot = tempDir.resolve("staging");
+            Path statePath = tempDir.resolve("resume-state");
+            server.failPutPathSuffix = "/acme-http-1.0.0.jar";
+
+            WorkspacePublishStaging staging = new WorkspacePublishStaging();
+            WorkspacePublishStaging.Preparation prep1 =
+                    staging.materialize(List.of(provider, consumer), stagingRoot, OPTIONS);
+            WorkspacePublishReport first = new WorkspaceRepositoryUploader()
+                    .upload(prep1.members(), OPTIONS, Set.of(), statePath);
+            assertFalse(first.ok());
+            ResumeState state = ResumeState.read(statePath).state().orElseThrow();
+            assertEquals(List.of("acme-http"), state.members(), "the emitted command omits the completed provider");
+            assertEquals(List.of("acme-core", "acme-http"), state.familyMembers());
+
+            String providerPath = "/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0" + extension;
+            server.store.remove(providerPath);
+            server.failPutPathSuffix = null;
+            WorkspacePublishStaging.Preparation prep2 =
+                    staging.materialize(List.of(provider, consumer), stagingRoot, OPTIONS, Optional.of(state));
+            WorkspacePublishReport second =
+                    new WorkspaceRepositoryUploader().upload(prep2.members(), OPTIONS, state.completed(), statePath);
+
+            assertTrue(second.ok(), () -> "resume blockers: " + second.blockers());
+            assertEquals(2, server.putCount(providerPath), "the omitted provider object is restored");
+        } finally {
+            server.close();
+        }
     }
 
     private static MemberPublication httpJarMember(Path root, String name, String base) {

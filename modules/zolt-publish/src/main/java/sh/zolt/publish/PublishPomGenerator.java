@@ -134,7 +134,9 @@ public final class PublishPomGenerator {
                 continue;
             }
             String coordinate = coordinate(lockPackage.packageId());
-            DependencyMetadata metadata = config.dependencyMetadata().get(metadataKey(lockPackage.scope(), coordinate));
+            DependencyMetadata metadata =
+                    config.dependencyMetadata().get(PublishDependencyMetadataKey.of(
+                            config, lockPackage.scope(), coordinate));
             // Key by the variant-aware identity so a plain jar and a classified jar at one GA both survive
             // as distinct POM dependencies instead of the later overwriting the earlier.
             PublishPomDependency dependency = new PublishPomDependency(
@@ -222,15 +224,6 @@ public final class PublishPomGenerator {
         return scope == DependencyScope.COMPILE
                 || scope == DependencyScope.RUNTIME
                 || scope == DependencyScope.PROVIDED;
-    }
-
-    private static String metadataKey(DependencyScope scope, String coordinate) {
-        return switch (scope) {
-            case COMPILE -> DependencyMetadata.key("dependencies", coordinate);
-            case RUNTIME -> DependencyMetadata.key("runtime.dependencies", coordinate);
-            case PROVIDED -> DependencyMetadata.key("provided.dependencies", coordinate);
-            default -> DependencyMetadata.key("dependencies", coordinate);
-        };
     }
 
     private static String mavenScope(DependencyScope scope) {

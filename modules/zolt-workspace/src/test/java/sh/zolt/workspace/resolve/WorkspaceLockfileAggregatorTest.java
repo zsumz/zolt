@@ -9,6 +9,7 @@ import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -93,7 +94,8 @@ final class WorkspaceLockfileAggregatorTest extends WorkspaceLockfileAggregatorT
                                                 List.of("1.0.0", "2.0.0"),
                                                 ConflictSelectionReason.DIRECT_DEPENDENCY)),
                                         List.of(policyEffect)),
-                                Set.of(library)),
+                                Set.of(new WorkspaceExportedPackage(
+                                        library, LockArtifactVariant.defaultVariant()))),
                         new WorkspaceMemberResolveOutput(
                                 "apps/worker",
                                 lockfile(
@@ -277,6 +279,38 @@ final class WorkspaceLockfileAggregatorTest extends WorkspaceLockfileAggregatorT
         assertEquals(List.of("apps/worker"), osx.members());
         assertEquals("jar-osx-aarch_64", osx.jarSha256().orElseThrow());
         assertEquals(List.of(), aggregated.conflicts());
+    }
+
+    @Test
+    void attributesClassifiedApiExportToTheExactVariant() throws IOException {
+        Workspace workspace = workspace(List.of());
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+        LockArtifactVariant linux =
+                new LockArtifactVariant("jar", Optional.of("linux-x86_64"));
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(new WorkspaceMemberResolveOutput(
+                        "modules/core",
+                        lockfile(
+                                List.of(
+                                        classifiedExternalPackage(
+                                                epoll, "4.1.100.Final", "linux-x86_64"),
+                                        classifiedExternalPackage(
+                                                epoll, "4.1.100.Final", "osx-aarch_64")),
+                                List.of(),
+                                List.of()),
+                        Set.of(new WorkspaceExportedPackage(epoll, linux)))));
+
+        LockPackage exported = aggregated.packages().stream()
+                .filter(pkg -> LockArtifactVariant.of(pkg).equals(linux))
+                .findFirst()
+                .orElseThrow();
+        LockPackage sibling = aggregated.packages().stream()
+                .filter(pkg -> LockArtifactVariant.of(pkg).classifier().equals(Optional.of("osx-aarch_64")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("modules/core"), exported.exportedBy());
+        assertEquals(List.of(), sibling.exportedBy());
     }
 
     @Test

@@ -1,6 +1,19 @@
-version = 1
+version = 2
 projectResolutionFingerprint = "sha256:ea490462bc1a9ba809763ea8133202343e50647a7d84ff39fe0a74fb118a7b80"
 projectResolutionInputFingerprints = ["dependencies.api=sha256:4ce39b687df3a02e2eb24d4b1b2d55903971a2cfeb8593fba3cb52c81fd3bd9c", "dependencies.compile.workspace=sha256:7c7f5da71a532c206f0f3031643ecc6e0d32154b133539bc3645f5493649c8bc", "dependencies.compile=sha256:ff84fa7b7a416746662ce10d9ec1cec2553f43cca30569ac127e92bbb1dcc546", "dependencies.provided=sha256:fb1d589a350c36415cc1f7ab6f5efe21de446b82ef4f93d2562b248243479fe7", "dependencies.test=sha256:d37ad981d555fa84e84870a6273244956c9f63ef8f0b0af06165dee874fa02d8", "dependencyMetadata=sha256:cdc704285703fc71a1707e5059aebf9f5748acd917f12084b12d26ad88011dd1", "framework.quarkus=sha256:1a03038e3b6c11a6598e959b5526786bc942bd2d0e7cb6aec2401dcd36bafc1b", "framework.springBoot.native=sha256:cf597ee2519b656c8bdeb8a1aaaf81b8c9da20d7b82a94cb0643edd20e98e19f", "java=sha256:c822ebc7e176990dd66771c2496f47b8ee0f6451df7ddfa87c44aebff0a6edf6", "package=sha256:2749c690c9704c4c4ffc0cf47a88263a7341b3e9e7b1eb64da57c527dd91a24a", "repositories=sha256:799032c8cf536aacc8d4dd13962887d60e72dc4a4c3f4da0bd018f4a301ed451", "schema=sha256:8bc527af269ce6e00194239e0204a133eccebadb631fb736c0e3e63d92dc5e2b"]
+
+[[package]]
+id = "args4j:args4j"
+version = "2.0.28"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "args4j/args4j/2.0.28/args4j-2.0.28.jar"
+pom = "args4j/args4j/2.0.28/args4j-2.0.28.pom"
+jarSha256 = "11b029a602e787e2bc08eb3b77eda1a4f5e8b263d22e3c5d6220cd5c51f30b18"
+pomSha256 = "1f821c93660b7fa573692c305ca97092eab647cefeccfcb3f54771117c3737d3"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = []
 
 [[package]]
 id = "info.picocli:picocli"
@@ -146,6 +159,58 @@ members = ["modules/zolt-config", "modules/zolt-explain", "modules/zolt-toml"]
 dependencies = []
 
 [[package]]
+id = "org.jacoco:org.jacoco.agent"
+version = "0.8.14"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14-runtime.jar"
+pom = "org/jacoco/org.jacoco.agent/0.8.14/org.jacoco.agent-0.8.14.pom"
+jarSha256 = "3fb76eea65f81bd9415202bab34b6571728841dff1ab8e6bbe81adc2e299face"
+pomSha256 = "943e77ed5ccb99aeeb3fe5643fea5a636f6f828e3958f8605f426ddc9afab8c9"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "org.jacoco:org.jacoco.cli"
+version = "0.8.14"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/jacoco/org.jacoco.cli/0.8.14/org.jacoco.cli-0.8.14.jar"
+pom = "org/jacoco/org.jacoco.cli/0.8.14/org.jacoco.cli-0.8.14.pom"
+jarSha256 = "12d5d78351c638efeea71ac840f6a5cf7bcff89001ddb05eb89f956d1079a2c6"
+pomSha256 = "240a1cdc87a5510fde23fbe14067589823b6b057d88e17a8b6fb984a4f54fbdd"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = ["args4j:args4j:2.0.28", "org.jacoco:org.jacoco.core:0.8.14", "org.jacoco:org.jacoco.report:0.8.14"]
+
+[[package]]
+id = "org.jacoco:org.jacoco.core"
+version = "0.8.14"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/jacoco/org.jacoco.core/0.8.14/org.jacoco.core-0.8.14.jar"
+pom = "org/jacoco/org.jacoco.core/0.8.14/org.jacoco.core-0.8.14.pom"
+jarSha256 = "28abbf0eea5a08e4f24097f2fbac663ca17c341c25c3a04d90d6cd325943c995"
+pomSha256 = "7b75bae2c1779af544369833afe1d68f5a3955e91d166cb19dff886534b1ad6c"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = ["org.ow2.asm:asm-commons:9.9", "org.ow2.asm:asm-tree:9.9", "org.ow2.asm:asm:9.9"]
+
+[[package]]
+id = "org.jacoco:org.jacoco.report"
+version = "0.8.14"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/jacoco/org.jacoco.report/0.8.14/org.jacoco.report-0.8.14.jar"
+pom = "org/jacoco/org.jacoco.report/0.8.14/org.jacoco.report-0.8.14.pom"
+jarSha256 = "a3e2026060ab8b8d5c650706406234bb4c033dfd5376afeb8b1666e8ed27c453"
+pomSha256 = "e2ebf2c580f86afa7f75f43a28109dd894c42463928bc9911777e35275108e58"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = ["org.jacoco:org.jacoco.core:0.8.14"]
+
+[[package]]
 id = "org.junit.platform:junit-platform-console-standalone"
 version = "1.11.4"
 source = "maven-central"
@@ -155,6 +220,45 @@ jar = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platfor
 pom = "org/junit/platform/junit-platform-console-standalone/1.11.4/junit-platform-console-standalone-1.11.4.pom"
 jarSha256 = "b016ef6b1c3454d6d7c2c88ce081dabf289699686af6622d6e4e2e1b54b4a2fc"
 pomSha256 = "f44619c18edb94360cc382e6baf943e9300625d1a0a949ee158977eace5713d1"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = []
+
+[[package]]
+id = "org.ow2.asm:asm-commons"
+version = "9.9"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/ow2/asm/asm-commons/9.9/asm-commons-9.9.jar"
+pom = "org/ow2/asm/asm-commons/9.9/asm-commons-9.9.pom"
+jarSha256 = "db2f6f26150bbe7c126606b4a1151836bcc22a1e05a423b3585698bece995ff8"
+pomSha256 = "18a5d3ef1377e7544b3ca3210f261396b987f6010ef591d3872adae63119ee43"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = ["org.ow2.asm:asm-tree:9.9", "org.ow2.asm:asm:9.9"]
+
+[[package]]
+id = "org.ow2.asm:asm-tree"
+version = "9.9"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/ow2/asm/asm-tree/9.9/asm-tree-9.9.jar"
+pom = "org/ow2/asm/asm-tree/9.9/asm-tree-9.9.pom"
+jarSha256 = "42178f3775c9c63f9e5e1446747d29b4eca4d91bd6e75e5c43cfa372a47d38c6"
+pomSha256 = "d01788ed8e6e8e24acaf6cb4a7bdcc2733416252faa00232959e3e2e9df1bf44"
+members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
+dependencies = ["org.ow2.asm:asm:9.9"]
+
+[[package]]
+id = "org.ow2.asm:asm"
+version = "9.9"
+source = "maven-central"
+scope = "tool-coverage"
+direct = false
+jar = "org/ow2/asm/asm/9.9/asm-9.9.jar"
+pom = "org/ow2/asm/asm/9.9/asm-9.9.pom"
+jarSha256 = "03d99a74ad1ee5c71334ef67437f4ef4fe3488caa7c96d8645abc73c8e2017d4"
+pomSha256 = "cf861ef1e745d57154af79ae14df340ed5341e5dcd0157cefcd2eb7f1aa05c57"
 members = ["apps/zolt", "apps/zolt-javac-worker", "apps/zolt-junit-worker", "modules/zolt-build", "modules/zolt-config", "modules/zolt-explain", "modules/zolt-framework-api", "modules/zolt-ide", "modules/zolt-init", "modules/zolt-junit-client", "modules/zolt-model", "modules/zolt-native-image", "modules/zolt-plan", "modules/zolt-policy", "modules/zolt-publish", "modules/zolt-quality", "modules/zolt-quarkus", "modules/zolt-release", "modules/zolt-repository", "modules/zolt-resolve", "modules/zolt-sbom", "modules/zolt-selfhost", "modules/zolt-test-model", "modules/zolt-test-runtime", "modules/zolt-toml", "modules/zolt-toolchain", "modules/zolt-tree", "modules/zolt-update", "modules/zolt-workspace"]
 dependencies = []
 

@@ -11,7 +11,11 @@ public record ZoltLockfile(
         List<LockPackage> packages,
         List<LockConflict> conflicts,
         List<LockPolicyEffect> policyEffects) {
-    public static final int CURRENT_VERSION = 1;
+    /**
+     * Version 2 introduces variant-qualified dependency edges and conflict identities. Older Zolt
+     * versions must reject those records instead of silently interpreting them as the version-1 graph.
+     */
+    public static final int CURRENT_VERSION = 2;
 
     public ZoltLockfile(
             int version,

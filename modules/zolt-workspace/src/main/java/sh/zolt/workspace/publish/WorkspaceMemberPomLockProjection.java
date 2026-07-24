@@ -59,7 +59,7 @@ public final class WorkspaceMemberPomLockProjection {
                 externalIndex);
         addExternal(projected, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED, memberConfig,
                 externalIndex);
-        return new ZoltLockfile(1, List.copyOf(projected.values()), List.of());
+        return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, List.copyOf(projected.values()), List.of());
     }
 
     private static void addWorkspace(
@@ -68,14 +68,15 @@ public final class WorkspaceMemberPomLockProjection {
             Map<String, LockPackage> workspaceByCoordinate) {
         for (Map.Entry<String, String> entry : workspaceDependencies.entrySet()) {
             String coordinate = entry.getKey();
-            if (projected.containsKey(coordinate)) {
+            String key = coordinate + "#workspace";
+            if (projected.containsKey(key)) {
                 continue;
             }
             LockPackage provider = workspaceByCoordinate.get(coordinate);
             if (provider == null) {
                 continue;
             }
-            projected.put(coordinate, new LockPackage(
+            projected.put(key, new LockPackage(
                     provider.packageId(),
                     provider.version(),
                     "workspace",
@@ -98,30 +99,35 @@ public final class WorkspaceMemberPomLockProjection {
             ProjectConfig memberConfig,
             MemberDependencyVariants.ExternalIndex externalIndex) {
         for (String coordinate : coordinates) {
-            if (projected.containsKey(coordinate)) {
+            sh.zolt.lockfile.LockArtifactVariant variant =
+                    MemberDependencyVariants.declaredVariant(memberConfig, coordinate, scope);
+            String key = coordinate + "#" + scope.lockfileName() + "#" + variant.key();
+            if (projected.containsKey(key)) {
                 continue;
             }
             // The member declares a GA coordinate; the variant it actually depends on comes from its
             // dependency metadata (a classifier/type). Resolving the aggregated-lock entry for THAT variant
             // is what stops a member from taking a sibling variant's version — the netty case where the
             // osx-classified dep would otherwise inherit the linux variant's version.
-            LockPackage resolved = externalIndex.resolve(
-                    coordinate, MemberDependencyVariants.declaredVariant(memberConfig, coordinate, scope));
+            LockPackage resolved = externalIndex.resolve(coordinate, variant);
             String version = resolved != null ? resolved.version() : declaredVersion(memberConfig, coordinate);
             if (version == null) {
                 continue;
             }
             String source = resolved != null ? resolved.source() : ProjectConfig.MAVEN_CENTRAL;
-            projected.put(coordinate, new LockPackage(
+            projected.put(key, new LockPackage(
                     packageId(coordinate),
                     version,
                     source,
                     scope,
                     true,
-                    Optional.empty(),
-                    Optional.empty(),
-                    Optional.empty(),
-                    Optional.empty(),
+                    resolved == null ? Optional.empty() : resolved.jar(),
+                    resolved == null ? Optional.empty() : resolved.pom(),
+                    resolved == null ? Optional.empty() : resolved.jarSha256(),
+                    resolved == null ? Optional.empty() : resolved.pomSha256(),
+                    resolved == null ? Optional.empty() : resolved.artifact(),
+                    resolved == null ? Optional.empty() : resolved.artifactType(),
+                    resolved == null ? Optional.empty() : resolved.artifactSha256(),
                     List.of()));
         }
     }

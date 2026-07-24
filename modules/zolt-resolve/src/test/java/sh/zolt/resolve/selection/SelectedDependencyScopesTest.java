@@ -38,14 +38,14 @@ final class SelectedDependencyScopesTest {
                         DependencyTraversalDecision.include("test"))),
                 List.of());
 
-        Map<PackageId, List<SelectedDependencyScope>> scopes = SelectedDependencyScopes.from(
+        Map<PackageNode, List<SelectedDependencyScope>> scopes = SelectedDependencyScopes.from(
                 graph,
                 new VersionSelectionResult(List.of(APP_NODE, LIB_NODE), List.of()),
                 List.of(directCompile));
 
-        assertEquals(List.of(APP), scopes.keySet().stream().toList());
-        assertEquals(DependencyScope.COMPILE, scopes.get(APP).getFirst().scope());
-        assertTrue(scopes.get(APP).getFirst().direct());
+        assertEquals(List.of(APP_NODE), scopes.keySet().stream().toList());
+        assertEquals(DependencyScope.COMPILE, scopes.get(APP_NODE).getFirst().scope());
+        assertTrue(scopes.get(APP_NODE).getFirst().direct());
     }
 
     @Test
@@ -61,15 +61,19 @@ final class SelectedDependencyScopesTest {
                 RequestOrigin.DIRECT,
                 Optional.of(descriptor));
         DependencyRequest test = new DependencyRequest(APP, "1.0.0", DependencyScope.TEST, RequestOrigin.DIRECT);
+        PackageNode coverageNode = new PackageNode(APP, "0.8.14", coverage.artifactVariant());
 
-        Map<PackageId, List<SelectedDependencyScope>> scopes = SelectedDependencyScopes.from(
+        Map<PackageNode, List<SelectedDependencyScope>> scopes = SelectedDependencyScopes.from(
                 new ResolutionGraph(List.of(APP_NODE), List.of(), List.of()),
-                new VersionSelectionResult(List.of(APP_NODE), List.of()),
+                new VersionSelectionResult(List.of(APP_NODE, coverageNode), List.of()),
                 List.of(coverage, test));
 
-        assertEquals(List.of(DependencyScope.TEST, DependencyScope.TOOL_COVERAGE), scopes.get(APP).stream()
+        assertEquals(List.of(DependencyScope.TEST), scopes.get(APP_NODE).stream()
                 .map(SelectedDependencyScope::scope)
                 .toList());
-        assertEquals(Optional.of(descriptor), scopes.get(APP).get(1).artifactDescriptor());
+        assertEquals(List.of(DependencyScope.TOOL_COVERAGE), scopes.get(coverageNode).stream()
+                .map(SelectedDependencyScope::scope)
+                .toList());
+        assertEquals(Optional.of(descriptor), scopes.get(coverageNode).getFirst().artifactDescriptor());
     }
 }

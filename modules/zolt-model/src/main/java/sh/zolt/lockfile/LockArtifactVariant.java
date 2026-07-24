@@ -1,6 +1,7 @@
 package sh.zolt.lockfile;
 
 import sh.zolt.dependency.PackageId;
+import sh.zolt.maven.ArtifactDescriptor;
 import java.util.Optional;
 
 /**
@@ -21,6 +22,8 @@ import java.util.Optional;
  */
 public record LockArtifactVariant(String extension, Optional<String> classifier)
         implements Comparable<LockArtifactVariant> {
+    private static final LockArtifactVariant DEFAULT = new LockArtifactVariant("jar", Optional.empty());
+
     public LockArtifactVariant {
         extension = extension == null || extension.isBlank() ? "jar" : extension;
         classifier = classifier == null ? Optional.empty() : classifier;
@@ -29,6 +32,18 @@ public record LockArtifactVariant(String extension, Optional<String> classifier)
     /** Derives the variant identity of a lock entry from its artifact fields. */
     public static LockArtifactVariant of(LockPackage lockPackage) {
         return new LockArtifactVariant(extension(lockPackage), classifier(lockPackage));
+    }
+
+    /** Derives the variant identity carried by a resolver artifact descriptor. */
+    public static LockArtifactVariant of(Optional<ArtifactDescriptor> descriptor) {
+        return descriptor
+                .map(value -> new LockArtifactVariant(value.extension(), value.classifier()))
+                .orElse(DEFAULT);
+    }
+
+    /** The Maven default artifact variant: an unclassified jar. */
+    public static LockArtifactVariant defaultVariant() {
+        return DEFAULT;
     }
 
     /**

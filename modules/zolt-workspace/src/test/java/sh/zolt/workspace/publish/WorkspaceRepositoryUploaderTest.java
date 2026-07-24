@@ -97,6 +97,31 @@ final class WorkspaceRepositoryUploaderTest {
     }
 
     @Test
+    void uploadsFrozenStagedBytesWhenTheOriginalArtifactMutates(@TempDir Path tempDir) throws IOException {
+        Path memberRoot = tempDir.resolve("acme-core");
+        Path original = memberRoot.resolve("target/acme-core-1.0.0.jar");
+        writeFile(original, "original-jar");
+        writeFile(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
+        Path repository = tempDir.resolve("repo");
+        PublishDryRunPlan plan =
+                jarPlan("com.acme:acme-core:1.0.0", repository.toUri().toString(), List.of());
+        WorkspacePublishStaging.Preparation preparation = new WorkspacePublishStaging().materialize(
+                List.of(fileMember(memberRoot, "acme-core", plan)),
+                tempDir.resolve("staging"),
+                OPTIONS);
+        assertTrue(preparation.blockers().isEmpty(), preparation.blockers()::toString);
+
+        Files.writeString(original, "mutated-after-staging");
+        WorkspacePublishReport report = uploader.upload(preparation.members(), OPTIONS);
+
+        assertTrue(report.ok(), report.blockers()::toString);
+        assertEquals(
+                "original-jar",
+                Files.readString(repository.resolve(
+                        "com/acme/acme-core/1.0.0/acme-core-1.0.0.jar")));
+    }
+
+    @Test
     void authenticatesEveryRequestToACredentialedHttpRepository(@TempDir Path tempDir) {
         PublishFixtureRepository server = PublishFixtureRepository.start();
         try {

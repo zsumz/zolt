@@ -58,15 +58,15 @@ public final class LockfileAssembler {
             List<ExecToolResolution> execResolutions) {
         long started = System.nanoTime();
         try {
-            Map<PackageId, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
+            Map<PackageNode, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
                     graph,
                     selection,
                     directRequests);
             List<LockPackagePlan> packagePlans = new ArrayList<>(selection.selectedNodes().stream()
                     .flatMap(node -> selectedScopes
-                            .getOrDefault(node.packageId(), List.of(new SelectedDependencyScope(DependencyScope.COMPILE, false)))
+                            .getOrDefault(node, List.of(new SelectedDependencyScope(DependencyScope.COMPILE, false)))
                             .stream()
-                            .map(scope -> LockPackagePlan.of(node, scope, graph, List.of())))
+                            .map(scope -> LockPackagePlan.of(node, scope, graph, selection, List.of())))
                     .toList());
             packagePlans.addAll(ExecToolLockPlanner.plans(execResolutions));
             Map<ArtifactDescriptor, CachedArtifact> artifacts = context.getArtifacts(
@@ -118,7 +118,10 @@ public final class LockfileAssembler {
                         conflict.selectedVersion(),
                         conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
                         conflict.selectionReason(),
-                        toolGroup))
+                        toolGroup,
+                        conflict.variant().isDefault()
+                                ? Optional.empty()
+                                : Optional.of(conflict.variant())))
                 .toList();
     }
 
@@ -264,7 +267,7 @@ public final class LockfileAssembler {
                 jarArtifact ? Optional.empty() : Optional.of(sha256(artifact.bytes())),
                 Optional.empty(),
                 Optional.empty(),
-                LockfileEdges.dependenciesFor(node, plan.graph()),
+                LockfileEdges.dependenciesFor(node, plan.graph(), plan.selection()),
                 List.of(),
                 List.of(),
                 LockfilePolicyPlanner.policiesFor(

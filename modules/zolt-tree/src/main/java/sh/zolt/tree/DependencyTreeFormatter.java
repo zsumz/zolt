@@ -1,6 +1,7 @@
 package sh.zolt.tree;
 
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -53,7 +54,7 @@ public final class DependencyTreeFormatter {
             List<String> ancestors) {
         String coordinate = coordinate(lockPackage);
         output.append(prefix).append(last ? "\\- " : "+- ").append(coordinate);
-        LockConflict conflict = conflicts.get(lockPackage.packageId().toString());
+        LockConflict conflict = conflicts.get(qualifiedKey(lockPackage));
         if (conflict != null) {
             output.append(" (conflict: selected ")
                     .append(conflict.selectedVersion())
@@ -96,13 +97,27 @@ public final class DependencyTreeFormatter {
     private static Map<String, LockConflict> conflictsByPackage(ZoltLockfile lockfile) {
         Map<String, LockConflict> conflicts = new LinkedHashMap<>();
         lockfile.conflicts().stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
-                .forEach(conflict -> conflicts.put(conflict.packageId().toString(), conflict));
+                .sorted(Comparator.comparing(DependencyTreeFormatter::qualifiedKey))
+                .forEach(conflict -> conflicts.put(qualifiedKey(conflict), conflict));
         return conflicts;
     }
 
     private static String coordinate(LockPackage lockPackage) {
-        return lockPackage.packageId() + ":" + lockPackage.version();
+        LockArtifactVariant variant = LockArtifactVariant.of(lockPackage);
+        return lockPackage.packageId()
+                + ":"
+                + lockPackage.version()
+                + (variant.isDefault() ? "" : ":" + variant.key());
+    }
+
+    private static String qualifiedKey(LockPackage lockPackage) {
+        return lockPackage.packageId() + ":" + LockArtifactVariant.of(lockPackage).key();
+    }
+
+    private static String qualifiedKey(LockConflict conflict) {
+        return conflict.packageId()
+                + ":"
+                + conflict.variant().map(LockArtifactVariant::key).orElse(LockArtifactVariant.defaultVariant().key());
     }
 
     private static String reason(ConflictSelectionReason reason) {

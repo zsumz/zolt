@@ -3,6 +3,7 @@ package sh.zolt.resolve.request;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.maven.ArtifactDescriptor;
+import sh.zolt.lockfile.LockArtifactVariant;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,5 +47,10 @@ public record DependencyRequest(
 
     public boolean direct() {
         return origin == RequestOrigin.DIRECT;
+    }
+
+    /** The mediation lane this request belongs to. */
+    public LockArtifactVariant artifactVariant() {
+        return LockArtifactVariant.of(artifactDescriptor);
     }
 }

@@ -3,12 +3,14 @@ package sh.zolt.workspace.resolve;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockfileFreshnessSummary;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.lockfile.toml.LockfileSidecars;
 import sh.zolt.lockfile.toml.ZoltLockfileWriter;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.DependencyMetadata;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.ResolveOptions;
 import sh.zolt.resolve.ResolveOutput;
@@ -108,7 +110,7 @@ public final class WorkspaceResolveService {
             memberOutputs.add(new WorkspaceMemberResolveOutput(
                     member.path(),
                     output.lockfile(),
-                    exportedExternalPackageIds(member.config())));
+                    exportedExternalPackages(member.config())));
             downloadCount += output.downloadCount();
             metrics = metrics.plus(output.metrics());
         }
@@ -220,11 +222,23 @@ public final class WorkspaceResolveService {
         return Set.copyOf(coordinates);
     }
 
-    private static Set<PackageId> exportedExternalPackageIds(ProjectConfig config) {
-        Set<PackageId> packageIds = new LinkedHashSet<>();
-        config.apiDependencies().keySet().forEach(coordinate -> packageIds.add(packageId(coordinate)));
-        config.managedApiDependencies().forEach(coordinate -> packageIds.add(packageId(coordinate)));
-        return Set.copyOf(packageIds);
+    private static Set<WorkspaceExportedPackage> exportedExternalPackages(ProjectConfig config) {
+        Set<WorkspaceExportedPackage> packages = new LinkedHashSet<>();
+        config.apiDependencies().keySet().forEach(coordinate ->
+                packages.add(exportedPackage(config, coordinate)));
+        config.managedApiDependencies().forEach(coordinate ->
+                packages.add(exportedPackage(config, coordinate)));
+        return Set.copyOf(packages);
+    }
+
+    private static WorkspaceExportedPackage exportedPackage(ProjectConfig config, String coordinate) {
+        DependencyMetadata metadata = config.dependencyMetadata()
+                .get(DependencyMetadata.key("api.dependencies", coordinate));
+        String extension = metadata == null || metadata.type() == null ? "jar" : metadata.type();
+        String classifier = metadata == null ? null : metadata.classifier();
+        return new WorkspaceExportedPackage(
+                packageId(coordinate),
+                new LockArtifactVariant(extension, java.util.Optional.ofNullable(classifier)));
     }
 
     private static PackageId packageId(String coordinate) {

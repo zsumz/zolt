@@ -166,7 +166,7 @@ public final class DependencyGraphTraverser {
     }
 
     private static PackageNode node(DependencyRequest request, String version) {
-        return new PackageNode(request.packageId(), version);
+        return new PackageNode(request.packageId(), version, request.artifactVariant());
     }
 
     private static String requireVersion(DependencyRequest request) {

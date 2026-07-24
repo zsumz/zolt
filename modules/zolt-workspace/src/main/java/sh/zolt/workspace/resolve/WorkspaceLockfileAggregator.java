@@ -63,7 +63,7 @@ final class WorkspaceLockfileAggregator {
                     externalCandidates.add(withMember(
                             lockPackage,
                             memberOutput.member(),
-                            memberOutput.exportedPackageIds()));
+                            memberOutput.exportedPackages()));
                 }
             }
             for (LockConflict conflict : memberOutput.lockfile().conflicts()) {
@@ -216,15 +216,12 @@ final class WorkspaceLockfileAggregator {
     private static LockPackage withMember(
             LockPackage lockPackage,
             String member,
-            Set<PackageId> exportedPackageIds) {
+            Set<WorkspaceExportedPackage> exportedPackages) {
         Set<String> members = new LinkedHashSet<>(lockPackage.members());
         members.add(member);
         Set<String> exportedBy = new LinkedHashSet<>(lockPackage.exportedBy());
-        // A member's api export is a GA coordinate, so it re-exports only that GA's plain jar. A classified
-        // attachment of the same GA (a :tests jar) is a distinct artifact the member does not export, so it
-        // must NOT inherit the mark — only the default (plain jar) variant is attributed.
-        if (exportedPackageIds.contains(lockPackage.packageId())
-                && LockArtifactVariant.of(lockPackage).isDefault()) {
+        if (exportedPackages.contains(new WorkspaceExportedPackage(
+                lockPackage.packageId(), LockArtifactVariant.of(lockPackage)))) {
             exportedBy.add(member);
         }
         return new LockPackage(

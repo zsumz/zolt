@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.maven.ArtifactDescriptor;
 import sh.zolt.maven.Coordinate;
@@ -177,7 +178,8 @@ final class LockfileAssemblerTest {
                 DependencyScope.TOOL_COVERAGE,
                 RequestOrigin.DIRECT,
                 Optional.of(descriptor));
-        PackageNode node = new PackageNode(request.packageId(), request.requestedVersion());
+        PackageNode node = new PackageNode(
+                request.packageId(), request.requestedVersion(), request.artifactVariant());
         FakeAssemblyContext context = new FakeAssemblyContext(baseConfig());
 
         ZoltLockfile lockfile = assembler.assemble(
@@ -205,7 +207,7 @@ final class LockfileAssemblerTest {
                 DependencyScope.TOOL_OPENAPI,
                 RequestOrigin.DIRECT,
                 Optional.of(descriptor));
-        PackageNode node = new PackageNode(schema, "1.0.0");
+        PackageNode node = new PackageNode(schema, "1.0.0", request.artifactVariant());
 
         ZoltLockfile lockfile = assembler.assemble(
                 new FakeAssemblyContext(baseConfig()),
@@ -220,6 +222,28 @@ final class LockfileAssemblerTest {
         assertEquals(Optional.of("properties"), pkg.artifactType());
         assertTrue(pkg.artifactSha256().isPresent());
         assertTrue(pkg.pomSha256().isPresent());
+    }
+
+    @Test
+    void assemblesDifferentVersionVariantsWithMatchingArtifactAndPomPaths() {
+        DependencyRequest linux = classifiedRequest(
+                "1.0.0", "linux-x86_64", DependencyScope.COMPILE);
+        DependencyRequest tests = classifiedRequest(
+                "2.0.0", "tests", DependencyScope.TEST);
+        PackageNode linuxNode = new PackageNode(
+                linux.packageId(), "1.0.0", linux.artifactVariant());
+        PackageNode testsNode = new PackageNode(
+                tests.packageId(), "2.0.0", tests.artifactVariant());
+
+        ZoltLockfile lockfile = assembler.assemble(
+                new FakeAssemblyContext(baseConfig()),
+                new ResolutionGraph(List.of(linuxNode, testsNode), List.of(), List.of()),
+                new VersionSelectionResult(List.of(linuxNode, testsNode), List.of()),
+                List.of(linux, tests));
+
+        assertEquals(2, lockfile.packages().size());
+        assertVersionPathInvariant(lockfile, "linux-x86_64", "1.0.0");
+        assertVersionPathInvariant(lockfile, "tests", "2.0.0");
     }
 
     @Test
@@ -315,5 +339,31 @@ final class LockfileAssemblerTest {
                     """;
             default -> throw new IllegalArgumentException("Unknown generated step " + id);
         };
+    }
+
+    private static DependencyRequest classifiedRequest(
+            String version, String classifier, DependencyScope scope) {
+        PackageId fixture = new PackageId("com.example", "fixture");
+        return new DependencyRequest(
+                fixture,
+                version,
+                scope,
+                RequestOrigin.DIRECT,
+                Optional.of(ArtifactDescriptor.jar(
+                        new Coordinate(fixture.groupId(), fixture.artifactId(), Optional.of(version)),
+                        Optional.of(classifier))));
+    }
+
+    private static void assertVersionPathInvariant(
+            ZoltLockfile lockfile, String classifier, String version) {
+        LockPackage lockPackage = lockfile.packages().stream()
+                .filter(pkg -> LockArtifactVariant.of(pkg).classifier().orElse("").equals(classifier))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(version, lockPackage.version());
+        assertTrue(lockPackage.jar().orElseThrow().contains(
+                "/%s/fixture-%s-%s.jar".formatted(version, version, classifier)));
+        assertTrue(lockPackage.pom().orElseThrow().contains(
+                "/%s/fixture-%s.pom".formatted(version, version)));
     }
 }

@@ -18,6 +18,7 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
 import sh.zolt.project.PublicationMetadata;
+import sh.zolt.toml.ZoltTomlParser;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -184,6 +185,36 @@ final class PublishPomGeneratorTest {
                 + "          <artifactId>commons-logging</artifactId>\n"
                 + "        </exclusion>\n"
                 + "      </exclusions>\n"));
+    }
+
+    @Test
+    void apiDependencyKeepsClassifierTypeOptionalAndExclusions() {
+        ProjectConfig config = new ZoltTomlParser().parse("""
+                [project]
+                name = "app"
+                version = "1.0.0"
+                group = "com.example"
+                java = "21"
+
+                [api.dependencies]
+                "io.netty:netty-transport-native-epoll" = { version = "4.1.100.Final", classifier = "linux-x86_64", type = "zip", optional = true, exclusions = [{ group = "io.netty", artifact = "netty-common" }] }
+                """);
+        ZoltLockfile lockfile = new ZoltLockfile(
+                1,
+                List.of(direct(
+                        "io.netty",
+                        "netty-transport-native-epoll",
+                        "4.1.100.Final",
+                        DependencyScope.COMPILE)),
+                List.of());
+
+        String pom = generator.generate(config, lockfile);
+
+        assertTrue(pom.contains("<classifier>linux-x86_64</classifier>"));
+        assertTrue(pom.contains("<type>zip</type>"));
+        assertTrue(pom.contains("<optional>true</optional>"));
+        assertTrue(pom.contains("<groupId>io.netty</groupId>\n"
+                + "          <artifactId>netty-common</artifactId>"));
     }
 
     @Test

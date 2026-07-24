@@ -53,9 +53,43 @@ final class DependencyTreeFormatterTest extends DependencyTreeTestSupport {
         assertEquals("""
                 com.example:demo:0.1.0
                 \\- com.example:app:1.0.0
-                   +- io.netty:netty:4.1.100.Final
-                   \\- io.netty:netty:4.1.90.Final
+                   +- io.netty:netty:4.1.100.Final:jar|osx-aarch_64
+                   \\- io.netty:netty:4.1.90.Final:jar|linux-x86_64
                 """, output);
+    }
+
+    @Test
+    void keepsConflictAnnotationsInTheirQualifiedVariantLanes() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(
+                        lockPackage("com.example", "app", "1.0.0", true, List.of(
+                                "io.netty:netty:4.1.90.Final:jar|linux-x86_64",
+                                "io.netty:netty:4.1.100.Final:jar|osx-aarch_64")),
+                        classified("io.netty", "netty", "4.1.90.Final", "linux-x86_64"),
+                        classified("io.netty", "netty", "4.1.100.Final", "osx-aarch_64")),
+                List.of(
+                        new LockConflict(
+                                new PackageId("io.netty", "netty"),
+                                "4.1.90.Final",
+                                List.of("4.1.80.Final", "4.1.90.Final"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                java.util.Optional.empty(),
+                                java.util.Optional.of(new sh.zolt.lockfile.LockArtifactVariant(
+                                        "jar", java.util.Optional.of("linux-x86_64")))),
+                        new LockConflict(
+                                new PackageId("io.netty", "netty"),
+                                "4.1.100.Final",
+                                List.of("4.1.99.Final", "4.1.100.Final"),
+                                ConflictSelectionReason.DIRECT_DEPENDENCY,
+                                java.util.Optional.empty(),
+                                java.util.Optional.of(new sh.zolt.lockfile.LockArtifactVariant(
+                                        "jar", java.util.Optional.of("osx-aarch_64"))))));
+
+        String output = formatter.format(config(), lockfile);
+
+        assertEquals(1, output.split("selected 4.1.90.Final", -1).length - 1);
+        assertEquals(1, output.split("selected 4.1.100.Final", -1).length - 1);
     }
 
     @Test

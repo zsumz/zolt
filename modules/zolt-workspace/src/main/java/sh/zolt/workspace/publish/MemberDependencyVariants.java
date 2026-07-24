@@ -6,6 +6,8 @@ import sh.zolt.lockfile.LockDependencyEdge;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.publish.PublishDependencyMetadataKey;
+import sh.zolt.publish.PublishException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -32,20 +34,13 @@ final class MemberDependencyVariants {
      * classifier/type the POM renders describe the same artifact.
      */
     static LockArtifactVariant declaredVariant(ProjectConfig config, String coordinate, DependencyScope scope) {
-        DependencyMetadata metadata = config.dependencyMetadata().get(metadataKey(scope, coordinate));
+        DependencyMetadata metadata =
+                config.dependencyMetadata().get(PublishDependencyMetadataKey.of(config, scope, coordinate));
         if (metadata == null) {
             return new LockArtifactVariant("jar", Optional.empty());
         }
         String extension = metadata.type() == null ? "jar" : metadata.type();
         return new LockArtifactVariant(extension, Optional.ofNullable(metadata.classifier()));
-    }
-
-    private static String metadataKey(DependencyScope scope, String coordinate) {
-        return switch (scope) {
-            case RUNTIME -> DependencyMetadata.key("runtime.dependencies", coordinate);
-            case PROVIDED -> DependencyMetadata.key("provided.dependencies", coordinate);
-            default -> DependencyMetadata.key("dependencies", coordinate);
-        };
     }
 
     /** Aggregated-lock externals indexed both by GA and by (GA, variant) for variant-exact resolution. */
@@ -60,7 +55,18 @@ final class MemberDependencyVariants {
 
         LockPackage resolve(String coordinate, LockArtifactVariant variant) {
             LockPackage exact = byVariant.get(variantKey(coordinate, variant));
-            return exact != null ? exact : byCoordinate.get(coordinate);
+            if (exact != null) {
+                return exact;
+            }
+            if (!byCoordinate.containsKey(coordinate)) {
+                return null;
+            }
+            throw new PublishException(
+                    "Workspace zolt.lock does not contain the declared artifact variant `"
+                            + coordinate
+                            + ":"
+                            + variant.key()
+                            + "`. Run `zolt resolve --workspace` to regenerate the lock before publishing.");
         }
 
         private static String variantKey(String coordinate, LockArtifactVariant variant) {

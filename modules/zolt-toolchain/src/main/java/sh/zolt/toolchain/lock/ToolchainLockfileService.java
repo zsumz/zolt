@@ -1,6 +1,7 @@
 package sh.zolt.toolchain.lock;
 
 import sh.zolt.error.ActionableException;
+import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.toolchain.JavaDistribution;
 import sh.zolt.project.toolchain.JavaFeature;
 import sh.zolt.project.toolchain.JavaToolchainRequest;
@@ -81,7 +82,9 @@ public final class ToolchainLockfileService {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            String base = Files.isRegularFile(lockfile) ? Files.readString(lockfile) : "version = 1\n\n";
+            String base = Files.isRegularFile(lockfile)
+                    ? Files.readString(lockfile)
+                    : "version = " + ZoltLockfile.CURRENT_VERSION + "\n\n";
             String content = removeJavaLocks(base);
             for (LockedJavaToolchain java : ordered(locked)) {
                 content = appendJavaLock(content, java);

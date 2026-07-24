@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.maven.ArtifactDescriptor;
+import sh.zolt.maven.Coordinate;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.graph.PackageNode;
@@ -15,6 +17,7 @@ import sh.zolt.resolve.graph.ResolutionEdge;
 import sh.zolt.resolve.graph.ResolutionGraph;
 import sh.zolt.resolve.traversal.DependencyTraversalDecision;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class VersionSelectorTest {
@@ -74,6 +77,25 @@ final class VersionSelectorTest {
         VersionSelectionResult result = selector.select(List.of(), graph);
 
         assertEquals(List.of(new PackageNode(packageId, "2.0.16")), result.selectedNodes());
+        assertTrue(result.conflicts().isEmpty());
+    }
+
+    @Test
+    void differentArtifactVariantsMediateInIndependentLanes() {
+        PackageId packageId = new PackageId("com.example", "fixture");
+        DependencyRequest linux = classified(
+                packageId, "1.0.0", "linux-x86_64", DependencyScope.COMPILE, RequestOrigin.DIRECT);
+        DependencyRequest tests = classified(
+                packageId, "2.0.0", "tests", DependencyScope.TEST, RequestOrigin.DIRECT);
+
+        VersionSelectionResult result = selector.select(List.of(linux, tests), new ResolutionGraph(
+                List.of(), List.of(), List.of()));
+
+        assertEquals(
+                List.of("1.0.0:jar|linux-x86_64", "2.0.0:jar|tests"),
+                result.selectedNodes().stream()
+                        .map(node -> node.selectedVersion() + ":" + node.variant().key())
+                        .toList());
         assertTrue(result.conflicts().isEmpty());
     }
 
@@ -202,5 +224,24 @@ final class VersionSelectorTest {
 
     private static DependencyRequest transitive(PackageId packageId, String version) {
         return new DependencyRequest(packageId, version, DependencyScope.COMPILE, RequestOrigin.TRANSITIVE);
+    }
+
+    private static DependencyRequest classified(
+            PackageId packageId,
+            String version,
+            String classifier,
+            DependencyScope scope,
+            RequestOrigin origin) {
+        return new DependencyRequest(
+                packageId,
+                version,
+                scope,
+                origin,
+                Optional.of(ArtifactDescriptor.jar(
+                        new Coordinate(
+                                packageId.groupId(),
+                                packageId.artifactId(),
+                                Optional.of(version)),
+                        Optional.of(classifier))));
     }
 }

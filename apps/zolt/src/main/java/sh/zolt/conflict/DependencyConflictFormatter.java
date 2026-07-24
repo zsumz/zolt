@@ -1,6 +1,7 @@
 package sh.zolt.conflict;
 
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.VersionComparator;
@@ -18,6 +19,8 @@ public final class DependencyConflictFormatter {
         StringBuilder output = new StringBuilder("Dependency conflicts:\n");
         for (LockConflict conflict : sortedConflicts(lockfile.conflicts())) {
             output.append("- ").append(conflict.packageId()).append('\n');
+            conflict.variant().ifPresent(variant ->
+                    output.append("  variant: ").append(variant.key()).append('\n'));
             // Names the isolated exec-tool closure that mediated this conflict; absent for the main graph.
             conflict.toolGroup().ifPresent(tool -> output.append("  tool: ").append(tool).append('\n'));
             output.append("  selected: ")
@@ -37,6 +40,7 @@ public final class DependencyConflictFormatter {
         return conflicts.stream()
                 .sorted(Comparator
                         .comparing((LockConflict conflict) -> conflict.packageId().toString())
+                        .thenComparing(conflict -> conflict.variant().map(LockArtifactVariant::key).orElse(""))
                         .thenComparing(conflict -> conflict.toolGroup().orElse("")))
                 .toList();
     }

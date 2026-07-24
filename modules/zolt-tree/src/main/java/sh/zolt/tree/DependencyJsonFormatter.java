@@ -9,6 +9,7 @@ import static sh.zolt.tree.DependencyJsonFields.stringArrayField;
 import static sh.zolt.tree.DependencyJsonFields.stringField;
 
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -100,6 +101,8 @@ public final class DependencyJsonFormatter {
         stringField(json, level + 1, "id", lockPackage.packageId().toString(), true);
         stringField(json, level + 1, "version", lockPackage.version(), true);
         stringField(json, level + 1, "coordinate", coordinate(lockPackage), true);
+        nonDefaultVariant(lockPackage).ifPresent(variant ->
+                stringField(json, level + 1, "variant", variant.key(), true));
         stringField(json, level + 1, "scope", lockPackage.scope().lockfileName(), true);
         booleanField(json, level + 1, "direct", lockPackage.direct(), true);
         stringArrayField(json, level + 1, "dependencies", lockPackage.dependencies().stream().sorted().toList(), true);
@@ -126,7 +129,9 @@ public final class DependencyJsonFormatter {
     private static void conflicts(StringBuilder json, List<LockConflict> conflicts) {
         indent(json, 1).append("\"conflicts\": [");
         List<LockConflict> sorted = conflicts.stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .sorted(Comparator
+                        .comparing((LockConflict conflict) -> conflict.packageId().toString())
+                        .thenComparing(conflict -> conflict.variant().map(LockArtifactVariant::key).orElse("")))
                 .toList();
         if (!sorted.isEmpty()) {
             json.append('\n');
@@ -134,6 +139,8 @@ public final class DependencyJsonFormatter {
                 LockConflict conflict = sorted.get(index);
                 indent(json, 2).append("{\n");
                 stringField(json, 3, "id", conflict.packageId().toString(), true);
+                conflict.variant().ifPresent(variant ->
+                        stringField(json, 3, "variant", variant.key(), true));
                 stringField(json, 3, "selected", conflict.selectedVersion(), true);
                 stringArrayField(json, 3, "requested", conflict.requestedVersions().stream().sorted().toList(), true);
                 stringField(json, 3, "reason", reason(conflict.reason()), false);
@@ -225,7 +232,8 @@ public final class DependencyJsonFormatter {
     private static List<LockConflict> conflicts(ZoltLockfile lockfile, PackageId target) {
         return lockfile.conflicts().stream()
                 .filter(conflict -> conflict.packageId().equals(target))
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .sorted(Comparator.comparing(conflict ->
+                        conflict.variant().map(LockArtifactVariant::key).orElse("")))
                 .toList();
     }
 
@@ -244,7 +252,16 @@ public final class DependencyJsonFormatter {
     }
 
     private static String coordinate(LockPackage lockPackage) {
-        return lockPackage.packageId() + ":" + lockPackage.version();
+        LockArtifactVariant variant = LockArtifactVariant.of(lockPackage);
+        return lockPackage.packageId()
+                + ":"
+                + lockPackage.version()
+                + (variant.isDefault() ? "" : ":" + variant.key());
+    }
+
+    private static Optional<LockArtifactVariant> nonDefaultVariant(LockPackage lockPackage) {
+        LockArtifactVariant variant = LockArtifactVariant.of(lockPackage);
+        return variant.isDefault() ? Optional.empty() : Optional.of(variant);
     }
 
     private static String projectCoordinate(ProjectConfig config) {

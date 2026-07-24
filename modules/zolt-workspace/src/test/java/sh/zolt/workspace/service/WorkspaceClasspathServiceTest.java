@@ -307,6 +307,37 @@ final class WorkspaceClasspathServiceTest {
         assertFalse(workerClasspaths.runtime().entries().contains(linuxJar));
     }
 
+    @Test
+    void downstreamCompileClasspathInheritsClassifiedApiVariant() throws IOException {
+        Workspace workspace = workspace(
+                List.of("modules/core", "apps/api"),
+                List.of(new WorkspaceProjectEdge(
+                        "apps/api", "modules/core", "compile", "com.acme:core")));
+        Path linuxJar = tempDir.resolve(
+                "cache/io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar");
+        writeFile(linuxJar, "linux-api-bytes");
+        ZoltLockfile lockfile = lockfileReader.read(("""
+                version = 1
+
+                [[package]]
+                id = "io.netty:netty-transport-native-epoll"
+                version = "4.1.100.Final"
+                source = "maven-central"
+                scope = "compile"
+                direct = true
+                jar = "io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"
+                jarSha256 = "LINUX_SHA"
+                members = ["modules/core"]
+                exportedBy = ["modules/core"]
+                dependencies = []
+                """).replace("LINUX_SHA", sha256("linux-api-bytes")));
+
+        ClasspathSet classpaths =
+                service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/api");
+
+        assertTrue(classpaths.compile().entries().contains(linuxJar));
+    }
+
     private Workspace workspace(
             List<String> members,
             List<WorkspaceProjectEdge> edges) throws IOException {

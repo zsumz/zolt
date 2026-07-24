@@ -1,6 +1,7 @@
 package sh.zolt.publish;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -92,6 +93,58 @@ final class PublishUploadServiceSigningTest {
                     new String(recorder.body(base + ".jar.asc"), StandardCharsets.UTF_8)
                             .contains("-----BEGIN PGP SIGNATURE-----"),
                     "uploaded .asc should be an armored signature");
+        }
+    }
+
+    @Test
+    void unusableSigningKeyFailsBeforeAnyPutRequest() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path emptyGnupgHome = isolatedGnupgHome();
+        Path projectDir = tempDir.resolve("missing-key-lib");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/missing-key-lib-0.1.0.jar");
+        Files.writeString(artifact, "package bytes\n");
+        Files.writeString(projectDir.resolve("target/missing-key-lib-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/missing-key-lib-0.1.0.jar",
+                  "archiveSha256": "%s"
+                }
+                """.formatted(prefixedSha256(artifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 2\n");
+
+        try (Recorder recorder = Recorder.start()) {
+            Files.writeString(projectDir.resolve("zolt.toml"), """
+                    [project]
+                    name = "missing-key-lib"
+                    version = "0.1.0"
+                    group = "com.example"
+                    java = "%d"
+
+                    [publish]
+                    releaseRepository = "local"
+
+                    [publish.repositories.local]
+                    url = "%s"
+
+                    [publish.signing]
+                    enabled = true
+                    keyId = "0000000000000000"
+                    """.formatted(Runtime.version().feature(), recorder.baseUri()));
+            Function<String, String> environment =
+                    Map.of("GNUPGHOME", emptyGnupgHome.toString())::get;
+            PublishUploadService service = new PublishUploadService(
+                    new PublishDryRunService(environment),
+                    new ZoltTomlParser(),
+                    new PublishSettingsReader(),
+                    new MavenRepositoryClient(),
+                    environment);
+
+            PublishException exception =
+                    assertThrows(PublishException.class, () -> service.upload(projectDir));
+
+            assertTrue(exception.getMessage().contains("gpg failed to sign"));
+            assertTrue(recorder.paths().isEmpty(), "signing preflight must run before any PUT");
         }
     }
 

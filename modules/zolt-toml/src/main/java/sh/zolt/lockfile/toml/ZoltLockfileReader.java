@@ -17,6 +17,7 @@ import org.tomlj.TomlParseResult;
 import org.tomlj.TomlTable;
 
 public final class ZoltLockfileReader {
+    private static final int MIN_SUPPORTED_VERSION = 1;
     private final LockfilePackageCodec packageCodec;
 
     public ZoltLockfileReader() {
@@ -52,7 +53,7 @@ public final class ZoltLockfileReader {
             }
 
             int version = LockfileTomlValues.requireInt(result, "version");
-            if (version != ZoltLockfile.CURRENT_VERSION) {
+            if (version < MIN_SUPPORTED_VERSION || version > ZoltLockfile.CURRENT_VERSION) {
                 throw unsupportedVersion(version);
             }
 

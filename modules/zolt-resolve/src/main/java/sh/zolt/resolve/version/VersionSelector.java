@@ -3,6 +3,7 @@ package sh.zolt.resolve.version;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.VersionComparator;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.request.DependencyRequest;
 import sh.zolt.resolve.graph.PackageNode;
@@ -48,26 +49,27 @@ public final class VersionSelector {
     }
 
     public VersionSelectionResult select(List<DependencyRequest> directRequests, ResolutionGraph graph) {
-        Map<PackageId, List<DependencyRequest>> requestsByPackage = new LinkedHashMap<>();
+        Map<PackageVariantKey, List<DependencyRequest>> requestsByPackage = new LinkedHashMap<>();
         List<DependencyRequest> requests = new ArrayList<>();
         requests.addAll(directRequests);
         requests.addAll(graph.edges().stream().map(ResolutionEdge::request).toList());
         requests.stream()
                 .sorted(Comparator.comparing(VersionSelector::requestSortKey))
                 .forEach(request -> requestsByPackage
-                        .computeIfAbsent(request.packageId(), ignored -> new ArrayList<>())
+                        .computeIfAbsent(PackageVariantKey.of(request), ignored -> new ArrayList<>())
                         .add(request));
 
         List<PackageNode> selectedNodes = new ArrayList<>();
         List<VersionConflict> conflicts = new ArrayList<>();
-        for (Map.Entry<PackageId, List<DependencyRequest>> entry : requestsByPackage.entrySet()) {
-            PackageId packageId = entry.getKey();
+        for (Map.Entry<PackageVariantKey, List<DependencyRequest>> entry : requestsByPackage.entrySet()) {
+            PackageVariantKey key = entry.getKey();
             List<DependencyRequest> packageRequests = entry.getValue();
             Selection selection = selectVersion(packageRequests);
-            selectedNodes.add(new PackageNode(packageId, selection.version()));
+            selectedNodes.add(new PackageNode(key.packageId(), selection.version(), key.variant()));
             if (distinctVersionCount(packageRequests) > 1) {
                 conflicts.add(new VersionConflict(
-                        packageId,
+                        key.packageId(),
+                        key.variant(),
                         packageRequests,
                         selection.version(),
                         selection.reason()));
@@ -90,10 +92,11 @@ public final class VersionSelector {
      */
     private void alignJunitPlatform(
             List<PackageNode> selectedNodes,
-            Map<PackageId, List<DependencyRequest>> requestsByPackage) {
+            Map<PackageVariantKey, List<DependencyRequest>> requestsByPackage) {
         String anchorVersion = null;
         for (PackageNode node : selectedNodes) {
-            if (isPlatformArtifact(node.packageId(), JUNIT_PLATFORM_ANCHOR_ARTIFACTS)
+            if (node.variant().isDefault()
+                    && isPlatformArtifact(node.packageId(), JUNIT_PLATFORM_ANCHOR_ARTIFACTS)
                     && (anchorVersion == null
                             || versionComparator.compare(node.selectedVersion(), anchorVersion) > 0)) {
                 anchorVersion = node.selectedVersion();
@@ -104,11 +107,12 @@ public final class VersionSelector {
         }
         for (int index = 0; index < selectedNodes.size(); index++) {
             PackageNode node = selectedNodes.get(index);
-            if (!isPlatformArtifact(node.packageId(), JUNIT_PLATFORM_INJECTED_ARTIFACTS)
+            if (!node.variant().isDefault()
+                    || !isPlatformArtifact(node.packageId(), JUNIT_PLATFORM_INJECTED_ARTIFACTS)
                     || node.selectedVersion().equals(anchorVersion)) {
                 continue;
             }
-            if (isProjectManaged(requestsByPackage.get(node.packageId()))) {
+            if (isProjectManaged(requestsByPackage.get(PackageVariantKey.of(node)))) {
                 throw ResolveException.actionable(
                         "Unaligned JUnit Platform: `"
                                 + node.packageId()
@@ -124,7 +128,7 @@ public final class VersionSelector {
                                 + "` (or add a JUnit BOM / junit-platform-console-standalone that matches the "
                                 + "resolved platform line), then run `zolt resolve` again.");
             }
-            selectedNodes.set(index, new PackageNode(node.packageId(), anchorVersion));
+            selectedNodes.set(index, new PackageNode(node.packageId(), anchorVersion, node.variant()));
         }
     }
 
@@ -160,9 +164,27 @@ public final class VersionSelector {
 
     private static String requestSortKey(DependencyRequest request) {
         int originRank = request.direct() ? 0 : 1;
-        return request.packageId() + ":" + originRank + ":" + request.requestedVersion() + ":" + request.scope();
+        return request.packageId()
+                + ":"
+                + request.artifactVariant().key()
+                + ":"
+                + originRank
+                + ":"
+                + request.requestedVersion()
+                + ":"
+                + request.scope();
     }
 
     private record Selection(String version, ConflictSelectionReason reason) {
+    }
+
+    private record PackageVariantKey(PackageId packageId, LockArtifactVariant variant) {
+        static PackageVariantKey of(DependencyRequest request) {
+            return new PackageVariantKey(request.packageId(), request.artifactVariant());
+        }
+
+        static PackageVariantKey of(PackageNode node) {
+            return new PackageVariantKey(node.packageId(), node.variant());
+        }
     }
 }

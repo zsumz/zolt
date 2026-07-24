@@ -9,16 +9,128 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.maven.repository.PomInterpolationException;
+import sh.zolt.project.ProjectConfig;
+import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class ClassifierArtifactResolutionTest extends ResolveServiceTestSupport {
+    @Test
+    void keepsTwoTransitiveClassifiersOfOneGaInTheSameScope() {
+        addArtifact("com.example", "variant-app", "1.0.0", """
+                <project>
+                  <groupId>com.example</groupId>
+                  <artifactId>variant-app</artifactId>
+                  <version>1.0.0</version>
+                  <dependencies>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>fixture</artifactId>
+                      <version>1.0.0</version>
+                      <classifier>linux-x86_64</classifier>
+                    </dependency>
+                    <dependency>
+                      <groupId>com.example</groupId>
+                      <artifactId>fixture</artifactId>
+                      <version>1.0.0</version>
+                      <classifier>tests</classifier>
+                    </dependency>
+                  </dependencies>
+                </project>
+                """);
+        addArtifact("com.example", "fixture", "1.0.0", simplePom("com.example", "fixture", "1.0.0"));
+        addClassifierJar("com.example", "fixture", "1.0.0", "linux-x86_64", Map.of());
+        addClassifierJar("com.example", "fixture", "1.0.0", "tests", Map.of());
+        Path projectDir = tempDir.resolve("two-transitive-variants");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                configWithDependencies(Map.of("com.example:variant-app", "1.0.0")),
+                tempDir.resolve("two-transitive-variants-cache"));
+
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertEquals(3, result.resolvedCount());
+        assertEquals(
+                List.of("linux-x86_64", "tests"),
+                lockfile.packages().stream()
+                        .filter(pkg -> pkg.packageId().equals(new PackageId("com.example", "fixture")))
+                        .map(LockArtifactVariant::of)
+                        .map(variant -> variant.classifier().orElseThrow())
+                        .sorted()
+                        .toList());
+    }
+
+    @Test
+    void mainAndTestVariantsMediateIndependentlyAtDifferentVersions() {
+        addJUnitConsoleArtifact("1.11.4");
+        addArtifact("com.example", "fixture", "1.0.0", simplePom("com.example", "fixture", "1.0.0"));
+        addArtifact("com.example", "fixture", "2.0.0", simplePom("com.example", "fixture", "2.0.0"));
+        addClassifierJar("com.example", "fixture", "1.0.0", "linux-x86_64", Map.of());
+        addClassifierJar("com.example", "fixture", "2.0.0", "tests", Map.of());
+        Path projectDir = tempDir.resolve("main-test-variants");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                config("""
+                        [dependencies]
+                        "com.example:fixture" = { version = "1.0.0", classifier = "linux-x86_64" }
+
+                        [test.dependencies]
+                        "com.example:fixture" = { version = "2.0.0", classifier = "tests" }
+
+                        [dependencyPolicy]
+                        failOnVersionConflict = true
+                        """),
+                tempDir.resolve("main-test-variants-cache"));
+
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertEquals(0, result.conflictCount());
+        assertVersionPathInvariant(lockfile, "linux-x86_64", "1.0.0");
+        assertVersionPathInvariant(lockfile, "tests", "2.0.0");
+    }
+
+    @Test
+    void dependencyAndAnnotationProcessorVariantsRemainSeparate() {
+        addArtifact("com.example", "fixture", "1.0.0", simplePom("com.example", "fixture", "1.0.0"));
+        addArtifact("com.example", "fixture", "2.0.0", simplePom("com.example", "fixture", "2.0.0"));
+        addClassifierJar("com.example", "fixture", "1.0.0", "runtime", Map.of());
+        addClassifierJar("com.example", "fixture", "2.0.0", "processor", Map.of());
+        Path projectDir = tempDir.resolve("dependency-processor-variants");
+        createDirectory(projectDir);
+
+        ResolveResult result = resolveService.resolve(
+                projectDir,
+                config("""
+                        [dependencies]
+                        "com.example:fixture" = { version = "1.0.0", classifier = "runtime" }
+
+                        [annotationProcessors]
+                        "com.example:fixture" = { version = "2.0.0", classifier = "processor" }
+                        """),
+                tempDir.resolve("dependency-processor-variants-cache"));
+
+        ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
+        assertEquals(
+                List.of(DependencyScope.COMPILE, DependencyScope.PROCESSOR),
+                lockfile.packages().stream()
+                        .filter(pkg -> pkg.packageId().equals(new PackageId("com.example", "fixture")))
+                        .map(LockPackage::scope)
+                        .sorted()
+                        .toList());
+        assertVersionPathInvariant(lockfile, "runtime", "1.0.0");
+        assertVersionPathInvariant(lockfile, "processor", "2.0.0");
+    }
+
     @Test
     void resolvesFixedRuntimeClassifierArtifactFromPomDependency() {
         addArtifact("com.example", "app", "1.0.0", """
@@ -234,5 +346,34 @@ final class ClassifierArtifactResolutionTest extends ResolveServiceTestSupport {
     private static void assertAbsent(ZoltLockfile lockfile, String groupId, String artifactId) {
         assertFalse(lockfile.packages().stream()
                 .anyMatch(lockPackage -> lockPackage.packageId().equals(new PackageId(groupId, artifactId))));
+    }
+
+    private ProjectConfig config(String sections) {
+        return new ZoltTomlParser().parse("""
+                [project]
+                name = "variant-demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [repositories]
+                test = "%s"
+
+                %s
+                """.formatted(baseUri, sections));
+    }
+
+    private static void assertVersionPathInvariant(
+            ZoltLockfile lockfile, String classifier, String version) {
+        LockPackage lockPackage = lockfile.packages().stream()
+                .filter(pkg -> pkg.packageId().equals(new PackageId("com.example", "fixture")))
+                .filter(pkg -> LockArtifactVariant.of(pkg).classifier().orElse("").equals(classifier))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(version, lockPackage.version());
+        assertTrue(lockPackage.jar().orElseThrow().contains(
+                "/%s/fixture-%s-%s.jar".formatted(version, version, classifier)));
+        assertTrue(lockPackage.pom().orElseThrow().contains(
+                "/%s/fixture-%s.pom".formatted(version, version)));
     }
 }

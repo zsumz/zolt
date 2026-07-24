@@ -36,16 +36,18 @@ public final class FrameworkDependencyRequestPlanRequestAssembler {
             ResolutionGraph graph,
             VersionSelectionResult selection,
             List<DependencyRequest> directRequests) {
-        Map<PackageId, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
+        Map<PackageNode, List<SelectedDependencyScope>> selectedScopes = SelectedDependencyScopes.from(
                 graph,
                 selection,
                 directRequests);
         return selection.selectedNodes().stream()
-                .sorted(Comparator.comparing(node -> node.packageId() + ":" + node.selectedVersion()))
+                .filter(node -> node.variant().isDefault())
+                .sorted(Comparator.comparing(
+                        node -> node.packageId() + ":" + node.selectedVersion() + ":" + node.variant().key()))
                 .map(node -> new FrameworkDependencyCandidate(
                         node.packageId(),
                         node.selectedVersion(),
-                        selectedScopes.getOrDefault(node.packageId(), List.of()).stream()
+                        selectedScopes.getOrDefault(node, List.of()).stream()
                                 .map(SelectedDependencyScope::scope)
                                 .toList()))
                 .toList();
@@ -54,7 +56,9 @@ public final class FrameworkDependencyRequestPlanRequestAssembler {
     private static Map<PackageId, String> selectedVersions(VersionSelectionResult selection) {
         Map<PackageId, String> versions = new LinkedHashMap<>();
         for (PackageNode node : selection.selectedNodes()) {
-            versions.put(node.packageId(), node.selectedVersion());
+            if (node.variant().isDefault()) {
+                versions.put(node.packageId(), node.selectedVersion());
+            }
         }
         return versions;
     }

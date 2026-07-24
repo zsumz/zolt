@@ -1,17 +1,18 @@
 package sh.zolt.publish;
 
-import sh.zolt.maven.ArtifactDescriptor;
-import sh.zolt.maven.Coordinate;
 import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.maven.repository.RepositoryClientException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.RepositoryUrlPolicy;
 import sh.zolt.toml.ZoltTomlParser;
-import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -61,38 +62,18 @@ public final class PublishUploadService {
         ProjectConfig config = projectParser.parse(root.resolve("zolt.toml"));
         PublishSettings settings = publishSettingsReader.read(root.resolve("zolt.toml"), config.repositoryCredentials());
         PublishRepositorySettings repository = selectedRepository(settings, plan);
-        Coordinate coordinate = coordinate(config);
         Optional<RepositoryAuthentication> authentication = authentication(repository, config);
         URI repositoryUri = repositoryUri(repository);
-        PublishSigner signer = settings.signing().enabled()
-                ? new PublishSigner(settings.signing(), environment)
-                : null;
+        PublicationStagingService staging = new PublicationStagingService(environment);
+        staging.preflight(settings.signing());
+        List<PublicationSource> sources = publicationSources(root, plan);
+        Path stagingRoot = root.resolve(plan.pomPath()).normalize().getParent().resolve("publish-staging");
+        List<StagedPublicationFile> staged =
+                staging.stage(stagingRoot, sources, settings.signing());
         try {
-            if (!plan.pomOnly()) {
-                Path artifactFile = root.resolve(plan.artifactPath()).normalize();
-                repositoryClient.uploadArtifact(
-                        repositoryUri,
-                        new ArtifactDescriptor(coordinate, Optional.empty(), extension(plan.artifactPath())),
-                        artifactFile,
-                        authentication);
-                uploadIntegrity(repositoryUri, plan.artifactUploadPath(), artifactFile, authentication, signer);
+            for (StagedPublicationFile file : staged) {
+                uploadIfNeeded(repositoryUri, file, authentication);
             }
-            for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
-                Path supplementalFile = root.resolve(artifact.path()).normalize();
-                repositoryClient.uploadArtifact(
-                        repositoryUri,
-                        new ArtifactDescriptor(coordinate, artifact.classifier(), extension(artifact.path())),
-                        supplementalFile,
-                        authentication);
-                uploadIntegrity(repositoryUri, artifact.uploadPath(), supplementalFile, authentication, signer);
-            }
-            Path pomFile = root.resolve(plan.pomPath()).normalize();
-            repositoryClient.uploadPom(
-                    repositoryUri,
-                    coordinate,
-                    pomFile,
-                    authentication);
-            uploadIntegrity(repositoryUri, plan.pomUploadPath(), pomFile, authentication, signer);
         } catch (IllegalArgumentException exception) {
             throw new PublishException(
                     "Publish repository `" + repository.id() + "` has an invalid URL. Use a Maven-compatible repository URL.",
@@ -103,36 +84,38 @@ public final class PublishUploadService {
         return new PublishUploadResult(plan);
     }
 
-    private void uploadIntegrity(
+    private void uploadIfNeeded(
             URI repositoryUri,
-            String uploadPath,
-            Path source,
-            Optional<RepositoryAuthentication> authentication,
-            PublishSigner signer) {
-        uploadChecksumSidecars(repositoryUri, uploadPath, source, authentication);
-        if (signer == null) {
+            StagedPublicationFile file,
+            Optional<RepositoryAuthentication> authentication) {
+        Optional<byte[]> existing =
+                repositoryClient.fetchFile(repositoryUri, file.repositoryPath(), authentication);
+        if (existing.isEmpty()) {
+            repositoryClient.uploadFile(
+                    repositoryUri, file.repositoryPath(), file.source(), authentication);
             return;
         }
-        Path signature = signer.sign(source);
-        repositoryClient.uploadFile(repositoryUri, uploadPath + ".asc", signature, authentication);
-        uploadChecksumSidecars(repositoryUri, uploadPath + ".asc", signature, authentication);
+        if (!file.sha256().equals(sha256(existing.orElseThrow()))) {
+            throw new PublishException(
+                    "Release path `"
+                            + file.repositoryPath()
+                            + "` already holds different content. Next: bump the version or remove the stale path.");
+        }
     }
 
-    private void uploadChecksumSidecars(
-            URI repositoryUri,
-            String uploadPath,
-            Path source,
-            Optional<RepositoryAuthentication> authentication) {
-        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(source)) {
-            Path sidecarFile = source.resolveSibling(source.getFileName() + "." + sidecar.extension());
-            try {
-                Files.writeString(sidecarFile, sidecar.value());
-            } catch (IOException exception) {
-                throw new PublishException("Could not write checksum sidecar " + sidecarFile + ".", exception);
-            }
-            repositoryClient.uploadFile(
-                    repositoryUri, uploadPath + "." + sidecar.extension(), sidecarFile, authentication);
+    private static List<PublicationSource> publicationSources(Path root, PublishDryRunPlan plan) {
+        List<PublicationSource> sources = new ArrayList<>();
+        if (!plan.pomOnly()) {
+            sources.add(new PublicationSource(
+                    plan.artifactUploadPath(), root.resolve(plan.artifactPath()).normalize()));
         }
+        for (PublishArtifactPlan artifact : plan.supplementalArtifacts()) {
+            sources.add(new PublicationSource(
+                    artifact.uploadPath(), root.resolve(artifact.path()).normalize()));
+        }
+        sources.add(new PublicationSource(
+                plan.pomUploadPath(), root.resolve(plan.pomPath()).normalize()));
+        return List.copyOf(sources);
     }
 
     private static URI repositoryUri(PublishRepositorySettings repository) {
@@ -162,19 +145,12 @@ public final class PublishUploadService {
         return PublishRepositoryAuthentication.resolve(repository, config.repositoryCredentials(), environment);
     }
 
-    private static Coordinate coordinate(ProjectConfig config) {
-        return new Coordinate(
-                config.project().group(),
-                config.project().name(),
-                Optional.of(config.project().version()));
-    }
-
-    private static String extension(Path artifactPath) {
-        String fileName = artifactPath.getFileName().toString();
-        int dot = fileName.lastIndexOf('.');
-        if (dot < 0 || dot == fileName.length() - 1) {
-            throw new PublishException("Could not determine publish artifact extension from `" + fileName + "`.");
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new PublishException("SHA-256 is unavailable.", exception);
         }
-        return fileName.substring(dot + 1);
     }
 }

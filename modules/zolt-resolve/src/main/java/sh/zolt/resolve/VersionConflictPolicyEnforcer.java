@@ -42,7 +42,9 @@ final class VersionConflictPolicyEnforcer {
             return;
         }
         List<String> conflicts = selection.conflicts().stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .sorted(Comparator
+                        .comparing((VersionConflict conflict) -> conflict.packageId().toString())
+                        .thenComparing(conflict -> conflict.variant().key()))
                 .map(VersionConflictPolicyEnforcer::conflictDescription)
                 .toList();
         throw ResolveException.actionable(message(toolName), remediation(toolName, retryCommand, conflicts));
@@ -72,6 +74,7 @@ final class VersionConflictPolicyEnforcer {
 
     private static String conflictDescription(VersionConflict conflict) {
         return conflict.packageId()
+                + (conflict.variant().isDefault() ? "" : " variant " + conflict.variant().key())
                 + " selected "
                 + conflict.selectedVersion()
                 + " ("

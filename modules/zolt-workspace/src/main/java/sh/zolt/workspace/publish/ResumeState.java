@@ -19,30 +19,32 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Durable v2 transaction manifest for an interrupted plain-repository publish, written under the
+ * Durable v3 transaction manifest for an interrupted plain-repository publish, written under the
  * workspace target directory on failure and consulted when a {@code --resume-members} run resumes it.
  * Beyond the resumed members' upload-plan hash and semantic options, it binds the resume to concrete
- * facts so nothing is trusted blindly: for every resumable member its repository {@code targetIdentity}
- * and {@code signingIdentity}, for every staged file the SHA-256 of the exact staged bytes, and the
- * full set of repository paths that already landed. A resume therefore refuses a changed plan, a
- * changed repository destination, or a changed signing setup; verifies each already-landed path
- * against its recorded bytes rather than skipping it; and reuses staged signatures instead of
- * re-signing. The schema is bumped to {@code zolt.publish-resume.v2}; an older v1 file is refused
- * ("re-run the full publish") rather than guessed at.
+ * facts so nothing is trusted blindly: for every member in the original family its repository
+ * {@code targetIdentity} and {@code signingIdentity}, for every staged file the SHA-256 of the exact
+ * staged bytes, and the full set of repository paths that already landed. A resume therefore refuses
+ * a changed plan, repository destination, or signing setup; re-verifies completed providers even
+ * when the emitted resume selection omits them; and reuses staged signatures instead of re-signing.
+ * The schema is {@code zolt.publish-resume.v3}; older manifests are refused rather than guessed at.
  */
 record ResumeState(
         String planHash,
         boolean allowMixedVersions,
         boolean sbom,
         List<String> members,
+        List<String> familyMembers,
         Map<String, MemberContext> memberContexts,
         Map<String, String> stagedHashes,
         Set<String> completed) {
-    private static final String SCHEMA = "zolt.publish-resume.v2";
-    private static final String LEGACY_SCHEMA = "zolt.publish-resume.v1";
+    private static final String SCHEMA = "zolt.publish-resume.v3";
+    private static final Set<String> LEGACY_SCHEMAS =
+            Set.of("zolt.publish-resume.v1", "zolt.publish-resume.v2");
 
     ResumeState {
         members = List.copyOf(members);
+        familyMembers = List.copyOf(familyMembers);
         memberContexts = Map.copyOf(memberContexts);
         stagedHashes = Map.copyOf(stagedHashes);
         completed = Set.copyOf(completed);
@@ -52,7 +54,7 @@ record ResumeState(
     record MemberContext(String targetIdentity, String signingIdentity) {
     }
 
-    /** The result of reading a manifest: an absent file, an untrusted legacy v1 file, or a v2 manifest. */
+    /** The result of reading a manifest: an absent file, an untrusted older file, or a v3 manifest. */
     record ReadOutcome(boolean legacy, Optional<ResumeState> state) {
         boolean present() {
             return state.isPresent();
@@ -62,7 +64,7 @@ record ResumeState(
             return new ReadOutcome(false, Optional.empty());
         }
 
-        static ReadOutcome legacyV1() {
+        static ReadOutcome legacyManifest() {
             return new ReadOutcome(true, Optional.empty());
         }
 
@@ -72,26 +74,47 @@ record ResumeState(
     }
 
     /**
-     * Builds the manifest to persist on a Phase-2 failure: the resumable members ({@code resumeSet},
-     * the failed member and those after it) with their target + signing identities and every staged
-     * file's exact-bytes SHA-256, plus {@code completed} — the full set of repository paths that have
-     * landed, providers included, so an absent already-published sibling is provably satisfied on resume.
+     * Builds a manifest for a one-set caller. Retained as a test seam; production passes both the full
+     * family and the smaller emitted resume set to the overload below.
      */
     static ResumeState of(
             List<StagedMember> resumeSet,
             WorkspacePublishService.Options options,
             List<String> selection,
             Set<String> completed) {
+        return of(resumeSet, resumeSet, options, selection, completed);
+    }
+
+    /**
+     * Builds the manifest to persist on a Phase-2 failure. {@code resumeSet} determines the emitted
+     * exact CLI selection and its plan hash, while contexts and exact staged hashes cover
+     * {@code allMembers}, including providers that already completed.
+     */
+    static ResumeState of(
+            List<StagedMember> allMembers,
+            List<StagedMember> resumeSet,
+            WorkspacePublishService.Options options,
+            List<String> selection,
+            Set<String> completed) {
         Map<String, MemberContext> contexts = new LinkedHashMap<>();
         Map<String, String> hashes = new LinkedHashMap<>();
-        for (StagedMember member : resumeSet) {
+        List<String> family = new ArrayList<>();
+        for (StagedMember member : allMembers) {
+            family.add(member.memberPath());
             contexts.put(member.memberPath(), new MemberContext(member.targetIdentity(), member.signingIdentity()));
             for (StagedArtifact artifact : member.artifacts()) {
                 hashes.put(artifact.repositoryPath(), artifact.stagedSha256());
             }
         }
         return new ResumeState(
-                planHash(resumeSet), options.allowMixedVersions(), options.sbom(), selection, contexts, hashes, completed);
+                planHash(resumeSet),
+                options.allowMixedVersions(),
+                options.sbom(),
+                selection,
+                family,
+                contexts,
+                hashes,
+                completed);
     }
 
     /** Reads the manifest at {@code file}: absent when missing/unreadable, legacy when it is a v1 file. */
@@ -106,8 +129,8 @@ record ResumeState(
             return ReadOutcome.absent();
         }
         String schema = value(lines, "schema");
-        if (LEGACY_SCHEMA.equals(schema)) {
-            return ReadOutcome.legacyV1();
+        if (LEGACY_SCHEMAS.contains(schema)) {
+            return ReadOutcome.legacyManifest();
         }
         if (!SCHEMA.equals(schema)) {
             return ReadOutcome.absent();
@@ -116,6 +139,7 @@ record ResumeState(
         boolean allowMixedVersions = false;
         boolean sbom = false;
         List<String> members = new ArrayList<>();
+        List<String> familyMembers = new ArrayList<>();
         Map<String, MemberContext> contexts = new LinkedHashMap<>();
         Map<String, String> hashes = new LinkedHashMap<>();
         Set<String> completed = new LinkedHashSet<>();
@@ -133,6 +157,11 @@ record ResumeState(
                 case "members" -> {
                     if (!value.isBlank()) {
                         members.addAll(List.of(value.split(",")));
+                    }
+                }
+                case "familyMembers" -> {
+                    if (!value.isBlank()) {
+                        familyMembers.addAll(List.of(value.split(",")));
                     }
                 }
                 case "member" -> {
@@ -156,7 +185,11 @@ record ResumeState(
         if (planHash.isBlank()) {
             return ReadOutcome.absent();
         }
-        return ReadOutcome.of(new ResumeState(planHash, allowMixedVersions, sbom, members, contexts, hashes, completed));
+        if (familyMembers.isEmpty()) {
+            return ReadOutcome.absent();
+        }
+        return ReadOutcome.of(new ResumeState(
+                planHash, allowMixedVersions, sbom, members, familyMembers, contexts, hashes, completed));
     }
 
     private static String value(List<String> lines, String key) {
@@ -177,6 +210,7 @@ record ResumeState(
         content.append("allowMixedVersions=").append(allowMixedVersions).append('\n');
         content.append("sbom=").append(sbom).append('\n');
         content.append("members=").append(String.join(",", members)).append('\n');
+        content.append("familyMembers=").append(String.join(",", familyMembers)).append('\n');
         for (Map.Entry<String, MemberContext> entry : new TreeMap<>(memberContexts).entrySet()) {
             content.append("member=").append(entry.getKey()).append('|')
                     .append(entry.getValue().targetIdentity()).append('|')
@@ -204,9 +238,9 @@ record ResumeState(
     }
 
     /**
-     * Whether an inter-member provider (a {@code group:artifact} coordinate) has already published: the
-     * recorded completed paths contain at least one under its Maven directory. Used on resume to confirm
-     * an absent sibling legitimately published rather than blindly assuming so.
+     * Whether an inter-member provider has completed its entire recorded publication set. A directory
+     * prefix alone is insufficient: the manifest must know exact staged bytes for that provider and
+     * every one of those paths must have landed.
      */
     boolean recordsPublished(String groupArtifact) {
         String[] parts = groupArtifact.split(":", 2);
@@ -214,7 +248,13 @@ record ResumeState(
             return false;
         }
         String prefix = parts[0].replace('.', '/') + "/" + parts[1] + "/";
-        return completed.stream().anyMatch(path -> path.startsWith(prefix));
+        Set<String> expected = new LinkedHashSet<>();
+        for (String path : stagedHashes.keySet()) {
+            if (path.startsWith(prefix)) {
+                expected.add(path);
+            }
+        }
+        return !expected.isEmpty() && completed.containsAll(expected);
     }
 
     /**
@@ -225,7 +265,10 @@ record ResumeState(
     List<String> validate(
             List<StagedMember> staged, WorkspacePublishService.Options options, List<String> selection) {
         List<String> blockers = new ArrayList<>();
-        if (!planHash.equals(planHash(staged))) {
+        Set<String> resumeMembers = new LinkedHashSet<>(members);
+        List<StagedMember> resumeStaged =
+                staged.stream().filter(member -> resumeMembers.contains(member.memberPath())).toList();
+        if (!planHash.equals(planHash(resumeStaged))) {
             blockers.add("the publish plan changed since the interrupted publish (artifacts or versions differ); a "
                     + "stale resume would upload inconsistent bytes. Re-run the full publish: `zolt publish --workspace`.");
             return blockers;
@@ -238,10 +281,21 @@ record ResumeState(
             blockers.add("the resume options do not match the interrupted publish; run the emitted resume command "
                     + "unchanged, or re-run the full publish: `zolt publish --workspace`.");
         }
+        Set<String> currentFamily = new LinkedHashSet<>();
+        for (StagedMember member : staged) {
+            currentFamily.add(member.memberPath());
+        }
+        if (!new LinkedHashSet<>(familyMembers).equals(currentFamily)) {
+            blockers.add("the publish family changed since the interrupted publish. Re-run the full publish: "
+                    + "`zolt publish --workspace`.");
+            return blockers;
+        }
         for (StagedMember member : staged) {
             MemberContext recorded = memberContexts.get(member.memberPath());
             if (recorded == null) {
-                continue; // a member absent from recorded contexts is already caught by the selection check
+                blockers.add("`" + member.coordinate() + "` has no target-bound record in the interrupted publish. "
+                        + "Re-run the full publish: `zolt publish --workspace`.");
+                continue;
             }
             if (!recorded.targetIdentity().equals(member.targetIdentity())) {
                 blockers.add("`" + member.coordinate() + "` now resolves to a different publish repository than the "

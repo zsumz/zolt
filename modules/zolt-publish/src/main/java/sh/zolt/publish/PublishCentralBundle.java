@@ -2,7 +2,6 @@ package sh.zolt.publish;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,10 +20,9 @@ import java.util.zip.ZipOutputStream;
  * signatures embed a creation time, so signed bundles are reproducible only when {@code
  * SOURCE_DATE_EPOCH} freezes that time and {@code keyId} pins the key (see {@link PublishSigner}).
  *
- * <p>Artifact, POM, and signature bodies are streamed from their files straight into the zip at
- * write time (see {@link EntrySource.FileSource}); only small generated checksum bodies are held in
- * memory. Assembly memory is therefore bounded by the largest checksum sidecar rather than by the
- * total publication size, so a large family does not read every artifact into heap at once.
+     * <p>Every body is first copied into immutable staging and then streamed from its staged file
+     * straight into the zip at write time (see {@link EntrySource.FileSource}). Assembly memory is
+     * therefore bounded independently of total publication size.
  */
 public final class PublishCentralBundle {
     private static final long DETERMINISTIC_ENTRY_TIME = 0L;
@@ -39,12 +37,15 @@ public final class PublishCentralBundle {
 
     public PublishCentralBundleResult assemble(Path projectRoot, PublishDryRunPlan plan) {
         Path root = projectRoot.toAbsolutePath().normalize();
-        PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
-        List<BundleEntry> entries = new ArrayList<>();
-        addPlan(entries, root, plan, signer);
+        PublicationStagingService staging = new PublicationStagingService(environment);
+        staging.preflight(signing);
+        List<PublicationSource> sources = new ArrayList<>();
+        addPlan(sources, root, plan);
+        Path bundlePath = root.resolve(plan.pomPath()).normalize().getParent().resolve("central-bundle.zip");
+        List<BundleEntry> entries = stagedEntries(staging.stage(
+                bundlePath.getParent().resolve("central-staging"), sources, signing));
         entries.sort(Comparator.comparing(BundleEntry::name));
 
-        Path bundlePath = root.resolve(plan.pomPath()).normalize().getParent().resolve("central-bundle.zip");
         writeZip(bundlePath, entries);
         return new PublishCentralBundleResult(bundlePath, entries.stream().map(BundleEntry::name).toList());
     }
@@ -55,48 +56,41 @@ public final class PublishCentralBundle {
      * publish is one bundle and one deployment id, never per-member deployments.
      */
     public PublishCentralBundleResult assembleFamily(Path bundleDirectory, List<Member> members) {
-        PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
-        List<BundleEntry> entries = new ArrayList<>();
+        PublicationStagingService staging = new PublicationStagingService(environment);
+        staging.preflight(signing);
+        List<PublicationSource> sources = new ArrayList<>();
         for (Member member : members) {
-            addPlan(entries, member.memberRoot().toAbsolutePath().normalize(), member.plan(), signer);
+            addPlan(sources, member.memberRoot().toAbsolutePath().normalize(), member.plan());
         }
-        entries.sort(Comparator.comparing(BundleEntry::name));
         Path bundlePath = bundleDirectory.toAbsolutePath().normalize().resolve("central-bundle.zip");
+        List<BundleEntry> entries = stagedEntries(staging.stage(
+                bundlePath.getParent().resolve("central-staging"), sources, signing));
+        entries.sort(Comparator.comparing(BundleEntry::name));
         writeZip(bundlePath, entries);
         return new PublishCentralBundleResult(bundlePath, entries.stream().map(BundleEntry::name).toList());
     }
 
-    private void addPlan(List<BundleEntry> entries, Path root, PublishDryRunPlan plan, PublishSigner signer) {
+    private static void addPlan(List<PublicationSource> sources, Path root, PublishDryRunPlan plan) {
         if (!plan.pomOnly()) {
-            addFile(entries, root.resolve(plan.artifactPath()).normalize(), plan.artifactUploadPath(), signer);
+            sources.add(new PublicationSource(
+                    plan.artifactUploadPath(), root.resolve(plan.artifactPath()).normalize()));
         }
         for (PublishArtifactPlan supplemental : plan.supplementalArtifacts()) {
-            addFile(entries, root.resolve(supplemental.path()).normalize(), supplemental.uploadPath(), signer);
+            sources.add(new PublicationSource(
+                    supplemental.uploadPath(), root.resolve(supplemental.path()).normalize()));
         }
-        addFile(entries, root.resolve(plan.pomPath()).normalize(), plan.pomUploadPath(), signer);
+        sources.add(new PublicationSource(
+                plan.pomUploadPath(), root.resolve(plan.pomPath()).normalize()));
     }
 
     /** One family member's project root and its (possibly pom-only) plan. */
     public record Member(Path memberRoot, PublishDryRunPlan plan) {
     }
 
-    private void addFile(List<BundleEntry> entries, Path localFile, String uploadPath, PublishSigner signer) {
-        entries.add(BundleEntry.ofFile(uploadPath, localFile));
-        addChecksums(entries, localFile, uploadPath);
-        if (signer != null) {
-            Path signature = signer.sign(localFile);
-            String signaturePath = uploadPath + ".asc";
-            entries.add(BundleEntry.ofFile(signaturePath, signature));
-            addChecksums(entries, signature, signaturePath);
-        }
-    }
-
-    private static void addChecksums(List<BundleEntry> entries, Path file, String uploadPath) {
-        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(file)) {
-            entries.add(BundleEntry.ofInline(
-                    uploadPath + "." + sidecar.extension(),
-                    sidecar.value().getBytes(StandardCharsets.UTF_8)));
-        }
+    private static List<BundleEntry> stagedEntries(List<StagedPublicationFile> staged) {
+        return new ArrayList<>(staged.stream()
+                .map(file -> BundleEntry.ofFile(file.repositoryPath(), file.source()))
+                .toList());
     }
 
     private static void writeZip(Path bundlePath, List<BundleEntry> entries) {
@@ -126,20 +120,12 @@ public final class PublishCentralBundle {
             return new BundleEntry(name, new EntrySource.FileSource(file));
         }
 
-        static BundleEntry ofInline(String name, byte[] bytes) {
-            return new BundleEntry(name, new EntrySource.InlineSource(bytes));
-        }
-
         void writeContentTo(OutputStream out) throws IOException {
             source.writeTo(out);
         }
     }
 
-    /**
-     * Where an entry's bytes come from. A {@link FileSource} is streamed from disk so the artifact is
-     * never fully resident in heap; an {@link InlineSource} carries a small, already-generated body
-     * (a checksum sidecar) that has nowhere on disk to stream from.
-     */
+    /** Where an entry's immutable staged bytes come from. */
     private sealed interface EntrySource {
         void writeTo(OutputStream out) throws IOException;
 
@@ -147,13 +133,6 @@ public final class PublishCentralBundle {
             @Override
             public void writeTo(OutputStream out) throws IOException {
                 Files.copy(file, out);
-            }
-        }
-
-        record InlineSource(byte[] bytes) implements EntrySource {
-            @Override
-            public void writeTo(OutputStream out) throws IOException {
-                out.write(bytes);
             }
         }
     }

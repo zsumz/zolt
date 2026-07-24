@@ -2,6 +2,7 @@ package sh.zolt.tree;
 
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -25,7 +26,7 @@ public final class DependencyWhyFormatter {
                     "Package " + target + " is not present in zolt.lock. Run `zolt resolve` after adding it or check the package id.");
         }
         List<LockPackage> path = resolvedPath.orElseThrow();
-        Optional<LockConflict> targetConflict = conflictFor(lockfile, target);
+        Optional<LockConflict> targetConflict = conflictFor(lockfile, path.getLast());
         StringBuilder output = new StringBuilder();
         output.append(config.project().group())
                 .append(':')
@@ -36,9 +37,7 @@ public final class DependencyWhyFormatter {
         for (int index = 0; index < path.size(); index++) {
             output.append("   ".repeat(index))
                     .append("\\- ")
-                    .append(path.get(index).packageId())
-                    .append(':')
-                    .append(path.get(index).version());
+                    .append(coordinate(path.get(index)));
             if (path.get(index).packageId().equals(target)) {
                 targetConflict.ifPresent(conflict -> appendConflict(output, conflict));
             }
@@ -98,7 +97,11 @@ public final class DependencyWhyFormatter {
     }
 
     private static String coordinate(LockPackage lockPackage) {
-        return lockPackage.packageId() + ":" + lockPackage.version();
+        LockArtifactVariant variant = LockArtifactVariant.of(lockPackage);
+        return lockPackage.packageId()
+                + ":"
+                + lockPackage.version()
+                + (variant.isDefault() ? "" : ":" + variant.key());
     }
 
     private static boolean contains(List<LockPackage> path, LockPackage candidate) {
@@ -120,9 +123,13 @@ public final class DependencyWhyFormatter {
                 .append(')');
     }
 
-    private static Optional<LockConflict> conflictFor(ZoltLockfile lockfile, PackageId target) {
+    private static Optional<LockConflict> conflictFor(ZoltLockfile lockfile, LockPackage target) {
+        LockArtifactVariant targetVariant = LockArtifactVariant.of(target);
         return lockfile.conflicts().stream()
-                .filter(conflict -> conflict.packageId().equals(target))
+                .filter(conflict -> conflict.packageId().equals(target.packageId()))
+                .filter(conflict -> conflict.variant()
+                        .orElse(LockArtifactVariant.defaultVariant())
+                        .equals(targetVariant))
                 .findFirst();
     }
 

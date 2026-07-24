@@ -1,7 +1,6 @@
 package sh.zolt.resolve.lockfile.assembly;
 
 import sh.zolt.dependency.DependencyScope;
-import sh.zolt.dependency.PackageId;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.selection.SelectedDependencyScope;
 import sh.zolt.resolve.selection.SelectedDependencyScopes;
@@ -24,16 +23,20 @@ final class ExecToolLockPlanner {
     static List<LockPackagePlan> plans(List<ExecToolResolution> execResolutions) {
         Map<String, LockPackagePlan> merged = new LinkedHashMap<>();
         for (ExecToolResolution tool : execResolutions) {
-            Map<PackageId, List<SelectedDependencyScope>> toolScopes = SelectedDependencyScopes.from(
+            Map<PackageNode, List<SelectedDependencyScope>> toolScopes = SelectedDependencyScopes.from(
                     tool.graph(), tool.selection(), tool.directRequests());
             for (PackageNode node : tool.selection().selectedNodes()) {
                 SelectedDependencyScope scope = toolScopes
-                        .getOrDefault(node.packageId(), List.of(new SelectedDependencyScope(DependencyScope.TOOL_EXEC, false)))
+                        .getOrDefault(node, List.of(new SelectedDependencyScope(DependencyScope.TOOL_EXEC, false)))
                         .stream()
                         .findFirst()
                         .orElse(new SelectedDependencyScope(DependencyScope.TOOL_EXEC, false));
-                LockPackagePlan plan = LockPackagePlan.of(node, scope, tool.graph(), List.of(tool.toolName()));
-                merged.merge(node.packageId() + " " + node.selectedVersion(), plan, ExecToolLockPlanner::merge);
+                LockPackagePlan plan =
+                        LockPackagePlan.of(node, scope, tool.graph(), tool.selection(), List.of(tool.toolName()));
+                merged.merge(
+                        node.packageId() + " " + node.selectedVersion() + " " + node.variant().key(),
+                        plan,
+                        ExecToolLockPlanner::merge);
             }
         }
         return List.copyOf(merged.values());
@@ -54,6 +57,11 @@ final class ExecToolLockPlanner {
                         ? existing.selectedScope().artifactDescriptor()
                         : incoming.selectedScope().artifactDescriptor());
         return new LockPackagePlan(
-                existing.node(), mergedScope, existing.artifactDescriptor(), existing.graph(), List.copyOf(groups));
+                existing.node(),
+                mergedScope,
+                existing.artifactDescriptor(),
+                existing.graph(),
+                existing.selection(),
+                List.copyOf(groups));
     }
 }

@@ -490,10 +490,12 @@ ambient or historically shaped:
   and JAR and verifies cached/build inputs against those lockfile hashes.
   Repository checksum sidecars are not fetched; the first download trusts the
   repository TLS channel.
-- `zolt.lock` version 1 is deterministic: no timestamps, no absolute paths,
-  stable ordering, and LF line endings. Older lockfile versions should be
-  regenerated with the current Zolt; newer lockfile versions require a newer
-  Zolt before `zolt resolve --locked` can verify them.
+- `zolt.lock` version 2 is deterministic: no timestamps, no absolute paths,
+  stable ordering, and LF line endings. Version 2 adds variant-qualified
+  dependency edges and conflict identities; Zolt still reads version 1 locks,
+  while newly resolved locks use version 2 so older binaries cannot silently
+  misread classifier/type-qualified graphs. Newer lockfile versions require a
+  newer Zolt before `zolt resolve --locked` can verify them.
 - `zolt add`, `zolt remove`, and `zolt platform` rewrite `zolt.toml`. They
   warn before rewriting a file that contains comments because comments and
   custom formatting may be removed.

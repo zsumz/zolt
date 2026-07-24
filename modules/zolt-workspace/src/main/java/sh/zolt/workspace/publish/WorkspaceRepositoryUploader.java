@@ -2,7 +2,6 @@ package sh.zolt.workspace.publish;
 
 import sh.zolt.maven.repository.MavenRepositoryClient;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -23,11 +22,10 @@ import java.util.Set;
  * <p>Nothing is trusted blindly. Every path is PROBED against the SHA-256 of the bytes Phase 1 staged:
  * absent → uploaded; present with matching bytes → skipped (so a resumed publish re-PUTs nothing an
  * immutable release repository would reject, and a path that was recorded complete but has since been
- * deleted is re-uploaded); present with DIFFERENT bytes → a hard, non-resumable conflict. A landed
- * path is verified through its trusted checksum sidecar when one exists, so a multi-MB artifact is
- * confirmed without downloading it. Any other transfer failure fails fast, persists the transaction
- * manifest, and reports an exact resume command naming the member that failed and those after it —
- * never the providers that already landed.
+ * deleted is re-uploaded); present with DIFFERENT bytes → a hard, non-resumable conflict. The primary
+ * object itself is always confirmed, so a surviving checksum sidecar cannot mask a deleted artifact.
+ * Any other transfer failure fails fast, persists the target-bound exact-byte transaction manifest,
+ * and reports an exact resume command naming the member that failed and those after it.
  */
 public final class WorkspaceRepositoryUploader {
     private final MavenRepositoryClient repositoryClient;
@@ -64,7 +62,7 @@ public final class WorkspaceRepositoryUploader {
         for (int index = 0; index < members.size(); index++) {
             StagedMember member = members.get(index);
             try {
-                uploadMember(member, completed, landed);
+                uploadMember(member, landed);
             } catch (MismatchedArtifactException conflict) {
                 // An occupied release path with different content: resuming cannot fix it, so no resume
                 // command — the operator must resolve the conflict (bump the version or clear the path).
@@ -78,7 +76,7 @@ public final class WorkspaceRepositoryUploader {
                 for (StagedMember pending : resumeSet) {
                     remaining.add(pending.memberPath());
                 }
-                writeResumeState(statePath, resumeSet, remaining, landed, options);
+                writeResumeState(statePath, members, resumeSet, remaining, landed, options);
                 return new WorkspacePublishReport(
                         reportMembers,
                         List.of("upload failed for " + member.coordinate() + ": " + exception.getMessage()),
@@ -91,14 +89,10 @@ public final class WorkspaceRepositoryUploader {
         return new WorkspacePublishReport(reportMembers, List.of(), true, Optional.empty(), Optional.empty());
     }
 
-    private void uploadMember(StagedMember member, Set<String> completed, Set<String> landed) throws IOException {
+    private void uploadMember(StagedMember member, Set<String> landed) throws IOException {
         RepositoryTarget target = member.target();
-        Set<String> stagedPaths = new LinkedHashSet<>();
         for (StagedArtifact artifact : member.artifacts()) {
-            stagedPaths.add(artifact.repositoryPath());
-        }
-        for (StagedArtifact artifact : member.artifacts()) {
-            if (!verifiedPresent(target, artifact, completed.contains(artifact.repositoryPath()), stagedPaths)) {
+            if (!verifiedPresent(target, artifact)) {
                 uploadArtifact(target, artifact);
             }
             landed.add(artifact.repositoryPath()); // present now, whether verified in place or just uploaded
@@ -106,23 +100,12 @@ public final class WorkspaceRepositoryUploader {
     }
 
     /**
-     * Whether {@code artifact} already holds its staged bytes at the target. A path recorded complete
-     * with a staged checksum sidecar is verified through that sidecar (no artifact download); otherwise
-     * the current bytes are fetched and hashed. Absent → not present (upload); present but different →
-     * a hard conflict.
+     * Whether {@code artifact} already holds its staged bytes at the target. The object itself is
+     * always fetched/hashed; its checksum sidecar is never accepted as proof that the primary exists.
+     * Absent means upload, while different bytes are a hard conflict.
      */
-    private boolean verifiedPresent(
-            RepositoryTarget target, StagedArtifact artifact, boolean completed, Set<String> stagedPaths)
-            throws IOException {
+    private boolean verifiedPresent(RepositoryTarget target, StagedArtifact artifact) throws IOException {
         String path = artifact.repositoryPath();
-        if (completed && stagedPaths.contains(path + ".sha256")) {
-            Optional<String> sidecar = fetchSidecar(target, path + ".sha256");
-            if (sidecar.isPresent()) {
-                requireSameHash(path, artifact.stagedSha256(), sidecar.orElseThrow());
-                return true;
-            }
-            // The trusted sidecar is gone: verify the artifact itself below rather than trust its absence.
-        }
         Optional<String> remoteHash = remoteHash(target, path);
         if (remoteHash.isEmpty()) {
             return false; // never landed, or a completed path deleted remotely — (re)upload it
@@ -131,20 +114,10 @@ public final class WorkspaceRepositoryUploader {
         return true;
     }
 
-    /** The remote checksum sidecar's content (a bare hex digest), or empty when it is not present. */
-    private Optional<String> fetchSidecar(RepositoryTarget target, String sidecarPath) throws IOException {
-        if (target.local()) {
-            Path file = target.directory().resolve(sidecarPath).normalize();
-            return Files.exists(file) ? Optional.of(Files.readString(file)) : Optional.empty();
-        }
-        return repositoryClient.fetchFile(target.uri(), sidecarPath, target.authentication())
-                .map(bytes -> new String(bytes, StandardCharsets.UTF_8));
-    }
-
     /**
      * The SHA-256 of the bytes currently at {@code path}, or empty when the path is absent. A local
-     * target is stream-hashed off disk; a remote one is fetched once and hashed (the sidecar route above
-     * spares large artifacts this download) — the staged side is a recorded digest, never a second copy.
+     * target is stream-hashed off disk; a remote one is fetched once and hashed. The staged side is a
+     * recorded digest, never the original mutable publication source.
      */
     private Optional<String> remoteHash(RepositoryTarget target, String path) throws IOException {
         if (target.local()) {
@@ -168,6 +141,7 @@ public final class WorkspaceRepositoryUploader {
 
     private static void writeResumeState(
             Path statePath,
+            List<StagedMember> allMembers,
             List<StagedMember> resumeSet,
             List<String> members,
             Set<String> landed,
@@ -175,7 +149,7 @@ public final class WorkspaceRepositoryUploader {
         if (statePath == null) {
             return;
         }
-        ResumeState.of(resumeSet, options, members, landed).write(statePath);
+        ResumeState.of(allMembers, resumeSet, options, members, landed).write(statePath);
     }
 
     private static void deleteQuietly(Path statePath) {
