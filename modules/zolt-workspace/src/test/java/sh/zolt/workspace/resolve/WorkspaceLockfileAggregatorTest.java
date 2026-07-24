@@ -153,6 +153,33 @@ final class WorkspaceLockfileAggregatorTest {
     }
 
     @Test
+    void keepsToolAttributedConflictsDistinctAcrossMembers() throws IOException {
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)));
+        PackageId shared = new PackageId("com.example", "shared");
+        LockConflict alphaConflict = new LockConflict(
+                shared, "2.0.0", List.of("1.0.0", "2.0.0"),
+                ConflictSelectionReason.DIRECT_DEPENDENCY, Optional.of("alpha"));
+        LockConflict betaConflict = new LockConflict(
+                shared, "2.0.0", List.of("1.0.0", "2.0.0"),
+                ConflictSelectionReason.DIRECT_DEPENDENCY, Optional.of("beta"));
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(
+                        new WorkspaceMemberResolveOutput(
+                                "apps/api",
+                                lockfile(List.of(), List.of(alphaConflict), List.of()),
+                                Set.of()),
+                        new WorkspaceMemberResolveOutput(
+                                "modules/core",
+                                lockfile(List.of(), List.of(betaConflict), List.of()),
+                                Set.of())));
+
+        assertEquals(List.of(alphaConflict, betaConflict), aggregated.conflicts());
+    }
+
+    @Test
     void workspaceProvidedCoordinateShadowsExternalSameCoordinateTransitive() throws IOException {
         Workspace workspace = workspace(List.of(
                 new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")));

@@ -268,7 +268,8 @@ final class WorkspaceLockfileAggregator {
     }
 
     private static String conflictKey(LockConflict conflict) {
-        return conflict.packageId() + ":" + conflict.selectedVersion() + ":" + conflict.reason();
+        return conflict.packageId() + ":" + conflict.selectedVersion() + ":" + conflict.reason()
+                + ":" + conflict.toolGroup().orElse("");
     }
 
     private static String policyEffectKey(LockPolicyEffect policyEffect) {
