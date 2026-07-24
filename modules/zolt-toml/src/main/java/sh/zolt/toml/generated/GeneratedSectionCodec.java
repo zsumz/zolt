@@ -266,6 +266,7 @@ public final class GeneratedSectionCodec {
         if (!"content".equals(exec.cache())) {
             writeAssignment(toml, "cache", exec.cache());
         }
+        exec.cacheSalt().ifPresent(value -> writeAssignment(toml, "cacheSalt", value));
         exec.cwd().ifPresent(value -> writeAssignment(toml, "cwd", value));
         if (!exec.inheritEnv().isEmpty()) {
             writeStringArray(toml, "inheritEnv", exec.inheritEnv());

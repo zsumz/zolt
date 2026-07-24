@@ -29,15 +29,31 @@ final class ExecGeneratedSourceServiceTestSupport {
 
     static ExecGeneratedSourceService service(Path projectDir, ExecGeneratedSourceService.ProcessRunner runner) {
         return new ExecGeneratedSourceService(
-                requiredVersion -> new JdkStatus(
-                        Optional.empty(),
-                        Optional.of(projectDir.resolve("fake-java")),
-                        Optional.of(Path.of("javac")),
-                        Optional.of(Path.of("jar")),
-                        Optional.of(requiredVersion),
-                        requiredVersion),
+                jdkChecker(projectDir),
                 ":",
                 runner);
+    }
+
+    /** Service whose curated environment reads ambient variables from the supplied map (inheritEnv/secretEnv). */
+    static ExecGeneratedSourceService service(
+            Path projectDir,
+            ExecGeneratedSourceService.ProcessRunner runner,
+            java.util.Map<String, String> ambientEnv) {
+        return new ExecGeneratedSourceService(
+                jdkChecker(projectDir),
+                ":",
+                runner,
+                ambientEnv::get);
+    }
+
+    private static sh.zolt.doctor.JdkChecker jdkChecker(Path projectDir) {
+        return requiredVersion -> new JdkStatus(
+                Optional.empty(),
+                Optional.of(projectDir.resolve("fake-java")),
+                Optional.of(Path.of("javac")),
+                Optional.of(Path.of("jar")),
+                Optional.of(requiredVersion),
+                requiredVersion);
     }
 
     /** A runner that writes one generated Java file into the step's ZOLT_OUTPUT_DIR and exits 0. */

@@ -9,6 +9,7 @@ import sh.zolt.project.OpenApiGenerationSettings;
 import sh.zolt.project.ProducesLane;
 import sh.zolt.project.ProtobufGenerationSettings;
 import sh.zolt.project.VersionPolicy;
+import sh.zolt.error.ActionableError;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.toml.support.TomlScalars;
 import sh.zolt.toml.support.TomlValidation;
@@ -31,7 +32,7 @@ final class ExecGeneratedSourceParser {
     private static final Set<String> EXEC_COORDINATE_KEYS = Set.of("coordinate", "version", "versionRef");
     private static final Set<String> GENERATED_EXEC_SOURCE_KEYS = Set.of(
             "kind", "language", "tool", "mainClass", "args", "inputs", "output", "produces", "into", "cache", "env",
-            "secretEnv", "inheritEnv", "cwd", "timeoutSeconds", "required", "clean");
+            "secretEnv", "inheritEnv", "cwd", "timeoutSeconds", "required", "clean", "cacheSalt");
 
     private ExecGeneratedSourceParser() {
     }
@@ -131,6 +132,16 @@ final class ExecGeneratedSourceParser {
         Map<String, String> secretEnv = TomlScalars.stringMap(optionalTable(table, "secretEnv"), section + ".secretEnv");
         List<String> inheritEnv = TomlScalars.stringListOrDefault(table, section, "inheritEnv", List.of());
         Optional<String> cwd = TomlScalars.optionalString(table, section, "cwd");
+        Optional<String> cacheSalt = TomlScalars.optionalString(table, section, "cacheSalt")
+                .filter(value -> !value.isBlank());
+        if (!secretEnv.isEmpty() && "content".equals(cache) && cacheSalt.isEmpty()) {
+            throw new ZoltConfigException(ActionableError.of(
+                    "[" + section + "] sets secretEnv with cache = \"content\", but Zolt never reads a secret's "
+                            + "value into the content fingerprint, so a changed secret would silently reuse stale output.",
+                    "Set cache = \"none\" so the step always runs (its output is then non-hermetic and excluded from "
+                            + "the shared build cache), or add a non-secret cacheSalt = \"<token>\" that you bump "
+                            + "whenever the secret-derived output must change."));
+        }
         int timeoutSeconds = TomlScalars.integerOrDefault(
                 table, section, "timeoutSeconds", ExecGenerationSettings.DEFAULT_TIMEOUT_SECONDS);
         if (timeoutSeconds <= 0) {
@@ -138,7 +149,7 @@ final class ExecGeneratedSourceParser {
                     "[" + section + "].timeoutSeconds must be a positive number of seconds.");
         }
         ExecGenerationSettings settings = new ExecGenerationSettings(
-                toolName, tool, args, produces, into, env, cache, cwd, secretEnv, inheritEnv, timeoutSeconds);
+                toolName, tool, args, produces, into, env, cache, cwd, secretEnv, inheritEnv, timeoutSeconds, cacheSalt);
         return new GeneratedSourceStep(
                 id,
                 GeneratedSourceKind.EXEC,

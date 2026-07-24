@@ -28,7 +28,8 @@ public record ExecGenerationSettings(
         Optional<String> cwd,
         Map<String, String> secretEnv,
         List<String> inheritEnv,
-        int timeoutSeconds) {
+        int timeoutSeconds,
+        Optional<String> cacheSalt) {
     public static final int DEFAULT_TIMEOUT_SECONDS = 600;
 
     public ExecGenerationSettings {
@@ -42,6 +43,24 @@ public record ExecGenerationSettings(
         secretEnv = sortedCopy(secretEnv);
         inheritEnv = inheritEnv == null ? List.of() : List.copyOf(inheritEnv);
         timeoutSeconds = timeoutSeconds <= 0 ? DEFAULT_TIMEOUT_SECONDS : timeoutSeconds;
+        cacheSalt = cacheSalt == null ? Optional.empty() : cacheSalt;
+    }
+
+    /** Backwards-compatible constructor for steps without a cache salt. */
+    public ExecGenerationSettings(
+            String toolName,
+            ExecToolSettings tool,
+            List<String> args,
+            ProducesLane produces,
+            Optional<String> into,
+            Map<String, String> env,
+            String cache,
+            Optional<String> cwd,
+            Map<String, String> secretEnv,
+            List<String> inheritEnv,
+            int timeoutSeconds) {
+        this(toolName, tool, args, produces, into, env, cache, cwd, secretEnv, inheritEnv, timeoutSeconds,
+                Optional.empty());
     }
 
     /** Backwards-compatible constructor for steps without cwd/secretEnv/inheritEnv/timeout overrides. */
@@ -54,7 +73,7 @@ public record ExecGenerationSettings(
             Map<String, String> env,
             String cache) {
         this(toolName, tool, args, produces, into, env, cache,
-                Optional.empty(), Map.of(), List.of(), DEFAULT_TIMEOUT_SECONDS);
+                Optional.empty(), Map.of(), List.of(), DEFAULT_TIMEOUT_SECONDS, Optional.empty());
     }
 
     public static ExecGenerationSettings empty() {

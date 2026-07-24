@@ -1182,6 +1182,18 @@ sandboxes the working directory, `timeoutSeconds` bounds the run (default 600),
 and `secretEnv` injects a value read from a named ambient variable at run time
 without ever writing that value to config, the lockfile, fingerprints, or logs.
 
+Because Zolt never reads a secret's value into the content fingerprint, a step
+that declares `secretEnv` cannot use the default `cache = "content"` — a changed
+secret would otherwise silently reuse stale output. Zolt rejects that
+combination and offers two honest paths: set `cache = "none"` (the step always
+runs and its output is non-hermetic, excluded from the shared build cache), or
+add a non-secret `cacheSalt = "<token>"` that you bump whenever the
+secret-derived output must change. The salt is your assertion and participates in
+the fingerprint; Zolt does not read secret values into fingerprints. `inheritEnv`
+is different: Zolt folds a digest of each inherited variable's actual runtime
+value into the fingerprint (never the raw value), so a changed inherited value,
+DB endpoint, or token re-runs the step on its own.
+
 ```toml
 [generated.execTools.node]
 runner = "process"
@@ -1200,6 +1212,7 @@ output = "web/dist"
 produces = "resources"
 into = "static"
 timeoutSeconds = 900                    # per-step wall-clock bound (default 600)
+cacheSalt = "frontend-1"               # required with secretEnv on cache = "content"; bump on secret-derived change
 [generated.main.frontend-build.env]
 NODE_ENV = "production"
 [generated.main.frontend-build.secretEnv]
@@ -1250,10 +1263,11 @@ those tools may read and produce:
   bytes are unprovable, so its identity is the binary name plus the probed
   `versionCommand` stdout, and it requires `allowUnpinnedTool = true` to say so.
 - Skip is fingerprint-exact. A step re-runs only when its fingerprint changes —
-  tool identity, argv, expanded input content, env names and literal values,
-  `cwd`, and `produces`/`into` — and its output bytes are hashed into the module
-  build fingerprint, so a changed output invalidates exactly its consumers while
-  stable output lets them skip even after an always-run step.
+  tool identity, argv, expanded input content, env names and literal values, a
+  digest of each `inheritEnv` variable's actual runtime value, the non-secret
+  `cacheSalt`, `cwd`, and `produces`/`into` — and its output bytes are hashed
+  into the module build fingerprint, so a changed output invalidates exactly its
+  consumers while stable output lets them skip even after an always-run step.
 - `cache = "none"` is honest non-determinism, not a cache miss. It always runs,
   is excluded from `--offline` as a hard error, fails `zolt check
   --require-offline-ready`, and stamps `hermetic = false` into package evidence.
@@ -1263,7 +1277,12 @@ those tools may read and produce:
   (`PATH`, `HOME`), the explicit `inheritEnv` allowlist, the literal `env`
   table, and `secretEnv` indirection. `secretEnv` carries only names
   (`TARGET_NAME = "SOURCE_ENV_NAME"`); the secret value is read at run time and
-  never appears in config, `zolt.lock`, fingerprints, plans, or logs.
+  never appears in config, `zolt.lock`, fingerprints, plans, or logs. Because
+  the secret value is never fingerprinted, `secretEnv` forbids the default
+  `cache = "content"` unless you set a non-secret `cacheSalt` you bump on change;
+  otherwise use `cache = "none"`. For `inheritEnv`, Zolt does fold a digest of
+  the variable's actual runtime value into the fingerprint (an unset variable
+  gets a distinct marker), so a changed inherited value re-runs the step.
 - The refusals are the product. No shell strings or `sh -c` (argv arrays only,
   Zolt owns glob expansion); no lifecycle hooks or phase attachment; no in-place
   source mutation (formatters route to `zolt task` plus a dirty-tree check); no

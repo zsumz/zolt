@@ -12,19 +12,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 
 /**
  * Content-fingerprint producer skip-gate for exec steps. The fingerprint hashes the runner-specific
  * tool identity (jvm/project: classpath jar/class bytes + mainClass; process: binary name + probed
- * version), argv, the expanded input content, env names + configured literal values, secretEnv/
- * inheritEnv names (never secret values), cwd, and produces/into/cache. Sidecar files live OUTSIDE the
+ * version), argv, the expanded input content, env names + configured literal values, secretEnv target/
+ * source names (never secret values), a digest of each inheritEnv variable's actual runtime value, the
+ * non-secret cacheSalt, cwd, and produces/into/cache. Sidecar files live OUTSIDE the
  * declared output directory so the consumer fence hashes only tool-produced bytes and the resources
  * lane never copies build metadata into a package. For {@code cache = "none"} the fingerprint is
  * written as provenance only; the service never consults it as a skip gate.
  */
 final class ExecGeneratedSourceCache {
-    private static final String FINGERPRINT_VERSION = "2";
+    private static final String FINGERPRINT_VERSION = "3";
 
     private final Path metadataDirectory;
 
@@ -38,12 +40,13 @@ final class ExecGeneratedSourceCache {
             List<Path> classpath,
             ExecToolIdentity toolIdentity,
             String scope,
-            GeneratedSourceStep step) {
+            GeneratedSourceStep step,
+            Map<String, String> inheritEnvDigests) {
         String base = "exec-" + scope + "-" + step.id();
         return new GenerationCacheState(
                 metadataDirectory.resolve(base + ".fingerprint"),
                 metadataDirectory.resolve(base + ".log"),
-                fingerprint(projectRoot, cwd, classpath, toolIdentity, scope, step));
+                fingerprint(projectRoot, cwd, classpath, toolIdentity, scope, step, inheritEnvDigests));
     }
 
     boolean isCurrent(Path output, GenerationCacheState state) {
@@ -81,7 +84,8 @@ final class ExecGeneratedSourceCache {
             List<Path> classpath,
             ExecToolIdentity toolIdentity,
             String scope,
-            GeneratedSourceStep step) {
+            GeneratedSourceStep step,
+            Map<String, String> inheritEnvDigests) {
         ExecGenerationSettings exec = step.exec();
         StringBuilder content = new StringBuilder();
         content.append("version=").append(FINGERPRINT_VERSION).append('\n');
@@ -96,6 +100,9 @@ final class ExecGeneratedSourceCache {
         content.append("produces=").append(exec.produces() == null ? "" : exec.produces().configValue()).append('\n');
         content.append("into=").append(exec.into().orElse("")).append('\n');
         content.append("cache=").append(exec.cache()).append('\n');
+        // The user's non-secret assertion that secret-derived output changed; Zolt never digests the
+        // secret value itself, so bumping the salt is the only honest content-cache invalidation for it.
+        content.append("cacheSalt=").append(exec.cacheSalt().orElse("")).append('\n');
         content.append("cwd=").append(relative(projectRoot, cwd)).append('\n');
         content.append("[args]\n");
         exec.args().forEach(argument -> content.append(argument).append('\n'));
@@ -104,8 +111,12 @@ final class ExecGeneratedSourceCache {
         content.append("[secretEnv]\n");
         new TreeMap<>(exec.secretEnv()).forEach((target, source) ->
                 content.append(target).append('=').append(source).append('\n'));
+        // Each inheritEnv name folds in a digest of its ACTUAL runtime value (never the raw value), so a
+        // changed inherited value / DB endpoint / token invalidates the cache. Absent variables digest to
+        // a distinct "absent" marker so "unset" and "set to empty" stay distinguishable.
         content.append("[inheritEnv]\n");
-        exec.inheritEnv().stream().sorted().forEach(name -> content.append(name).append('\n'));
+        new TreeMap<>(inheritEnvDigests).forEach((name, digest) ->
+                content.append(name).append('=').append(digest).append('\n'));
         content.append("[coordinates]\n");
         exec.tool().coordinates().forEach(coordinate -> content
                 .append(coordinate.coordinate()).append(':').append(coordinate.version().orElse("")).append('\n'));

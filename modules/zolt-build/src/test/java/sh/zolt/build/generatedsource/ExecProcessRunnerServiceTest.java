@@ -84,7 +84,7 @@ final class ExecProcessRunnerServiceTest {
         writeScript(binDir, "zoltgen", "if [ -n \"$TOKEN\" ]; then echo present > \"$ZOLT_OUTPUT_DIR/marker\"; fi");
         ProjectConfig config = config(
                 processTool("allowUnpinnedTool = true"),
-                "[generated.main.build-assets.secretEnv]\nTOKEN = \"CI_TOKEN\"");
+                "cacheSalt = \"s1\"\n[generated.main.build-assets.secretEnv]\nTOKEN = \"CI_TOKEN\"");
 
         service(projectDir, binDir, Map.of("CI_TOKEN", "s3cr3t-value-xyz")).generateMain(projectDir, config, List.of());
 
@@ -102,7 +102,7 @@ final class ExecProcessRunnerServiceTest {
         writeScript(binDir, "zoltgen", "echo built > \"$ZOLT_OUTPUT_DIR/app.txt\"");
         ProjectConfig config = config(
                 processTool("allowUnpinnedTool = true"),
-                "[generated.main.build-assets.secretEnv]\nTOKEN = \"MISSING_TOKEN\"");
+                "cacheSalt = \"s1\"\n[generated.main.build-assets.secretEnv]\nTOKEN = \"MISSING_TOKEN\"");
 
         BuildException exception = assertThrows(
                 BuildException.class, () -> service(projectDir, binDir, Map.of()).generateMain(projectDir, config, List.of()));

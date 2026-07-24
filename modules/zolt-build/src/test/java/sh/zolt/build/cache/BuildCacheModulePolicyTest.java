@@ -37,6 +37,38 @@ final class BuildCacheModulePolicyTest {
         assertTrue(BuildCacheModulePolicy.taintReason(config).orElseThrow().contains("cache = \"none\""));
     }
 
+    @Test
+    void secretEnvHonestCacheNonePathExcludesModuleFromSharedCache() {
+        // The full Hole 2 chain: secretEnv + cache = "content" without a salt does not parse (the parser
+        // rejects it), so the honest path is cache = "none". A secretEnv step on that path is non-hermetic
+        // and therefore excluded from the shared build-output cache. secretEnv values never enter the lock,
+        // fingerprints, plans, or logs.
+        ProjectConfig config = new sh.zolt.toml.ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [generated.execTools.gen]
+                runner = "jvm"
+                coordinates = [{ coordinate = "com.example:gen", version = "1.0.0" }]
+                mainClass = "com.example.Main"
+
+                [generated.main.model]
+                kind = "exec"
+                tool = "gen"
+                inputs = ["src/main/gen/in.txt"]
+                output = "target/generated/sources/gen"
+                produces = "java-sources"
+                cache = "none"
+                [generated.main.model.secretEnv]
+                DB_PASSWORD = "CI_DB_PASSWORD"
+                """);
+        assertFalse(BuildCacheModulePolicy.cacheable(config));
+        assertTrue(BuildCacheModulePolicy.taintReason(config).isPresent());
+    }
+
     private static GeneratedSourceStep execStep(String cache) {
         ExecGenerationSettings exec = new ExecGenerationSettings(
                 "gen-tool",

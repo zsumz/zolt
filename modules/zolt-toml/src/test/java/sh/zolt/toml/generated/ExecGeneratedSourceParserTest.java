@@ -59,6 +59,61 @@ final class ExecGeneratedSourceParserTest {
             """;
 
     @Test
+    void rejectsSecretEnvWithContentCacheAndNoSalt() {
+        ZoltConfigException error = assertThrows(ZoltConfigException.class,
+                () -> parser.parse(secretEnvConfig("", "")));
+        assertTrue(error.getMessage().contains("secretEnv with cache = \"content\""), error.getMessage());
+        assertTrue(error.getMessage().contains("cache = \"none\""), error.getMessage());
+        assertTrue(error.getMessage().contains("cacheSalt"), error.getMessage());
+    }
+
+    @Test
+    void acceptsSecretEnvWhenCacheIsNone() {
+        ProjectConfig config = parser.parse(secretEnvConfig("cache = \"none\"", ""));
+        GeneratedSourceStep step = config.build().generatedMainSources().getFirst();
+        assertEquals("none", step.exec().cache());
+        assertEquals("SRC_TOKEN", step.exec().secretEnv().get("TOKEN"));
+        assertTrue(step.exec().cacheSalt().isEmpty());
+    }
+
+    @Test
+    void acceptsSecretEnvWithContentCacheWhenCacheSaltPresent() {
+        ProjectConfig config = parser.parse(secretEnvConfig("", "cacheSalt = \"rev-7\""));
+        GeneratedSourceStep step = config.build().generatedMainSources().getFirst();
+        assertEquals("content", step.exec().cache());
+        assertEquals("rev-7", step.exec().cacheSalt().orElseThrow());
+    }
+
+    private static String secretEnvConfig(String cacheLine, String cacheSaltLine) {
+        return """
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                jooq = "3.19.15"
+
+                [generated.execTools.jooq]
+                runner = "jvm"
+                coordinates = [{ coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" }]
+                mainClass = "org.jooq.codegen.GenerationTool"
+
+                [generated.main.model]
+                kind = "exec"
+                tool = "jooq"
+                inputs = ["src/main/jooq/config.xml"]
+                output = "target/generated/sources/jooq"
+                produces = "java-sources"
+                %s
+                %s
+                [generated.main.model.secretEnv]
+                TOKEN = "SRC_TOKEN"
+                """.formatted(cacheLine, cacheSaltLine);
+    }
+
+    @Test
     void parsesExecToolsAndSteps() {
         ProjectConfig config = parser.parse(JOOQ_CONFIG);
         List<GeneratedSourceStep> steps = config.build().generatedMainSources();
@@ -161,6 +216,7 @@ final class ExecGeneratedSourceParserTest {
             produces = "resources"
             into = "static"
             inheritEnv = ["CI"]
+            cacheSalt = "frontend-build-1"
             [generated.main.frontend-build.env]
             NODE_ENV = "production"
             [generated.main.frontend-build.secretEnv]
@@ -188,6 +244,7 @@ final class ExecGeneratedSourceParserTest {
         assertEquals(List.of("CI"), build.exec().inheritEnv());
         assertEquals("production", build.exec().env().get("NODE_ENV"));
         assertEquals("CI_NPM_TOKEN", build.exec().secretEnv().get("NPM_TOKEN"));
+        assertEquals("frontend-build-1", build.exec().cacheSalt().orElseThrow());
     }
 
     @Test

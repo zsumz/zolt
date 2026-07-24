@@ -275,6 +275,34 @@ final class ExecGeneratedSourceServiceTest {
         assertFalse(betaClasspath.contains("alpha-1.0.0.jar"), betaClasspath);
     }
 
+    @Test
+    void inheritEnvValueChangeReRunsWhileStableValueSkips() throws IOException {
+        writeProjectFiles(projectDir);
+        List<List<String>> commands = new ArrayList<>();
+        var config = config("inheritEnv = [\"DB_URL\"]");
+        var packages = packages(projectDir);
+
+        // First run with DB_URL=one: the step runs and writes its fingerprint (folding the value digest).
+        service(projectDir, generatingRunner(commands), java.util.Map.of("DB_URL", "one"))
+                .generateMain(projectDir, config, packages);
+        assertEquals(1, commands.size());
+
+        // Same value: fingerprint matches, step is skipped (no new command).
+        service(projectDir, generatingRunner(commands), java.util.Map.of("DB_URL", "one"))
+                .generateMain(projectDir, config, packages);
+        assertEquals(1, commands.size());
+
+        // Changed inherited value: fingerprint differs, the step must re-run.
+        service(projectDir, generatingRunner(commands), java.util.Map.of("DB_URL", "two"))
+                .generateMain(projectDir, config, packages);
+        assertEquals(2, commands.size());
+
+        // Absent variable digests to a distinct marker, so it too differs from any concrete value.
+        service(projectDir, generatingRunner(commands), java.util.Map.of())
+                .generateMain(projectDir, config, packages);
+        assertEquals(3, commands.size());
+    }
+
     private static String classpathFor(List<List<String>> commands, String mainClass) {
         List<String> command = commands.stream()
                 .filter(argv -> argv.contains(mainClass))
