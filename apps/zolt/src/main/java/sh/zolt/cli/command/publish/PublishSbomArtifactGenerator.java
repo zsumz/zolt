@@ -34,10 +34,24 @@ final class PublishSbomArtifactGenerator {
         }
         ProjectConfig config = tomlParser.parse(projectRoot.resolve("zolt.toml"));
         ZoltLockfile lockfile = lockfileReader.read(projectRoot.resolve("zolt.lock"));
+        return Optional.of(write(projectRoot, config, lockfile, toolVersion));
+    }
+
+    /**
+     * Writes a per-workspace-member SBOM from an already-resolved config and the member's projected
+     * publish lock (a workspace member has no {@code zolt.lock} of its own). Used by
+     * {@code zolt publish --workspace --sbom}; the file lands beside the member POM exactly as the
+     * single-project artifact does.
+     */
+    Path generateForMember(Path memberDirectory, ProjectConfig config, ZoltLockfile memberLock, String toolVersion) {
+        return write(memberDirectory, config, memberLock, toolVersion);
+    }
+
+    private Path write(Path root, ProjectConfig config, ZoltLockfile lockfile, String toolVersion) {
         SbomModel model = assembler.assemble(
                 config, lockfile, SbomScopeSelection.requiredOnly(), Optional.empty(),
                 toolVersion, LicenseIndex.empty());
-        Path sbomPath = projectRoot.resolve(config.build().outputRoot()).resolve("publish")
+        Path sbomPath = root.resolve(config.build().outputRoot()).resolve("publish")
                 .resolve(config.project().name() + "-" + config.project().version() + "-cyclonedx.json")
                 .normalize();
         try {
@@ -46,6 +60,6 @@ final class PublishSbomArtifactGenerator {
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
-        return Optional.of(sbomPath);
+        return sbomPath;
     }
 }

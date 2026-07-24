@@ -2,17 +2,15 @@ package sh.zolt.workspace.publish;
 
 import sh.zolt.build.packaging.PackageArtifactPathPlanner;
 import sh.zolt.lockfile.ZoltLockfile;
-import sh.zolt.maven.Coordinate;
-import sh.zolt.maven.repository.MavenRepositoryPathBuilder;
+import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.project.PackageMode;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.project.VersionPolicy;
+import sh.zolt.publish.CentralPortalClient;
 import sh.zolt.publish.PublishCentralReadinessService;
 import sh.zolt.publish.PublishCentralRequirement;
 import sh.zolt.publish.PublishDryRunPlan;
+import sh.zolt.publish.PublishDryRunService;
 import sh.zolt.publish.PublishInterMemberGuard;
-import sh.zolt.publish.PublishPomGenerator;
-import sh.zolt.publish.PublishRepositorySettings;
 import sh.zolt.publish.PublishSettings;
 import sh.zolt.publish.PublishSettingsReader;
 import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
@@ -22,9 +20,8 @@ import sh.zolt.workspace.service.WorkspaceBuildService;
 import sh.zolt.workspace.service.WorkspaceMember;
 import sh.zolt.workspace.service.WorkspaceSelection;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -38,13 +35,16 @@ import java.util.Set;
  *
  * <p><strong>Phase 1 (offline).</strong> For every publishable member (in dependency order, BOM
  * last) it resolves the policy-merged config, projects a per-member publish lock (fact 6: directness
- * from config, versions from the aggregated lock), generates and validates the POM, checks Central
- * readiness, and verifies inter-member completeness. Every blocker across every member is aggregated
- * into one family report; any blocker means nothing uploads.
+ * from config, versions from the aggregated lock), then reuses the normal single-project planner
+ * ({@link PublishDryRunService#planResolved}) so every member carries the same sources/javadoc/SBOM/
+ * checksum/signature plans, repository-credential and URL-safety policy as a single-project publish.
+ * Inter-member completeness and per-member Central readiness are checked on top. Every blocker across
+ * every member is aggregated into one family report; any blocker means nothing uploads.
  *
  * <p><strong>Phase 2.</strong> A plain repository receives a dependency-ordered sequential upload
- * (provider before consumer, BOM last) that fails fast with an exact resume command. (Central family
- * bundling is delegated to the publish layer.) The default enforces a uniform family version;
+ * (provider before consumer, BOM last) that authenticates every request and fails fast with an exact
+ * resume command. Maven Central receives ONE atomic family bundle and one deployment id, polled to a
+ * terminal state when {@code --wait} is set. The default enforces a uniform family version;
  * {@code allowMixedVersions} opts out.
  */
 public final class WorkspacePublishService {
@@ -52,25 +52,33 @@ public final class WorkspacePublishService {
     private final WorkspaceMemberPolicyResolver policyResolver;
     private final WorkspaceMemberPomLockProjection projection;
     private final WorkspaceBomFamily bomFamily;
-    private final PublishPomGenerator pomGenerator;
     private final PublishSettingsReader publishSettingsReader;
     private final PublishCentralReadinessService centralReadinessService;
+    private final PublishDryRunService dryRunService;
     private final PackageArtifactPathPlanner artifactPathPlanner = new PackageArtifactPathPlanner();
-    private final MavenRepositoryPathBuilder repositoryPathBuilder = new MavenRepositoryPathBuilder();
     private final WorkspaceRepositoryUploader uploader;
     private final WorkspaceCentralPublisher centralPublisher;
 
     public WorkspacePublishService() {
+        this(new MavenRepositoryClient(), new CentralPortalClient());
+    }
+
+    /**
+     * Composition-root constructor: the plain-repository uploader and the Central Portal client are
+     * built from the CLI-configured {@link MavenRepositoryClient} / {@link CentralPortalClient} so
+     * workspace uploads honour the same proxy, CA trust, and retry policy as single-project publishing.
+     */
+    public WorkspacePublishService(MavenRepositoryClient repositoryClient, CentralPortalClient portalClient) {
         this(
                 new WorkspaceBuildService(),
                 new WorkspaceMemberPolicyResolver(),
                 new WorkspaceMemberPomLockProjection(),
                 new WorkspaceBomFamily(),
-                new PublishPomGenerator(),
                 new PublishSettingsReader(),
                 new PublishCentralReadinessService(),
-                new WorkspaceRepositoryUploader(),
-                new WorkspaceCentralPublisher());
+                new PublishDryRunService(),
+                new WorkspaceRepositoryUploader(repositoryClient),
+                new WorkspaceCentralPublisher(portalClient));
     }
 
     WorkspacePublishService(
@@ -78,24 +86,33 @@ public final class WorkspacePublishService {
             WorkspaceMemberPolicyResolver policyResolver,
             WorkspaceMemberPomLockProjection projection,
             WorkspaceBomFamily bomFamily,
-            PublishPomGenerator pomGenerator,
             PublishSettingsReader publishSettingsReader,
             PublishCentralReadinessService centralReadinessService,
+            PublishDryRunService dryRunService,
             WorkspaceRepositoryUploader uploader,
             WorkspaceCentralPublisher centralPublisher) {
         this.workspaceBuildService = workspaceBuildService;
         this.policyResolver = policyResolver;
         this.projection = projection;
         this.bomFamily = bomFamily;
-        this.pomGenerator = pomGenerator;
         this.publishSettingsReader = publishSettingsReader;
         this.centralReadinessService = centralReadinessService;
+        this.dryRunService = dryRunService;
         this.uploader = uploader;
         this.centralPublisher = centralPublisher;
     }
 
     public WorkspacePublishReport publish(
             Path startDirectory, Path cacheRoot, WorkspaceSelectionRequest selectionRequest, Options options) {
+        return publish(startDirectory, cacheRoot, selectionRequest, options, WorkspaceMemberSbomGenerator.disabled());
+    }
+
+    public WorkspacePublishReport publish(
+            Path startDirectory,
+            Path cacheRoot,
+            WorkspaceSelectionRequest selectionRequest,
+            Options options,
+            WorkspaceMemberSbomGenerator sbomGenerator) {
         WorkspaceBuildPlan plan = workspaceBuildService.planBuild(startDirectory, cacheRoot, false, selectionRequest);
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
@@ -107,16 +124,21 @@ public final class WorkspacePublishService {
             publishSet.add(member.config().project().group() + ":" + member.config().project().name());
         }
 
-        List<WorkspacePublishReport.Member> members = new ArrayList<>();
+        List<MemberPublication> publications = new ArrayList<>();
         List<String> blockers = new ArrayList<>();
         for (WorkspaceMember member : publishable) {
-            MemberPlanResult result = buildMemberPlan(member, workspace, aggregatedLock, publishSet, options);
-            members.add(new WorkspacePublishReport.Member(
-                    member.path(), coordinateString(member.config()), result.bom(), result.plan()));
+            MemberPlanResult result =
+                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, sbomGenerator);
+            publications.add(result.publication());
             blockers.addAll(result.blockers());
         }
         if (!options.allowMixedVersions()) {
             blockers.addAll(uniformVersionBlockers(publishable));
+        }
+
+        List<WorkspacePublishReport.Member> members = new ArrayList<>();
+        for (MemberPublication publication : publications) {
+            members.add(publication.toReportMember());
         }
 
         if (!blockers.isEmpty()) {
@@ -124,12 +146,12 @@ public final class WorkspacePublishService {
         }
         if (options.central()) {
             // One atomic family bundle, one deployment id — never per-member Central deployments.
-            return centralPublisher.publish(workspace, members, options);
+            return centralPublisher.publish(workspace, publications, options);
         }
         if (options.dryRun()) {
             return new WorkspacePublishReport(members, blockers, false, Optional.empty(), Optional.empty());
         }
-        return uploader.upload(workspace, members, options);
+        return uploader.upload(publications);
     }
 
     private MemberPlanResult buildMemberPlan(
@@ -137,91 +159,53 @@ public final class WorkspacePublishService {
             Workspace workspace,
             ZoltLockfile aggregatedLock,
             Set<String> publishSet,
-            Options options) {
+            Options options,
+            WorkspaceMemberSbomGenerator sbomGenerator) {
         ProjectConfig config = policyResolver.merge(workspace, member);
         boolean bom = config.packageSettings().mode() == PackageMode.BOM;
         ZoltLockfile memberLock =
                 bom ? bomFamily.familyLock(workspace, aggregatedLock, member) : projection.project(config, aggregatedLock);
-
-        String artifactBase = config.project().name() + "-" + config.project().version();
-        Path publishDirectory = member.directory().resolve(config.build().outputRoot()).resolve("publish");
-        Path pomPath = publishDirectory.resolve(artifactBase + ".pom");
-        String pomSha256;
-        try {
-            Files.createDirectories(publishDirectory);
-            Files.writeString(pomPath, pomGenerator.generate(config, memberLock));
-            pomSha256 = "sha256:" + Sha256.hex(pomPath);
-        } catch (IOException exception) {
-            throw new sh.zolt.workspace.WorkspaceConfigException(
-                    "Could not write POM for " + member.path() + ": " + exception.getMessage());
-        }
-
-        Coordinate coordinate = new Coordinate(
-                config.project().group(), config.project().name(), Optional.of(config.project().version()));
-        String versionKind = VersionPolicy.classifyPublishVersion(config.project().version());
         PublishSettings publish =
                 publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
-        String repositoryId = versionKind.equals("snapshot") ? publish.snapshotRepository() : publish.releaseRepository();
-        PublishRepositorySettings repository = publish.repositories().get(repositoryId);
+        Path artifactPath = bom
+                ? null
+                : artifactPathPlanner.jarPath(member.directory(), config).toAbsolutePath().normalize();
+        Optional<Path> sbomFile = bom
+                ? Optional.empty()
+                : sbomGenerator.generate(member.directory(), config, memberLock);
 
-        List<String> blockers = new ArrayList<>();
-        Path artifactRelative = pomPath;
-        String artifactSha256 = pomSha256;
-        String artifactUploadPath = "";
+        // Reuse the single-project planner against the projected member lock: this is the sole source
+        // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.
+        PublishDryRunPlan memberPlan = dryRunService.planResolved(
+                member.directory(), config, publish, memberLock, artifactPath, !options.central(), sbomFile);
+
+        List<String> extraBlockers = new ArrayList<>();
         if (!bom) {
-            Path jarPath = artifactPathPlanner.jarPath(member.directory(), config);
-            artifactUploadPath = repositoryPathBuilder.jarPath(coordinate);
-            if (!Files.isRegularFile(jarPath)) {
-                blockers.add("missing artifact for " + coordinateString(config)
-                        + ": run `zolt package --workspace` before publishing.");
-                artifactRelative = jarPath;
-            } else {
-                artifactRelative = jarPath;
-                try {
-                    artifactSha256 = "sha256:" + Sha256.hex(jarPath);
-                } catch (IOException exception) {
-                    blockers.add("could not checksum artifact for " + coordinateString(config));
-                }
-            }
             for (String sibling : PublishInterMemberGuard.missingSiblings(memberLock, publishSet)) {
-                blockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
+                extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
                         + "` is not in the publish set; publish the family together or add `--member` for it.");
             }
         }
-
-        PublishDryRunPlan memberPlan = new PublishDryRunPlan(
-                coordinateString(config),
-                versionKind,
-                repository != null ? repository.id() : "maven-central",
-                repository != null ? repository.url() : "",
-                bom ? "bom" : "main",
-                member.directory().relativize(artifactRelative),
-                artifactSha256,
-                artifactUploadPath,
-                List.of(),
-                member.directory().relativize(pomPath),
-                member.directory().relativize(pomPath),
-                pomSha256,
-                repositoryPathBuilder.pomPath(coordinate),
-                List.of(),
-                "",
-                blockers,
-                bom);
-
-        List<String> allBlockers = new ArrayList<>(blockers);
         if (options.central()) {
-            List<String> centralBlockers = new ArrayList<>();
             for (PublishCentralRequirement requirement :
-                    centralReadinessService.evaluate(member.directory(), memberPlan)) {
+                    centralReadinessService.evaluate(config, publish, memberPlan)) {
                 if (!requirement.satisfied()) {
-                    centralBlockers.add(
+                    extraBlockers.add(
                             coordinateString(config) + ": " + requirement.name() + " — " + requirement.remediation());
                 }
             }
-            allBlockers.addAll(centralBlockers);
-            memberPlan = memberPlan.withContext("", centralBlockers);
         }
-        return new MemberPlanResult(bom, memberPlan, allBlockers);
+        PublishDryRunPlan finalPlan =
+                extraBlockers.isEmpty() ? memberPlan : memberPlan.withContext(memberPlan.context(), extraBlockers);
+        MemberPublication publication = new MemberPublication(
+                member.directory(),
+                member.path(),
+                coordinateString(config),
+                bom,
+                finalPlan,
+                publish,
+                config.repositoryCredentials());
+        return new MemberPlanResult(publication, finalPlan.blockers());
     }
 
     private List<WorkspaceMember> publishableMembers(Workspace workspace, WorkspaceSelection selection) {
@@ -274,10 +258,13 @@ public final class WorkspacePublishService {
         return config.project().group() + ":" + config.project().name() + ":" + config.project().version();
     }
 
-    private record MemberPlanResult(boolean bom, PublishDryRunPlan plan, List<String> blockers) {
+    private record MemberPlanResult(MemberPublication publication, List<String> blockers) {
     }
 
     /** Publish options mirroring the CLI flags. */
-    public record Options(boolean dryRun, boolean central, boolean allowMixedVersions, boolean sbom) {
+    public record Options(boolean dryRun, boolean central, boolean allowMixedVersions, Optional<Duration> waitTimeout) {
+        public Options {
+            waitTimeout = waitTimeout == null ? Optional.empty() : waitTimeout;
+        }
     }
 }

@@ -48,7 +48,7 @@ final class PublishDryRunQualityCheck {
                     workspaceRoot,
                     cacheRoot,
                     selection,
-                    new WorkspacePublishService.Options(true, false, false, false));
+                    new WorkspacePublishService.Options(true, false, false, Optional.empty()));
             if (!report.ok()) {
                 List<QualityCheckResult> results = new ArrayList<>();
                 for (String blocker : report.blockers()) {
