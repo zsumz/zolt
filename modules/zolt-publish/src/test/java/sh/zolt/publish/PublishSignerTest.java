@@ -1,6 +1,8 @@
 package sh.zolt.publish;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -10,7 +12,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,10 +75,88 @@ final class PublishSignerTest {
         assertTrue(exception.getMessage().contains("install GnuPG"));
     }
 
+    @Test
+    void freezesSignatureTimeUnderSourceDateEpochForByteIdenticalSignatures() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        generateSigningKey(gnupgHome);
+        String keyId = signingKeyId(gnupgHome);
+        // Capture the epoch after key generation so it is on/after the key's creation second — the
+        // real-world case where the release commit's SOURCE_DATE_EPOCH follows key creation.
+        long epoch = Instant.now().getEpochSecond();
+        Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "zolt reproducible payload\n");
+
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.of(keyId), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment(gnupgHome, epoch));
+
+        Path signature = signer.sign(artifact);
+        byte[] first = Files.readAllBytes(signature);
+        Thread.sleep(1100); // cross a wall-clock second so a non-frozen signing time WOULD differ
+        signer.sign(artifact);
+        byte[] second = Files.readAllBytes(signature);
+
+        assertArrayEquals(
+                first,
+                second,
+                "SOURCE_DATE_EPOCH must freeze the signature creation time for byte-identical .asc output");
+        assertEquals(0, verify(gnupgHome, signature, artifact), "the deterministic signature must still verify");
+    }
+
+    @Test
+    void signaturesDifferWithoutFakeTimeConfirmingTheTimestampIsTheVariable() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        generateSigningKey(gnupgHome);
+        String keyId = signingKeyId(gnupgHome);
+        Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "zolt reproducible payload\n");
+
+        // Same pinned key, no SOURCE_DATE_EPOCH: only the embedded wall-clock time varies between runs.
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.of(keyId), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment(gnupgHome));
+
+        Path signature = signer.sign(artifact);
+        byte[] first = Files.readAllBytes(signature);
+        Thread.sleep(1100);
+        signer.sign(artifact);
+        byte[] second = Files.readAllBytes(signature);
+
+        assertFalse(
+                Arrays.equals(first, second),
+                "without SOURCE_DATE_EPOCH the wall-clock signature time makes repeated runs differ");
+    }
+
+    @Test
+    void reproducibleSigningWithoutPinnedKeyRaisesActionableError() throws IOException {
+        Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "payload\n");
+        // Signing enabled + SOURCE_DATE_EPOCH set + no keyId: the ambiguous-key determinism hazard.
+        Map<String, String> environment = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "SOURCE_DATE_EPOCH", "1700000000");
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment::get);
+
+        PublishException exception = assertThrows(PublishException.class, () -> signer.sign(artifact));
+
+        assertTrue(exception.getMessage().contains("keyId"));
+        assertTrue(exception.getMessage().contains("SOURCE_DATE_EPOCH"));
+        assertTrue(exception.getMessage().contains("Next:"));
+    }
+
     private Function<String, String> environment(Path gnupgHome) {
         Map<String, String> values = Map.of(
                 "ZOLT_TEST_GPG_PASS", PASSPHRASE,
                 "GNUPGHOME", gnupgHome.toString());
+        return values::get;
+    }
+
+    private Function<String, String> environment(Path gnupgHome, long sourceDateEpoch) {
+        Map<String, String> values = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "GNUPGHOME", gnupgHome.toString(),
+                "SOURCE_DATE_EPOCH", Long.toString(sourceDateEpoch));
         return values::get;
     }
 
@@ -96,6 +178,25 @@ final class PublishSignerTest {
                 "--passphrase", PASSPHRASE,
                 "--quick-generate-key", "Zolt Signing Test <signing@zolt.test>", "default", "sign", "0"));
         assumeTrue(exitCode == 0, "gpg could not generate a throwaway signing key");
+    }
+
+    /** Reads the throwaway key's fingerprint so tests can pin {@code keyId} for reproducible signing. */
+    private String signingKeyId(Path gnupgHome) throws IOException, InterruptedException {
+        ProcessBuilder builder =
+                new ProcessBuilder("gpg", "--list-secret-keys", "--with-colons").redirectErrorStream(true);
+        builder.environment().put("GNUPGHOME", gnupgHome.toString());
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        process.waitFor();
+        for (String line : output.split("\n")) {
+            if (line.startsWith("fpr:")) {
+                String[] fields = line.split(":");
+                if (fields.length > 9 && !fields[9].isBlank()) {
+                    return fields[9];
+                }
+            }
+        }
+        throw new IllegalStateException("Could not read a signing key fingerprint:\n" + output);
     }
 
     private int verify(Path gnupgHome, Path signature, Path artifact) throws IOException, InterruptedException {
