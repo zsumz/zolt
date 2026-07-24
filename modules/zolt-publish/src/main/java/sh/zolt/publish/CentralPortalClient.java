@@ -1,7 +1,7 @@
 package sh.zolt.publish;
 
 import sh.zolt.net.NetworkTransport;
-import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -9,7 +9,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
@@ -44,7 +43,7 @@ public final class CentralPortalClient {
             CentralPublishingType publishingType,
             Optional<String> deploymentName) {
         String boundary = "ZoltCentralBundle" + UUID.randomUUID();
-        byte[] body = multipartBody(bundle, boundary);
+        HttpRequest.BodyPublisher body = multipartBody(bundle, boundary);
         StringBuilder url = new StringBuilder(normalizeBase(baseUrl))
                 .append("/api/v1/publisher/upload?publishingType=")
                 .append(publishingType.apiValue());
@@ -53,7 +52,7 @@ public final class CentralPortalClient {
                 .timeout(UPLOAD_TIMEOUT)
                 .header("Authorization", "Bearer " + token)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                .POST(body)
                 .build();
         HttpResponse<String> response = send(request, "upload the Central bundle");
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -103,26 +102,26 @@ public final class CentralPortalClient {
         }
     }
 
-    private static byte[] multipartBody(Path bundle, String boundary) {
-        byte[] bundleBytes;
-        try {
-            bundleBytes = Files.readAllBytes(bundle);
-        } catch (IOException exception) {
-            throw new PublishException("Could not read Central bundle at " + bundle + ".", exception);
-        }
+    /**
+     * Streams the multipart body as a small header publisher, the bundle file itself
+     * ({@link HttpRequest.BodyPublishers#ofFile}), and a small footer publisher concatenated together,
+     * so a multi-member family bundle is never materialised in memory.
+     */
+    private static HttpRequest.BodyPublisher multipartBody(Path bundle, String boundary) {
         String header = "--" + boundary + "\r\n"
                 + "Content-Disposition: form-data; name=\"bundle\"; filename=\"" + bundle.getFileName() + "\"\r\n"
                 + "Content-Type: application/octet-stream\r\n\r\n";
         String footer = "\r\n--" + boundary + "--\r\n";
-        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        HttpRequest.BodyPublisher filePublisher;
         try {
-            body.write(header.getBytes(StandardCharsets.UTF_8));
-            body.write(bundleBytes);
-            body.write(footer.getBytes(StandardCharsets.UTF_8));
-        } catch (IOException exception) {
-            throw new PublishException("Could not assemble the Central upload request body.", exception);
+            filePublisher = HttpRequest.BodyPublishers.ofFile(bundle);
+        } catch (FileNotFoundException exception) {
+            throw new PublishException("Could not read Central bundle at " + bundle + ".", exception);
         }
-        return body.toByteArray();
+        return HttpRequest.BodyPublishers.concat(
+                HttpRequest.BodyPublishers.ofString(header, StandardCharsets.UTF_8),
+                filePublisher,
+                HttpRequest.BodyPublishers.ofString(footer, StandardCharsets.UTF_8));
     }
 
     private static String normalizeBase(String baseUrl) {
