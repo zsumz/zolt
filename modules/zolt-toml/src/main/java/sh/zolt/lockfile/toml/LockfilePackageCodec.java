@@ -57,8 +57,8 @@ final class LockfilePackageCodec {
                 LockfileTomlValues.stringArray(table, "dependencies"),
                 LockfileTomlValues.optionalStringArray(table, "members"),
                 LockfileTomlValues.optionalStringArray(table, "exportedBy"),
-                LockfileTomlValues.optionalStringArray(table, "policies"))
-                .withToolGroups(LockfileTomlValues.optionalStringArray(table, "toolGroups"));
+                LockfileTomlValues.optionalStringArray(table, "policies"),
+                LockfileTomlValues.optionalStringArray(table, "toolGroups"));
     }
 
     private static DependencyScope scope(String value, PackageId packageId) {

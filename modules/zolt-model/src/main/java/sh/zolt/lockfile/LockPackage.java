@@ -43,38 +43,11 @@ public record LockPackage(
     }
 
     /**
-     * A copy of this package tagged with the named exec tool groups whose locked closure it belongs to.
-     * The qualifier is additive: a package may serve several tools (the list unions), while two tools
-     * that need different versions of the same GA stay separate entries because their {@code version}
-     * differs. Empty {@code toolGroups} on a {@code tool-exec} entry means the lock predates per-tool
-     * isolation and must be re-resolved before its classpath can be trusted.
-     */
-    public LockPackage withToolGroups(List<String> toolGroups) {
-        return new LockPackage(
-                packageId,
-                version,
-                source,
-                scope,
-                direct,
-                jar,
-                pom,
-                jarSha256,
-                pomSha256,
-                artifact,
-                artifactType,
-                artifactSha256,
-                workspace,
-                workspaceOutput,
-                dependencies,
-                members,
-                exportedBy,
-                policies,
-                toolGroups);
-    }
-
-    /**
      * Backwards-compatible constructor matching the pre-toolGroups canonical shape; {@code toolGroups}
-     * defaults to empty. Callers that lock exec tooling attach groups via {@link #withToolGroups}.
+     * defaults to empty. {@code toolGroups} is additive: a package may serve several tools (its list
+     * unions), while two tools needing different versions of the same GA stay separate entries because
+     * their {@code version} differs. Empty {@code toolGroups} on a {@code tool-exec} entry means the lock
+     * predates per-tool isolation and must be re-resolved before its classpath can be trusted.
      */
     public LockPackage(
             PackageId packageId,

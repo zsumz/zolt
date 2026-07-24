@@ -46,23 +46,6 @@ public record ExecGenerationSettings(
         cacheSalt = cacheSalt == null ? Optional.empty() : cacheSalt;
     }
 
-    /** Backwards-compatible constructor for steps without a cache salt. */
-    public ExecGenerationSettings(
-            String toolName,
-            ExecToolSettings tool,
-            List<String> args,
-            ProducesLane produces,
-            Optional<String> into,
-            Map<String, String> env,
-            String cache,
-            Optional<String> cwd,
-            Map<String, String> secretEnv,
-            List<String> inheritEnv,
-            int timeoutSeconds) {
-        this(toolName, tool, args, produces, into, env, cache, cwd, secretEnv, inheritEnv, timeoutSeconds,
-                Optional.empty());
-    }
-
     /** Backwards-compatible constructor for steps without cwd/secretEnv/inheritEnv/timeout overrides. */
     public ExecGenerationSettings(
             String toolName,

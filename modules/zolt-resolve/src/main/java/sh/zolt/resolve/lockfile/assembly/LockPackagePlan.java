@@ -1,0 +1,30 @@
+package sh.zolt.resolve.lockfile.assembly;
+
+import sh.zolt.maven.ArtifactDescriptor;
+import sh.zolt.maven.Coordinate;
+import sh.zolt.resolve.graph.PackageNode;
+import sh.zolt.resolve.graph.ResolutionGraph;
+import sh.zolt.resolve.selection.SelectedDependencyScope;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * One planned lock package: a selected node under a single scope, its artifact descriptor, the graph its
+ * dependency edges are read from (the main graph, or a per-tool graph for isolated exec tools), and the
+ * exec tool groups it belongs to (empty for non-tool packages).
+ */
+record LockPackagePlan(
+        PackageNode node,
+        SelectedDependencyScope selectedScope,
+        ArtifactDescriptor artifactDescriptor,
+        ResolutionGraph graph,
+        List<String> toolGroups) {
+    static LockPackagePlan of(
+            PackageNode node, SelectedDependencyScope selectedScope, ResolutionGraph graph, List<String> toolGroups) {
+        Coordinate coordinate = new Coordinate(
+                node.packageId().groupId(), node.packageId().artifactId(), Optional.of(node.selectedVersion()));
+        ArtifactDescriptor descriptor = selectedScope.artifactDescriptor()
+                .orElseGet(() -> ArtifactDescriptor.jar(coordinate));
+        return new LockPackagePlan(node, selectedScope, descriptor, graph, toolGroups);
+    }
+}

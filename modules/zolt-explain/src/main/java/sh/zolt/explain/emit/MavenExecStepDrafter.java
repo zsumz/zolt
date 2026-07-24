@@ -97,7 +97,8 @@ final class MavenExecStepDrafter {
                 invocation.workingDirectory(),
                 java.util.Map.of(),
                 List.of(),
-                ExecGenerationSettings.DEFAULT_TIMEOUT_SECONDS);
+                ExecGenerationSettings.DEFAULT_TIMEOUT_SECONDS,
+                Optional.empty());
         return new GeneratedSourceStep(
                 id,
                 GeneratedSourceKind.EXEC,
