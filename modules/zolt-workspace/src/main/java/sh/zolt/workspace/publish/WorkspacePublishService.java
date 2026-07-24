@@ -139,12 +139,12 @@ public final class WorkspacePublishService {
 
         // A `--resume-members` publish is backed by durable state, not a trusted hidden flag: without
         // matching state we refuse rather than silently treat absent providers as already published.
-        Path statePath = resumeStatePath(workspace);
+        Path statePath = WorkspacePublishPaths.resumeStatePath(workspace);
         Optional<ResumeState> resumeState = resumeMode ? ResumeState.read(statePath) : Optional.empty();
         if (resumeMode && resumeState.isEmpty()) {
             return new WorkspacePublishReport(
                     List.of(),
-                    List.of("no publish resume state found at " + displayPath(workspace, statePath)
+                    List.of("no publish resume state found at " + WorkspacePublishPaths.displayPath(workspace, statePath)
                             + ". `--resume-members` resumes a previously interrupted `zolt publish --workspace`; "
                             + "run the full publish instead: `zolt publish --workspace`."),
                     List.of(),
@@ -184,7 +184,7 @@ public final class WorkspacePublishService {
         List<StagedMember> stagedMembers = List.of();
         if (blockers.isEmpty() && !options.central() && !options.dryRun()) {
             WorkspacePublishStaging.Preparation preparation =
-                    staging.materialize(publications, stagingRoot(workspace), options);
+                    staging.materialize(publications, WorkspacePublishPaths.stagingRoot(workspace), options);
             blockers.addAll(preparation.blockers());
             stagedMembers = preparation.members();
             // A resume is only honoured against state whose recorded plan still matches what would upload;
@@ -213,20 +213,6 @@ public final class WorkspacePublishService {
         }
         Set<String> completed = resumeState.map(ResumeState::completed).orElse(Set.of());
         return uploader.upload(stagedMembers, options, completed, statePath).withNotes(notes);
-    }
-
-    private static Path stagingRoot(Workspace workspace) {
-        return workspace.root().resolve("target").resolve("zolt-publish").resolve("staging");
-    }
-
-    private static Path resumeStatePath(Workspace workspace) {
-        return workspace.root().resolve("target").resolve("zolt-publish").resolve("resume-state");
-    }
-
-    private static String displayPath(Workspace workspace, Path path) {
-        Path root = workspace.root().toAbsolutePath().normalize();
-        Path normalized = path.toAbsolutePath().normalize();
-        return normalized.startsWith(root) ? root.relativize(normalized).toString() : normalized.toString();
     }
 
     private MemberPlanResult buildMemberPlan(
