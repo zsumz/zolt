@@ -97,6 +97,72 @@ final class WorkspaceExternalPackageSelectorTest {
         assertEquals(List.of("managed"), selectedPackage.policies());
     }
 
+    @Test
+    void keepsConflictingExecToolVersionsSeparateAndUnionsSameVersionToolGroups() {
+        PackageId shared = new PackageId("com.example", "shared-lib");
+        PackageId common = new PackageId("com.example", "common-lib");
+
+        WorkspaceExternalSelection selection = selector.select(List.of(
+                execJarPackage(shared, "1.0.0", List.of("alpha"), List.of("apps/api")),
+                execJarPackage(shared, "2.0.0", List.of("beta"), List.of("apps/worker")),
+                execJarPackage(common, "1.0.0", List.of("alpha"), List.of("apps/api")),
+                execJarPackage(common, "1.0.0", List.of("beta"), List.of("apps/worker"))));
+
+        // Conflicting versions of the shared library stay distinct, each keyed to its own tool group.
+        assertEquals(List.of("alpha"), execEntry(selection, shared, "1.0.0").toolGroups());
+        assertEquals(List.of("beta"), execEntry(selection, shared, "2.0.0").toolGroups());
+        // A jar shared at the same version collapses into one entry unioning both tool groups.
+        assertEquals(List.of("alpha", "beta"), execEntry(selection, common, "1.0.0").toolGroups());
+        assertEquals(List.of("apps/api", "apps/worker"), execEntry(selection, common, "1.0.0").members());
+        // Divergent tool-exec versions are never mediated into a LockConflict.
+        assertEquals(List.of(), selection.conflicts());
+    }
+
+    private static LockPackage execEntry(
+            WorkspaceExternalSelection selection, PackageId packageId, String version) {
+        return selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(packageId))
+                .filter(lockPackage -> lockPackage.version().equals(version))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static LockPackage execJarPackage(
+            PackageId packageId,
+            String version,
+            List<String> toolGroups,
+            List<String> members) {
+        String base = packageId.groupId().replace('.', '/')
+                + "/"
+                + packageId.artifactId()
+                + "/"
+                + version
+                + "/"
+                + packageId.artifactId()
+                + "-"
+                + version;
+        return new LockPackage(
+                packageId,
+                version,
+                "maven-central",
+                DependencyScope.TOOL_EXEC,
+                false,
+                Optional.of(base + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + version),
+                Optional.of("pom-" + version),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                members,
+                List.of(),
+                List.of(),
+                toolGroups);
+    }
+
     private static LockPackage packageById(WorkspaceExternalSelection selection, PackageId packageId) {
         return selection.packages().stream()
                 .filter(lockPackage -> lockPackage.packageId().equals(packageId))

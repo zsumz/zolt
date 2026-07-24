@@ -19,8 +19,15 @@ final class WorkspaceExternalPackageSelector {
     private static final VersionComparator VERSION_COMPARATOR = new VersionComparator();
 
     WorkspaceExternalSelection select(List<LockPackage> candidates) {
+        List<LockPackage> regularCandidates = candidates.stream()
+                .filter(candidate -> candidate.scope() != DependencyScope.TOOL_EXEC)
+                .toList();
+        List<LockPackage> execCandidates = candidates.stream()
+                .filter(candidate -> candidate.scope() == DependencyScope.TOOL_EXEC)
+                .toList();
+
         Map<PackageId, List<LockPackage>> candidatesByPackage = new LinkedHashMap<>();
-        candidates.stream()
+        regularCandidates.stream()
                 .sorted(Comparator.comparing(lockPackage -> lockPackage.packageId()
                         + ":"
                         + lockPackage.version()
@@ -66,6 +73,7 @@ final class WorkspaceExternalPackageSelector {
                         selectedReasons.get(packageId)));
             }
         }
+        packages.addAll(selectExecPackages(execCandidates));
         return new WorkspaceExternalSelection(packages, conflicts);
     }
 
@@ -127,7 +135,72 @@ final class WorkspaceExternalPackageSelector {
                 rewriteDependencies(selectedTemplate.dependencies(), selectedVersions),
                 List.copyOf(members),
                 List.copyOf(exportedBy),
-                selectedTemplate.policies());
+                selectedTemplate.policies(),
+                List.of());
+    }
+
+    /**
+     * Aggregates {@code tool-exec} candidates without version mediation. Each named exec tool keeps its
+     * own locked version of a shared library, so entries are keyed by {@code (groupId:artifactId,
+     * version)} rather than {@code (GA, scope)}: two tools needing conflicting versions of the same GA
+     * both survive into the aggregated root lock. A jar shared by several tools at the same version
+     * collapses into one entry whose {@code toolGroups} union (sorted), mirroring
+     * {@code ExecToolLockPlanner} in zolt-resolve. Dependencies stay as locked by each tool's isolated
+     * closure and are never rewritten to a mediated main version.
+     */
+    private static List<LockPackage> selectExecPackages(List<LockPackage> execCandidates) {
+        Map<String, List<LockPackage>> execByCoordinateVersion = new LinkedHashMap<>();
+        execCandidates.stream()
+                .sorted(Comparator.comparing(lockPackage ->
+                        lockPackage.packageId() + ":" + lockPackage.version()))
+                .forEach(lockPackage -> execByCoordinateVersion
+                        .computeIfAbsent(
+                                lockPackage.packageId() + ":" + lockPackage.version(),
+                                ignored -> new ArrayList<>())
+                        .add(lockPackage));
+
+        List<LockPackage> execPackages = new ArrayList<>();
+        for (List<LockPackage> coordinateVersion : execByCoordinateVersion.values()) {
+            execPackages.add(mergedExecPackage(coordinateVersion));
+        }
+        return execPackages;
+    }
+
+    private static LockPackage mergedExecPackage(List<LockPackage> candidates) {
+        LockPackage template = candidates.getFirst();
+        boolean direct = candidates.stream().anyMatch(LockPackage::direct);
+        Set<String> toolGroups = new LinkedHashSet<>();
+        Set<String> members = new LinkedHashSet<>();
+        Set<String> exportedBy = new LinkedHashSet<>();
+        Set<String> dependencies = new LinkedHashSet<>();
+        Set<String> policies = new LinkedHashSet<>();
+        for (LockPackage candidate : candidates) {
+            toolGroups.addAll(candidate.toolGroups());
+            members.addAll(candidate.members());
+            exportedBy.addAll(candidate.exportedBy());
+            dependencies.addAll(candidate.dependencies());
+            policies.addAll(candidate.policies());
+        }
+        return new LockPackage(
+                template.packageId(),
+                template.version(),
+                template.source(),
+                template.scope(),
+                direct,
+                template.jar(),
+                template.pom(),
+                template.jarSha256(),
+                template.pomSha256(),
+                template.artifact(),
+                template.artifactType(),
+                template.artifactSha256(),
+                template.workspace(),
+                template.workspaceOutput(),
+                dependencies.stream().sorted().toList(),
+                List.copyOf(members),
+                List.copyOf(exportedBy),
+                List.copyOf(policies),
+                toolGroups.stream().sorted().toList());
     }
 
     private static List<String> rewriteDependencies(

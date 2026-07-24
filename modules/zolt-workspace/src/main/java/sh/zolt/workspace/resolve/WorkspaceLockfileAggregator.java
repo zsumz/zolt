@@ -140,6 +140,7 @@ final class WorkspaceLockfileAggregator {
                     List.of(),
                     List.of(edge.from()),
                     edge.exported() ? List.of(edge.from()) : List.of(),
+                    List.of(),
                     List.of()));
         }
         return packages;
@@ -204,7 +205,8 @@ final class WorkspaceLockfileAggregator {
                 List.copyOf(dependencies),
                 List.copyOf(members),
                 List.copyOf(exportedBy),
-                merged(left.policies(), right.policies()));
+                merged(left.policies(), right.policies()),
+                mergedToolGroups(left.toolGroups(), right.toolGroups()));
     }
 
     private static LockPackage withMember(
@@ -235,13 +237,20 @@ final class WorkspaceLockfileAggregator {
                 lockPackage.dependencies(),
                 List.copyOf(members),
                 List.copyOf(exportedBy),
-                lockPackage.policies());
+                lockPackage.policies(),
+                lockPackage.toolGroups());
     }
 
     private static List<String> merged(List<String> left, List<String> right) {
         Set<String> values = new LinkedHashSet<>(left);
         values.addAll(right);
         return List.copyOf(values);
+    }
+
+    private static List<String> mergedToolGroups(List<String> left, List<String> right) {
+        Set<String> values = new LinkedHashSet<>(left);
+        values.addAll(right);
+        return values.stream().sorted().toList();
     }
 
     private static Optional<String> firstPresent(Optional<String> left, Optional<String> right) {

@@ -145,7 +145,8 @@ final class WorkspaceProcessorClasspathAssembler {
                 lockPackage.dependencies(),
                 lockPackage.members(),
                 lockPackage.exportedBy(),
-                lockPackage.policies());
+                lockPackage.policies(),
+                lockPackage.toolGroups());
     }
 
     private static Classpath mergeClasspaths(Classpath first, Classpath second) {
