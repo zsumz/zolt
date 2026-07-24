@@ -1,1 +1,3 @@
 # path|followUp|owner|gate|reason
+modules/zolt-publish/src/test/java/sh/zolt/publish/PublishSignerTest.java|none|publish|max 2 sleeps|Reproducible-signing proof must cross a real wall-clock second; gpg is an external process whose clock cannot be faked from the test JVM, so the two-run byte-equality (and its negative control) sleep 1100ms by design.
+modules/zolt-publish/src/test/java/sh/zolt/publish/PublishCentralBundleTest.java|none|publish|max 1 sleep|The signed-bundle two-run byte-equality proof crosses a real wall-clock second for the same external-gpg reason as PublishSignerTest.
