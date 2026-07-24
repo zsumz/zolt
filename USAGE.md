@@ -291,20 +291,28 @@ wave and write `target/publish/<name>-<version>.pom` with package evidence.
 Declaring dependencies, sources, javadoc, tests, or a manifest on a BOM is a
 config error, and `zolt run`/`run-package` error actionably.
 
-`zolt publish --workspace` publishes the whole family in one operation. It runs an
-offline Phase 1 first — per member it resolves config, projects a per-member lock,
+`zolt publish --workspace` publishes the whole family in one operation, using the
+same per-member publication plan as a single-project publish. It runs an offline
+Phase 1 first — per member it resolves config, projects a per-member lock,
 generates and validates the POM (inter-member dependencies render at their locked
-versions), and checks readiness — aggregating every blocker into one report. If
-anything is blocked, nothing uploads. Phase 2 then uploads: Maven Central receives
-one atomic family bundle (one deployment id), while a plain repository receives a
-dependency-ordered sequential upload (providers first, the BOM last) that fails
-fast with an exact `--member` resume command. Members publish at a uniform family
-version by default; `--allow-mixed-versions` pins each member at its own version.
+versions), plans every artifact (main jar, sources, javadoc, checksums, and
+signatures), and checks readiness — aggregating every blocker into one report. If
+anything is blocked, nothing uploads. Phase 2 then uploads each member's complete
+artifact set: Maven Central receives one atomic family bundle (one deployment id),
+while a plain repository receives a dependency-ordered sequential upload (providers
+first, the BOM last) that authenticates every request with the repository's
+configured `[repositoryCredentials]` and fails fast with an exact `--member` resume
+command. Members publish at a uniform family version by default;
+`--allow-mixed-versions` pins each member at its own version.
+
+`--sbom` attaches a per-member CycloneDX SBOM (each jar member gets its own; the
+BOM, having no resolved graph, gets none). `--central --wait` polls the family
+deployment to a terminal state, honouring `--wait-timeout <seconds>`.
 
 ```sh
-zolt publish --workspace --dry-run          # family Phase-1 preflight, no upload
-zolt publish --workspace                     # publish the family to the plain repo
-zolt publish --workspace --central --wait    # one atomic Central bundle
+zolt publish --workspace --dry-run           # family Phase-1 preflight, no upload
+zolt publish --workspace --sbom              # publish the family (+ per-member SBOMs)
+zolt publish --workspace --central --wait    # one atomic Central bundle, then poll
 zolt check --workspace --context ci --require-publish-dry-run   # CI gate
 ```
 
