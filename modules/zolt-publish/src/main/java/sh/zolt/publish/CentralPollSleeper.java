@@ -8,7 +8,7 @@ import java.time.Duration;
  * poll loop runs deterministically without real delays.
  */
 @FunctionalInterface
-interface CentralPollSleeper {
+public interface CentralPollSleeper {
     void sleep(Duration duration) throws InterruptedException;
 
     static CentralPollSleeper realTime() {

@@ -16,8 +16,8 @@ import java.util.Locale;
  * {@link CentralPollSleeper} spaces the polls; both are injected so the loop is deterministic under
  * test.
  */
-final class CentralDeploymentWaiter {
-    static final Duration DEFAULT_POLL_INTERVAL = Duration.ofSeconds(5);
+public final class CentralDeploymentWaiter {
+    public static final Duration DEFAULT_POLL_INTERVAL = Duration.ofSeconds(5);
 
     private static final String PUBLISHED = "PUBLISHED";
     private static final String FAILED = "FAILED";
@@ -29,11 +29,11 @@ final class CentralDeploymentWaiter {
     private final CentralPollSleeper sleeper;
     private final Duration pollInterval;
 
-    CentralDeploymentWaiter(CentralPortalClient portalClient) {
+    public CentralDeploymentWaiter(CentralPortalClient portalClient) {
         this(portalClient, Clock.systemUTC(), CentralPollSleeper.realTime(), DEFAULT_POLL_INTERVAL);
     }
 
-    CentralDeploymentWaiter(
+    public CentralDeploymentWaiter(
             CentralPortalClient portalClient, Clock clock, CentralPollSleeper sleeper, Duration pollInterval) {
         this.portalClient = portalClient;
         this.clock = clock;
@@ -45,7 +45,7 @@ final class CentralDeploymentWaiter {
      * Polls {@code deploymentId} until it reaches a terminal state, returning that status. Raises a
      * {@link PublishException} when the deployment fails or when {@code timeout} elapses first.
      */
-    CentralDeploymentStatus awaitTerminal(
+    public CentralDeploymentStatus awaitTerminal(
             String baseUrl,
             String deploymentId,
             String token,
