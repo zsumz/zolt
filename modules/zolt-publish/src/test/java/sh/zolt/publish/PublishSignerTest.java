@@ -145,6 +145,43 @@ final class PublishSignerTest {
         assertTrue(exception.getMessage().contains("Next:"));
     }
 
+    @Test
+    void blankSourceDateEpochFailsLoudlyInsteadOfSilentlyUsingTheWallClock() throws IOException {
+        Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "payload\n");
+        // A blank override used to fall back to wall-clock signing silently; it must now fail loudly so a
+        // publish that believes it is reproducible never ships a wall-clock signature.
+        Map<String, String> environment = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "SOURCE_DATE_EPOCH", "   ");
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.of("ABCDEF0123456789"), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment::get);
+
+        PublishException exception = assertThrows(PublishException.class, () -> signer.sign(artifact));
+
+        assertTrue(exception.getMessage().contains("SOURCE_DATE_EPOCH"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Next:"), exception.getMessage());
+    }
+
+    @Test
+    void malformedSourceDateEpochFailsLoudlyBeforeInvokingGpg() throws IOException {
+        Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "payload\n");
+        Map<String, String> environment = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "SOURCE_DATE_EPOCH", "not-an-epoch");
+        // Point at a nonexistent gpg: reaching the subprocess would raise "Could not run gpg" instead,
+        // so asserting the value is named proves the parser rejects it before any signing work starts.
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.of("ABCDEF0123456789"), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment::get,
+                tempDir.resolve("no-such-gpg-binary").toString());
+
+        PublishException exception = assertThrows(PublishException.class, () -> signer.sign(artifact));
+
+        assertTrue(exception.getMessage().contains("not-an-epoch"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Next:"), exception.getMessage());
+    }
+
     private Function<String, String> environment(Path gnupgHome) {
         Map<String, String> values = Map.of(
                 "ZOLT_TEST_GPG_PASS", PASSPHRASE,

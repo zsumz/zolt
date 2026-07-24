@@ -48,10 +48,12 @@ public final class PublishCentralReadinessService {
     public List<PublishCentralRequirement> evaluate(
             ProjectConfig config, PublishSettings publish, PublishDryRunPlan plan) {
         PublicationMetadata metadata = config.packageSettings().metadata();
-        // Reproducible signing (SOURCE_DATE_EPOCH) requires a pinned key; surfacing the Phase-2
-        // PublishSigner rejection in the checklist catches it before any signing work.
+        // Reproducible signing (SOURCE_DATE_EPOCH) requires a pinned key; surfacing the PublishSigner
+        // rejection in the checklist catches it before any signing work. The shared SourceDateEpoch
+        // parser also rejects a blank/malformed/negative value loudly here, exactly as the signer does,
+        // so both agree on when a build is reproducible.
         boolean reproducibleKeyMissing = publish.signing().enabled()
-                && environment.apply("SOURCE_DATE_EPOCH") != null
+                && SourceDateEpoch.parse(environment).reproducible()
                 && publish.signing().keyId().isEmpty();
         return PublishCentralReadiness.evaluate(
                 plan.versionKind(),

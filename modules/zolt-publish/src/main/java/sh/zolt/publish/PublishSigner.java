@@ -63,22 +63,14 @@ public final class PublishSigner {
     }
 
     /**
-     * The frozen signing instant when {@code SOURCE_DATE_EPOCH} is set to a valid epoch-seconds
-     * value, otherwise empty (wall-clock signing). A malformed value falls back to wall-clock
-     * signing rather than failing the publish, matching {@code BuildProvenanceReader} and
-     * {@code SbomTimestamp}.
+     * The frozen signing instant when {@code SOURCE_DATE_EPOCH} pins a valid epoch, otherwise empty
+     * (wall-clock signing). Delegates to {@link SourceDateEpoch}, which rejects a blank, malformed, or
+     * negative value with an actionable {@link PublishException} rather than silently disabling
+     * reproducibility &mdash; so a signed bundle is never quietly non-reproducible while the
+     * environment claims otherwise.
      */
     private Optional<Long> deterministicSigningTime() {
-        String epoch = environment.apply(SOURCE_DATE_EPOCH);
-        if (epoch == null || epoch.isBlank()) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(Long.parseLong(epoch.trim()));
-        } catch (NumberFormatException ignored) {
-            // Malformed override: fall back to wall-clock signing rather than failing the publish.
-            return Optional.empty();
-        }
+        return SourceDateEpoch.parse(environment).epochSeconds();
     }
 
     /**
