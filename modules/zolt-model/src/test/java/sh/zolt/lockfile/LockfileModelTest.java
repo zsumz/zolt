@@ -93,6 +93,7 @@ final class LockfileModelTest {
                 dependencies,
                 null,
                 null,
+                null,
                 null);
 
         dependencies.add("com.example:late");

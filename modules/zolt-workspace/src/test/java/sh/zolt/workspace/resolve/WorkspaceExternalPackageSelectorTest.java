@@ -87,7 +87,8 @@ final class WorkspaceExternalPackageSelectorTest {
                 List.of(),
                 List.of("api"),
                 List.of(),
-                List.of("managed"))));
+                List.of("managed"),
+                List.of())));
 
         LockPackage selectedPackage = selection.packages().getFirst();
         assertEquals(Optional.empty(), selectedPackage.jar());
@@ -205,6 +206,7 @@ final class WorkspaceExternalPackageSelectorTest {
                 dependencies,
                 members,
                 exportedBy,
+                List.of(),
                 List.of());
     }
 }

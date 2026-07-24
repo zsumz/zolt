@@ -101,6 +101,7 @@ abstract class SbomTestSupport {
                 dependencies,
                 members,
                 List.of(),
+                List.of(),
                 List.of());
     }
 
@@ -129,6 +130,7 @@ abstract class SbomTestSupport {
                 Optional.empty(),
                 Optional.empty(),
                 dependencies,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());
@@ -161,6 +163,7 @@ abstract class SbomTestSupport {
                 Optional.empty(),
                 Optional.empty(),
                 dependencies,
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of());

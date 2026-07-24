@@ -5,6 +5,13 @@ import sh.zolt.dependency.PackageId;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * A single locked package entry. {@code toolGroups} is additive and specific to {@code tool-exec}
+ * entries: a jar may serve several exec tools (its {@code toolGroups} union), while two tools needing
+ * different versions of the same {@code groupId:artifactId} stay separate entries because their
+ * {@code version} differs. Empty {@code toolGroups} on a {@code tool-exec} entry means the lock predates
+ * per-tool isolation and must be re-resolved before its classpath can be trusted.
+ */
 public record LockPackage(
         PackageId packageId,
         String version,
@@ -40,54 +47,6 @@ public record LockPackage(
         exportedBy = exportedBy == null ? List.of() : List.copyOf(exportedBy);
         policies = policies == null ? List.of() : List.copyOf(policies);
         toolGroups = toolGroups == null ? List.of() : List.copyOf(toolGroups);
-    }
-
-    /**
-     * Backwards-compatible constructor matching the pre-toolGroups canonical shape; {@code toolGroups}
-     * defaults to empty. {@code toolGroups} is additive: a package may serve several tools (its list
-     * unions), while two tools needing different versions of the same GA stay separate entries because
-     * their {@code version} differs. Empty {@code toolGroups} on a {@code tool-exec} entry means the lock
-     * predates per-tool isolation and must be re-resolved before its classpath can be trusted.
-     */
-    public LockPackage(
-            PackageId packageId,
-            String version,
-            String source,
-            DependencyScope scope,
-            boolean direct,
-            Optional<String> jar,
-            Optional<String> pom,
-            Optional<String> jarSha256,
-            Optional<String> pomSha256,
-            Optional<String> artifact,
-            Optional<String> artifactType,
-            Optional<String> artifactSha256,
-            Optional<String> workspace,
-            Optional<String> workspaceOutput,
-            List<String> dependencies,
-            List<String> members,
-            List<String> exportedBy,
-            List<String> policies) {
-        this(
-                packageId,
-                version,
-                source,
-                scope,
-                direct,
-                jar,
-                pom,
-                jarSha256,
-                pomSha256,
-                artifact,
-                artifactType,
-                artifactSha256,
-                workspace,
-                workspaceOutput,
-                dependencies,
-                members,
-                exportedBy,
-                policies,
-                List.of());
     }
 
     public LockPackage(
