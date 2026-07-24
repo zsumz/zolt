@@ -188,6 +188,30 @@ final class PublishWorkspaceResumeTest {
     }
 
     @Test
+    void aLegacyV1ResumeStateIsRefusedRatherThanGuessedAt(@TempDir Path tempDir) throws IOException {
+        ImmutableRepository repository = ImmutableRepository.start();
+        try {
+            Path family = prepareFamily(tempDir, repository);
+            Path cache = tempDir.resolve("cache");
+            Path statePath = family.resolve("target/zolt-publish/resume-state");
+            // A resume-state file written by an older Zolt (schema v1) predates the transaction manifest and
+            // cannot be trusted to resume; the hidden flag must refuse outright rather than guess.
+            Files.createDirectories(statePath.getParent());
+            Files.writeString(statePath, "schema=zolt.publish-resume.v1\nplanHash=deadbeef\n"
+                    + "completed=com/acme/acme-http/1.0.0/acme-http-1.0.0.jar\n");
+
+            CliTestSupport.CommandResult result =
+                    executeIn(family, cache, "publish", "--workspace", "--resume-members", "acme-http,acme-bom");
+
+            assertEquals(1, result.exitCode(), result.stdout() + result.stderr());
+            assertTrue(result.stdout().contains("schema v1"), result.stdout());
+            assertFalse(repository.has("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "nothing uploaded");
+        } finally {
+            repository.close();
+        }
+    }
+
+    @Test
     void aResumeAgainstAChangedPlanRefuses(@TempDir Path tempDir) throws IOException {
         ImmutableRepository repository = ImmutableRepository.start();
         try {
