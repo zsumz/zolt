@@ -9,8 +9,12 @@ import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.ZoltLockfileReader;
 import sh.zolt.workspace.WorkspaceConfig;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -254,6 +258,55 @@ final class WorkspaceClasspathServiceTest {
         assertFalse(apiClasspaths.testProcessor().entries().contains(externalIgnoredJar));
     }
 
+    @Test
+    void routesEachMembersOwnClassifierVariantOntoItsClasspath() throws IOException {
+        Workspace workspace = workspace(List.of("apps/api", "apps/worker"), List.of());
+        Path linuxJar = tempDir.resolve(
+                "cache/io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar");
+        Path osxJar = tempDir.resolve(
+                "cache/io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-osx-aarch_64.jar");
+        // Distinguishable bytes per variant, with matching hashes so the integrity verifier participates.
+        writeFile(linuxJar, "linux-native-bytes");
+        writeFile(osxJar, "osx-native-bytes");
+        ZoltLockfile lockfile = lockfileReader.read(("""
+                version = 1
+
+                [[package]]
+                id = "io.netty:netty-transport-native-epoll"
+                version = "4.1.100.Final"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"
+                jarSha256 = "LINUX_SHA"
+                members = ["apps/api"]
+                dependencies = []
+
+                [[package]]
+                id = "io.netty:netty-transport-native-epoll"
+                version = "4.1.100.Final"
+                source = "maven-central"
+                scope = "runtime"
+                direct = true
+                jar = "io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-osx-aarch_64.jar"
+                jarSha256 = "OSX_SHA"
+                members = ["apps/worker"]
+                dependencies = []
+                """)
+                .replace("LINUX_SHA", sha256("linux-native-bytes"))
+                .replace("OSX_SHA", sha256("osx-native-bytes")));
+
+        ClasspathSet apiClasspaths = service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/api");
+        ClasspathSet workerClasspaths = service.classpathsFor(workspace, lockfile, tempDir.resolve("cache"), "apps/worker");
+
+        // Each member's runtime classpath receives exactly the classified artifact ITS declaration requires,
+        // and never the sibling variant's bytes.
+        assertTrue(apiClasspaths.runtime().entries().contains(linuxJar));
+        assertFalse(apiClasspaths.runtime().entries().contains(osxJar));
+        assertTrue(workerClasspaths.runtime().entries().contains(osxJar));
+        assertFalse(workerClasspaths.runtime().entries().contains(linuxJar));
+    }
+
     private Workspace workspace(
             List<String> members,
             List<WorkspaceProjectEdge> edges) throws IOException {
@@ -275,5 +328,19 @@ final class WorkspaceClasspathServiceTest {
     private static void createEmptyFile(Path path) throws IOException {
         Files.createDirectories(path.getParent());
         Files.writeString(path, "");
+    }
+
+    private static void writeFile(Path path, String content) throws IOException {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content);
+    }
+
+    private static String sha256(String content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(content.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

@@ -3,6 +3,7 @@ package sh.zolt.workspace.resolve;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -264,7 +265,9 @@ final class WorkspaceLockfileAggregator {
                 + ":"
                 + lockPackage.source()
                 + ":"
-                + lockPackage.scope().lockfileName();
+                + lockPackage.scope().lockfileName()
+                + ":"
+                + LockArtifactVariant.of(lockPackage).key();
     }
 
     private static String conflictKey(LockConflict conflict) {

@@ -4,6 +4,7 @@ import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.VersionComparator;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import java.util.ArrayList;
@@ -26,16 +27,32 @@ final class WorkspaceExternalPackageSelector {
                 .filter(candidate -> candidate.scope() == DependencyScope.TOOL_EXEC)
                 .toList();
 
+        // Two variants of one GAV (a plain jar and a linux-x86_64 classified jar, or a jar and a .zip)
+        // are distinct artifacts, so each gets its OWN lane keyed by (PackageId, variant). Version
+        // mediation runs WITHIN a lane, so the same-GA different-variant entries coexist at their
+        // mediated versions instead of one template collapsing the other's bytes.
+        Map<PackageVariantKey, List<LockPackage>> candidatesByVariant = new LinkedHashMap<>();
+        // A GA-level view still drives bare "g:a:v" dependency-edge rewriting and version-conflict
+        // reporting: neither can name a classifier, so both stay keyed by PackageId exactly as before.
         Map<PackageId, List<LockPackage>> candidatesByPackage = new LinkedHashMap<>();
         regularCandidates.stream()
                 .sorted(Comparator.comparing(lockPackage -> lockPackage.packageId()
                         + ":"
                         + lockPackage.version()
                         + ":"
-                        + lockPackage.scope().lockfileName()))
-                .forEach(lockPackage -> candidatesByPackage
-                        .computeIfAbsent(lockPackage.packageId(), ignored -> new ArrayList<>())
-                        .add(lockPackage));
+                        + lockPackage.scope().lockfileName()
+                        + ":"
+                        + LockArtifactVariant.of(lockPackage).key()))
+                .forEach(lockPackage -> {
+                    candidatesByVariant
+                            .computeIfAbsent(
+                                    new PackageVariantKey(lockPackage.packageId(), LockArtifactVariant.of(lockPackage)),
+                                    ignored -> new ArrayList<>())
+                            .add(lockPackage);
+                    candidatesByPackage
+                            .computeIfAbsent(lockPackage.packageId(), ignored -> new ArrayList<>())
+                            .add(lockPackage);
+                });
 
         Map<PackageId, String> selectedVersions = new LinkedHashMap<>();
         Map<PackageId, ConflictSelectionReason> selectedReasons = new LinkedHashMap<>();
@@ -46,21 +63,23 @@ final class WorkspaceExternalPackageSelector {
         }
 
         List<LockPackage> packages = new ArrayList<>();
-        List<LockConflict> conflicts = new ArrayList<>();
-        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
-            PackageId packageId = entry.getKey();
-            List<LockPackage> packageCandidates = entry.getValue();
-            String selectedVersion = selectedVersions.get(packageId);
-            List<DependencyScope> scopes = packageCandidates.stream()
+        for (Map.Entry<PackageVariantKey, List<LockPackage>> entry : candidatesByVariant.entrySet()) {
+            List<LockPackage> variantCandidates = entry.getValue();
+            String variantSelectedVersion = selectVersion(variantCandidates).version();
+            List<DependencyScope> scopes = variantCandidates.stream()
                     .map(LockPackage::scope)
                     .distinct()
                     .sorted(Comparator.comparing(DependencyScope::lockfileName))
                     .toList();
             for (DependencyScope scope : scopes) {
-                packages.add(selectedPackage(packageCandidates, selectedVersion, scope, selectedVersions));
+                packages.add(selectedPackage(variantCandidates, variantSelectedVersion, scope, selectedVersions));
             }
+        }
 
-            List<String> requestedVersions = packageCandidates.stream()
+        List<LockConflict> conflicts = new ArrayList<>();
+        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
+            PackageId packageId = entry.getKey();
+            List<String> requestedVersions = entry.getValue().stream()
                     .map(LockPackage::version)
                     .distinct()
                     .sorted(VERSION_COMPARATOR.thenComparing(Comparator.naturalOrder()))
@@ -68,13 +87,17 @@ final class WorkspaceExternalPackageSelector {
             if (requestedVersions.size() > 1) {
                 conflicts.add(new LockConflict(
                         packageId,
-                        selectedVersion,
+                        selectedVersions.get(packageId),
                         requestedVersions,
                         selectedReasons.get(packageId)));
             }
         }
         packages.addAll(selectExecPackages(execCandidates));
         return new WorkspaceExternalSelection(packages, conflicts);
+    }
+
+    /** Identity of one aggregation lane: a {@link PackageId} plus its artifact variant. */
+    private record PackageVariantKey(PackageId packageId, LockArtifactVariant variant) {
     }
 
     private static WorkspaceExternalSelection.VersionSelection selectVersion(List<LockPackage> candidates) {
@@ -142,21 +165,19 @@ final class WorkspaceExternalPackageSelector {
     /**
      * Aggregates {@code tool-exec} candidates without version mediation. Each named exec tool keeps its
      * own locked version of a shared library, so entries are keyed by {@code (groupId:artifactId,
-     * version)} rather than {@code (GA, scope)}: two tools needing conflicting versions of the same GA
-     * both survive into the aggregated root lock. A jar shared by several tools at the same version
-     * collapses into one entry whose {@code toolGroups} union (sorted), mirroring
-     * {@code ExecToolLockPlanner} in zolt-resolve. Dependencies stay as locked by each tool's isolated
-     * closure and are never rewritten to a mediated main version.
+     * version, variant)} rather than {@code (GA, scope)}: two tools needing conflicting versions of the
+     * same GA both survive into the aggregated root lock, as do two distinct artifact variants of one
+     * GAV. A jar shared by several tools at the same version and variant collapses into one entry whose
+     * {@code toolGroups} union (sorted), mirroring {@code ExecToolLockPlanner} in zolt-resolve.
+     * Dependencies stay as locked by each tool's isolated closure and are never rewritten to a mediated
+     * main version.
      */
     private static List<LockPackage> selectExecPackages(List<LockPackage> execCandidates) {
         Map<String, List<LockPackage>> execByCoordinateVersion = new LinkedHashMap<>();
         execCandidates.stream()
-                .sorted(Comparator.comparing(lockPackage ->
-                        lockPackage.packageId() + ":" + lockPackage.version()))
+                .sorted(Comparator.comparing(WorkspaceExternalPackageSelector::execCoordinateVersionKey))
                 .forEach(lockPackage -> execByCoordinateVersion
-                        .computeIfAbsent(
-                                lockPackage.packageId() + ":" + lockPackage.version(),
-                                ignored -> new ArrayList<>())
+                        .computeIfAbsent(execCoordinateVersionKey(lockPackage), ignored -> new ArrayList<>())
                         .add(lockPackage));
 
         List<LockPackage> execPackages = new ArrayList<>();
@@ -164,6 +185,14 @@ final class WorkspaceExternalPackageSelector {
             execPackages.add(mergedExecPackage(coordinateVersion));
         }
         return execPackages;
+    }
+
+    private static String execCoordinateVersionKey(LockPackage lockPackage) {
+        return lockPackage.packageId()
+                + ":"
+                + lockPackage.version()
+                + ":"
+                + LockArtifactVariant.of(lockPackage).key();
     }
 
     private static LockPackage mergedExecPackage(List<LockPackage> candidates) {

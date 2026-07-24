@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import java.util.List;
@@ -117,6 +118,123 @@ final class WorkspaceExternalPackageSelectorTest {
         assertEquals(List.of("apps/api", "apps/worker"), execEntry(selection, common, "1.0.0").members());
         // Divergent tool-exec versions are never mediated into a LockConflict.
         assertEquals(List.of(), selection.conflicts());
+    }
+
+    @Test
+    void keepsClassifierVariantsOfOneGavAsDistinctLanesWithPerVariantMembers() {
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+
+        WorkspaceExternalSelection selection = selector.select(List.of(
+                classifiedJarPackage(epoll, "4.1.100.Final", "linux-x86_64", DependencyScope.RUNTIME, List.of("apps/api")),
+                classifiedJarPackage(epoll, "4.1.100.Final", "osx-aarch_64", DependencyScope.RUNTIME, List.of("apps/worker"))));
+
+        List<LockPackage> epollEntries = selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .toList();
+        assertEquals(2, epollEntries.size());
+
+        LockPackage linux = variantByClassifier(selection, epoll, "linux-x86_64");
+        assertEquals("4.1.100.Final", linux.version());
+        assertEquals(List.of("apps/api"), linux.members());
+        assertTrue(linux.jar().orElseThrow().endsWith("netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"));
+
+        LockPackage osx = variantByClassifier(selection, epoll, "osx-aarch_64");
+        assertEquals(List.of("apps/worker"), osx.members());
+        assertTrue(osx.jar().orElseThrow().endsWith("netty-transport-native-epoll-4.1.100.Final-osx-aarch_64.jar"));
+
+        // Same version across the two variants: no spurious version conflict is manufactured.
+        assertEquals(List.of(), selection.conflicts());
+    }
+
+    @Test
+    void keepsPlainAndClassifiedVariantsOfOneGavDistinct() {
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+
+        WorkspaceExternalSelection selection = selector.select(List.of(
+                jarPackage(epoll, "4.1.100.Final", DependencyScope.RUNTIME, false, List.of(), List.of("apps/api"), List.of()),
+                classifiedJarPackage(epoll, "4.1.100.Final", "linux-x86_64", DependencyScope.RUNTIME, List.of("apps/worker"))));
+
+        assertEquals(2, selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .count());
+        LockPackage plain = selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .filter(lockPackage -> LockArtifactVariant.of(lockPackage).classifier().isEmpty())
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("apps/api"), plain.members());
+        assertTrue(plain.jar().orElseThrow().endsWith("netty-transport-native-epoll-4.1.100.Final.jar"));
+        assertEquals(List.of("apps/worker"), variantByClassifier(selection, epoll, "linux-x86_64").members());
+        assertEquals(List.of(), selection.conflicts());
+    }
+
+    @Test
+    void mediatesVersionsWithinAVariantAcrossMembers() {
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+
+        WorkspaceExternalSelection selection = selector.select(List.of(
+                classifiedJarPackage(epoll, "4.1.90.Final", "linux-x86_64", DependencyScope.RUNTIME, List.of("apps/api")),
+                classifiedJarPackage(epoll, "4.1.100.Final", "linux-x86_64", DependencyScope.RUNTIME, List.of("apps/worker"))));
+
+        List<LockPackage> epollEntries = selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .toList();
+        assertEquals(1, epollEntries.size());
+        LockPackage linux = epollEntries.getFirst();
+        assertEquals("4.1.100.Final", linux.version());
+        assertEquals(List.of("apps/api", "apps/worker"), linux.members().stream().sorted().toList());
+        assertTrue(linux.jar().orElseThrow().endsWith("netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"));
+
+        LockConflict conflict = selection.conflicts().getFirst();
+        assertEquals(epoll, conflict.packageId());
+        assertEquals("4.1.100.Final", conflict.selectedVersion());
+        assertEquals(List.of("4.1.90.Final", "4.1.100.Final"), conflict.requestedVersions());
+    }
+
+    private static LockPackage variantByClassifier(
+            WorkspaceExternalSelection selection, PackageId packageId, String classifier) {
+        return selection.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(packageId))
+                .filter(lockPackage -> LockArtifactVariant.of(lockPackage).classifier().equals(Optional.of(classifier)))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static LockPackage classifiedJarPackage(
+            PackageId packageId,
+            String version,
+            String classifier,
+            DependencyScope scope,
+            List<String> members) {
+        String base = packageId.groupId().replace('.', '/')
+                + "/"
+                + packageId.artifactId()
+                + "/"
+                + version
+                + "/"
+                + packageId.artifactId()
+                + "-"
+                + version;
+        return new LockPackage(
+                packageId,
+                version,
+                "maven-central",
+                scope,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + classifier + "-" + version),
+                Optional.of("pom-" + version),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                members,
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     private static LockPackage execEntry(

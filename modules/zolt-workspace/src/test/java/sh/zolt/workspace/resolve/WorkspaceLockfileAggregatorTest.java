@@ -3,6 +3,7 @@ package sh.zolt.workspace.resolve;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
@@ -11,6 +12,7 @@ import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
 import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.lockfile.toml.ZoltLockfileWriter;
 import sh.zolt.project.BuildSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
@@ -244,6 +246,73 @@ final class WorkspaceLockfileAggregatorTest {
     }
 
     @Test
+    void keepsPerMemberClassifierVariantsDistinctInAggregatedLock() throws IOException {
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)));
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(
+                        new WorkspaceMemberResolveOutput(
+                                "apps/api",
+                                lockfile(
+                                        List.of(classifiedExternalPackage(epoll, "4.1.100.Final", "linux-x86_64")),
+                                        List.of(),
+                                        List.of()),
+                                Set.of()),
+                        new WorkspaceMemberResolveOutput(
+                                "apps/worker",
+                                lockfile(
+                                        List.of(classifiedExternalPackage(epoll, "4.1.100.Final", "osx-aarch_64")),
+                                        List.of(),
+                                        List.of()),
+                                Set.of())));
+
+        List<LockPackage> epollEntries = aggregated.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .toList();
+        assertEquals(2, epollEntries.size());
+        LockPackage linux = epollEntries.stream()
+                .filter(lockPackage -> lockPackage.jar().orElseThrow().endsWith("linux-x86_64.jar"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("apps/api"), linux.members());
+        assertEquals("jar-linux-x86_64", linux.jarSha256().orElseThrow());
+        LockPackage osx = epollEntries.stream()
+                .filter(lockPackage -> lockPackage.jar().orElseThrow().endsWith("osx-aarch_64.jar"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of("apps/worker"), osx.members());
+        assertEquals("jar-osx-aarch_64", osx.jarSha256().orElseThrow());
+        assertEquals(List.of(), aggregated.conflicts());
+    }
+
+    @Test
+    void aggregatesClassifierVariantsByteStablyAcrossRuns() throws IOException {
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)));
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+        List<WorkspaceMemberResolveOutput> outputs = List.of(
+                new WorkspaceMemberResolveOutput(
+                        "apps/api",
+                        lockfile(List.of(classifiedExternalPackage(epoll, "4.1.100.Final", "linux-x86_64")), List.of(), List.of()),
+                        Set.of()),
+                new WorkspaceMemberResolveOutput(
+                        "apps/worker",
+                        lockfile(List.of(classifiedExternalPackage(epoll, "4.1.100.Final", "osx-aarch_64")), List.of(), List.of()),
+                        Set.of()));
+
+        ZoltLockfileWriter writer = new ZoltLockfileWriter();
+        String first = writer.write(new WorkspaceLockfileAggregator().aggregate(workspace, outputs));
+        String second = writer.write(new WorkspaceLockfileAggregator().aggregate(workspace, outputs));
+
+        assertEquals(first, second);
+        assertTrue(first.contains("netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar"));
+        assertTrue(first.contains("netty-transport-native-epoll-4.1.100.Final-osx-aarch_64.jar"));
+    }
+
+    @Test
     void rejectsUnsupportedWorkspaceDependencyScope() throws IOException {
         Workspace workspace = workspace(List.of(
                 new WorkspaceProjectEdge("apps/api", "modules/core", "custom", "com.acme:core")));
@@ -319,6 +388,38 @@ final class WorkspaceLockfileAggregatorTest {
                 Optional.empty(),
                 dependencies,
                 policies);
+    }
+
+    private static LockPackage classifiedExternalPackage(PackageId packageId, String version, String classifier) {
+        String base = packageId.groupId().replace('.', '/')
+                + "/"
+                + packageId.artifactId()
+                + "/"
+                + version
+                + "/"
+                + packageId.artifactId()
+                + "-"
+                + version;
+        return new LockPackage(
+                packageId,
+                version,
+                "central",
+                DependencyScope.COMPILE,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + classifier),
+                Optional.of("pom-sha"),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     private static LockPackage packageById(ZoltLockfile lockfile, String group, String artifact) {
