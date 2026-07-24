@@ -1,13 +1,14 @@
 package sh.zolt.workspace.publish;
 
 import sh.zolt.maven.repository.MavenRepositoryClient;
-import sh.zolt.maven.repository.RepositoryAuthentication;
 import java.io.IOException;
-import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -19,12 +20,14 @@ import java.util.Set;
  * signature — is pre-generated, so a member cannot fail mid-way on signing or digesting; only the
  * transfer itself can fail.
  *
- * <p>Each file is uploaded IDEMPOTENTLY: the repository is queried first (a remote GET, or a local
- * file existence + content check) and a path that already holds the SAME bytes is skipped, so a
- * resumed publish re-PUTs nothing an immutable release repository would reject. A path that already
- * holds DIFFERENT bytes is a hard, non-resumable conflict. Any other transfer failure fails fast and
- * reports an exact resume command naming the member that failed and those after it — never the
- * providers that already landed.
+ * <p>Nothing is trusted blindly. Every path is PROBED against the SHA-256 of the bytes Phase 1 staged:
+ * absent → uploaded; present with matching bytes → skipped (so a resumed publish re-PUTs nothing an
+ * immutable release repository would reject, and a path that was recorded complete but has since been
+ * deleted is re-uploaded); present with DIFFERENT bytes → a hard, non-resumable conflict. A landed
+ * path is verified through its trusted checksum sidecar when one exists, so a multi-MB artifact is
+ * confirmed without downloading it. Any other transfer failure fails fast, persists the transaction
+ * manifest, and reports an exact resume command naming the member that failed and those after it —
+ * never the providers that already landed.
  */
 public final class WorkspaceRepositoryUploader {
     private final MavenRepositoryClient repositoryClient;
@@ -43,9 +46,10 @@ public final class WorkspaceRepositoryUploader {
     }
 
     /**
-     * Uploads the staged family. {@code completed} seeds the paths a prior attempt already landed (so a
-     * resume skips them without even a query); {@code statePath}, when non-null, receives durable resume
-     * state on failure and is cleared on success.
+     * Uploads the staged family. {@code completed} seeds the repository paths a prior attempt already
+     * landed (providers included) — each is re-verified rather than skipped, and carried forward so an
+     * absent already-published sibling stays provably satisfied; {@code statePath}, when non-null,
+     * receives the durable transaction manifest on failure and is cleared on success.
      */
     WorkspacePublishReport upload(
             List<StagedMember> members,
@@ -60,7 +64,7 @@ public final class WorkspaceRepositoryUploader {
         for (int index = 0; index < members.size(); index++) {
             StagedMember member = members.get(index);
             try {
-                uploadMember(member, landed);
+                uploadMember(member, completed, landed);
             } catch (MismatchedArtifactException conflict) {
                 // An occupied release path with different content: resuming cannot fix it, so no resume
                 // command — the operator must resolve the conflict (bump the version or clear the path).
@@ -87,18 +91,78 @@ public final class WorkspaceRepositoryUploader {
         return new WorkspacePublishReport(reportMembers, List.of(), true, Optional.empty(), Optional.empty());
     }
 
-    private void uploadMember(StagedMember member, Set<String> landed) throws IOException {
+    private void uploadMember(StagedMember member, Set<String> completed, Set<String> landed) throws IOException {
         RepositoryTarget target = member.target();
+        Set<String> stagedPaths = new LinkedHashSet<>();
         for (StagedArtifact artifact : member.artifacts()) {
-            if (landed.contains(artifact.repositoryPath())) {
-                continue; // a prior attempt already landed this path — skip without a query
+            stagedPaths.add(artifact.repositoryPath());
+        }
+        for (StagedArtifact artifact : member.artifacts()) {
+            if (!verifiedPresent(target, artifact, completed.contains(artifact.repositoryPath()), stagedPaths)) {
+                uploadArtifact(target, artifact);
             }
-            if (target.local()) {
-                uploadToFile(target.directory(), artifact);
-            } else {
-                uploadToHttp(target.uri(), target.authentication(), artifact);
+            landed.add(artifact.repositoryPath()); // present now, whether verified in place or just uploaded
+        }
+    }
+
+    /**
+     * Whether {@code artifact} already holds its staged bytes at the target. A path recorded complete
+     * with a staged checksum sidecar is verified through that sidecar (no artifact download); otherwise
+     * the current bytes are fetched and hashed. Absent → not present (upload); present but different →
+     * a hard conflict.
+     */
+    private boolean verifiedPresent(
+            RepositoryTarget target, StagedArtifact artifact, boolean completed, Set<String> stagedPaths)
+            throws IOException {
+        String path = artifact.repositoryPath();
+        if (completed && stagedPaths.contains(path + ".sha256")) {
+            Optional<String> sidecar = fetchSidecar(target, path + ".sha256");
+            if (sidecar.isPresent()) {
+                requireSameHash(path, artifact.stagedSha256(), sidecar.orElseThrow());
+                return true;
             }
-            landed.add(artifact.repositoryPath());
+            // The trusted sidecar is gone: verify the artifact itself below rather than trust its absence.
+        }
+        Optional<String> remoteHash = remoteHash(target, path);
+        if (remoteHash.isEmpty()) {
+            return false; // never landed, or a completed path deleted remotely — (re)upload it
+        }
+        requireSameHash(path, artifact.stagedSha256(), remoteHash.orElseThrow());
+        return true;
+    }
+
+    /** The remote checksum sidecar's content (a bare hex digest), or empty when it is not present. */
+    private Optional<String> fetchSidecar(RepositoryTarget target, String sidecarPath) throws IOException {
+        if (target.local()) {
+            Path file = target.directory().resolve(sidecarPath).normalize();
+            return Files.exists(file) ? Optional.of(Files.readString(file)) : Optional.empty();
+        }
+        return repositoryClient.fetchFile(target.uri(), sidecarPath, target.authentication())
+                .map(bytes -> new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * The SHA-256 of the bytes currently at {@code path}, or empty when the path is absent. A local
+     * target is stream-hashed off disk; a remote one is fetched once and hashed (the sidecar route above
+     * spares large artifacts this download) — the staged side is a recorded digest, never a second copy.
+     */
+    private Optional<String> remoteHash(RepositoryTarget target, String path) throws IOException {
+        if (target.local()) {
+            Path file = target.directory().resolve(path).normalize();
+            return Files.exists(file) ? Optional.of(Sha256.hex(file)) : Optional.empty();
+        }
+        return repositoryClient.fetchFile(target.uri(), path, target.authentication())
+                .map(WorkspaceRepositoryUploader::sha256Hex);
+    }
+
+    private void uploadArtifact(RepositoryTarget target, StagedArtifact artifact) throws IOException {
+        if (target.local()) {
+            Path destination = target.directory().resolve(artifact.repositoryPath()).normalize();
+            Files.createDirectories(destination.getParent());
+            Files.copy(artifact.source(), destination);
+        } else {
+            repositoryClient.uploadFile(
+                    target.uri(), artifact.repositoryPath(), artifact.source(), target.authentication());
         }
     }
 
@@ -111,9 +175,7 @@ public final class WorkspaceRepositoryUploader {
         if (statePath == null) {
             return;
         }
-        new ResumeState(
-                        ResumeState.planHash(resumeSet), options.allowMixedVersions(), options.sbom(), members, landed)
-                .write(statePath);
+        ResumeState.of(resumeSet, options, members, landed).write(statePath);
     }
 
     private static void deleteQuietly(Path statePath) {
@@ -127,34 +189,21 @@ public final class WorkspaceRepositoryUploader {
         }
     }
 
-    private void uploadToHttp(URI uri, Optional<RepositoryAuthentication> authentication, StagedArtifact artifact)
-            throws IOException {
-        byte[] local = Files.readAllBytes(artifact.source());
-        Optional<byte[]> remote = repositoryClient.fetchFile(uri, artifact.repositoryPath(), authentication);
-        if (remote.isPresent()) {
-            requireSameContent(artifact.repositoryPath(), local, remote.orElseThrow());
-            return;
-        }
-        repositoryClient.uploadFile(uri, artifact.repositoryPath(), artifact.source(), authentication);
-    }
-
-    private static void uploadToFile(Path repositoryDirectory, StagedArtifact artifact) throws IOException {
-        Path target = repositoryDirectory.resolve(artifact.repositoryPath()).normalize();
-        if (Files.exists(target)) {
-            requireSameContent(artifact.repositoryPath(), Files.readAllBytes(artifact.source()), Files.readAllBytes(target));
-            return;
-        }
-        Files.createDirectories(target.getParent());
-        Files.copy(artifact.source(), target);
-    }
-
-    private static void requireSameContent(String repositoryPath, byte[] local, byte[] remote) {
-        if (!Arrays.equals(local, remote)) {
+    private static void requireSameHash(String repositoryPath, String stagedSha256, String remoteSha256) {
+        if (!stagedSha256.equalsIgnoreCase(remoteSha256.trim())) {
             throw new MismatchedArtifactException(repositoryPath);
         }
     }
 
-    /** An existing release path already holds different bytes than this publish would upload. */
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    /** An existing release path already holds different bytes than this publish staged. */
     private static final class MismatchedArtifactException extends RuntimeException {
         MismatchedArtifactException(String repositoryPath) {
             super("release path `" + repositoryPath + "` already holds different content than this publish would "

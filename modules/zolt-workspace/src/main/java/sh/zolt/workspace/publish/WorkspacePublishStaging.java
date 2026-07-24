@@ -10,6 +10,7 @@ import sh.zolt.publish.PublishRepositoryAuthentication;
 import sh.zolt.publish.PublishRepositorySettings;
 import sh.zolt.publish.PublishSigner;
 import sh.zolt.publish.PublishSigningSettings;
+import sh.zolt.publish.SourceDateEpoch;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
@@ -46,6 +47,22 @@ final class WorkspacePublishStaging {
 
     Preparation materialize(
             List<MemberPublication> members, Path stagingRoot, WorkspacePublishService.Options options) {
+        return materialize(members, stagingRoot, options, Optional.empty());
+    }
+
+    /**
+     * Materializes the upload set. On a resume ({@code resume} present) staging is resume-aware: a
+     * staged detached signature whose on-disk bytes still hash to the recorded value is reused verbatim
+     * rather than re-signed, so an already-uploaded signature is never superseded by a fresh
+     * (wall-clock, non-deterministic) one. A staged signature that was lost or altered is regenerated
+     * only under deterministic signing ({@code SOURCE_DATE_EPOCH} + a pinned key, byte-identical by
+     * contract); otherwise the member is a blocker rather than a silent divergence.
+     */
+    Preparation materialize(
+            List<MemberPublication> members,
+            Path stagingRoot,
+            WorkspacePublishService.Options options,
+            Optional<ResumeState> resume) {
         List<String> blockers = new ArrayList<>();
         List<Resolved> resolved = new ArrayList<>();
         for (MemberPublication member : members) {
@@ -73,7 +90,7 @@ final class WorkspacePublishStaging {
         List<StagedMember> staged = new ArrayList<>();
         for (Resolved entry : resolved) {
             try {
-                staged.add(stageMember(entry, stagingRoot));
+                staged.add(stageMember(entry, stagingRoot, resume));
             } catch (IOException | PublishException exception) {
                 blockers.add(entry.member().coordinate() + ": could not stage its upload set — " + exception.getMessage());
             }
@@ -120,23 +137,25 @@ final class WorkspacePublishStaging {
         return signing;
     }
 
-    private StagedMember stageMember(Resolved entry, Path stagingRoot) throws IOException {
+    private StagedMember stageMember(Resolved entry, Path stagingRoot, Optional<ResumeState> resume) throws IOException {
         MemberPublication member = entry.member();
         PublishDryRunPlan plan = member.plan();
-        PublishSigner signer =
-                member.publish().signing().enabled() ? new PublishSigner(member.publish().signing(), environment) : null;
+        PublishSigningSettings signing = member.publish().signing();
+        PublishSigner signer = signing.enabled() ? new PublishSigner(signing, environment) : null;
+        boolean deterministicSigning = signing.enabled() && SourceDateEpoch.parse(environment).reproducible();
         Path memberRoot = member.memberRoot();
         List<StagedArtifact> artifacts = new ArrayList<>();
         if (!plan.pomOnly()) {
             stageFile(memberRoot.resolve(plan.artifactPath()).normalize(), plan.artifactUploadPath(),
-                    signer, stagingRoot, artifacts);
+                    signer, deterministicSigning, stagingRoot, resume, artifacts);
         }
         for (PublishArtifactPlan supplemental : plan.supplementalArtifacts()) {
             stageFile(memberRoot.resolve(supplemental.path()).normalize(), supplemental.uploadPath(),
-                    signer, stagingRoot, artifacts);
+                    signer, deterministicSigning, stagingRoot, resume, artifacts);
         }
-        stageFile(memberRoot.resolve(plan.pomPath()).normalize(), plan.pomUploadPath(), signer, stagingRoot, artifacts);
-        return new StagedMember(member.toReportMember(), entry.target(), List.copyOf(artifacts));
+        stageFile(memberRoot.resolve(plan.pomPath()).normalize(), plan.pomUploadPath(),
+                signer, deterministicSigning, stagingRoot, resume, artifacts);
+        return new StagedMember(member.toReportMember(), entry.target(), signingIdentity(signing), List.copyOf(artifacts));
     }
 
     /**
@@ -144,31 +163,84 @@ final class WorkspacePublishStaging {
      * three checksum sidecars, and — when signing — its detached signature followed by that
      * signature's own checksums. Signatures are generated here (Phase 1); Phase 2 only transfers bytes.
      */
-    private void stageFile(Path source, String uploadPath, PublishSigner signer, Path stagingRoot,
-            List<StagedArtifact> out) throws IOException {
-        out.add(new StagedArtifact(uploadPath, source));
-        stageChecksums(source, uploadPath, stagingRoot, out);
+    private void stageFile(Path source, String uploadPath, PublishSigner signer, boolean deterministicSigning,
+            Path stagingRoot, Optional<ResumeState> resume, List<StagedArtifact> out) throws IOException {
+        stageContent(source, uploadPath, stagingRoot, out);
         if (signer != null) {
-            Path signature = signer.sign(source);
-            Path stagedSignature = stagingRoot.resolve(uploadPath + ".asc");
-            Files.createDirectories(stagedSignature.getParent());
-            Files.move(signature, stagedSignature, StandardCopyOption.REPLACE_EXISTING);
-            out.add(new StagedArtifact(uploadPath + ".asc", stagedSignature));
-            stageChecksums(stagedSignature, uploadPath + ".asc", stagingRoot, out);
+            String signaturePath = uploadPath + ".asc";
+            Path stagedSignature = resumableSignature(
+                    source, signaturePath, signer, deterministicSigning, stagingRoot, resume);
+            stageContent(stagedSignature, signaturePath, stagingRoot, out);
         }
     }
 
-    private static void stageChecksums(Path source, String uploadPath, Path stagingRoot, List<StagedArtifact> out)
+    /**
+     * The detached signature for {@code source}, reused verbatim on a resume when the on-disk staged
+     * signature still hashes to the recorded value (so an already-uploaded signature is never
+     * superseded). A lost or altered staged signature is regenerated only under deterministic signing;
+     * otherwise it cannot be reproduced byte-for-byte, so the member fails actionably rather than
+     * diverging.
+     */
+    private Path resumableSignature(Path source, String signaturePath, PublishSigner signer,
+            boolean deterministicSigning, Path stagingRoot, Optional<ResumeState> resume) throws IOException {
+        Path stagedSignature = stagingRoot.resolve(signaturePath);
+        Optional<String> recorded = resume.flatMap(state -> state.recordedHash(signaturePath));
+        if (recorded.isPresent()) {
+            if (Files.isRegularFile(stagedSignature) && Sha256.hex(stagedSignature).equals(recorded.orElseThrow())) {
+                return stagedSignature; // intact from the interrupted publish — reuse its exact bytes
+            }
+            if (!deterministicSigning) {
+                throw new PublishException("cannot resume a signed publish whose staged signature for `"
+                        + signaturePath + "` was lost or changed and cannot be reproduced byte-for-byte; re-run the "
+                        + "full publish or set SOURCE_DATE_EPOCH (with a pinned [publish.signing].keyId) to sign "
+                        + "reproducibly.");
+            }
+        }
+        Path signature = signer.sign(source);
+        Files.createDirectories(stagedSignature.getParent());
+        Files.move(signature, stagedSignature, StandardCopyOption.REPLACE_EXISTING);
+        return stagedSignature;
+    }
+
+    /**
+     * Stages a content file (a primary/supplemental/POM, or a detached signature) followed by its three
+     * checksum sidecars, each carrying the SHA-256 of its exact staged bytes. The content file is
+     * streamed once through every algorithm (no full-file buffer), so a multi-MB primary is never read
+     * whole; its sha256 sidecar value is that file's staged-bytes digest.
+     */
+    private static void stageContent(Path source, String uploadPath, Path stagingRoot, List<StagedArtifact> out)
             throws IOException {
-        // Streamed once through every algorithm (no full-file buffer) so a multi-MB primary is never
-        // read whole; the sha256 sidecar's value is the primary's staged-bytes digest reused downstream.
-        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(source)) {
+        List<PublishChecksum.Sidecar> sidecars = PublishChecksum.sidecars(source);
+        out.add(new StagedArtifact(uploadPath, source, sidecarValue(sidecars, "sha256")));
+        for (PublishChecksum.Sidecar sidecar : sidecars) {
             String path = uploadPath + "." + sidecar.extension();
             Path staged = stagingRoot.resolve(path);
             Files.createDirectories(staged.getParent());
             Files.writeString(staged, sidecar.value());
-            out.add(new StagedArtifact(path, staged));
+            out.add(new StagedArtifact(path, staged, Sha256.hex(staged)));
         }
+    }
+
+    private static String sidecarValue(List<PublishChecksum.Sidecar> sidecars, String extension) {
+        for (PublishChecksum.Sidecar sidecar : sidecars) {
+            if (sidecar.extension().equals(extension)) {
+                return sidecar.value();
+            }
+        }
+        throw new IllegalStateException("Missing " + extension + " checksum sidecar");
+    }
+
+    /**
+     * The signing-configuration identity recorded in the resume manifest so a resume refuses a changed
+     * setup: {@code unsigned}, or the pinned key id plus whether reproducible ({@code SOURCE_DATE_EPOCH})
+     * signing is in effect — enough to detect a swapped key or a switch between wall-clock and
+     * reproducible signing.
+     */
+    private String signingIdentity(PublishSigningSettings signing) {
+        if (!signing.enabled()) {
+            return "unsigned";
+        }
+        return "key=" + signing.keyId().orElse("") + ";sde=" + SourceDateEpoch.parse(environment).reproducible();
     }
 
     private static String normalizedFileUrl(String url) {

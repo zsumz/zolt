@@ -20,4 +20,14 @@ record RepositoryTarget(boolean local, Path directory, URI uri, Optional<Reposit
     static RepositoryTarget remote(URI uri, Optional<RepositoryAuthentication> authentication) {
         return new RepositoryTarget(false, null, uri, authentication);
     }
+
+    /**
+     * A stable, comparable identity for this destination, recorded in the resume manifest so a resume
+     * can refuse when the repository target changed between attempts: the resolved {@code http(s)} URL
+     * for a remote target, or {@code file:} plus the canonical absolute path for a local one.
+     * Credentials are never part of it — the URL already carries none by policy.
+     */
+    String identity() {
+        return local ? "file:" + directory.toAbsolutePath().normalize() : uri.toString();
+    }
 }

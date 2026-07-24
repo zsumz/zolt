@@ -126,22 +126,24 @@ public final class WorkspacePublishService {
         ZoltLockfile aggregatedLock = plan.lockfile();
         boolean resumeMode = selectionRequest.exact();
 
-        // A `--resume-members` publish is backed by durable state, not a trusted hidden flag: without
-        // matching state we refuse rather than silently treat absent providers as already published.
+        // A `--resume-members` publish is backed by a durable transaction manifest, not a trusted hidden
+        // flag: without matching v2 state we refuse rather than silently treat absent providers as
+        // published, and a manifest from an older Zolt (v1) is refused outright rather than guessed at.
         Path statePath = WorkspacePublishPaths.resumeStatePath(workspace);
-        Optional<ResumeState> resumeState = resumeMode ? ResumeState.read(statePath) : Optional.empty();
-        if (resumeMode && resumeState.isEmpty()) {
+        ResumeState.ReadOutcome outcome = resumeMode ? ResumeState.read(statePath) : ResumeState.ReadOutcome.absent();
+        if (resumeMode && !outcome.present()) {
+            String display = WorkspacePublishPaths.displayPath(workspace, statePath);
+            String message = outcome.legacy()
+                    ? "the publish resume state at " + display + " was written by an older Zolt (schema v1) and "
+                            + "cannot be trusted to resume this publish. Re-run the full publish: `zolt publish "
+                            + "--workspace`."
+                    : "no publish resume state found at " + display + ". `--resume-members` resumes a previously "
+                            + "interrupted `zolt publish --workspace`; run the full publish instead: `zolt publish "
+                            + "--workspace`.";
             return new WorkspacePublishReport(
-                    List.of(),
-                    List.of("no publish resume state found at " + WorkspacePublishPaths.displayPath(workspace, statePath)
-                            + ". `--resume-members` resumes a previously interrupted `zolt publish --workspace`; "
-                            + "run the full publish instead: `zolt publish --workspace`."),
-                    List.of(),
-                    false,
-                    Optional.empty(),
-                    Optional.empty(),
-                    Optional.empty());
+                    List.of(), List.of(message), List.of(), false, Optional.empty(), Optional.empty(), Optional.empty());
         }
+        Optional<ResumeState> resumeState = outcome.state();
 
         List<WorkspaceMember> publishable =
                 WorkspacePublishSelection.publishable(workspace, selection, publishSettingsReader);
@@ -172,8 +174,8 @@ public final class WorkspacePublishService {
         // only for a clean, live plain publish (Central assembles its own bundle; a dry run uploads none).
         List<StagedMember> stagedMembers = List.of();
         if (blockers.isEmpty() && !options.central() && !options.dryRun()) {
-            WorkspacePublishStaging.Preparation preparation =
-                    staging.materialize(publications, WorkspacePublishPaths.stagingRoot(workspace), options);
+            WorkspacePublishStaging.Preparation preparation = staging.materialize(
+                    publications, WorkspacePublishPaths.stagingRoot(workspace), options, resumeState);
             blockers.addAll(preparation.blockers());
             stagedMembers = preparation.members();
             // A resume is only honoured against state whose recorded plan still matches what would upload;
