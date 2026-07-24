@@ -6,7 +6,6 @@ import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.maven.repository.RepositoryClientException;
 import sh.zolt.project.ProjectConfig;
-import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.project.RepositoryUrlPolicy;
 import sh.zolt.toml.ZoltTomlParser;
 import java.io.IOException;
@@ -160,26 +159,7 @@ public final class PublishUploadService {
     private Optional<RepositoryAuthentication> authentication(
             PublishRepositorySettings repository,
             ProjectConfig config) {
-        if (repository.credentials().isEmpty()) {
-            return RepositoryAuthentication.none();
-        }
-        RepositoryCredentialSettings credential = config.repositoryCredentials().get(repository.credentials().orElseThrow());
-        if (credential == null) {
-            throw new PublishException("missing credential metadata for publish repository `" + repository.id() + "`");
-        }
-        if (credential.usesToken()) {
-            String token = environment.apply(credential.tokenEnv().orElseThrow());
-            if (token == null || token.isBlank()) {
-                throw new PublishException("missing credential environment variables for publish repository `" + repository.id() + "`");
-            }
-            return Optional.of(RepositoryAuthentication.bearer(token));
-        }
-        String username = environment.apply(credential.usernameEnv().orElseThrow());
-        String password = environment.apply(credential.passwordEnv().orElseThrow());
-        if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            throw new PublishException("missing credential environment variables for publish repository `" + repository.id() + "`");
-        }
-        return Optional.of(new RepositoryAuthentication(username, password));
+        return PublishRepositoryAuthentication.resolve(repository, config.repositoryCredentials(), environment);
     }
 
     private static Coordinate coordinate(ProjectConfig config) {
