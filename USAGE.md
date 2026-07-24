@@ -348,7 +348,7 @@ zolt self releases --channel zap
 zolt self install VERSION --channel zap
 zolt self exec VERSION -- version
 zolt self prune --keep 3 --dry-run
-zolt update
+zolt self update
 ```
 
 ## Project Configuration
@@ -507,8 +507,9 @@ alphabetical-by-id order that resolution uses, and unioned across them (a
 candidate's source is the first repository in that order that lists it). Version
 comparison and stability are Zolt's own rules: a version is a prerelease only
 when it carries a known qualifier (`alpha`/`a`, `beta`/`b`, `milestone`/`m`,
-`rc`/`cr`); unknown qualifiers such as `-jre`, `-android`, or calendar versions
-are treated as releases. Listings live in a cache namespace kept separate from
+`rc`/`cr`, `ea`, `preview`, `dev`, `nightly`, `canary`, `pre`, `experimental`);
+unknown qualifiers such as `-jre`, `-android`, `-incubating`, or calendar
+versions are treated as releases. Listings live in a cache namespace kept separate from
 the immutable artifact cache; online runs always refetch, falling back to the
 cache with a staleness note only when a fetch fails, while `--offline` consults
 the cache only.
@@ -534,6 +535,10 @@ nulls), `--include-prereleases`, `--all` (also show up-to-date surfaces),
     zolt outdated --include-prereleases com.google.guava:guava
 
 ### `zolt update`
+
+**Breaking change:** `zolt update` no longer updates the Zolt binary. It was
+repurposed to update dependency versions in `zolt.toml`; binary self-update now
+lives at `zolt self update`. See [Breaking changes](docs/breaking-changes.md).
 
 The top-level `update` command writes version updates into `zolt.toml` using the
 same discovery; binary self-update stays at `zolt self update`. By default it
