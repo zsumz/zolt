@@ -133,6 +133,28 @@ public final class MavenRepositoryClient {
         }
     }
 
+    /**
+     * Fetches the bytes stored at an explicit repository-relative {@code repositoryPath}, or empty when
+     * the repository returns 404. Symmetric with {@link #uploadFile}: it makes a re-PUT idempotent — an
+     * already-landed artifact, checksum, or signature is confirmed present (and its bytes compared)
+     * before re-uploading, so a resumed publish never re-PUTs a path an immutable release repository
+     * would reject. Transient failures throw per the existing retry policy.
+     */
+    public Optional<byte[]> fetchFile(
+            URI repositoryBaseUri,
+            String repositoryPath,
+            Optional<RepositoryAuthentication> authentication) {
+        ArtifactDescriptor descriptor =
+                new ArtifactDescriptor(new Coordinate("repository", "file", Optional.empty()), Optional.empty(), "bin");
+        try {
+            RepositoryArtifact artifact = fetch(
+                    repositoryBaseUri, descriptor, repositoryPath, authentication, RepositoryDownloadListener.NOOP);
+            return Optional.of(artifact.bytes());
+        } catch (RepositoryMissingArtifactException exception) {
+            return Optional.empty();
+        }
+    }
+
     public void uploadPom(URI repositoryBaseUri, Coordinate coordinate, Path source) {
         uploadPom(repositoryBaseUri, coordinate, source, RepositoryAuthentication.none());
     }
