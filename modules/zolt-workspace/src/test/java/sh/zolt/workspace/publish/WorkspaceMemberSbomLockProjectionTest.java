@@ -1,0 +1,185 @@
+package sh.zolt.workspace.publish;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import sh.zolt.dependency.DependencyScope;
+import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockPackage;
+import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.project.BuildSettings;
+import sh.zolt.project.NativeSettings;
+import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectConfigs;
+import sh.zolt.project.ProjectMetadata;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+final class WorkspaceMemberSbomLockProjectionTest {
+    private static final String SHA_DATABIND =
+            "1111111111111111111111111111111111111111111111111111111111111111";
+    private static final String SHA_CORE =
+            "2222222222222222222222222222222222222222222222222222222222222222";
+    private static final String SHA_GUAVA =
+            "3333333333333333333333333333333333333333333333333333333333333333";
+
+    private final WorkspaceMemberSbomLockProjection projection = new WorkspaceMemberSbomLockProjection();
+
+    @Test
+    void carriesTheFullClosureHashesAndEdgesWithMemberViewDirectness() {
+        // acme-http declares jackson-databind directly, a workspace sibling acme-core, and a test-only dep.
+        ProjectConfig memberConfig = memberConfig(
+                Map.of("com.fasterxml.jackson.core:jackson-databind", "2.19.2"),
+                Map.of("com.acme:acme-core", "acme-core"),
+                Map.of("org.junit.jupiter:junit-jupiter", "5.11.4"));
+
+        // The aggregated lock: sibling + a direct external whose edge reaches a transitive external, plus a
+        // guava that is direct for SOME OTHER member (OR'd direct) and a test-scope dep — neither reachable.
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        external("com.fasterxml.jackson.core", "jackson-databind", "2.19.2",
+                                DependencyScope.COMPILE, true, SHA_DATABIND,
+                                List.of("com.fasterxml.jackson.core:jackson-core:2.19.2")),
+                        // jackson-core is direct=true in the aggregated lock (another member declares it),
+                        // but acme-http only reaches it transitively.
+                        external("com.fasterxml.jackson.core", "jackson-core", "2.19.2",
+                                DependencyScope.COMPILE, true, SHA_CORE, List.of()),
+                        external("com.google.guava", "guava", "33.0.0-jre",
+                                DependencyScope.COMPILE, true, SHA_GUAVA, List.of()),
+                        external("org.junit.jupiter", "junit-jupiter", "5.11.4",
+                                DependencyScope.TEST, true, SHA_GUAVA, List.of())),
+                List.of());
+
+        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+
+        Map<String, LockPackage> byCoordinate = index(projected);
+        // Closure: the member's direct external AND its transitive, plus the sibling — nothing else.
+        assertEquals(3, projected.packages().size());
+        assertTrue(byCoordinate.containsKey("com.fasterxml.jackson.core:jackson-databind"));
+        assertTrue(byCoordinate.containsKey("com.fasterxml.jackson.core:jackson-core"));
+        assertTrue(byCoordinate.containsKey("com.acme:acme-core"));
+        // The OR'd-direct guava and the test-scope dep are unreachable from acme-http's directs — excluded.
+        assertFalse(byCoordinate.containsKey("com.google.guava:guava"));
+        assertFalse(byCoordinate.containsKey("org.junit.jupiter:junit-jupiter"));
+
+        // Hashes are carried through AS-IS (the POM projection would have dropped them).
+        LockPackage databind = byCoordinate.get("com.fasterxml.jackson.core:jackson-databind");
+        LockPackage core = byCoordinate.get("com.fasterxml.jackson.core:jackson-core");
+        assertEquals(Optional.of(SHA_DATABIND), databind.jarSha256());
+        assertEquals(Optional.of(SHA_CORE), core.jarSha256());
+        // The dependency edge is preserved so the assembler can render direct -> transitive.
+        assertEquals(List.of("com.fasterxml.jackson.core:jackson-core:2.19.2"), databind.dependencies());
+
+        // Directness is the member's view, NOT the aggregated OR'd flag: the declared direct and the
+        // sibling are direct; the transitive is NOT (even though it is direct=true in the aggregated lock).
+        assertTrue(databind.direct());
+        assertTrue(byCoordinate.get("com.acme:acme-core").direct());
+        assertFalse(core.direct());
+
+        // The sibling is preserved as a first-party workspace component (source + marker intact).
+        LockPackage sibling = byCoordinate.get("com.acme:acme-core");
+        assertEquals("workspace", sibling.source());
+        assertTrue(sibling.workspace().isPresent());
+    }
+
+    @Test
+    void walksTheDeeperTransitiveChain() {
+        // A -> B -> C: the member declares only A; B and C must both be pulled in as transitives.
+        ProjectConfig memberConfig = memberConfig(
+                Map.of("com.example:a", "1.0.0"), Map.of(), Map.of());
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        external("com.example", "a", "1.0.0", DependencyScope.COMPILE, true, SHA_DATABIND,
+                                List.of("com.example:b:1.0.0")),
+                        external("com.example", "b", "1.0.0", DependencyScope.COMPILE, false, SHA_CORE,
+                                List.of("com.example:c:1.0.0")),
+                        external("com.example", "c", "1.0.0", DependencyScope.RUNTIME, false, SHA_GUAVA,
+                                List.of())),
+                List.of());
+
+        Map<String, LockPackage> byCoordinate = index(projection.project(memberConfig, aggregated));
+
+        assertEquals(3, byCoordinate.size());
+        assertTrue(byCoordinate.get("com.example:a").direct());
+        assertFalse(byCoordinate.get("com.example:b").direct());
+        assertFalse(byCoordinate.get("com.example:c").direct());
+        assertEquals(Optional.of(SHA_GUAVA), byCoordinate.get("com.example:c").jarSha256());
+    }
+
+    private static ProjectConfig memberConfig(
+            Map<String, String> dependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> testDependencies) {
+        return ProjectConfigs.withWorkspaceDependencySections(
+                new ProjectMetadata("acme-http", "1.0.0", "com.acme", "21", Optional.empty()),
+                Map.of("central", ProjectConfig.MAVEN_CENTRAL),
+                Map.of(),
+                dependencies,
+                Set.of(),
+                workspaceDependencies,
+                testDependencies,
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                NativeSettings.defaults());
+    }
+
+    private static Map<String, LockPackage> index(ZoltLockfile lockfile) {
+        LinkedHashMap<String, LockPackage> byCoordinate = new LinkedHashMap<>();
+        for (LockPackage lockPackage : lockfile.packages()) {
+            byCoordinate.put(
+                    lockPackage.packageId().groupId() + ":" + lockPackage.packageId().artifactId(), lockPackage);
+        }
+        return byCoordinate;
+    }
+
+    private static LockPackage external(
+            String group,
+            String artifact,
+            String version,
+            DependencyScope scope,
+            boolean direct,
+            String jarSha256,
+            List<String> dependencies) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "maven-central",
+                scope,
+                direct,
+                Optional.of(base + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of(jarSha256),
+                Optional.empty(),
+                dependencies);
+    }
+
+    private static LockPackage workspacePackage(String group, String artifact, String version) {
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "workspace",
+                DependencyScope.COMPILE,
+                true,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(artifact),
+                Optional.of("target/classes"),
+                List.of());
+    }
+}
