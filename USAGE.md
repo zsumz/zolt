@@ -309,14 +309,31 @@ config error, and `zolt run`/`run-package` error actionably.
 same per-member publication plan as a single-project publish. It runs an offline
 Phase 1 first — per member it resolves config, projects a per-member lock,
 generates and validates the POM (inter-member dependencies render at their locked
-versions), plans every artifact (main jar, sources, javadoc, checksums, and
-signatures), and checks readiness — aggregating every blocker into one report. If
-anything is blocked, nothing uploads. Phase 2 then uploads each member's complete
-artifact set: Maven Central receives one atomic family bundle (one deployment id),
-while a plain repository receives a dependency-ordered sequential upload (providers
-first, the BOM last) that authenticates every request with the repository's
-configured `[repositoryCredentials]` and fails fast with an exact `--member` resume
-command. Members publish at a uniform family version by default;
+versions), resolves the member's real primary artifact through the framework-aware
+package planner (a Quarkus fast-jar's runner jar, a WAR's archive — never a
+synthesized `<name>-<version>.jar`), and checks readiness. For a plain-repository
+publish Phase 1 then materialises the ENTIRE upload set before the first request: it
+applies the same repository-URL policy Phase 2 uses, resolves every credential, runs
+the signing preflight (gpg, key, and passphrase), and stages every checksum and
+detached signature under `target/zolt-publish/staging`. Every blocker across every
+member — a URL-policy violation or an unmet signing prerequisite included — is
+aggregated into one report, and if anything is blocked nothing uploads.
+
+Phase 2 uploads pre-staged bytes only, so a mid-member signing or checksum failure
+is structurally impossible once uploads begin. Maven Central receives one atomic
+family bundle (one deployment id); a plain repository receives a dependency-ordered
+sequential upload (providers first, the BOM last) that authenticates every request
+with the repository's configured `[repositoryCredentials]`. Each file is uploaded
+idempotently — a path already holding the same bytes is skipped, so a resumed
+publish re-PUTs nothing an immutable release repository would reject, while a path
+holding different bytes is a hard, actionable conflict. On failure the publish
+writes durable resume state to `target/zolt-publish/resume-state` (the completed
+repository paths, a hash of the plan, and the semantic options) and emits an exact
+resume command using the hidden `--resume-members`. Re-running that command resumes
+only the members that did not finish and uploads only the files that did not land; a
+`--resume-members` run without matching state, or against a plan that has since
+changed, refuses and directs you to re-run the full publish rather than resume
+blindly. Members publish at a uniform family version by default;
 `--allow-mixed-versions` pins each member at its own version.
 
 `--sbom` attaches a per-member CycloneDX SBOM (each jar member gets its own; the
