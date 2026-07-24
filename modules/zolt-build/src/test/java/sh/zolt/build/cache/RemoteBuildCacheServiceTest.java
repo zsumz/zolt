@@ -166,6 +166,35 @@ final class RemoteBuildCacheServiceTest {
     }
 
     @Test
+    void metadataSidecarUploadFailureWarnsAndIsAMissForConsumer(@TempDir Path temp) throws IOException {
+        // The archive PUT succeeds but the sidecar PUT is rejected (403), leaving the remote with an
+        // archive and no sidecar.
+        server.failPutSuffix = ".zbc.meta";
+        server.failPutStatus = 403;
+        BuildCacheService producer = consumer(temp, remoteClient(temp, Optional.empty(), true));
+        writeClass(temp.resolve("producer/classes"));
+
+        producer.store(KEY, temp.resolve("producer/classes"));
+
+        assertTrue(server.store.containsKey("/" + KEY.shardedPath(".zbc")), "archive uploaded");
+        assertFalse(server.store.containsKey("/" + KEY.shardedPath(".zbc.meta")), "sidecar rejected");
+        List<String> warnings = producer.drainWarnings();
+        assertEquals(1, warnings.size(), warnings.toString());
+        assertTrue(warnings.getFirst().contains("metadata sidecar"), warnings.getFirst());
+        assertTrue(warnings.getFirst().contains("unauthorized"), warnings.getFirst());
+
+        // A consumer with a fresh local cache sees the archive-without-sidecar remote as a plain miss:
+        // it needs the sidecar to verify and adopt the archive, so it rebuilds instead.
+        BuildCacheService fresh = BuildCacheService.create(
+                new BuildCacheSettings(true, temp.resolve("consumer-cache"), 0L),
+                Optional.of(remoteClient(temp, Optional.empty(), false)),
+                "test");
+        assertFalse(
+                fresh.restore(KEY, temp.resolve("consumer-out")).restored(),
+                "an archive without its sidecar is a miss");
+    }
+
+    @Test
     void noPushWhenPushDisabled(@TempDir Path temp) throws IOException {
         BuildCacheService producer = consumer(temp, remoteClient(temp, Optional.empty(), false));
         writeClass(temp.resolve("producer/classes"));
@@ -239,6 +268,8 @@ final class RemoteBuildCacheServiceTest {
         final Map<String, byte[]> store = new ConcurrentHashMap<>();
         final List<String> authHeaders = new CopyOnWriteArrayList<>();
         volatile int putStatus = 201;
+        volatile String failPutSuffix = null;
+        volatile int failPutStatus = 403;
 
         FixtureServer() throws IOException {
             server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -260,10 +291,11 @@ final class RemoteBuildCacheServiceTest {
                     }
                 } else if ("PUT".equals(exchange.getRequestMethod())) {
                     byte[] body = exchange.getRequestBody().readAllBytes();
-                    if (putStatus >= 200 && putStatus < 300) {
+                    int status = failPutSuffix != null && path.endsWith(failPutSuffix) ? failPutStatus : putStatus;
+                    if (status >= 200 && status < 300) {
                         store.put(path, body);
                     }
-                    exchange.sendResponseHeaders(putStatus, -1);
+                    exchange.sendResponseHeaders(status, -1);
                 } else {
                     exchange.sendResponseHeaders(405, -1);
                 }

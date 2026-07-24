@@ -217,17 +217,28 @@ public final class BuildCacheService {
         if (archive.isEmpty() || meta.isEmpty()) {
             return;
         }
-        RemoteUploadOutcome outcome = client.put(key.shardedPath(".zbc"), archive.orElseThrow());
-        if (outcome == RemoteUploadOutcome.UPLOADED) {
-            client.put(key.shardedPath(".zbc.meta"), meta.orElseThrow());
+        if (!uploadPart(client, "archive", key.shardedPath(".zbc"), archive.orElseThrow())) {
             return;
         }
+        // The archive landed, but a consumer needs the sidecar to verify and adopt it: an archive with
+        // no sidecar is a permanent miss for every consumer. A failed sidecar upload must therefore
+        // surface just like a failed archive upload rather than pass silently.
+        uploadPart(client, "metadata sidecar", key.shardedPath(".zbc.meta"), meta.orElseThrow());
+    }
+
+    private boolean uploadPart(RemoteBuildCacheClient client, String part, String path, Path file) {
+        RemoteUploadOutcome outcome = client.put(path, file);
+        if (outcome == RemoteUploadOutcome.UPLOADED) {
+            return true;
+        }
         if (outcome == RemoteUploadOutcome.UNAUTHORIZED) {
-            warnings.add("Build cache push was rejected as unauthorized by " + client.baseUri()
+            warnings.add("Build cache " + part + " push was rejected as unauthorized by " + client.baseUri()
                     + ". Check the [buildCache.remote] credentials env vars. Next: unset push or fix the token.");
         } else {
-            warnings.add("Build cache push to " + client.baseUri() + " failed; continuing without uploading.");
+            warnings.add("Build cache " + part + " push to " + client.baseUri()
+                    + " failed; continuing without uploading.");
         }
+        return false;
     }
 
     private static String sha256(Path file) throws IOException {
