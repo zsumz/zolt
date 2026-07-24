@@ -134,6 +134,25 @@ final class LockArtifactVariantTest {
         assertEquals("jar", new LockArtifactVariant(null, null).extension());
     }
 
+    @Test
+    void onlyPlainJarIsDefault() {
+        assertTrue(new LockArtifactVariant("jar", Optional.empty()).isDefault());
+        assertTrue(!new LockArtifactVariant("jar", Optional.of("linux-x86_64")).isDefault());
+        assertTrue(!new LockArtifactVariant("zip", Optional.empty()).isDefault());
+        assertTrue(!new LockArtifactVariant("war", Optional.of("sources")).isDefault());
+    }
+
+    @Test
+    void fromKeyRoundTripsEveryVariantShape() {
+        for (LockArtifactVariant variant : List.of(
+                new LockArtifactVariant("jar", Optional.empty()),
+                new LockArtifactVariant("jar", Optional.of("linux-x86_64")),
+                new LockArtifactVariant("zip", Optional.empty()),
+                new LockArtifactVariant("war", Optional.of("classes")))) {
+            assertEquals(variant, LockArtifactVariant.fromKey(variant.key()));
+        }
+    }
+
     private static LockPackage jarPackage(PackageId packageId, String version, String jarPath) {
         return new LockPackage(
                 packageId,

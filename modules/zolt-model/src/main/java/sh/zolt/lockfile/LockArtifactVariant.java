@@ -32,6 +32,29 @@ public record LockArtifactVariant(String extension, Optional<String> classifier)
     }
 
     /**
+     * Reconstructs a variant from a {@link #key()} string. The inverse of {@link #key()}: a bare token is
+     * an extension with no classifier ({@code "jar"}, {@code "zip"}); an {@code extension|classifier} token
+     * splits on the first {@code |} (which cannot appear in either dimension). Used to parse the variant
+     * qualifier back out of a lock conflict record or a variant-qualified dependency edge.
+     */
+    public static LockArtifactVariant fromKey(String key) {
+        int bar = key.indexOf('|');
+        if (bar < 0) {
+            return new LockArtifactVariant(key, Optional.empty());
+        }
+        return new LockArtifactVariant(key.substring(0, bar), Optional.of(key.substring(bar + 1)));
+    }
+
+    /**
+     * Whether this is the default variant — a plain {@code jar} with no classifier. The default is the
+     * overwhelming common case; every variant-aware key, conflict qualifier, and dependency edge omits the
+     * discriminator when it is default so a lock without variants stays byte-identical to before.
+     */
+    public boolean isDefault() {
+        return "jar".equals(extension) && classifier.isEmpty();
+    }
+
+    /**
      * A stable, filename-free key that orders and disambiguates the variants of one {@link PackageId}.
      * The {@code |} delimiter cannot appear in a Maven extension or classifier, so the key is unambiguous
      * even when concatenated into a larger colon-delimited map key. A plain {@code jar} with no classifier
