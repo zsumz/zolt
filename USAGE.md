@@ -801,8 +801,13 @@ same fingerprints, so a wiped or fresh checkout **restores** the classes instead
 of recompiling them. It is opt-in and content-addressed.
 
 Correctness beats hit rate: the cache is keyed on everything that determines the
-compiled bytes, and any doubt is a miss that rebuilds. A cache hit is guaranteed
-to produce the same bytes a compile would.
+compiled bytes, and any doubt is a miss that rebuilds. Every entry is verified
+against its sidecar — requested key, scope, declared size, and archive SHA-256 —
+before any output is touched, and a restore that cannot be fully verified is a
+miss that rebuilds. A *verified* cache hit reproduces the bytes a compile would
+produce. That guarantee holds against corruption and mismatched entries; for a
+shared remote cache, the trust model below sets out what it does and does not
+defend against.
 
 ### Enabling it
 
@@ -883,6 +888,43 @@ The remote never fails a build. A read problem is a miss that rebuilds; an uploa
 problem is a warning and the build continues; an unauthorized (`401`/`403`) push
 surfaces one actionable warning per build. `--offline` drops the remote tier
 entirely while the local cache keeps serving.
+
+### Cache integrity and trust model
+
+The remote cache is **trusted build infrastructure**, not a public download. Its
+integrity checks defend against corruption and mismatched entries — a truncated
+blob, a torn upload, a sidecar that names a different key — but they are **not** a
+defense against a party with malicious write access to the cache. Operate a shared
+cache accordingly: restrict write access to CI, treat entries as immutable
+(content-addressed keys never change meaning), and serve reads over HTTPS.
+
+Within that model every restore is defended before it can affect a build:
+
+- **Bounded download.** The archive and its sidecar stream to temporary files
+  under hard size caps (the sidecar a small fixed cap; the archive the configured
+  `maxSizeMb`, or 512 MB when the cache is uncapped). A body that exceeds its cap
+  is aborted and treated as a miss, so the client never buffers an unbounded blob.
+- **Full identity check.** Before any output is touched, the sidecar must match
+  the requested entry on every axis — key, scope, declared size, and archive
+  SHA-256. Any mismatch is a miss that deletes the local copy and logs one warning
+  naming what failed.
+- **Bounded, transactional extraction.** The archive is extracted into a sibling
+  staging directory under entry-count, per-entry, and total-decompressed-size
+  limits (so a "zip bomb" aborts) and with a path-traversal guard, then swapped
+  into place atomically. A failure at any point leaves the previous output exactly
+  as it was — never partial — so the build proceeds as a clean miss and recompiles.
+
+Because the SHA sidecar is served by the same remote as the archive, it detects
+corruption, not tampering: a writer who can replace the archive can replace the
+sidecar too. That is why write access is the security boundary for a shared cache.
+
+**Planned — signed entries.** A future opt-in `hmacKeyEnv` under
+`[buildCache.remote]` will name an environment variable holding a shared secret;
+producers HMAC the sidecar (metadata and SHA) at store time and consumers verify
+it at restore, adding tamper-evidence on top of the integrity checks for caches
+whose write access cannot be fully trusted. Following the credential convention,
+only the env-var *name* is stored, never the secret. This is not yet implemented;
+until it ships, rely on restricting write access.
 
 ### The key, and the JDK
 
