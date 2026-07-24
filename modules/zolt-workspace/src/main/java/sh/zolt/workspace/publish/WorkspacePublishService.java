@@ -65,6 +65,7 @@ public final class WorkspacePublishService {
     private final WorkspaceMemberSbomLockProjection sbomProjection = new WorkspaceMemberSbomLockProjection();
     private final WorkspaceRepositoryUploader uploader;
     private final WorkspaceCentralPublisher centralPublisher;
+    private final WorkspacePublishStaging staging;
 
     public WorkspacePublishService() {
         this(new MavenRepositoryClient(), new CentralPortalClient(), new PackagePlanService());
@@ -120,6 +121,7 @@ public final class WorkspacePublishService {
         this.uploader = uploader;
         this.centralPublisher = centralPublisher;
         this.packagePlanService = packagePlanService;
+        this.staging = new WorkspacePublishStaging();
     }
 
     public WorkspacePublishReport publish(
@@ -162,6 +164,19 @@ public final class WorkspacePublishService {
             blockers.addAll(WorkspaceCentralSettingsDivergence.blockers(publications));
         }
 
+        // Phase-1 materialization of the plain-repository upload set: validate every member's target
+        // (URL policy and credentials) and signing, and stage every checksum and signature, before the
+        // first request — only when the family is otherwise clean (staging signs and digests real bytes,
+        // wasted against a blocked plan) and only for a live plain publish (Central assembles its own
+        // atomic bundle; a dry run uploads nothing).
+        List<StagedMember> stagedMembers = List.of();
+        if (blockers.isEmpty() && !options.central() && !options.dryRun()) {
+            WorkspacePublishStaging.Preparation preparation =
+                    staging.materialize(publications, stagingRoot(workspace), options);
+            blockers.addAll(preparation.blockers());
+            stagedMembers = preparation.members();
+        }
+
         List<WorkspacePublishReport.Member> members = new ArrayList<>();
         for (MemberPublication publication : publications) {
             members.add(publication.toReportMember());
@@ -179,7 +194,11 @@ public final class WorkspacePublishService {
             return new WorkspacePublishReport(
                     members, blockers, notes, false, Optional.empty(), Optional.empty(), Optional.empty());
         }
-        return uploader.upload(publications, options).withNotes(notes);
+        return uploader.upload(stagedMembers, options).withNotes(notes);
+    }
+
+    private static Path stagingRoot(Workspace workspace) {
+        return workspace.root().resolve("target").resolve("zolt-publish").resolve("staging");
     }
 
     private MemberPlanResult buildMemberPlan(

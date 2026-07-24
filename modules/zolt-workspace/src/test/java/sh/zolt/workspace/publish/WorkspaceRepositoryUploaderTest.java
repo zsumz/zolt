@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.publish.PublishArtifactPlan;
 import sh.zolt.publish.PublishDryRunPlan;
@@ -15,6 +15,7 @@ import sh.zolt.publish.PublishSettings;
 import sh.zolt.publish.PublishSigningSettings;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
@@ -22,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -37,12 +37,10 @@ final class WorkspaceRepositoryUploaderTest {
     @Test
     void writesArtifactSupplementalsPomAndChecksumsToAFileRepository(@TempDir Path tempDir) throws IOException {
         Path memberRoot = tempDir.resolve("acme-core");
-        Files.createDirectories(memberRoot.resolve("target/publish"));
-        Files.writeString(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
-        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0-sources.jar"), "sources-bytes");
-        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
+        writeFile(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
+        writeFile(memberRoot.resolve("target/publish/acme-core-1.0.0-sources.jar"), "sources-bytes");
+        writeFile(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
         Path repository = tempDir.resolve("repo");
-        Files.createDirectories(repository);
 
         PublishArtifactPlan sources = new PublishArtifactPlan(
                 "sources",
@@ -50,12 +48,12 @@ final class WorkspaceRepositoryUploaderTest {
                 Path.of("target/publish/acme-core-1.0.0-sources.jar"),
                 "sha256:sources",
                 "com/acme/acme-core/1.0.0/acme-core-1.0.0-sources.jar");
-        PublishDryRunPlan plan = jarPlan(
-                "com.acme:acme-core:1.0.0", repository.toUri().toString(), List.of(sources));
+        PublishDryRunPlan plan = jarPlan("com.acme:acme-core:1.0.0", repository.toUri().toString(), List.of(sources));
 
-        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-core", plan)), OPTIONS);
+        WorkspacePublishReport report =
+                stageThenUpload(List.of(fileMember(memberRoot, "acme-core", plan)), OPTIONS, tempDir.resolve("staging"));
 
-        assertTrue(report.ok());
+        assertTrue(report.ok(), () -> "blockers: " + report.blockers());
         assertTrue(report.uploaded());
         Path base = repository.resolve("com/acme/acme-core/1.0.0");
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar")));
@@ -69,10 +67,9 @@ final class WorkspaceRepositoryUploaderTest {
     }
 
     @Test
-    void pomOnlyMemberWritesOnlyThePom(@TempDir Path tempDir) throws IOException {
+    void pomOnlyMemberWritesOnlyThePom(@TempDir Path tempDir) {
         Path memberRoot = tempDir.resolve("acme-bom");
-        Files.createDirectories(memberRoot.resolve("target/publish"));
-        Files.writeString(
+        writeFile(
                 memberRoot.resolve("target/publish/acme-bom-1.0.0.pom"),
                 "<project><packaging>pom</packaging></project>");
         Path repository = tempDir.resolve("repo");
@@ -96,7 +93,8 @@ final class WorkspaceRepositoryUploaderTest {
                 List.of(),
                 true);
 
-        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-bom", plan)), OPTIONS);
+        WorkspacePublishReport report =
+                stageThenUpload(List.of(fileMember(memberRoot, "acme-bom", plan)), OPTIONS, tempDir.resolve("staging"));
 
         assertTrue(report.ok());
         Path base = repository.resolve("com/acme/platform/acme-bom/1.0.0");
@@ -105,28 +103,16 @@ final class WorkspaceRepositoryUploaderTest {
     }
 
     @Test
-    void authenticatesEveryRequestToACredentialedHttpRepository(@TempDir Path tempDir) throws IOException {
-        HttpServer server = startServer();
-        Map<String, String> authByPath = new ConcurrentHashMap<>();
-        Set<String> puts = ConcurrentHashMap.newKeySet();
-        server.createContext("/maven2/", exchange -> {
-            String header = exchange.getRequestHeaders().getFirst("Authorization");
-            authByPath.put(exchange.getRequestURI().getPath(), header == null ? "<none>" : header);
-            puts.add(exchange.getRequestURI().getPath());
-            exchange.getRequestBody().readAllBytes();
-            exchange.sendResponseHeaders(201, -1);
-            exchange.close();
-        });
-        server.start();
+    void authenticatesEveryRequestToACredentialedHttpRepository(@TempDir Path tempDir) {
+        Repository server = Repository.start();
         try {
-            String base = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/";
+            String base = server.baseUri();
             Path core = tempDir.resolve("acme-core");
-            Files.createDirectories(core.resolve("target/publish"));
-            Files.writeString(core.resolve("target/acme-core-1.0.0.jar"), "core-jar");
-            Files.writeString(core.resolve("target/publish/acme-core-1.0.0-sources.jar"), "core-sources");
-            Files.writeString(core.resolve("target/publish/acme-core-1.0.0-javadoc.jar"), "core-javadoc");
-            Files.writeString(core.resolve("target/publish/acme-core-1.0.0-cyclonedx.json"), "{}");
-            Files.writeString(core.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
+            writeFile(core.resolve("target/acme-core-1.0.0.jar"), "core-jar");
+            writeFile(core.resolve("target/publish/acme-core-1.0.0-sources.jar"), "core-sources");
+            writeFile(core.resolve("target/publish/acme-core-1.0.0-javadoc.jar"), "core-javadoc");
+            writeFile(core.resolve("target/publish/acme-core-1.0.0-cyclonedx.json"), "{}");
+            writeFile(core.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
 
             PublishArtifactPlan sources = supplemental("acme-core", "sources", "jar");
             PublishArtifactPlan javadoc = supplemental("acme-core", "javadoc", "jar");
@@ -137,8 +123,6 @@ final class WorkspaceRepositoryUploaderTest {
                     Map.of("nexus-creds", RepositoryCredentialSettings.token("nexus-creds", "ZOLT_NEXUS_TOKEN"));
             Function<String, String> environment =
                     name -> "ZOLT_NEXUS_TOKEN".equals(name) ? "portal-token-value" : null;
-            WorkspaceRepositoryUploader authenticated =
-                    new WorkspaceRepositoryUploader(new MavenRepositoryClient(), environment);
 
             PublishDryRunPlan plan = new PublishDryRunPlan(
                     "com.acme:acme-core:1.0.0",
@@ -161,23 +145,24 @@ final class WorkspaceRepositoryUploaderTest {
             MemberPublication member = new MemberPublication(
                     core, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, credentials);
 
-            WorkspacePublishReport report = authenticated.upload(List.of(member), OPTIONS);
+            WorkspacePublishReport report = stageThenUpload(
+                    new WorkspacePublishStaging(environment), List.of(member), OPTIONS, tempDir.resolve("staging"));
 
             assertTrue(report.ok(), () -> "blockers: " + report.blockers());
             assertTrue(report.uploaded());
-            // Every artifact, supplemental, POM, and their checksum sidecars authenticate identically.
-            assertFalse(authByPath.isEmpty());
-            for (Map.Entry<String, String> entry : authByPath.entrySet()) {
+            // Every request — the idempotency probe (GET) and the upload (PUT) — authenticates identically.
+            assertFalse(server.authByPath.isEmpty());
+            for (Map.Entry<String, String> entry : server.authByPath.entrySet()) {
                 assertEquals("Bearer portal-token-value", entry.getValue(), "unauthenticated request: " + entry.getKey());
             }
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar"));
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-sources.jar"));
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-javadoc.jar"));
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-cyclonedx.json"));
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.pom"));
-            assertTrue(puts.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar.sha256"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-sources.jar"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-javadoc.jar"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0-cyclonedx.json"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.pom"));
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar.sha256"));
         } finally {
-            server.stop(0);
+            server.close();
         }
     }
 
@@ -188,12 +173,10 @@ final class WorkspaceRepositoryUploaderTest {
         generateSigningKey(gnupgHome);
 
         Path memberRoot = tempDir.resolve("acme-core");
-        Files.createDirectories(memberRoot.resolve("target/publish"));
-        Files.writeString(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
-        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0-sources.jar"), "sources-bytes");
-        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
+        writeFile(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
+        writeFile(memberRoot.resolve("target/publish/acme-core-1.0.0-sources.jar"), "sources-bytes");
+        writeFile(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
         Path repository = tempDir.resolve("repo");
-        Files.createDirectories(repository);
 
         PublishArtifactPlan sources = new PublishArtifactPlan(
                 "sources",
@@ -205,69 +188,130 @@ final class WorkspaceRepositoryUploaderTest {
         PublishSigningSettings signing =
                 new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS"));
         PublishSettings publish = new PublishSettings("local", "", List.of("main"), Map.of(), signing);
-        WorkspaceRepositoryUploader signingUploader =
-                new WorkspaceRepositoryUploader(new MavenRepositoryClient(), signingEnvironment(gnupgHome));
         MemberPublication member = new MemberPublication(
                 memberRoot, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, Map.of());
 
-        WorkspacePublishReport report = signingUploader.upload(List.of(member), OPTIONS);
+        WorkspacePublishReport report = stageThenUpload(
+                new WorkspacePublishStaging(signingEnvironment(gnupgHome)),
+                List.of(member),
+                OPTIONS,
+                tempDir.resolve("staging"));
 
         assertTrue(report.ok(), () -> "blockers: " + report.blockers());
         Path base = repository.resolve("com/acme/acme-core/1.0.0");
-        // Every artifact, supplemental, and the POM gets a detached signature.
+        // Every artifact, supplemental, and the POM gets a detached signature and its own checksums.
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.asc")), "jar signature");
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0-sources.jar.asc")), "sources signature");
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.pom.asc")), "pom signature");
-        // Checksums remain unconditional.
+        assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.asc.sha256")), "signature checksum");
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.sha256")));
     }
 
     @Test
-    void failedMemberEmitsAnExactResumeCommandPreservingSemanticOptions(@TempDir Path tempDir) throws IOException {
-        // A repository that stores the provider's uploads but rejects the consumer's jar PUT (403,
-        // non-transient, so it fails immediately rather than retrying).
-        HttpServer server = startServer();
-        Set<String> stored = ConcurrentHashMap.newKeySet();
-        server.createContext("/maven2/", exchange -> {
-            String path = exchange.getRequestURI().getPath();
-            exchange.getRequestBody().readAllBytes();
-            if (path.endsWith("/acme-http-1.0.0.jar")) {
-                exchange.sendResponseHeaders(403, -1);
-            } else {
-                stored.add(path);
-                exchange.sendResponseHeaders(201, -1);
-            }
-            exchange.close();
-        });
-        server.start();
+    void failedMemberEmitsAnExactResumeCommandPreservingSemanticOptions(@TempDir Path tempDir) {
+        // The repository stores the provider's uploads but rejects the consumer's jar PUT (403), so
+        // publishing fails after the provider fully landed.
+        Repository server = Repository.start();
+        server.failPutPathSuffix = "/acme-http/1.0.0/acme-http-1.0.0.jar";
         try {
-            String base = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/";
+            String base = server.baseUri();
             MemberPublication core = httpJarMember(tempDir, "acme-core", base);
             MemberPublication http = httpJarMember(tempDir, "acme-http", base);
             WorkspacePublishService.Options mixedSbom =
                     new WorkspacePublishService.Options(false, false, true, true, Optional.empty());
 
-            WorkspacePublishReport report = uploader.upload(List.of(core, http), mixedSbom);
+            WorkspacePublishReport report =
+                    stageThenUpload(List.of(core, http), mixedSbom, tempDir.resolve("staging"));
 
             assertFalse(report.ok());
             assertTrue(report.blockers().get(0).contains("com.acme:acme-http"), report.blockers()::toString);
-            // The provider fully uploaded; the resume names ONLY the failed member (exact, never
-            // dependency-expanded back to the already-uploaded provider) and preserves the options.
-            assertTrue(stored.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar"), "provider uploaded");
-            assertFalse(stored.contains("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "consumer rejected");
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar"), "provider uploaded");
+            assertFalse(server.has("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "consumer rejected");
             assertEquals(
                     Optional.of("zolt publish --workspace --resume-members acme-http --allow-mixed-versions --sbom"),
                     report.resumeCommand());
         } finally {
-            server.stop(0);
+            server.close();
         }
     }
 
-    private static MemberPublication httpJarMember(Path root, String name, String base) throws IOException {
+    @Test
+    void resumeReUploadsOnlyTheFilesThatDidNotLandAndSkipsThoseThatDid(@TempDir Path tempDir) {
+        // A mid-member failure: the jar and its md5 land, then the sha1 checksum PUT is rejected once.
+        Repository server = Repository.start();
+        String jar = "/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar";
+        server.failPutPathSuffix = "/acme-core-1.0.0.jar.sha1";
+        try {
+            MemberPublication core = httpJarMember(tempDir, "acme-core", server.baseUri());
+            WorkspacePublishStaging.Preparation prep =
+                    new WorkspacePublishStaging().materialize(List.of(core), tempDir.resolve("staging"), OPTIONS);
+            assertTrue(prep.blockers().isEmpty(), () -> "blockers: " + prep.blockers());
+
+            WorkspacePublishReport first = uploader.upload(prep.members(), OPTIONS);
+            assertFalse(first.ok(), "the sha1 checksum PUT was rejected");
+            assertTrue(server.has(jar), "jar landed before the failure");
+            assertTrue(server.has(jar + ".md5"), "the md5 landed before the failure");
+            assertFalse(server.has(jar + ".sha1"), "the sha1 did not land");
+
+            // Resume: the same immutable repository (409 on re-PUT) now accepts the sha1.
+            server.failPutPathSuffix = null;
+            WorkspacePublishReport second = uploader.upload(prep.members(), OPTIONS);
+
+            assertTrue(second.ok(), () -> "resume blockers: " + second.blockers());
+            // Already-landed files were skipped (idempotency): each was PUT exactly once, never re-PUT.
+            assertEquals(1, server.putCount(jar), "jar must not be re-PUT on resume");
+            assertEquals(1, server.putCount(jar + ".md5"), "md5 must not be re-PUT on resume");
+            assertTrue(server.has(jar + ".sha1"), "the previously-failed sha1 uploaded on resume");
+            assertTrue(server.has("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.pom"), "pom uploaded on resume");
+        } finally {
+            server.close();
+        }
+    }
+
+    @Test
+    void anExistingReleasePathWithDifferentContentIsAHardFailureWithNoResume(@TempDir Path tempDir) {
+        Repository server = Repository.start();
+        // The jar path is already occupied by DIFFERENT bytes than this publish would upload.
+        server.store.put("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar", "someone-elses-jar".getBytes(StandardCharsets.UTF_8));
+        try {
+            MemberPublication core = httpJarMember(tempDir, "acme-core", server.baseUri());
+
+            WorkspacePublishReport report = stageThenUpload(List.of(core), OPTIONS, tempDir.resolve("staging"));
+
+            assertFalse(report.ok());
+            assertTrue(report.blockers().get(0).contains("already holds different content"), report.blockers()::toString);
+            assertFalse(report.resumeCommand().isPresent(), "a content conflict is not resumable");
+        } finally {
+            server.close();
+        }
+    }
+
+    private WorkspacePublishReport stageThenUpload(
+            List<MemberPublication> members, WorkspacePublishService.Options options, Path stagingRoot) {
+        return stageThenUpload(new WorkspacePublishStaging(), members, options, stagingRoot);
+    }
+
+    private WorkspacePublishReport stageThenUpload(
+            WorkspacePublishStaging staging,
+            List<MemberPublication> members,
+            WorkspacePublishService.Options options,
+            Path stagingRoot) {
+        WorkspacePublishStaging.Preparation preparation = staging.materialize(members, stagingRoot, options);
+        if (!preparation.blockers().isEmpty()) {
+            List<WorkspacePublishReport.Member> reportMembers = new ArrayList<>();
+            for (MemberPublication member : members) {
+                reportMembers.add(member.toReportMember());
+            }
+            return new WorkspacePublishReport(
+                    reportMembers, preparation.blockers(), false, Optional.empty(), Optional.empty());
+        }
+        return uploader.upload(preparation.members(), options);
+    }
+
+    private static MemberPublication httpJarMember(Path root, String name, String base) {
         Path memberRoot = root.resolve(name);
-        Files.createDirectories(memberRoot.resolve("target/publish"));
-        Files.writeString(memberRoot.resolve("target/" + name + "-1.0.0.jar"), name + "-jar");
-        Files.writeString(memberRoot.resolve("target/publish/" + name + "-1.0.0.pom"), "<project/>");
+        writeFile(memberRoot.resolve("target/" + name + "-1.0.0.jar"), name + "-jar");
+        writeFile(memberRoot.resolve("target/publish/" + name + "-1.0.0.pom"), "<project/>");
         PublishRepositorySettings repo = new PublishRepositorySettings("local", base, Optional.empty());
         PublishSettings publish = new PublishSettings("local", "", List.of("main"), Map.of("local", repo));
         return new MemberPublication(
@@ -326,11 +370,11 @@ final class WorkspaceRepositoryUploaderTest {
                 Map.of());
     }
 
-    private static HttpServer startServer() {
+    private static void writeFile(Path path, String content) {
         try {
-            return HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, content);
         } catch (IOException exception) {
-            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
             throw new IllegalStateException(exception);
         }
     }
@@ -383,6 +427,88 @@ final class WorkspaceRepositoryUploaderTest {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return false;
+        }
+    }
+
+    /** An immutable Maven repository: stores PUTs, serves GETs, 409s a re-PUT, tracks auth and PUT counts. */
+    private static final class Repository {
+        private final HttpServer server;
+        private final Map<String, byte[]> store = new ConcurrentHashMap<>();
+        private final Map<String, Integer> putCounts = new ConcurrentHashMap<>();
+        final Map<String, String> authByPath = new ConcurrentHashMap<>();
+        private final String baseUri;
+        volatile String failPutPathSuffix;
+
+        private Repository(HttpServer server) {
+            this.server = server;
+            this.baseUri = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/";
+        }
+
+        static Repository start() {
+            HttpServer server;
+            try {
+                server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            } catch (IOException exception) {
+                assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+                throw new IllegalStateException(exception);
+            }
+            Repository repository = new Repository(server);
+            server.createContext("/", repository::handle);
+            server.start();
+            return repository;
+        }
+
+        String baseUri() {
+            return baseUri;
+        }
+
+        boolean has(String path) {
+            return store.containsKey(path);
+        }
+
+        int putCount(String path) {
+            return putCounts.getOrDefault(path, 0);
+        }
+
+        private void handle(HttpExchange exchange) throws IOException {
+            String path = exchange.getRequestURI().getPath();
+            String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+            authByPath.put(path, authorization == null ? "<none>" : authorization);
+            if ("PUT".equals(exchange.getRequestMethod())) {
+                byte[] body = exchange.getRequestBody().readAllBytes();
+                putCounts.merge(path, 1, Integer::sum);
+                String suffix = failPutPathSuffix;
+                if (suffix != null && path.endsWith(suffix)) {
+                    respond(exchange, 403, new byte[0]);
+                    return;
+                }
+                if (store.containsKey(path)) {
+                    respond(exchange, 409, new byte[0]);
+                    return;
+                }
+                store.put(path, body);
+                respond(exchange, 201, new byte[0]);
+                return;
+            }
+            byte[] body = store.get(path);
+            if (body == null) {
+                respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            respond(exchange, 200, body);
+        }
+
+        private static void respond(HttpExchange exchange, int status, byte[] body) throws IOException {
+            try (exchange) {
+                exchange.sendResponseHeaders(status, body.length == 0 ? -1 : body.length);
+                if (body.length > 0) {
+                    exchange.getResponseBody().write(body);
+                }
+            }
+        }
+
+        void close() {
+            server.stop(0);
         }
     }
 }
