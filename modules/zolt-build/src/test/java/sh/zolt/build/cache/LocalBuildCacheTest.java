@@ -5,13 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -87,6 +93,84 @@ final class LocalBuildCacheTest {
         LocalBuildCache cache = new LocalBuildCache(temp.resolve("cache"), 1L);
         store(cache, temp, "one", "content-one");
         assertTrue(cache.status().totalBytes() <= 1L || cache.status().entryCount() <= 1);
+    }
+
+    @Test
+    void rejectsEntryWhoseSidecarScopeMismatchesAndDeletesIt(@TempDir Path temp) throws IOException {
+        LocalBuildCache cache = new LocalBuildCache(temp.resolve("cache"), 0L);
+        Path output = temp.resolve("target/classes");
+        writeFile(output.resolve("A.class"), "aaa");
+        BuildCacheKey key = BuildCacheKey.of(BuildCacheScope.MAIN, "inputsha", "21");
+        cache.store(key, output, "v");
+        // Tamper the sidecar so it no longer describes the requested (MAIN) entry, keeping the SHA valid;
+        // identity validation must still reject it, proving the local tier checks more than the SHA.
+        Path metaFile = cache.metaFileIfPresent(key).orElseThrow();
+        String tampered = Files.readString(metaFile, StandardCharsets.UTF_8).replace("scope=main", "scope=test");
+        Files.writeString(metaFile, tampered, StandardCharsets.UTF_8);
+
+        BuildCacheRestoreResult result = cache.restore(key, temp.resolve("out"));
+        assertFalse(result.restored());
+        assertTrue(cache.archiveFileIfPresent(key).isEmpty(), "a mismatched entry is removed");
+    }
+
+    @Test
+    void midExtractionFailureLeavesPreviousOutputUntouched(@TempDir Path temp) throws IOException {
+        LocalBuildCache cache = new LocalBuildCache(temp.resolve("cache"), 0L);
+        Path seed = temp.resolve("target/classes");
+        writeFile(seed.resolve("A.class"), "aaa");
+        BuildCacheKey key = BuildCacheKey.of(BuildCacheScope.MAIN, "inputsha", "21");
+        cache.store(key, seed, "v");
+
+        // Replace the stored archive with one whose first entry extracts cleanly but whose second escapes the
+        // output directory, so extraction fails partway. Rewrite the sidecar so identity validation passes and
+        // control actually reaches extraction.
+        byte[] malicious = maliciousArchiveWithTraversal();
+        Files.write(cache.archiveFileIfPresent(key).orElseThrow(), malicious);
+        rewriteSidecar(cache, key, malicious);
+
+        // A previous restore produced this output; a failed restore must leave it exactly as it was.
+        Path output = temp.resolve("restored/classes");
+        writeFile(output.resolve("keep.class"), "previous");
+
+        BuildCacheRestoreResult result = cache.restore(key, output);
+
+        assertFalse(result.restored(), "a mid-extraction failure is a miss");
+        assertArrayEquals(
+                "previous".getBytes(StandardCharsets.UTF_8),
+                Files.readAllBytes(output.resolve("keep.class")),
+                "the previous output is left byte-for-byte untouched");
+        assertFalse(Files.exists(output.resolve("safe.class")), "no partial output leaked into the live target");
+        assertFalse(Files.exists(temp.resolve("restored/escaped.class")), "the zip-slip entry did not escape");
+        assertTrue(cache.archiveFileIfPresent(key).isEmpty(), "the poisoned entry is dropped so a later build re-stores");
+    }
+
+    private static byte[] maliciousArchiveWithTraversal() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
+            zip.putNextEntry(new ZipEntry("safe.class"));
+            zip.write("safe".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("../escaped.class"));
+            zip.write("evil".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+        return bytes.toByteArray();
+    }
+
+    private static void rewriteSidecar(LocalBuildCache cache, BuildCacheKey key, byte[] archiveBytes)
+            throws IOException {
+        Path metaFile = cache.metaFileIfPresent(key).orElseThrow();
+        BuildCacheEntryMetadata metadata = new BuildCacheEntryMetadata(
+                key.hash(), key.scope().id(), "v", Instant.EPOCH, sha256Hex(archiveBytes), archiveBytes.length);
+        Files.writeString(metaFile, metadata.format(), StandardCharsets.UTF_8);
+    }
+
+    private static String sha256Hex(byte[] bytes) throws IOException {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IOException(exception);
+        }
     }
 
     private static BuildCacheKey store(LocalBuildCache cache, Path temp, String id, String content) throws IOException {

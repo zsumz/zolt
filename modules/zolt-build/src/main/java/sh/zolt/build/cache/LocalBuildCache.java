@@ -20,14 +20,19 @@ import java.util.stream.Stream;
  * {@code ~/.zolt/build-cache}).
  *
  * <p>Layout: {@code objects/<ab>/<hash>.zbc} (the deterministic archive) with a sibling
- * {@code <hash>.zbc.meta} sidecar. Restores verify the archive against the sidecar SHA-256 and discard
- * corrupt or partially written entries. Stores write to a temp file and atomically move it into place,
- * so a crashed store never leaves a torn archive a later restore could trust.
+ * {@code <hash>.zbc.meta} sidecar. Restores fully verify the entry against the sidecar (requested key,
+ * scope, declared size, and archive SHA-256) and discard any corrupt, partial, or mismatched entry
+ * before touching output. Extraction is transactional (bounded, staged into a sibling directory, then
+ * atomically swapped in) so a failed restore leaves the previous output untouched. Stores write to a
+ * temp file and atomically move it into place, so a crashed store never leaves a torn archive a later
+ * restore could trust.
  */
 public final class LocalBuildCache {
     private static final String ARCHIVE_SUFFIX = ".zbc";
     private static final String META_SUFFIX = ".zbc.meta";
     private static final String OBJECTS_DIR = "objects";
+    private static final String STAGING_SUFFIX = ".zolt-restore-";
+    private static final String BACKUP_SUFFIX = ".zolt-old-";
 
     private final Path root;
     private final long maxSizeBytes;
@@ -43,8 +48,12 @@ public final class LocalBuildCache {
     }
 
     /**
-     * Restore the module's output into {@code outputDirectory} if a verified entry exists. A corrupt or
-     * partial entry is deleted and reported as a miss so the build recompiles and re-stores.
+     * Restore the module's output into {@code outputDirectory} if a fully verified entry exists. The
+     * sidecar must match the requested entry on every axis (key, scope, declared size, and archive
+     * SHA-256) before any output is touched; a corrupt, partial, or mismatched entry is deleted and
+     * reported as a miss so the build recompiles and re-stores. Extraction is transactional: it runs into
+     * a sibling staging directory under bounded limits and is swapped into place atomically only after it
+     * completes, so any failure leaves the previous output exactly as it was — never partial.
      */
     public BuildCacheRestoreResult restore(BuildCacheKey key, Path outputDirectory) throws IOException {
         Path archivePath = archivePath(key);
@@ -53,14 +62,26 @@ public final class LocalBuildCache {
             return BuildCacheRestoreResult.miss();
         }
         Optional<BuildCacheEntryMetadata> metadata = readMetadata(metaPath);
-        if (metadata.isEmpty() || !archive.sha256(archivePath).equals(metadata.orElseThrow().sha256())) {
-            deleteEntry(key);
+        if (metadata.isEmpty()) {
+            deleteEntryQuietly(key);
             return BuildCacheRestoreResult.miss();
         }
-        cleanDirectory(outputDirectory);
-        int classCount = archive.extract(archivePath, outputDirectory);
-        touch(archivePath);
-        return BuildCacheRestoreResult.restoredFrom("local", classCount);
+        long actualSize = Files.size(archivePath);
+        String actualSha = archive.sha256(archivePath);
+        if (metadata.orElseThrow().mismatchAgainst(key, actualSize, actualSha).isPresent()) {
+            deleteEntryQuietly(key);
+            return BuildCacheRestoreResult.miss();
+        }
+        try {
+            int classCount = restoreTransactionally(archivePath, outputDirectory, actualSize);
+            touch(archivePath);
+            return BuildCacheRestoreResult.restoredFrom("local", classCount);
+        } catch (IOException | RuntimeException exception) {
+            // Extraction tripped a limit, hit an unsafe entry, or failed mid-stream. The staged copy was
+            // discarded and the live output left untouched; drop the entry so a later build re-stores it.
+            deleteEntryQuietly(key);
+            return BuildCacheRestoreResult.miss();
+        }
     }
 
     /** Store the module's output; best-effort, so callers treat a failure as a warning, not a build error. */
@@ -202,23 +223,79 @@ public final class LocalBuildCache {
         }
     }
 
-    private void cleanDirectory(Path directory) throws IOException {
-        if (!Files.exists(directory)) {
-            Files.createDirectories(directory);
+    /**
+     * Extract {@code archivePath} into a fresh sibling of {@code outputDirectory} under limits derived from
+     * the archive size, then atomically swap it into place. Because the target is never mutated until a
+     * complete, verified extraction is ready, a failure at any point leaves the previous output untouched.
+     */
+    private int restoreTransactionally(Path archivePath, Path outputDirectory, long archiveSize) throws IOException {
+        Path target = outputDirectory.toAbsolutePath().normalize();
+        Path parent = target.getParent();
+        if (parent == null) {
+            throw new IOException("Build cache cannot restore into a filesystem root: " + target);
+        }
+        Files.createDirectories(parent);
+        BuildCacheArchive.ExtractLimits limits = BuildCacheArchive.ExtractLimits.forArchiveSize(archiveSize);
+        Path staging = parent.resolve(target.getFileName() + STAGING_SUFFIX + UUID.randomUUID());
+        try {
+            Files.createDirectories(staging);
+            int classCount = archive.extract(archivePath, staging, limits);
+            swapIntoPlace(staging, target);
+            return classCount;
+        } catch (IOException | RuntimeException exception) {
+            deleteRecursivelyQuietly(staging);
+            throw exception instanceof IOException io ? io : new IOException("Build cache restore failed", exception);
+        }
+    }
+
+    /**
+     * Atomically replace {@code target} with {@code staging} on the same filesystem: move any existing
+     * output aside, move the staged output in, then delete the old copy. If the final move fails after the
+     * old output was moved aside, it is moved back so the previous state is restored.
+     */
+    private void swapIntoPlace(Path staging, Path target) throws IOException {
+        Path backup = null;
+        if (Files.exists(target)) {
+            backup = target.resolveSibling(target.getFileName() + BACKUP_SUFFIX + UUID.randomUUID());
+            Files.move(target, backup);
+        }
+        try {
+            Files.move(staging, target);
+        } catch (IOException exception) {
+            if (backup != null) {
+                try {
+                    Files.move(backup, target);
+                } catch (IOException rollback) {
+                    exception.addSuppressed(rollback);
+                }
+            }
+            throw exception;
+        }
+        deleteRecursivelyQuietly(backup);
+    }
+
+    private void deleteEntryQuietly(BuildCacheKey key) {
+        try {
+            deleteEntry(key);
+        } catch (IOException exception) {
+            // Best effort: leaving a rejected entry costs a re-store, never correctness.
+        }
+    }
+
+    private static void deleteRecursivelyQuietly(Path root) {
+        if (root == null || !Files.exists(root)) {
             return;
         }
-        try (Stream<Path> paths = Files.walk(directory)) {
-            paths.filter(path -> !path.equals(directory))
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException exception) {
-                            throw new UncheckedIOException(exception);
-                        }
-                    });
-        } catch (UncheckedIOException exception) {
-            throw exception.getCause();
+        try (Stream<Path> paths = Files.walk(root)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException exception) {
+                    // A leaked staging/backup directory is a minor disk cost, never a correctness issue.
+                }
+            });
+        } catch (IOException exception) {
+            // Ditto: cleanup is best effort.
         }
     }
 

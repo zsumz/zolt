@@ -34,7 +34,7 @@ final class BuildCacheArchiveTest {
         assertEquals(2, result.classCount(), "only .class files count toward the class total");
 
         Path target = temp.resolve("restored");
-        int restored = archive.extract(archiveFile, target);
+        int restored = archive.extract(archiveFile, target, BuildCacheArchive.ExtractLimits.permissive());
         assertEquals(2, restored);
         assertArrayEquals(
                 Files.readAllBytes(source.resolve("com/example/Widget.class")),
@@ -72,8 +72,55 @@ final class BuildCacheArchiveTest {
             zip.closeEntry();
         }
         Path target = temp.resolve("out");
-        assertThrows(IOException.class, () -> archive.extract(malicious, target));
+        assertThrows(
+                IOException.class, () -> archive.extract(malicious, target, BuildCacheArchive.ExtractLimits.permissive()));
         assertFalse(Files.exists(temp.resolve("escaped.class")));
+    }
+
+    @Test
+    void refusesArchiveExceedingEntryCountLimit(@TempDir Path temp) throws IOException {
+        Path archiveFile = temp.resolve("many.zbc");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveFile))) {
+            for (int i = 0; i < 5; i++) {
+                zip.putNextEntry(new ZipEntry("e" + i + ".class"));
+                zip.write("x".getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+            }
+        }
+        BuildCacheArchive.ExtractLimits limits = new BuildCacheArchive.ExtractLimits(2, 1024, 1024);
+        Path target = temp.resolve("out");
+        assertThrows(IOException.class, () -> archive.extract(archiveFile, target, limits));
+    }
+
+    @Test
+    void refusesArchiveEntryExceedingPerEntryDecompressedLimit(@TempDir Path temp) throws IOException {
+        Path archiveFile = temp.resolve("big-entry.zbc");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveFile))) {
+            zip.putNextEntry(new ZipEntry("big.bin"));
+            zip.write(new byte[4096]);
+            zip.closeEntry();
+        }
+        // The single entry decompresses to 4096 bytes; a 1024-byte per-entry cap aborts it mid-stream even
+        // though a deflated entry does not declare its size up front.
+        BuildCacheArchive.ExtractLimits limits = new BuildCacheArchive.ExtractLimits(100, 1024, 1_000_000);
+        Path target = temp.resolve("out");
+        assertThrows(IOException.class, () -> archive.extract(archiveFile, target, limits));
+    }
+
+    @Test
+    void refusesArchiveExceedingTotalDecompressedLimit(@TempDir Path temp) throws IOException {
+        Path archiveFile = temp.resolve("total.zbc");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveFile))) {
+            for (int i = 0; i < 4; i++) {
+                zip.putNextEntry(new ZipEntry("part" + i + ".bin"));
+                zip.write(new byte[1024]);
+                zip.closeEntry();
+            }
+        }
+        // Each 1024-byte entry is within the per-entry cap, but their sum exceeds the 2048-byte total cap.
+        BuildCacheArchive.ExtractLimits limits = new BuildCacheArchive.ExtractLimits(100, 4096, 2048);
+        Path target = temp.resolve("out");
+        assertThrows(IOException.class, () -> archive.extract(archiveFile, target, limits));
     }
 
     private static void writeFile(Path path, String content) throws IOException {
