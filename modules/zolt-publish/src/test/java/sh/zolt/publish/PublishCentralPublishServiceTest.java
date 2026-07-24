@@ -1,6 +1,7 @@
 package sh.zolt.publish;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -20,12 +21,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** End-to-end: assemble a signed bundle from config, upload to a fixture Portal, and read status. */
+/** End-to-end: assemble a signed bundle from config, upload to a fixture Portal, and — only under --wait — poll status. */
 final class PublishCentralPublishServiceTest {
     private static final String PASSPHRASE = "zolt-service-passphrase";
 
@@ -33,7 +35,7 @@ final class PublishCentralPublishServiceTest {
     private Path tempDir;
 
     @Test
-    void assemblesSignsUploadsAndReportsDeploymentStatus() throws Exception {
+    void uploadWithoutWaitReturnsUploadedAndMakesNoStatusRequest() throws Exception {
         assumeTrue(gpgAvailable(), "gpg is not installed");
         Path gnupgHome = isolatedGnupgHome();
         assumeTrue(generateSigningKey(gnupgHome), "gpg could not generate a throwaway signing key");
@@ -47,15 +49,17 @@ final class PublishCentralPublishServiceTest {
         }
         AtomicReference<String> uploadAuth = new AtomicReference<>();
         AtomicReference<byte[]> uploadBody = new AtomicReference<>();
-        AtomicReference<String> statusQuery = new AtomicReference<>();
+        AtomicInteger statusRequests = new AtomicInteger();
         server.createContext("/api/v1/publisher/upload", exchange -> {
             uploadAuth.set(exchange.getRequestHeaders().getFirst("Authorization"));
             uploadBody.set(exchange.getRequestBody().readAllBytes());
             respond(exchange, 201, "deployment-42");
         });
+        // Central accepted the bundle but the status endpoint is broken. Without --wait it must never be hit,
+        // so a transient 500 can never turn a live deployment into a failure that provokes a duplicate retry.
         server.createContext("/api/v1/publisher/status", exchange -> {
-            statusQuery.set(exchange.getRequestURI().getQuery());
-            respond(exchange, 200, "{\"deploymentState\":\"PUBLISHING\"}");
+            statusRequests.incrementAndGet();
+            respond(exchange, 500, "{\"error\":\"transient\"}");
         });
         server.start();
         String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -77,9 +81,10 @@ final class PublishCentralPublishServiceTest {
 
             assertEquals("deployment-42", result.deploymentId());
             assertEquals(CentralPublishingType.AUTOMATIC, result.publishingType());
-            assertEquals("PUBLISHING", result.status().state());
+            assertEquals(PublishCentralPublishOutcome.UPLOADED, result.outcome());
+            assertTrue(result.status().isEmpty(), "a no-wait upload reports no polled status");
+            assertEquals(0, statusRequests.get(), "a no-wait upload must make zero status requests");
             assertEquals("Bearer dG9rZW4=", uploadAuth.get());
-            assertEquals("id=deployment-42", statusQuery.get());
             // The uploaded multipart body carries the signed bundle zip.
             assertTrue(new String(uploadBody.get(), StandardCharsets.UTF_8).contains("name=\"bundle\""));
             assertTrue(result.bundle().entries().stream().anyMatch(entry -> entry.endsWith(".asc")),
@@ -125,8 +130,48 @@ final class PublishCentralPublishServiceTest {
             PublishCentralUploadResult result = service.publish(root, plan, Optional.of(Duration.ofSeconds(300)));
 
             assertEquals("deployment-99", result.deploymentId());
-            assertEquals("PUBLISHED", result.status().state());
+            assertEquals("PUBLISHED", result.status().orElseThrow().state());
             assertEquals(PublishCentralPublishOutcome.PUBLISHED, result.outcome());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void waitSurfacesAStatusFailureThroughTheWaiter() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        assumeTrue(generateSigningKey(gnupgHome), "gpg could not generate a throwaway signing key");
+
+        HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        } catch (IOException exception) {
+            assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
+            return;
+        }
+        server.createContext("/api/v1/publisher/upload", exchange -> respond(exchange, 201, "deployment-500"));
+        server.createContext("/api/v1/publisher/status", exchange -> respond(exchange, 500, "upstream is down"));
+        server.start();
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+
+        try {
+            Path root = writeProject(baseUrl);
+            Function<String, String> environment = Map.of(
+                    "ZOLT_CENTRAL_TOKEN", "dG9rZW4=",
+                    "ZOLT_SIGNING_PASS", PASSPHRASE,
+                    "GNUPGHOME", gnupgHome.toString())::get;
+            PublishDryRunPlan plan = new PublishDryRunService(environment).plan(root, false);
+            PublishCentralPublishService service = new PublishCentralPublishService(
+                    new ZoltTomlParser(),
+                    new PublishSettingsReader(),
+                    new CentralPortalClient(NetworkTransport.direct()),
+                    environment);
+
+            // Under --wait the status failure is surfaced through the waiter's error path, not swallowed.
+            PublishException failure = assertThrows(PublishException.class,
+                    () -> service.publish(root, plan, Optional.of(Duration.ofSeconds(300))));
+            assertTrue(failure.getMessage().contains("HTTP 500"), failure.getMessage());
         } finally {
             server.stop(0);
         }

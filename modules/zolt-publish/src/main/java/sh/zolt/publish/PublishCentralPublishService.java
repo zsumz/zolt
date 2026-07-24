@@ -56,10 +56,12 @@ public final class PublishCentralPublishService {
     }
 
     /**
-     * Assembles the bundle, uploads it, and reports the deployment status. When {@code waitTimeout}
-     * is present the deployment is polled until it reaches a terminal state (published, failed, or —
-     * for user-managed deployments — validated) or the timeout elapses; when it is empty the status
-     * is checked once and returned as {@link PublishCentralPublishOutcome#UPLOADED}.
+     * Assembles the bundle, uploads it, and reports the outcome. When {@code waitTimeout} is present
+     * the deployment is polled until it reaches a terminal state (published, failed, or — for
+     * user-managed deployments — validated) or the timeout elapses. When it is empty the upload
+     * returns immediately with the deployment id, an empty status, and
+     * {@link PublishCentralPublishOutcome#UPLOADED}, making no status request — a transient status
+     * failure must never turn a live deployment into a command failure and provoke a duplicate retry.
      */
     public PublishCentralUploadResult publish(
             Path projectRoot, PublishDryRunPlan plan, Optional<Duration> waitTimeout) {
@@ -84,14 +86,16 @@ public final class PublishCentralPublishService {
         String deploymentId = portalClient.upload(
                 central.baseUrl(), bundle.bundlePath(), token, central.publishingType(), central.deploymentName());
         if (waitTimeout.isEmpty()) {
-            CentralDeploymentStatus status = portalClient.status(central.baseUrl(), deploymentId, token);
+            // No --wait: return as soon as the bundle is accepted, making no status request. Mirrors the
+            // workspace family path; a transient status 500/timeout must not fail an accepted deployment.
             return new PublishCentralUploadResult(
-                    bundle, deploymentId, central.publishingType(), status, PublishCentralPublishOutcome.UPLOADED);
+                    bundle, deploymentId, central.publishingType(), Optional.empty(),
+                    PublishCentralPublishOutcome.UPLOADED);
         }
         CentralDeploymentStatus status = waiter.awaitTerminal(
                 central.baseUrl(), deploymentId, token, central.publishingType(), waitTimeout.get());
         return new PublishCentralUploadResult(
-                bundle, deploymentId, central.publishingType(), status,
+                bundle, deploymentId, central.publishingType(), Optional.of(status),
                 PublishCentralPublishOutcome.ofTerminalState(status.state()));
     }
 
