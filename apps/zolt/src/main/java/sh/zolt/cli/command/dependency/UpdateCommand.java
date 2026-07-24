@@ -8,9 +8,9 @@ import sh.zolt.cli.command.CommandFrameworkServices;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
 import sh.zolt.cli.command.CommandResolveOutput;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.maven.metadata.MetadataCache;
 import sh.zolt.maven.metadata.RepositoryMetadataService;
-import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RepositoryAccessException;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.resolve.ResolveException;
@@ -174,8 +174,10 @@ public final class UpdateCommand implements Runnable {
     }
 
     private static UpdateEngine defaultEngine() {
+        // Route metadata discovery through the composition root so the corporate proxy and CA bundle
+        // from the user-global [network] config are honored, matching this command's resolve step.
         RepositoryMetadataService discovery = new RepositoryMetadataService(
-                new MavenRepositoryClient(), new MetadataCache(LocalArtifactCache.defaultRoot()));
+                CommandNetwork.repositoryClient(), new MetadataCache(LocalArtifactCache.defaultRoot()));
         return new UpdateEngine(discovery);
     }
 }

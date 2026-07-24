@@ -4,11 +4,11 @@ import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.command.CommandFailures;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
+import sh.zolt.cli.net.CommandNetwork;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.maven.metadata.MetadataCache;
 import sh.zolt.maven.metadata.RepositoryMetadataService;
-import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.maven.repository.RepositoryAccessException;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.update.OutdatedEngine;
@@ -112,8 +112,10 @@ public final class OutdatedCommand implements Runnable {
     }
 
     private static OutdatedEngine defaultEngine() {
+        // Route metadata discovery through the composition root so the corporate proxy and CA bundle
+        // from the user-global [network] config are honored, matching zolt resolve.
         RepositoryMetadataService discovery = new RepositoryMetadataService(
-                new MavenRepositoryClient(), new MetadataCache(LocalArtifactCache.defaultRoot()));
+                CommandNetwork.repositoryClient(), new MetadataCache(LocalArtifactCache.defaultRoot()));
         return new OutdatedEngine(discovery);
     }
 
