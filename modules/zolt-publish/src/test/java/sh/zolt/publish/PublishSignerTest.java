@@ -128,6 +128,63 @@ final class PublishSignerTest {
     }
 
     @Test
+    void preflightSucceedsWhenSigningIsFullyConfigured() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        generateSigningKey(gnupgHome);
+
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment(gnupgHome));
+
+        // A fully-configured signer preflights without throwing (it signs and discards a throwaway probe).
+        signer.preflight();
+    }
+
+    @Test
+    void preflightWithUnsetPassphraseEnvironmentFailsBeforeSigningAnyArtifact() {
+        // Signing enabled, passphraseEnv named, but the variable is unset: preflight must surface it
+        // (no gpg invocation is even needed — the passphrase gate trips first).
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS")),
+                name -> null);
+
+        PublishException exception = assertThrows(PublishException.class, signer::preflight);
+
+        assertTrue(exception.getMessage().contains("ZOLT_TEST_GPG_PASS"));
+        assertTrue(exception.getMessage().contains("Next:"));
+    }
+
+    @Test
+    void preflightWithMissingGpgBinaryFailsBeforeSigningAnyArtifact() {
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.empty(), Optional.empty()),
+                name -> null,
+                tempDir.resolve("no-such-gpg-binary").toString());
+
+        PublishException exception = assertThrows(PublishException.class, signer::preflight);
+
+        assertTrue(exception.getMessage().contains("Could not run gpg"));
+        assertTrue(exception.getMessage().contains("install GnuPG"));
+    }
+
+    @Test
+    void preflightWithoutPinnedKeyUnderSourceDateEpochFailsBeforeSigningAnyArtifact() {
+        // The reproducible-signing hazard must be caught in preflight, not mid-upload.
+        Map<String, String> environment = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "SOURCE_DATE_EPOCH", "1700000000");
+        PublishSigner signer = new PublishSigner(
+                new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS")),
+                environment::get);
+
+        PublishException exception = assertThrows(PublishException.class, signer::preflight);
+
+        assertTrue(exception.getMessage().contains("keyId"));
+        assertTrue(exception.getMessage().contains("SOURCE_DATE_EPOCH"));
+    }
+
+    @Test
     void reproducibleSigningWithoutPinnedKeyRaisesActionableError() throws IOException {
         Path artifact = Files.writeString(tempDir.resolve("artifact.jar"), "payload\n");
         // Signing enabled + SOURCE_DATE_EPOCH set + no keyId: the ambiguous-key determinism hazard.

@@ -63,6 +63,37 @@ public final class PublishSigner {
     }
 
     /**
+     * Verifies, before any artifact leaves the machine, that signing can actually run — a missing
+     * {@code gpg} binary, an unusable or (under {@code SOURCE_DATE_EPOCH}) unpinned key, or an unset
+     * passphrase surfaces here rather than mid-upload, where it would strand a member half-published in
+     * a repository. It signs a throwaway probe and discards the signature, reusing {@link #sign(Path)}
+     * verbatim so the exact gpg invocation — including the reproducible-signing path — is exercised, not
+     * re-implemented. Throws {@link PublishException} on any signing precondition failure.
+     */
+    public void preflight() {
+        Path probe;
+        try {
+            probe = Files.createTempFile("zolt-signing-preflight", ".probe");
+            Files.writeString(probe, "zolt signing preflight\n");
+        } catch (IOException exception) {
+            throw new PublishException(
+                    "Could not prepare a signing preflight probe. Next: check that the temp directory is writable.",
+                    exception);
+        }
+        try {
+            Files.deleteIfExists(sign(probe));
+        } catch (IOException exception) {
+            throw new PublishException("Could not clean up the signing preflight probe signature.", exception);
+        } finally {
+            try {
+                Files.deleteIfExists(probe);
+            } catch (IOException ignored) {
+                // A leftover probe in the temp directory is harmless.
+            }
+        }
+    }
+
+    /**
      * The frozen signing instant when {@code SOURCE_DATE_EPOCH} pins a valid epoch, otherwise empty
      * (wall-clock signing). Delegates to {@link SourceDateEpoch}, which rejects a blank, malformed, or
      * negative value with an actionable {@link PublishException} rather than silently disabling
