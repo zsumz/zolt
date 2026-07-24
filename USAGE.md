@@ -726,6 +726,36 @@ exact hosts and domain-suffix matches — `example.com` and `.example.com` both
 match `example.com` and `repo.example.com` — and `*` bypasses the proxy for
 every host.
 
+### Authenticated proxies
+
+If your proxy requires HTTP Basic authentication, embed the credentials in the
+proxy URL's userinfo. Zolt parses them and answers a `407 Proxy Authentication
+Required` challenge with a `Proxy-Authorization` header — they are never silently
+dropped:
+
+```sh
+export HTTPS_PROXY=http://alice:s3cr3t@proxy.corp.example:8080
+```
+
+Percent-encode any special characters in the password (`@` as `%40`, `:` as
+`%3A`, and so on). The conventional `http.proxyUser`/`http.proxyPassword` (and
+`https.*`) system properties are honored as a fallback when the proxy URL carries
+no userinfo. Credentials are scoped to the proxy endpoint they are declared with
+and are never offered to an origin server.
+
+HTTP-origin downloads through an authenticating proxy work unconditionally. For
+HTTPS origins the JDK opens a `CONNECT` tunnel and, by default, disables Basic
+authentication on tunnels via `jdk.http.auth.tunneling.disabledSchemes`. When —
+and only when — proxy credentials are configured, Zolt clears `Basic` from that
+property before it builds its first HTTP client, so tunneled Basic auth works.
+The JDK reads that property once per process; in the rare case another client was
+already initialized, Zolt prints a one-time warning rather than failing silently,
+and you can force the behavior yourself:
+
+```sh
+zolt resolve -Djdk.http.auth.tunneling.disabledSchemes=
+```
+
 ### Custom CA trust
 
 To trust a corporate TLS-interception root (or any private CA), point Zolt at a
