@@ -4,7 +4,6 @@ import sh.zolt.build.PackageException;
 import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandProgress;
 import sh.zolt.cli.command.CommandFailures;
-import sh.zolt.cli.command.CommandFrameworkServices;
 import sh.zolt.cli.command.CommandLockfiles;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
@@ -121,7 +120,9 @@ public final class PublishCommand implements Callable<Integer> {
                 new WorkspacePublishService(
                         CommandNetwork.repositoryClient(),
                         new CentralPortalClient(CommandNetwork.defaultTransport()),
-                        CommandFrameworkServices.packagePlanService()),
+                        // Fully qualified (not imported) to keep this command within its import budget while
+                        // still injecting the framework-aware package planner for real archive resolution.
+                        sh.zolt.cli.command.CommandFrameworkServices.packagePlanService()),
                 new CommandLockfiles());
     }
 
