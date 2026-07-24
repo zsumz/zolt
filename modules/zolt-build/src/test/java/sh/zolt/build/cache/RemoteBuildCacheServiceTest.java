@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,53 @@ final class RemoteBuildCacheServiceTest {
     void remoteMissRebuilds(@TempDir Path temp) {
         BuildCacheService consumer = consumer(temp, remoteClient(temp, Optional.empty(), false));
         assertFalse(consumer.restore(KEY, temp.resolve("out")).restored());
+    }
+
+    @Test
+    void remoteEntryWithMismatchedKeyIsAMissWithWarning(@TempDir Path temp) throws IOException {
+        seedRemoteFrom(temp, "x".getBytes(StandardCharsets.UTF_8),
+                meta -> meta.replaceAll("key=.*", "key=deadbeef"));
+        assertRejected(consumer(temp, remoteClient(temp, Optional.empty(), false)), temp, "key");
+    }
+
+    @Test
+    void remoteEntryWithMismatchedScopeIsAMissWithWarning(@TempDir Path temp) throws IOException {
+        seedRemoteFrom(temp, "x".getBytes(StandardCharsets.UTF_8),
+                meta -> meta.replace("scope=main", "scope=test"));
+        assertRejected(consumer(temp, remoteClient(temp, Optional.empty(), false)), temp, "scope");
+    }
+
+    @Test
+    void remoteEntryWithMismatchedSizeIsAMissWithWarning(@TempDir Path temp) throws IOException {
+        seedRemoteFrom(temp, "x".getBytes(StandardCharsets.UTF_8),
+                meta -> meta.replaceAll("sizeBytes=.*", "sizeBytes=999999"));
+        assertRejected(consumer(temp, remoteClient(temp, Optional.empty(), false)), temp, "size");
+    }
+
+    @Test
+    void remoteEntryWithMismatchedShaIsAMissWithWarning(@TempDir Path temp) throws IOException {
+        seedRemoteFrom(temp, "x".getBytes(StandardCharsets.UTF_8),
+                meta -> meta.replaceAll("sha256=.*", "sha256=" + "0".repeat(64)));
+        assertRejected(consumer(temp, remoteClient(temp, Optional.empty(), false)), temp, "sha256");
+    }
+
+    @Test
+    void oversizeRemoteArchiveIsAMissWithWarning(@TempDir Path temp) throws IOException {
+        seedRemoteFrom(temp, "restored".getBytes(StandardCharsets.UTF_8));
+        // A 1-byte cache cap drives a 1-byte archive download bound, so the archive stream aborts before it
+        // can be buffered or adopted. The sidecar (its own small bound) still downloads fine.
+        BuildCacheService consumer = BuildCacheService.create(
+                new BuildCacheSettings(true, temp.resolve("local-cache"), 1L),
+                Optional.of(remoteClient(temp, Optional.empty(), false)),
+                "test");
+
+        BuildCacheRestoreResult result = consumer.restore(KEY, temp.resolve("out"));
+
+        assertFalse(result.restored());
+        assertTrue(consumer.localCache().orElseThrow().archiveFileIfPresent(KEY).isEmpty());
+        List<String> warnings = consumer.drainWarnings();
+        assertEquals(1, warnings.size());
+        assertTrue(warnings.getFirst().contains("size limit"), warnings.getFirst());
     }
 
     @Test
@@ -134,14 +182,33 @@ final class RemoteBuildCacheServiceTest {
     }
 
     private void seedRemoteFrom(Path temp, byte[] classBytes) throws IOException {
+        seedRemoteFrom(temp, classBytes, UnaryOperator.identity());
+    }
+
+    private void seedRemoteFrom(Path temp, byte[] classBytes, UnaryOperator<String> metaTransform)
+            throws IOException {
         Path output = temp.resolve("origin/classes");
         writeClass(output, classBytes);
         LocalBuildCache origin = new LocalBuildCache(temp.resolve("origin-cache"), 0L);
         origin.store(KEY, output, "producer");
         server.store.put("/" + KEY.shardedPath(".zbc"),
                 Files.readAllBytes(origin.archiveFileIfPresent(KEY).orElseThrow()));
+        String meta = Files.readString(origin.metaFileIfPresent(KEY).orElseThrow(), StandardCharsets.UTF_8);
         server.store.put("/" + KEY.shardedPath(".zbc.meta"),
-                Files.readAllBytes(origin.metaFileIfPresent(KEY).orElseThrow()));
+                metaTransform.apply(meta).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void assertRejected(BuildCacheService consumer, Path temp, String mismatchKind) {
+        BuildCacheRestoreResult result = consumer.restore(KEY, temp.resolve("out"));
+        assertFalse(result.restored(), "a mismatched remote entry is a miss");
+        assertTrue(
+                consumer.localCache().orElseThrow().archiveFileIfPresent(KEY).isEmpty(),
+                "a rejected remote entry is never adopted into the local cache");
+        List<String> warnings = consumer.drainWarnings();
+        assertEquals(1, warnings.size());
+        assertTrue(
+                warnings.getFirst().contains(mismatchKind),
+                "warning names the mismatch kind '" + mismatchKind + "': " + warnings.getFirst());
     }
 
     private BuildCacheService consumer(Path temp, RemoteBuildCacheClient remote) {

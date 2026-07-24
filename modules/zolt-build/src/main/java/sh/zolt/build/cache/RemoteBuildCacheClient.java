@@ -1,11 +1,15 @@
 package sh.zolt.build.cache;
 
 import sh.zolt.maven.repository.RepositoryAuthentication;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
@@ -19,6 +23,14 @@ import java.util.Optional;
  */
 public final class RemoteBuildCacheClient {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+    private static final int BUFFER_SIZE = 8192;
+
+    /** Result of a bounded download: a served body, a miss (404/error), or a body that broke the size cap. */
+    enum DownloadOutcome {
+        HIT,
+        MISS,
+        TOO_LARGE
+    }
 
     private final HttpClient httpClient;
     private final URI baseUri;
@@ -51,20 +63,40 @@ public final class RemoteBuildCacheClient {
         return push;
     }
 
-    /** GET the entry at {@code path}; returns its bytes on 200, empty on 404 or any error (a miss). */
-    Optional<byte[]> get(String path) {
+    /**
+     * Stream the entry at {@code path} into {@code destination}, refusing a body larger than
+     * {@code maxBytes} so a hostile or broken remote can never make the client allocate or persist an
+     * unbounded blob. Reading stops and the connection is dropped the moment the cap is exceeded. The
+     * caller owns {@code destination} and must delete it on any non-{@link DownloadOutcome#HIT HIT}
+     * outcome; on a breach the file holds only the truncated prefix that was read before the abort.
+     */
+    DownloadOutcome download(String path, Path destination, long maxBytes) {
         HttpRequest request = authorized(HttpRequest.newBuilder(resolve(path)).timeout(timeout).GET()).build();
         try {
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() == 200) {
-                return Optional.of(response.body());
+            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() != 200) {
+                response.body().close();
+                return DownloadOutcome.MISS;
             }
-            return Optional.empty();
-        } catch (IOException | InterruptedException exception) {
-            if (exception instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+            try (InputStream in = response.body();
+                    OutputStream out = new BufferedOutputStream(Files.newOutputStream(destination))) {
+                byte[] buffer = new byte[BUFFER_SIZE];
+                long total = 0L;
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    total += read;
+                    if (total > maxBytes) {
+                        return DownloadOutcome.TOO_LARGE;
+                    }
+                    out.write(buffer, 0, read);
+                }
             }
-            return Optional.empty();
+            return DownloadOutcome.HIT;
+        } catch (IOException exception) {
+            return DownloadOutcome.MISS;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return DownloadOutcome.MISS;
         }
     }
 

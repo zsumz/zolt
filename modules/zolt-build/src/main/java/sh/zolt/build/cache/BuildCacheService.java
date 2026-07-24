@@ -1,10 +1,12 @@
 package sh.zolt.build.cache;
 
-import sh.zolt.build.BuildException;
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -29,25 +31,37 @@ import java.util.Set;
  * The remote is absent (never consulted) when the caller is offline.
  */
 public final class BuildCacheService {
+    /**
+     * Metadata sidecar cap: a handful of short {@code name=value} lines. Small and fixed so a hostile
+     * remote cannot make the client buffer an unbounded "sidecar".
+     */
+    private static final long MAX_METADATA_BYTES = 64L * 1024;
+
+    /** Archive download cap when no cache size cap is configured (an unlimited local cache). */
+    private static final long DEFAULT_ARCHIVE_LIMIT_BYTES = 512L * 1024 * 1024;
+
     private final boolean enabled;
     private final LocalBuildCache local;
     private final Optional<RemoteBuildCacheClient> remote;
     private final String zoltVersion;
+    private final long maxSizeBytes;
     private final Set<String> warnings = Collections.synchronizedSet(new LinkedHashSet<>());
 
     private BuildCacheService(
             boolean enabled,
             LocalBuildCache local,
             Optional<RemoteBuildCacheClient> remote,
-            String zoltVersion) {
+            String zoltVersion,
+            long maxSizeBytes) {
         this.enabled = enabled;
         this.local = local;
         this.remote = remote == null ? Optional.empty() : remote;
         this.zoltVersion = zoltVersion == null ? "" : zoltVersion;
+        this.maxSizeBytes = Math.max(0L, maxSizeBytes);
     }
 
     public static BuildCacheService disabled() {
-        return new BuildCacheService(false, null, Optional.empty(), "");
+        return new BuildCacheService(false, null, Optional.empty(), "", 0L);
     }
 
     public static BuildCacheService create(BuildCacheSettings settings, String zoltVersion) {
@@ -65,7 +79,8 @@ public final class BuildCacheService {
                 true,
                 new LocalBuildCache(settings.directory(), settings.maxSizeBytes()),
                 remote,
-                zoltVersion);
+                zoltVersion,
+                settings.maxSizeBytes());
     }
 
     public boolean enabled() {
@@ -128,25 +143,72 @@ public final class BuildCacheService {
         remote.filter(RemoteBuildCacheClient::push).ifPresent(client -> upload(key, client));
     }
 
+    /**
+     * Fetch a remote entry into the local store, but only after it is proven to be the requested entry.
+     * Both the sidecar and the archive stream to bounded temp files, and the sidecar's key, scope, declared
+     * size, and SHA-256 are all checked against the requested key and the delivered blob before anything is
+     * adopted. Any breach or mismatch is a miss that deletes the local copy and surfaces one warning; the
+     * subsequent restore then behaves exactly as a plain miss.
+     */
     private boolean fetchIntoLocal(BuildCacheKey key, RemoteBuildCacheClient client) throws IOException {
-        Optional<byte[]> blob = client.get(key.shardedPath(".zbc"));
-        Optional<byte[]> metaBytes = client.get(key.shardedPath(".zbc.meta"));
-        if (blob.isEmpty() || metaBytes.isEmpty()) {
-            return false;
-        }
-        Optional<BuildCacheEntryMetadata> metadata =
-                BuildCacheEntryMetadata.parse(new String(metaBytes.orElseThrow(), StandardCharsets.UTF_8));
-        if (metadata.isEmpty() || !sha256(blob.orElseThrow()).equals(metadata.orElseThrow().sha256())) {
-            return false;
-        }
-        Path temp = Files.createTempFile("zolt-build-cache-", ".zbc");
+        Path metaTemp = Files.createTempFile("zolt-build-cache-", ".zbc.meta");
+        Path blobTemp = Files.createTempFile("zolt-build-cache-", ".zbc");
         try {
-            Files.write(temp, blob.orElseThrow());
-            local.adopt(key, temp, metadata.orElseThrow());
+            RemoteBuildCacheClient.DownloadOutcome metaOutcome =
+                    client.download(key.shardedPath(".zbc.meta"), metaTemp, MAX_METADATA_BYTES);
+            if (metaOutcome == RemoteBuildCacheClient.DownloadOutcome.TOO_LARGE) {
+                warnOversize(client, "metadata sidecar", MAX_METADATA_BYTES);
+                return false;
+            }
+            if (metaOutcome != RemoteBuildCacheClient.DownloadOutcome.HIT) {
+                return false;
+            }
+            long archiveLimit = maxArchiveBytes();
+            RemoteBuildCacheClient.DownloadOutcome blobOutcome =
+                    client.download(key.shardedPath(".zbc"), blobTemp, archiveLimit);
+            if (blobOutcome == RemoteBuildCacheClient.DownloadOutcome.TOO_LARGE) {
+                warnOversize(client, "archive", archiveLimit);
+                return false;
+            }
+            if (blobOutcome != RemoteBuildCacheClient.DownloadOutcome.HIT) {
+                return false;
+            }
+            Optional<BuildCacheEntryMetadata> metadata =
+                    BuildCacheEntryMetadata.parse(Files.readString(metaTemp, StandardCharsets.UTF_8));
+            if (metadata.isEmpty()) {
+                warnRejected(client, key, "its metadata sidecar was unreadable");
+                return false;
+            }
+            long actualSize = Files.size(blobTemp);
+            String actualSha = sha256(blobTemp);
+            Optional<BuildCacheEntryMetadata.Mismatch> mismatch =
+                    metadata.orElseThrow().mismatchAgainst(key, actualSize, actualSha);
+            if (mismatch.isPresent()) {
+                warnRejected(client, key, "its " + mismatch.orElseThrow().label()
+                        + " did not match the requested entry");
+                return false;
+            }
+            local.adopt(key, blobTemp, metadata.orElseThrow());
             return true;
         } finally {
-            Files.deleteIfExists(temp);
+            Files.deleteIfExists(blobTemp);
+            Files.deleteIfExists(metaTemp);
         }
+    }
+
+    private long maxArchiveBytes() {
+        return maxSizeBytes > 0 ? maxSizeBytes : DEFAULT_ARCHIVE_LIMIT_BYTES;
+    }
+
+    private void warnOversize(RemoteBuildCacheClient client, String which, long limitBytes) {
+        warnings.add("Build cache " + which + " from " + client.baseUri() + " exceeded its " + limitBytes
+                + "-byte size limit and was treated as a miss. Next: check the remote for oversized or hostile"
+                + " entries, or raise the [buildCache] maxSizeMb cap.");
+    }
+
+    private void warnRejected(RemoteBuildCacheClient client, BuildCacheKey key, String reason) {
+        warnings.add("Build cache entry " + key.hash() + " from " + client.baseUri() + " was rejected because "
+                + reason + "; rebuilding instead. Next: ensure the remote serves only intact, matching entries.");
     }
 
     private void upload(BuildCacheKey key, RemoteBuildCacheClient client) {
@@ -168,12 +230,18 @@ public final class BuildCacheService {
         }
     }
 
-    private static String sha256(byte[] bytes) {
+    private static String sha256(Path file) throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(bytes));
+            byte[] buffer = new byte[8192];
+            try (InputStream in = new DigestInputStream(new BufferedInputStream(Files.newInputStream(file)), digest)) {
+                while (in.read(buffer) != -1) {
+                    // Digest is updated as a side effect of reading.
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {
-            throw new BuildException("Could not verify build cache blob because SHA-256 is unavailable.", exception);
+            throw new IOException("Could not verify build cache blob because SHA-256 is unavailable.", exception);
         }
     }
 }
