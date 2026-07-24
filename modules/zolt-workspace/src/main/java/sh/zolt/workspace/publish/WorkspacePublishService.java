@@ -56,6 +56,9 @@ public final class WorkspacePublishService {
     private final PublishCentralReadinessService centralReadinessService;
     private final PublishDryRunService dryRunService;
     private final PackageArtifactPathPlanner artifactPathPlanner = new PackageArtifactPathPlanner();
+    // SBOM generation needs the member's FULL closure (transitive components, hashes, edges); the POM
+    // projection above is direct-only and hash-less, so the per-member SBOM is projected separately.
+    private final WorkspaceMemberSbomLockProjection sbomProjection = new WorkspaceMemberSbomLockProjection();
     private final WorkspaceRepositoryUploader uploader;
     private final WorkspaceCentralPublisher centralPublisher;
 
@@ -170,9 +173,10 @@ public final class WorkspacePublishService {
         Path artifactPath = bom
                 ? null
                 : artifactPathPlanner.jarPath(member.directory(), config).toAbsolutePath().normalize();
+        // The POM plan below consumes the POM-shaped memberLock; the SBOM consumes the full closure.
         Optional<Path> sbomFile = bom
                 ? Optional.empty()
-                : sbomGenerator.generate(member.directory(), config, memberLock);
+                : sbomGenerator.generate(member.directory(), config, sbomProjection.project(config, aggregatedLock));
 
         // Reuse the single-project planner against the projected member lock: this is the sole source
         // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.
