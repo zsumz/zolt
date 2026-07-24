@@ -186,7 +186,8 @@ public final class WorkspacePublishService {
         // The POM plan below consumes the POM-shaped memberLock; the SBOM consumes the full closure.
         Optional<Path> sbomFile = bom
                 ? Optional.empty()
-                : sbomGenerator.generate(member.directory(), config, sbomProjection.project(config, aggregatedLock));
+                : sbomGenerator.generate(member.directory(), config,
+                        sbomProjection.project(config, aggregatedLock, workspace, policyResolver));
 
         // Reuse the single-project planner against the projected member lock: this is the sole source
         // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.

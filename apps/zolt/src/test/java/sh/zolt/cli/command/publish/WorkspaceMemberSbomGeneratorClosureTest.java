@@ -1,5 +1,6 @@
 package sh.zolt.cli.command.publish;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,10 +18,15 @@ import sh.zolt.sbom.SbomComponent;
 import sh.zolt.sbom.SbomDependency;
 import sh.zolt.sbom.SbomModel;
 import sh.zolt.sbom.SbomScopeSelection;
+import sh.zolt.workspace.WorkspaceConfig;
 import sh.zolt.workspace.publish.WorkspaceMemberSbomLockProjection;
+import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
+import sh.zolt.workspace.service.Workspace;
+import sh.zolt.workspace.service.WorkspaceMember;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,8 +48,12 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
             "1111111111111111111111111111111111111111111111111111111111111111";
     private static final String SHA_CORE =
             "2222222222222222222222222222222222222222222222222222222222222222";
+    private static final String SHA_GUAVA =
+            "3333333333333333333333333333333333333333333333333333333333333333";
     private static final String SHA_JUNIT =
             "4444444444444444444444444444444444444444444444444444444444444444";
+
+    private final WorkspaceMemberPolicyResolver resolver = new WorkspaceMemberPolicyResolver();
 
     @TempDir
     private Path memberDir;
@@ -52,22 +62,14 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
     void producesCompleteMemberCycloneDxThroughTheRealGeneratorSeam() throws IOException {
         // acme-http: one direct external (jackson-databind -> jackson-core), one workspace sibling
         // (acme-core), and a test-only dependency that must not surface in the published SBOM.
-        ProjectConfig config = ProjectConfigs.withWorkspaceDependencySections(
-                new ProjectMetadata("acme-http", "1.0.0", "com.acme", "21", Optional.empty()),
-                Map.of("central", ProjectConfig.MAVEN_CENTRAL),
-                Map.of(),
+        ProjectConfig config = memberConfig(
+                "acme-http",
                 Map.of("com.fasterxml.jackson.core:jackson-databind", "2.19.2"),
-                Set.of(),
                 Map.of("com.acme:acme-core", "acme-core"),
-                Map.of("org.junit.jupiter:junit-jupiter", "5.11.4"),
-                Set.of(),
-                Map.of(),
-                Map.of(),
-                Set.of(),
-                Map.of(),
-                Set.of(),
-                BuildSettings.defaults(),
-                NativeSettings.defaults());
+                Map.of("org.junit.jupiter:junit-jupiter", "5.11.4"));
+        Workspace workspace = workspaceOf(
+                member("acme-http", config),
+                member("acme-core", memberConfig("acme-core", Map.of(), Map.of(), Map.of())));
 
         ZoltLockfile aggregated = new ZoltLockfile(
                 1,
@@ -82,7 +84,8 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                                 DependencyScope.TEST, SHA_JUNIT, List.of())),
                 List.of());
 
-        ZoltLockfile sbomLock = new WorkspaceMemberSbomLockProjection().project(config, aggregated);
+        ZoltLockfile sbomLock =
+                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
 
         // The exact seam publish --workspace --sbom uses: project -> memberGenerator -> written file.
         Path sbomFile = new PublishSbomArtifactGenerator()
@@ -122,6 +125,98 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
         assertTrue(json.contains(siblingRef), siblingRef);
     }
 
+    @Test
+    void carriesTheSiblingOwnedExternalClosureThroughTheRealGeneratorSeam() throws IOException {
+        // The review's exact scenario, end-to-end through the generator seam:
+        //   acme-http -> acme-core (workspace dependency) -> guava (acme-core's external dependency).
+        // acme-core's aggregated lock entry carries no edges, so a plain BFS would stop at the sibling and
+        // drop guava; the workspace-aware projection must synthesize acme-core -> guava and carry guava in.
+        ProjectConfig config =
+                memberConfig("acme-http", Map.of(), Map.of("com.acme:acme-core", "acme-core"), Map.of());
+        ProjectConfig coreConfig =
+                memberConfig("acme-core", Map.of("com.google.guava:guava", "33.0.0-jre"), Map.of(), Map.of());
+        Workspace workspace = workspaceOf(member("acme-http", config), member("acme-core", coreConfig));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        externalOwnedBy("com.google.guava", "guava", "33.0.0-jre",
+                                DependencyScope.COMPILE, SHA_GUAVA, List.of(), List.of("acme-core"))),
+                List.of());
+
+        ZoltLockfile sbomLock =
+                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
+
+        Path sbomFile = new PublishSbomArtifactGenerator()
+                .memberGenerator(true, TOOL_VERSION)
+                .generate(memberDir, config, sbomLock)
+                .orElseThrow();
+        String json = Files.readString(sbomFile);
+
+        // The produced CycloneDX carries the sibling AND its external, guava's SHA-256 included.
+        assertTrue(json.contains("\"bomFormat\": \"CycloneDX\""), json);
+        assertTrue(json.contains("acme-core"), json);
+        assertTrue(json.contains("guava"), json);
+        assertTrue(json.contains(SHA_GUAVA), json);
+
+        SbomModel model = new LockSbomAssembler().assemble(
+                config, sbomLock, SbomScopeSelection.requiredOnly(), Optional.empty(), TOOL_VERSION);
+        String rootRef = model.metadataComponent().bomRef();
+        String coreRef = refByName(model, "acme-core");
+        String guavaRef = refByName(model, "guava");
+
+        // All THREE graph nodes are present: root acme-http (metadata component) + acme-core + guava.
+        assertEquals(2, model.components().size(), "acme-core + guava are the two library components");
+        // BOTH edges render: root -> core (the member's declared sibling) and core -> guava (synthesized).
+        assertTrue(dependsOn(model, rootRef).contains(coreRef), "root -> workspace sibling");
+        assertTrue(dependsOn(model, coreRef).contains(guavaRef), "workspace sibling -> its external");
+        // guava is the sibling's transitive, never a root-direct of acme-http.
+        assertFalse(dependsOn(model, rootRef).contains(guavaRef), "guava is not root-direct");
+        // The serialized file encodes exactly those bom-refs.
+        assertTrue(json.contains(coreRef), coreRef);
+        assertTrue(json.contains(guavaRef), guavaRef);
+    }
+
+    private static ProjectConfig memberConfig(
+            String name,
+            Map<String, String> dependencies,
+            Map<String, String> workspaceDependencies,
+            Map<String, String> testDependencies) {
+        return ProjectConfigs.withWorkspaceDependencySections(
+                new ProjectMetadata(name, "1.0.0", "com.acme", "21", Optional.empty()),
+                Map.of("central", ProjectConfig.MAVEN_CENTRAL),
+                Map.of(),
+                dependencies,
+                Set.of(),
+                workspaceDependencies,
+                testDependencies,
+                Set.of(),
+                Map.of(),
+                Map.of(),
+                Set.of(),
+                Map.of(),
+                Set.of(),
+                BuildSettings.defaults(),
+                NativeSettings.defaults());
+    }
+
+    private static WorkspaceMember member(String path, ProjectConfig config) {
+        return new WorkspaceMember(path, Path.of("/ws").resolve(path), config);
+    }
+
+    private static Workspace workspaceOf(WorkspaceMember... members) {
+        List<String> paths = new ArrayList<>();
+        for (WorkspaceMember member : members) {
+            paths.add(member.path());
+        }
+        return new Workspace(
+                Path.of("/ws"),
+                Path.of("/ws/zolt-workspace.toml"),
+                new WorkspaceConfig("acme", paths, List.of(), Map.of(), Map.of()),
+                List.of(members));
+    }
+
     private static String refByName(SbomModel model, String name) {
         return model.components().stream()
                 .filter(component -> component.name().equals(name))
@@ -157,6 +252,31 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 Optional.of(jarSha256),
                 Optional.empty(),
                 dependencies);
+    }
+
+    private static LockPackage externalOwnedBy(
+            String group,
+            String artifact,
+            String version,
+            DependencyScope scope,
+            String jarSha256,
+            List<String> dependencies,
+            List<String> members) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "maven-central",
+                scope,
+                false,
+                Optional.of(base + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of(jarSha256),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                members);
     }
 
     private static LockPackage workspacePackage(String group, String artifact, String version) {

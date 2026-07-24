@@ -13,6 +13,12 @@ import sh.zolt.project.NativeSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
 import sh.zolt.project.ProjectMetadata;
+import sh.zolt.workspace.WorkspaceConfig;
+import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
+import sh.zolt.workspace.service.Workspace;
+import sh.zolt.workspace.service.WorkspaceMember;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,16 +33,24 @@ final class WorkspaceMemberSbomLockProjectionTest {
             "2222222222222222222222222222222222222222222222222222222222222222";
     private static final String SHA_GUAVA =
             "3333333333333333333333333333333333333333333333333333333333333333";
+    private static final String SHA_LANG =
+            "5555555555555555555555555555555555555555555555555555555555555555";
 
     private final WorkspaceMemberSbomLockProjection projection = new WorkspaceMemberSbomLockProjection();
+    private final WorkspaceMemberPolicyResolver resolver = new WorkspaceMemberPolicyResolver();
 
     @Test
     void carriesTheFullClosureHashesAndEdgesWithMemberViewDirectness() {
         // acme-http declares jackson-databind directly, a workspace sibling acme-core, and a test-only dep.
-        ProjectConfig memberConfig = memberConfig(
+        ProjectConfig memberConfig = config(
+                "acme-http",
                 Map.of("com.fasterxml.jackson.core:jackson-databind", "2.19.2"),
                 Map.of("com.acme:acme-core", "acme-core"),
                 Map.of("org.junit.jupiter:junit-jupiter", "5.11.4"));
+        // The sibling declares nothing of its own — it contributes only itself and the root -> sibling edge.
+        Workspace workspace = workspaceOf(
+                member("acme-http", memberConfig),
+                member("acme-core", config("acme-core", Map.of(), Map.of(), Map.of())));
 
         // The aggregated lock: sibling + a direct external whose edge reaches a transitive external, plus a
         // guava that is direct for SOME OTHER member (OR'd direct) and a test-scope dep — neither reachable.
@@ -57,7 +71,7 @@ final class WorkspaceMemberSbomLockProjectionTest {
                                 DependencyScope.TEST, true, SHA_GUAVA, List.of())),
                 List.of());
 
-        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+        ZoltLockfile projected = projection.project(memberConfig, aggregated, workspace, resolver);
 
         Map<String, LockPackage> byCoordinate = index(projected);
         // Closure: the member's direct external AND its transitive, plus the sibling — nothing else.
@@ -92,8 +106,8 @@ final class WorkspaceMemberSbomLockProjectionTest {
     @Test
     void walksTheDeeperTransitiveChain() {
         // A -> B -> C: the member declares only A; B and C must both be pulled in as transitives.
-        ProjectConfig memberConfig = memberConfig(
-                Map.of("com.example:a", "1.0.0"), Map.of(), Map.of());
+        ProjectConfig memberConfig = config("acme-http", Map.of("com.example:a", "1.0.0"), Map.of(), Map.of());
+        Workspace workspace = workspaceOf(member("acme-http", memberConfig));
         ZoltLockfile aggregated = new ZoltLockfile(
                 1,
                 List.of(
@@ -105,7 +119,7 @@ final class WorkspaceMemberSbomLockProjectionTest {
                                 List.of())),
                 List.of());
 
-        Map<String, LockPackage> byCoordinate = index(projection.project(memberConfig, aggregated));
+        Map<String, LockPackage> byCoordinate = index(projection.project(memberConfig, aggregated, workspace, resolver));
 
         assertEquals(3, byCoordinate.size());
         assertTrue(byCoordinate.get("com.example:a").direct());
@@ -114,12 +128,126 @@ final class WorkspaceMemberSbomLockProjectionTest {
         assertEquals(Optional.of(SHA_GUAVA), byCoordinate.get("com.example:c").jarSha256());
     }
 
-    private static ProjectConfig memberConfig(
+    @Test
+    void carriesASiblingOwnedExternalAndItsEdgeIntoTheMemberClosure() {
+        // The review's exact scenario: acme-http -> acme-core (workspace) -> guava (acme-core's external).
+        // acme-core's lock entry carries no edges, so the projection must synthesize acme-core -> guava.
+        ProjectConfig memberConfig =
+                config("acme-http", Map.of(), Map.of("com.acme:acme-core", "acme-core"), Map.of());
+        Workspace workspace = workspaceOf(
+                member("acme-http", memberConfig),
+                member("acme-core", config(
+                        "acme-core", Map.of("com.google.guava:guava", "33.0.0-jre"), Map.of(), Map.of())));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        // guava is attributed to acme-core, direct=true (OR'd), and carries no edges of its own.
+                        externalWithMembers("com.google.guava", "guava", "33.0.0-jre",
+                                DependencyScope.COMPILE, true, SHA_GUAVA, List.of(), List.of("acme-core"))),
+                List.of());
+
+        ZoltLockfile projected = projection.project(memberConfig, aggregated, workspace, resolver);
+        Map<String, LockPackage> byCoordinate = index(projected);
+
+        // Both the sibling AND its external are present (guava is no longer dropped at the sibling).
+        assertEquals(2, projected.packages().size());
+        LockPackage core = byCoordinate.get("com.acme:acme-core");
+        LockPackage guava = byCoordinate.get("com.google.guava:guava");
+        assertTrue(core != null, "sibling acme-core present");
+        assertTrue(guava != null, "sibling-owned external guava present");
+        // guava's SHA-256 is carried through as-is (supply-chain evidence, never reconstructed).
+        assertEquals(Optional.of(SHA_GUAVA), guava.jarSha256());
+        // The synthetic edge acme-core -> guava lives on the sibling's projected dependencies list.
+        assertEquals(List.of("com.google.guava:guava:33.0.0-jre"), core.dependencies());
+        // Only the member's own declaration (acme-core) is root-direct; the sibling-owned external is NOT.
+        assertTrue(core.direct());
+        assertFalse(guava.direct());
+        // The sibling keeps its first-party workspace identity even with edges synthesized onto it.
+        assertEquals("workspace", core.source());
+        assertTrue(core.workspace().isPresent());
+    }
+
+    @Test
+    void resolvesATransitiveSiblingChainAndNeverMakesSiblingExternalsRootDirect() {
+        // http -> core(workspace) -> util(workspace) -> commons-lang(external): a siblings-of-siblings chain.
+        ProjectConfig memberConfig =
+                config("acme-http", Map.of(), Map.of("com.acme:acme-core", "acme-core"), Map.of());
+        Workspace workspace = workspaceOf(
+                member("acme-http", memberConfig),
+                member("acme-core", config(
+                        "acme-core", Map.of(), Map.of("com.acme:acme-util", "acme-util"), Map.of())),
+                member("acme-util", config(
+                        "acme-util", Map.of("org.apache.commons:commons-lang3", "3.14.0"), Map.of(), Map.of())));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        workspacePackage("com.acme", "acme-util", "1.0.0"),
+                        externalWithMembers("org.apache.commons", "commons-lang3", "3.14.0",
+                                DependencyScope.COMPILE, false, SHA_LANG, List.of(), List.of("acme-util"))),
+                List.of());
+
+        ZoltLockfile projected = projection.project(memberConfig, aggregated, workspace, resolver);
+        Map<String, LockPackage> byCoordinate = index(projected);
+
+        // All three graph nodes below the root resolve: both siblings and the deep external.
+        assertEquals(3, projected.packages().size());
+        LockPackage core = byCoordinate.get("com.acme:acme-core");
+        LockPackage util = byCoordinate.get("com.acme:acme-util");
+        LockPackage lang = byCoordinate.get("org.apache.commons:commons-lang3");
+        assertTrue(core != null && util != null && lang != null, "core, util, and commons-lang3 all present");
+        // Edges: core -> util (workspace sibling) and util -> commons-lang (deep sibling external).
+        assertEquals(List.of("com.acme:acme-util:1.0.0"), core.dependencies());
+        assertEquals(List.of("org.apache.commons:commons-lang3:3.14.0"), util.dependencies());
+        assertEquals(Optional.of(SHA_LANG), lang.jarSha256());
+        // Only the member's own direct (acme-core) is root-direct; the transitive sibling and its external
+        // are NOT — sibling-owned externals never become root-direct.
+        assertTrue(core.direct());
+        assertFalse(util.direct());
+        assertFalse(lang.direct());
+    }
+
+    @Test
+    void prefersTheVariantAttributedToTheSiblingWhenResolvingItsDirectExternal() {
+        // Forward-compatibility with workspace variant identity: two lock entries share the guava GA, and
+        // only one is attributed (via members) to acme-core. The synthetic edge must point at THAT entry.
+        ProjectConfig memberConfig =
+                config("acme-http", Map.of(), Map.of("com.acme:acme-core", "acme-core"), Map.of());
+        Workspace workspace = workspaceOf(
+                member("acme-http", memberConfig),
+                member("acme-core", config(
+                        "acme-core", Map.of("com.google.guava:guava", "33.0.0-jre"), Map.of(), Map.of())));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        workspacePackage("com.acme", "acme-core", "1.0.0"),
+                        // A guava variant owned by a DIFFERENT member — must not be the one acme-core links.
+                        externalWithMembers("com.google.guava", "guava", "33.0.0-android",
+                                DependencyScope.COMPILE, false, SHA_CORE, List.of(), List.of("other-member")),
+                        // The guava variant actually attributed to acme-core.
+                        externalWithMembers("com.google.guava", "guava", "33.0.0-jre",
+                                DependencyScope.COMPILE, false, SHA_GUAVA, List.of(), List.of("acme-core"))),
+                List.of());
+
+        Map<String, LockPackage> byCoordinate =
+                index(projection.project(memberConfig, aggregated, workspace, resolver));
+        LockPackage core = byCoordinate.get("com.acme:acme-core");
+        // The synthesized edge resolves to the acme-core-attributed variant (jre@SHA_GUAVA), not android.
+        assertEquals(List.of("com.google.guava:guava:33.0.0-jre"), core.dependencies());
+        assertEquals(Optional.of(SHA_GUAVA), byCoordinate.get("com.google.guava:guava").jarSha256());
+    }
+
+    private static ProjectConfig config(
+            String name,
             Map<String, String> dependencies,
             Map<String, String> workspaceDependencies,
             Map<String, String> testDependencies) {
         return ProjectConfigs.withWorkspaceDependencySections(
-                new ProjectMetadata("acme-http", "1.0.0", "com.acme", "21", Optional.empty()),
+                new ProjectMetadata(name, "1.0.0", "com.acme", "21", Optional.empty()),
                 Map.of("central", ProjectConfig.MAVEN_CENTRAL),
                 Map.of(),
                 dependencies,
@@ -134,6 +262,22 @@ final class WorkspaceMemberSbomLockProjectionTest {
                 Set.of(),
                 BuildSettings.defaults(),
                 NativeSettings.defaults());
+    }
+
+    private static WorkspaceMember member(String path, ProjectConfig config) {
+        return new WorkspaceMember(path, Path.of("/ws").resolve(path), config);
+    }
+
+    private static Workspace workspaceOf(WorkspaceMember... members) {
+        List<String> paths = new ArrayList<>();
+        for (WorkspaceMember member : members) {
+            paths.add(member.path());
+        }
+        return new Workspace(
+                Path.of("/ws"),
+                Path.of("/ws/zolt-workspace.toml"),
+                new WorkspaceConfig("acme", paths, List.of(), Map.of(), Map.of()),
+                List.of(members));
     }
 
     private static Map<String, LockPackage> index(ZoltLockfile lockfile) {
@@ -165,6 +309,32 @@ final class WorkspaceMemberSbomLockProjectionTest {
                 Optional.of(jarSha256),
                 Optional.empty(),
                 dependencies);
+    }
+
+    private static LockPackage externalWithMembers(
+            String group,
+            String artifact,
+            String version,
+            DependencyScope scope,
+            boolean direct,
+            String jarSha256,
+            List<String> dependencies,
+            List<String> members) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "maven-central",
+                scope,
+                direct,
+                Optional.of(base + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of(jarSha256),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                members);
     }
 
     private static LockPackage workspacePackage(String group, String artifact, String version) {
