@@ -3,6 +3,7 @@ package sh.zolt.workspace.publish;
 import sh.zolt.maven.repository.RepositoryAuthentication;
 import sh.zolt.project.RepositoryUrlPolicy;
 import sh.zolt.publish.PublishArtifactPlan;
+import sh.zolt.publish.PublishChecksum;
 import sh.zolt.publish.PublishDryRunPlan;
 import sh.zolt.publish.PublishException;
 import sh.zolt.publish.PublishRepositoryAuthentication;
@@ -15,10 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -36,9 +34,6 @@ import java.util.function.Function;
  * and nothing is uploaded.
  */
 final class WorkspacePublishStaging {
-    private static final List<Algorithm> ALGORITHMS = List.of(
-            new Algorithm("md5", "MD5"), new Algorithm("sha1", "SHA-1"), new Algorithm("sha256", "SHA-256"));
-
     private final Function<String, String> environment;
 
     WorkspacePublishStaging() {
@@ -79,7 +74,7 @@ final class WorkspacePublishStaging {
         for (Resolved entry : resolved) {
             try {
                 staged.add(stageMember(entry, stagingRoot));
-            } catch (IOException exception) {
+            } catch (IOException | PublishException exception) {
                 blockers.add(entry.member().coordinate() + ": could not stage its upload set — " + exception.getMessage());
             }
         }
@@ -165,21 +160,14 @@ final class WorkspacePublishStaging {
 
     private static void stageChecksums(Path source, String uploadPath, Path stagingRoot, List<StagedArtifact> out)
             throws IOException {
-        byte[] bytes = Files.readAllBytes(source);
-        for (Algorithm algorithm : ALGORITHMS) {
-            String path = uploadPath + "." + algorithm.extension();
+        // Streamed once through every algorithm (no full-file buffer) so a multi-MB primary is never
+        // read whole; the sha256 sidecar's value is the primary's staged-bytes digest reused downstream.
+        for (PublishChecksum.Sidecar sidecar : PublishChecksum.sidecars(source)) {
+            String path = uploadPath + "." + sidecar.extension();
             Path staged = stagingRoot.resolve(path);
             Files.createDirectories(staged.getParent());
-            Files.writeString(staged, digest(algorithm.jcaName(), bytes));
+            Files.writeString(staged, sidecar.value());
             out.add(new StagedArtifact(path, staged));
-        }
-    }
-
-    private static String digest(String algorithm, byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(algorithm + " is unavailable", exception);
         }
     }
 
@@ -203,8 +191,5 @@ final class WorkspacePublishStaging {
      * {@code members} is empty and nothing is uploaded.
      */
     record Preparation(List<StagedMember> members, List<String> blockers) {
-    }
-
-    private record Algorithm(String extension, String jcaName) {
     }
 }
