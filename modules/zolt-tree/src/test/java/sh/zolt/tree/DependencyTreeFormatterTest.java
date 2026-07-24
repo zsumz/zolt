@@ -35,6 +35,30 @@ final class DependencyTreeFormatterTest extends DependencyTreeTestSupport {
     }
 
     @Test
+    void resolvesVariantQualifiedEdgesToTheirOwnVersionsWithoutMislabeling() {
+        // app depends on two classified netty variants at DIFFERENT versions via variant-qualified edges.
+        // Each edge must resolve to its OWN variant, so the tree shows the correct distinct versions.
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(
+                        lockPackage("com.example", "app", "1.0.0", true, List.of(
+                                "io.netty:netty:4.1.90.Final:jar|linux-x86_64",
+                                "io.netty:netty:4.1.100.Final:jar|osx-aarch_64")),
+                        classified("io.netty", "netty", "4.1.90.Final", "linux-x86_64"),
+                        classified("io.netty", "netty", "4.1.100.Final", "osx-aarch_64")),
+                List.of());
+
+        String output = formatter.format(config(), lockfile);
+
+        assertEquals("""
+                com.example:demo:0.1.0
+                \\- com.example:app:1.0.0
+                   +- io.netty:netty:4.1.100.Final
+                   \\- io.netty:netty:4.1.90.Final
+                """, output);
+    }
+
+    @Test
     void marksPackagesWithSelectedConflictVersions() {
         ZoltLockfile lockfile = new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,

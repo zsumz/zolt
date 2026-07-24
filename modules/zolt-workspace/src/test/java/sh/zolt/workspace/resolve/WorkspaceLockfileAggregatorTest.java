@@ -313,6 +313,80 @@ final class WorkspaceLockfileAggregatorTest {
     }
 
     @Test
+    void keepsDifferentVersionsAcrossClassifiersWithoutFalseConflict() throws IOException {
+        // The netty scenario: apps/api resolves the linux jar at 4.1.90, apps/worker the osx jar at 4.1.100.
+        // Distinct classified artifacts mediate independently, so each keeps its OWN version and there is no
+        // GA-level conflict between 4.1.90 and 4.1.100 (they never actually compete).
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core", true)));
+        PackageId epoll = new PackageId("io.netty", "netty-transport-native-epoll");
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(
+                        new WorkspaceMemberResolveOutput(
+                                "apps/api",
+                                lockfile(List.of(classifiedExternalPackage(epoll, "4.1.90.Final", "linux-x86_64")), List.of(), List.of()),
+                                Set.of()),
+                        new WorkspaceMemberResolveOutput(
+                                "apps/worker",
+                                lockfile(List.of(classifiedExternalPackage(epoll, "4.1.100.Final", "osx-aarch_64")), List.of(), List.of()),
+                                Set.of())));
+
+        List<LockPackage> epollEntries = aggregated.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(epoll))
+                .toList();
+        assertEquals(2, epollEntries.size());
+        LockPackage linux = epollEntries.stream()
+                .filter(lockPackage -> lockPackage.jar().orElseThrow().endsWith("linux-x86_64.jar"))
+                .findFirst().orElseThrow();
+        assertEquals("4.1.90.Final", linux.version());
+        LockPackage osx = epollEntries.stream()
+                .filter(lockPackage -> lockPackage.jar().orElseThrow().endsWith("osx-aarch_64.jar"))
+                .findFirst().orElseThrow();
+        assertEquals("4.1.100.Final", osx.version());
+        assertEquals(List.of(), aggregated.conflicts());
+    }
+
+    @Test
+    void classifiedExternalAttachmentSurvivesWorkspaceShadowingOfThePlainJar() throws IOException {
+        // A member provides the plain com.acme:core jar; a transitive brings the com.acme:core:tests
+        // classified attachment. Shadowing must drop only the plain external the member actually replaces —
+        // the :tests attachment is a distinct artifact the member does not provide and must survive.
+        Workspace workspace = workspace(List.of(
+                new WorkspaceProjectEdge("apps/api", "modules/core", "compile", "com.acme:core")));
+        PackageId core = new PackageId("com.acme", "core");
+
+        ZoltLockfile aggregated = new WorkspaceLockfileAggregator().aggregate(
+                workspace,
+                List.of(new WorkspaceMemberResolveOutput(
+                        "apps/api",
+                        lockfile(
+                                List.of(
+                                        externalPackage(core, "2.8.7", false, List.of(), List.of()),
+                                        classifiedExternalPackage(core, "2.8.7", "tests")),
+                                List.of(),
+                                List.of()),
+                        Set.of())));
+
+        List<LockPackage> coreEntries = aggregated.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(core))
+                .toList();
+        assertEquals(2, coreEntries.size());
+        assertTrue(coreEntries.stream().anyMatch(lockPackage ->
+                lockPackage.workspace().isPresent() && lockPackage.version().equals("0.1.0")));
+        LockPackage testsAttachment = coreEntries.stream()
+                .filter(lockPackage -> lockPackage.jar().map(jar -> jar.endsWith("tests.jar")).orElse(false))
+                .findFirst().orElseThrow();
+        assertEquals("central", testsAttachment.source());
+        assertEquals("2.8.7", testsAttachment.version());
+        // The plain external com.acme:core (the artifact the member DOES provide) is shadowed away.
+        assertTrue(coreEntries.stream().noneMatch(lockPackage ->
+                lockPackage.workspace().isEmpty()
+                        && lockPackage.jar().map(jar -> jar.endsWith("/2.8.7.jar")).orElse(false)));
+    }
+
+    @Test
     void rejectsUnsupportedWorkspaceDependencyScope() throws IOException {
         Workspace workspace = workspace(List.of(
                 new WorkspaceProjectEdge("apps/api", "modules/core", "custom", "com.acme:core")));

@@ -9,6 +9,7 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.NativeSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
@@ -68,6 +69,35 @@ final class WorkspaceMemberPomLockProjectionTest {
         assertTrue(projected.packages().stream().allMatch(LockPackage::direct));
     }
 
+    @Test
+    void takesTheMembersOwnClassifierVariantVersionNotASiblingVariant() {
+        // acme-worker depends on the osx-classified netty (resolved 4.1.100); a sibling uses the linux
+        // variant at 4.1.90. The projection must take the member's OWN variant version, never the sibling's.
+        String coordinate = "io.netty:netty-transport-native-epoll";
+        ProjectConfig memberConfig = ProjectConfigs.withDirectDependencies(
+                new ProjectMetadata("acme-worker", "1.0.0", "com.acme", "21", Optional.empty()),
+                Map.of("central", ProjectConfig.MAVEN_CENTRAL),
+                Map.of(coordinate, "4.1.100.Final"),
+                Map.of(),
+                BuildSettings.defaults())
+                .withDependencyMetadata(Map.of(
+                        DependencyMetadata.key("dependencies", coordinate),
+                        new DependencyMetadata("dependencies", coordinate, null, null, false, null, false, false,
+                                List.of(), "osx-aarch_64", null)));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.90.Final", "linux-x86_64"),
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.100.Final", "osx-aarch_64")),
+                List.of());
+
+        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+
+        LockPackage netty = index(projected).get(coordinate);
+        assertEquals("4.1.100.Final", netty.version());
+    }
+
     private static Map<String, LockPackage> index(ZoltLockfile lockfile) {
         java.util.LinkedHashMap<String, LockPackage> byCoordinate = new java.util.LinkedHashMap<>();
         for (LockPackage lockPackage : lockfile.packages()) {
@@ -88,6 +118,30 @@ final class WorkspaceMemberPomLockProjectionTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                List.of());
+    }
+
+    private static LockPackage classifiedExternal(String group, String artifact, String version, String classifier) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                ProjectConfig.MAVEN_CENTRAL,
+                DependencyScope.COMPILE,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + classifier),
+                Optional.of("pom-sha"),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of());
     }
 

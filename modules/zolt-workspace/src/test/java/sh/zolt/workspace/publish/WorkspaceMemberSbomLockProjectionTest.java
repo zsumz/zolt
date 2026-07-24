@@ -9,6 +9,7 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.BuildSettings;
+import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.NativeSettings;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.project.ProjectConfigs;
@@ -239,6 +240,50 @@ final class WorkspaceMemberSbomLockProjectionTest {
         // The synthesized edge resolves to the acme-core-attributed variant (jre@SHA_GUAVA), not android.
         assertEquals(List.of("com.google.guava:guava:33.0.0-jre"), core.dependencies());
         assertEquals(Optional.of(SHA_GUAVA), byCoordinate.get("com.google.guava:guava").jarSha256());
+    }
+
+    @Test
+    void rootsAtTheMembersOwnClassifierVariantNotASiblingVariant() {
+        // The netty scenario in the SBOM: acme-worker depends on the osx netty (resolved 4.1.100). The
+        // aggregated lock also holds a sibling's linux netty at 4.1.90. The member's SBOM must root at, and
+        // contain, its OWN osx@4.1.100 variant — never the linux@4.1.90 one.
+        String coordinate = "io.netty:netty-transport-native-epoll";
+        ProjectConfig memberConfig = config("acme-worker", Map.of(coordinate, "4.1.100.Final"), Map.of(), Map.of())
+                .withDependencyMetadata(Map.of(
+                        DependencyMetadata.key("dependencies", coordinate),
+                        new DependencyMetadata("dependencies", coordinate, null, null, false, null, false, false,
+                                List.of(), "osx-aarch_64", null)));
+        Workspace workspace = workspaceOf(member("acme-worker", memberConfig));
+
+        ZoltLockfile aggregated = new ZoltLockfile(
+                1,
+                List.of(
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.90.Final", "linux-x86_64"),
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.100.Final", "osx-aarch_64")),
+                List.of());
+
+        ZoltLockfile projected = projection.project(memberConfig, aggregated, workspace, resolver);
+
+        assertEquals(1, projected.packages().size());
+        LockPackage netty = projected.packages().getFirst();
+        assertEquals("4.1.100.Final", netty.version());
+        assertTrue(netty.jar().orElseThrow().endsWith("osx-aarch_64.jar"));
+        assertTrue(netty.direct());
+    }
+
+    private static LockPackage classifiedExternal(String group, String artifact, String version, String classifier) {
+        String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
+        return new LockPackage(
+                new PackageId(group, artifact),
+                version,
+                "maven-central",
+                DependencyScope.COMPILE,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + classifier),
+                Optional.empty(),
+                List.of());
     }
 
     private static ProjectConfig config(

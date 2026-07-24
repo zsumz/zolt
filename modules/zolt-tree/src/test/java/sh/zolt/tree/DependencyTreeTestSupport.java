@@ -65,6 +65,26 @@ abstract class DependencyTreeTestSupport {
                 policies);
     }
 
+    /** A classified-jar lock entry whose variant identity is recovered from its jar filename. */
+    protected static LockPackage classified(
+            String groupId,
+            String artifactId,
+            String version,
+            String classifier) {
+        String base = groupId.replace('.', '/') + "/" + artifactId + "/" + version + "/" + artifactId + "-" + version;
+        return new LockPackage(
+                new PackageId(groupId, artifactId),
+                version,
+                "maven-central",
+                DependencyScope.COMPILE,
+                false,
+                Optional.of(base + "-" + classifier + ".jar"),
+                Optional.of(base + ".pom"),
+                Optional.of("jar-" + classifier),
+                Optional.of("pom-sha"),
+                List.of());
+    }
+
     protected static LockPolicyEffect policyEffect() {
         return new LockPolicyEffect(
                 "global-exclusion",
