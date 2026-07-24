@@ -68,6 +68,45 @@ final class LockfileAssemblerTest {
     }
 
     @Test
+    void qualifiesClassifiedEdgeTargetsAndLeavesPlainEdgesBare() {
+        PackageId netty = new PackageId("io.netty", "netty");
+        PackageNode nettyNode = new PackageNode(netty, "4.1.100.Final");
+        DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
+        // The app depends on netty's linux-x86_64 classified jar; the request carries the classifier.
+        DependencyRequest classifiedRequest = new DependencyRequest(
+                netty,
+                "4.1.100.Final",
+                DependencyScope.COMPILE,
+                RequestOrigin.TRANSITIVE,
+                Optional.of(ArtifactDescriptor.jar(
+                        new Coordinate("io.netty", "netty", Optional.of("4.1.100.Final")),
+                        Optional.of("linux-x86_64"))));
+        DependencyRequest plainRequest = new DependencyRequest(LIB, "2.0.0", DependencyScope.COMPILE, RequestOrigin.TRANSITIVE);
+        ResolutionGraph graph = new ResolutionGraph(
+                List.of(APP_NODE, LIB_NODE, nettyNode),
+                List.of(
+                        new ResolutionEdge(APP_NODE, nettyNode, classifiedRequest, DependencyTraversalDecision.include("t")),
+                        new ResolutionEdge(APP_NODE, LIB_NODE, plainRequest, DependencyTraversalDecision.include("t"))),
+                List.of());
+        FakeAssemblyContext context = new FakeAssemblyContext(configWithManagedDependencyAndAlias());
+
+        ZoltLockfile lockfile = assembler.assemble(
+                context,
+                graph,
+                new VersionSelectionResult(List.of(APP_NODE, LIB_NODE, nettyNode), List.of()),
+                List.of(appRequest));
+
+        LockPackage app = lockfile.packages().stream()
+                .filter(lockPackage -> lockPackage.packageId().equals(APP))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(List.of(
+                "com.example:lib:2.0.0",
+                "io.netty:netty:4.1.100.Final:jar|linux-x86_64"),
+                app.dependencies());
+    }
+
+    @Test
     void deduplicatesChildEdgesForNodeReachedAtMultipleScopes() {
         PackageId child = new PackageId("com.example", "child");
         PackageNode childNode = new PackageNode(child, "3.0.0");

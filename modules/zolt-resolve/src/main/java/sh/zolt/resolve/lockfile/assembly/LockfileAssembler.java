@@ -3,7 +3,9 @@ package sh.zolt.resolve.lockfile.assembly;
 import sh.zolt.cache.CachedArtifact;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockDependencyEdge;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.maven.ArtifactDescriptor;
@@ -281,10 +283,23 @@ public final class LockfileAssembler {
     private static List<String> dependenciesFor(PackageNode node, ResolutionGraph graph) {
         return graph.edges().stream()
                 .filter(edge -> edge.from().equals(node))
-                .map(edge -> edge.to().packageId() + ":" + edge.to().selectedVersion())
+                .map(LockfileAssembler::edgeRef)
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    /**
+     * The variant-aware ref for a graph edge's target. The target GAV comes from the resolved {@code to}
+     * node; the variant (classifier/extension) from the request's {@link ArtifactDescriptor} — the graph is
+     * where classifier identity is still known. A request with no descriptor (the common transitive case)
+     * is the default jar, so the ref stays the bare {@code g:a:v} and variant-free locks are byte-identical.
+     */
+    private static String edgeRef(sh.zolt.resolve.graph.ResolutionEdge edge) {
+        LockArtifactVariant variant = edge.request().artifactDescriptor()
+                .map(descriptor -> new LockArtifactVariant(descriptor.extension(), descriptor.classifier()))
+                .orElseGet(() -> new LockArtifactVariant("jar", Optional.empty()));
+        return LockDependencyEdge.encode(edge.to().packageId(), edge.to().selectedVersion(), variant);
     }
 
     private Map<PackageId, List<DependencyScope>> managedDirectScopes(ProjectConfig config) {
