@@ -120,6 +120,7 @@ public final class WorkspacePublishService {
         Workspace workspace = plan.workspace();
         WorkspaceSelection selection = plan.selection();
         ZoltLockfile aggregatedLock = plan.lockfile();
+        boolean resumeMode = selectionRequest.exact();
 
         List<WorkspaceMember> publishable = publishableMembers(workspace, selection);
         Set<String> publishSet = new LinkedHashSet<>();
@@ -129,14 +130,19 @@ public final class WorkspacePublishService {
 
         List<MemberPublication> publications = new ArrayList<>();
         List<String> blockers = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
         for (WorkspaceMember member : publishable) {
             MemberPlanResult result =
-                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, sbomGenerator);
+                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, resumeMode, sbomGenerator);
             publications.add(result.publication());
             blockers.addAll(result.blockers());
+            notes.addAll(result.notes());
         }
         if (!options.allowMixedVersions()) {
             blockers.addAll(uniformVersionBlockers(publishable));
+        }
+        if (options.central()) {
+            blockers.addAll(WorkspaceCentralSettingsDivergence.blockers(publications));
         }
 
         List<WorkspacePublishReport.Member> members = new ArrayList<>();
@@ -145,16 +151,18 @@ public final class WorkspacePublishService {
         }
 
         if (!blockers.isEmpty()) {
-            return new WorkspacePublishReport(members, blockers, false, Optional.empty(), Optional.empty());
+            return new WorkspacePublishReport(
+                    members, blockers, notes, false, Optional.empty(), Optional.empty(), Optional.empty());
         }
         if (options.central()) {
             // One atomic family bundle, one deployment id — never per-member Central deployments.
-            return centralPublisher.publish(workspace, publications, options);
+            return centralPublisher.publish(workspace, publications, options).withNotes(notes);
         }
         if (options.dryRun()) {
-            return new WorkspacePublishReport(members, blockers, false, Optional.empty(), Optional.empty());
+            return new WorkspacePublishReport(
+                    members, blockers, notes, false, Optional.empty(), Optional.empty(), Optional.empty());
         }
-        return uploader.upload(publications);
+        return uploader.upload(publications, options).withNotes(notes);
     }
 
     private MemberPlanResult buildMemberPlan(
@@ -163,6 +171,7 @@ public final class WorkspacePublishService {
             ZoltLockfile aggregatedLock,
             Set<String> publishSet,
             Options options,
+            boolean resumeMode,
             WorkspaceMemberSbomGenerator sbomGenerator) {
         ProjectConfig config = policyResolver.merge(workspace, member);
         boolean bom = config.packageSettings().mode() == PackageMode.BOM;
@@ -172,7 +181,8 @@ public final class WorkspacePublishService {
                 publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
         Path artifactPath = bom
                 ? null
-                : artifactPathPlanner.jarPath(member.directory(), config).toAbsolutePath().normalize();
+                : artifactPathPlanner.archivePath(member.directory(), config, archiveExtension(config))
+                        .toAbsolutePath().normalize();
         // The POM plan below consumes the POM-shaped memberLock; the SBOM consumes the full closure.
         Optional<Path> sbomFile = bom
                 ? Optional.empty()
@@ -190,10 +200,18 @@ public final class WorkspacePublishService {
                 sbomFile);
 
         List<String> extraBlockers = new ArrayList<>();
+        List<String> notes = new ArrayList<>();
         if (!bom) {
             for (String sibling : PublishInterMemberGuard.missingSiblings(memberLock, publishSet)) {
-                extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
-                        + "` is not in the publish set; publish the family together or add `--member` for it.");
+                if (resumeMode) {
+                    // A resumed set legitimately omits already-uploaded providers: the sibling is
+                    // satisfied elsewhere, so it is a note rather than a completeness blocker.
+                    notes.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
+                            + "` is absent from the resumed set; treating it as already published.");
+                } else {
+                    extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
+                            + "` is not in the publish set; publish the family together or add `--member` for it.");
+                }
             }
         }
         if (options.central()) {
@@ -215,7 +233,16 @@ public final class WorkspacePublishService {
                 finalPlan,
                 publish,
                 config.repositoryCredentials());
-        return new MemberPlanResult(publication, finalPlan.blockers());
+        return new MemberPlanResult(publication, finalPlan.blockers(), notes);
+    }
+
+    private static String archiveExtension(ProjectConfig config) {
+        // Match the single-project package planner's archive extension: a WAR/spring-boot-war member's
+        // real archive is a .war, so publishing must plan the .war rather than a non-existent .jar.
+        return switch (config.packageSettings().mode()) {
+            case WAR, SPRING_BOOT_WAR -> "war";
+            default -> "jar";
+        };
     }
 
     private List<WorkspaceMember> publishableMembers(Workspace workspace, WorkspaceSelection selection) {
@@ -268,13 +295,36 @@ public final class WorkspacePublishService {
         return config.project().group() + ":" + config.project().name() + ":" + config.project().version();
     }
 
-    private record MemberPlanResult(MemberPublication publication, List<String> blockers) {
+    private record MemberPlanResult(MemberPublication publication, List<String> blockers, List<String> notes) {
     }
 
     /** Publish options mirroring the CLI flags. */
-    public record Options(boolean dryRun, boolean central, boolean allowMixedVersions, Optional<Duration> waitTimeout) {
+    public record Options(
+            boolean dryRun, boolean central, boolean allowMixedVersions, boolean sbom, Optional<Duration> waitTimeout) {
         public Options {
             waitTimeout = waitTimeout == null ? Optional.empty() : waitTimeout;
+        }
+
+        public Options(boolean dryRun, boolean central, boolean allowMixedVersions, Optional<Duration> waitTimeout) {
+            this(dryRun, central, allowMixedVersions, false, waitTimeout);
+        }
+
+        /**
+         * Renders the exact resume command re-running only {@code members}, preserving the family-scoped
+         * semantic options so a resume never silently drops them. Members are selected exactly (no
+         * dependency expansion) through {@code --resume-members}. Render every family-scoped option from
+         * this record here so a newly added one is structurally carried into the resume command.
+         */
+        String resumeCommand(List<String> members) {
+            StringBuilder command = new StringBuilder("zolt publish --workspace");
+            command.append(" --resume-members ").append(String.join(",", members));
+            if (allowMixedVersions) {
+                command.append(" --allow-mixed-versions");
+            }
+            if (sbom) {
+                command.append(" --sbom");
+            }
+            return command.toString();
         }
     }
 }

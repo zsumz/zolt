@@ -1,9 +1,11 @@
 package sh.zolt.workspace.publish;
 
+import sh.zolt.publish.CentralDeploymentStatus;
 import sh.zolt.publish.CentralDeploymentWaiter;
 import sh.zolt.publish.CentralPortalClient;
 import sh.zolt.publish.PublishCentralBundle;
 import sh.zolt.publish.PublishCentralBundleResult;
+import sh.zolt.publish.PublishCentralPublishOutcome;
 import sh.zolt.publish.PublishCentralSettings;
 import sh.zolt.publish.PublishSettings;
 import sh.zolt.workspace.service.Workspace;
@@ -86,8 +88,19 @@ public final class WorkspaceCentralPublisher {
         }
         String deploymentId = portalClient.upload(
                 central.baseUrl(), bundle.bundlePath(), token, central.publishingType(), central.deploymentName());
-        options.waitTimeout().ifPresent(timeout ->
-                waiter.awaitTerminal(central.baseUrl(), deploymentId, token, central.publishingType(), timeout));
-        return new WorkspacePublishReport(reportMembers, List.of(), true, Optional.of(deploymentId), Optional.empty());
+        PublishCentralPublishOutcome outcome;
+        if (options.waitTimeout().isPresent()) {
+            // --wait polls to a terminal state: surface PUBLISHED vs a user-managed VALIDATED (awaiting
+            // a manual release) just like the single-project path, instead of discarding the status.
+            CentralDeploymentStatus status = waiter.awaitTerminal(
+                    central.baseUrl(), deploymentId, token, central.publishingType(),
+                    options.waitTimeout().orElseThrow());
+            outcome = PublishCentralPublishOutcome.ofTerminalState(status.state());
+        } else {
+            outcome = PublishCentralPublishOutcome.UPLOADED;
+        }
+        return new WorkspacePublishReport(
+                reportMembers, List.of(), List.of(), true, Optional.of(deploymentId), Optional.empty(),
+                Optional.of(outcome));
     }
 }

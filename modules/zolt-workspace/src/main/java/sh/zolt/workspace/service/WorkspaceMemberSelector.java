@@ -16,6 +16,14 @@ public final class WorkspaceMemberSelector {
         }
 
         List<String> selectedMembers = selectedMembers(workspace, request);
+        if (request.exact()) {
+            // Publish EXACTLY the requested members, never dependency-expanding: a resume must not
+            // re-include an already-uploaded provider (an immutable repository rejects the re-PUT).
+            Set<String> exact = new LinkedHashSet<>(selectedMembers);
+            return new WorkspaceSelection(
+                    ordered(workspace.buildOrder(), exact),
+                    ordered(workspace.buildOrder(), exact));
+        }
         Set<String> included = new LinkedHashSet<>();
         Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
         for (String member : selectedMembers) {

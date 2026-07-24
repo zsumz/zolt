@@ -31,6 +31,19 @@ final class WorkspaceMemberSelectorTest {
     }
 
     @Test
+    void exactSelectionNeverExpandsDependencies() {
+        Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
+
+        WorkspaceSelection selection = selector.select(
+                workspace,
+                WorkspaceSelectionRequest.exact(List.of("apps/api")));
+
+        // Resume mode: modules/core (a dependency of apps/api) is NOT dragged back in.
+        assertEquals(List.of("apps/api"), selection.includedMembers());
+        assertEquals(List.of("apps/api"), selection.selectedMembers());
+    }
+
+    @Test
     void selectsAllMembersWhenAllIsRequested() {
         Workspace workspace = workspace(List.of("apps/api", "modules/core", "apps/worker"), List.of());
 

@@ -30,6 +30,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class WorkspaceRepositoryUploaderTest {
     private static final String PASSPHRASE = "zolt-test-passphrase";
+    private static final WorkspacePublishService.Options OPTIONS =
+            new WorkspacePublishService.Options(false, false, false, false, Optional.empty());
     private final WorkspaceRepositoryUploader uploader = new WorkspaceRepositoryUploader();
 
     @Test
@@ -51,7 +53,7 @@ final class WorkspaceRepositoryUploaderTest {
         PublishDryRunPlan plan = jarPlan(
                 "com.acme:acme-core:1.0.0", repository.toUri().toString(), List.of(sources));
 
-        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-core", plan)));
+        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-core", plan)), OPTIONS);
 
         assertTrue(report.ok());
         assertTrue(report.uploaded());
@@ -94,7 +96,7 @@ final class WorkspaceRepositoryUploaderTest {
                 List.of(),
                 true);
 
-        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-bom", plan)));
+        WorkspacePublishReport report = uploader.upload(List.of(fileMember(memberRoot, "acme-bom", plan)), OPTIONS);
 
         assertTrue(report.ok());
         Path base = repository.resolve("com/acme/platform/acme-bom/1.0.0");
@@ -159,7 +161,7 @@ final class WorkspaceRepositoryUploaderTest {
             MemberPublication member = new MemberPublication(
                     core, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, credentials);
 
-            WorkspacePublishReport report = authenticated.upload(List.of(member));
+            WorkspacePublishReport report = authenticated.upload(List.of(member), OPTIONS);
 
             assertTrue(report.ok(), () -> "blockers: " + report.blockers());
             assertTrue(report.uploaded());
@@ -208,7 +210,7 @@ final class WorkspaceRepositoryUploaderTest {
         MemberPublication member = new MemberPublication(
                 memberRoot, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, Map.of());
 
-        WorkspacePublishReport report = signingUploader.upload(List.of(member));
+        WorkspacePublishReport report = signingUploader.upload(List.of(member), OPTIONS);
 
         assertTrue(report.ok(), () -> "blockers: " + report.blockers());
         Path base = repository.resolve("com/acme/acme-core/1.0.0");
@@ -218,6 +220,64 @@ final class WorkspaceRepositoryUploaderTest {
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.pom.asc")), "pom signature");
         // Checksums remain unconditional.
         assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.sha256")));
+    }
+
+    @Test
+    void failedMemberEmitsAnExactResumeCommandPreservingSemanticOptions(@TempDir Path tempDir) throws IOException {
+        // A repository that stores the provider's uploads but rejects the consumer's jar PUT (403,
+        // non-transient, so it fails immediately rather than retrying).
+        HttpServer server = startServer();
+        Set<String> stored = ConcurrentHashMap.newKeySet();
+        server.createContext("/maven2/", exchange -> {
+            String path = exchange.getRequestURI().getPath();
+            exchange.getRequestBody().readAllBytes();
+            if (path.endsWith("/acme-http-1.0.0.jar")) {
+                exchange.sendResponseHeaders(403, -1);
+            } else {
+                stored.add(path);
+                exchange.sendResponseHeaders(201, -1);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            String base = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/";
+            MemberPublication core = httpJarMember(tempDir, "acme-core", base);
+            MemberPublication http = httpJarMember(tempDir, "acme-http", base);
+            WorkspacePublishService.Options mixedSbom =
+                    new WorkspacePublishService.Options(false, false, true, true, Optional.empty());
+
+            WorkspacePublishReport report = uploader.upload(List.of(core, http), mixedSbom);
+
+            assertFalse(report.ok());
+            assertTrue(report.blockers().get(0).contains("com.acme:acme-http"), report.blockers()::toString);
+            // The provider fully uploaded; the resume names ONLY the failed member (exact, never
+            // dependency-expanded back to the already-uploaded provider) and preserves the options.
+            assertTrue(stored.contains("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar"), "provider uploaded");
+            assertFalse(stored.contains("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "consumer rejected");
+            assertEquals(
+                    Optional.of("zolt publish --workspace --resume-members acme-http --allow-mixed-versions --sbom"),
+                    report.resumeCommand());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static MemberPublication httpJarMember(Path root, String name, String base) throws IOException {
+        Path memberRoot = root.resolve(name);
+        Files.createDirectories(memberRoot.resolve("target/publish"));
+        Files.writeString(memberRoot.resolve("target/" + name + "-1.0.0.jar"), name + "-jar");
+        Files.writeString(memberRoot.resolve("target/publish/" + name + "-1.0.0.pom"), "<project/>");
+        PublishRepositorySettings repo = new PublishRepositorySettings("local", base, Optional.empty());
+        PublishSettings publish = new PublishSettings("local", "", List.of("main"), Map.of("local", repo));
+        return new MemberPublication(
+                memberRoot,
+                name,
+                "com.acme:" + name + ":1.0.0",
+                false,
+                jarPlan("com.acme:" + name + ":1.0.0", base, List.of()),
+                publish,
+                Map.of());
     }
 
     private static PublishDryRunPlan jarPlan(String coord, String repoUrl, List<PublishArtifactPlan> supplementals) {

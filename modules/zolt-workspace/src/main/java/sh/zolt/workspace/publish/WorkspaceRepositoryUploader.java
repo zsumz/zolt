@@ -55,7 +55,7 @@ public final class WorkspaceRepositoryUploader {
         this.environment = environment;
     }
 
-    WorkspacePublishReport upload(List<MemberPublication> members) {
+    WorkspacePublishReport upload(List<MemberPublication> members, WorkspacePublishService.Options options) {
         List<WorkspacePublishReport.Member> reportMembers = new ArrayList<>();
         for (MemberPublication member : members) {
             reportMembers.add(member.toReportMember());
@@ -65,11 +65,14 @@ public final class WorkspaceRepositoryUploader {
             try {
                 uploadMember(member);
             } catch (RuntimeException | IOException exception) {
+                // Resume the failed member and everything after it, selected EXACTLY so an
+                // already-uploaded provider is never re-included, and carrying the original semantic
+                // options so mixed-version and SBOM behaviour survive the retry.
                 List<String> remaining = new ArrayList<>();
                 for (MemberPublication pending : members.subList(index, members.size())) {
-                    remaining.add("--member " + pending.memberPath());
+                    remaining.add(pending.memberPath());
                 }
-                String resume = "zolt publish --workspace " + String.join(" ", remaining);
+                String resume = options.resumeCommand(remaining);
                 return new WorkspacePublishReport(
                         reportMembers,
                         List.of("upload failed for " + member.coordinate() + ": " + exception.getMessage()),

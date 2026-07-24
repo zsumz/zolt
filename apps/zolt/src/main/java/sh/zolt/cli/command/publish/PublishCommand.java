@@ -71,6 +71,10 @@ public final class PublishCommand implements Callable<Integer> {
     @Option(names = "--members", split = ",", description = "Select comma-separated workspace members by declared path.")
     private List<String> memberGroups = List.of();
 
+    @Option(names = "--resume-members", split = ",", hidden = true,
+            description = "Resume a plain-repository publish for these EXACT members (no dependency expansion).")
+    private List<String> resumeMembers = List.of();
+
     @Option(names = "--allow-mixed-versions",
             description = "Allow workspace family members to publish at divergent versions (default: require a uniform version).")
     private boolean allowMixedVersions;
@@ -219,13 +223,19 @@ public final class PublishCommand implements Callable<Integer> {
             CommandFailures.printUser(spec, "Publish context policy is not yet supported with --workspace.");
             return 1;
         }
+        if (!resumeMembers.isEmpty() && (all || !members.isEmpty() || !memberGroups.isEmpty())) {
+            CommandFailures.printUser(spec,
+                    "--resume-members selects members exactly; do not combine it with --all, --member, or --members.");
+            return 1;
+        }
         ProgressWriter progress = CommandProgress.human(spec);
         lockfiles.requireFreshWorkspaceLockfile(projectRoot, cacheRoot, offline, "zolt publish --workspace");
-        WorkspaceSelectionRequest selection = CommandWorkspaceSelections.from(all, members, memberGroups);
+        WorkspaceSelectionRequest selection =
+                CommandWorkspaceSelections.from(all, members, memberGroups, resumeMembers);
         Optional<Duration> waitTimeout =
                 wait ? Optional.of(Duration.ofSeconds(waitTimeoutSeconds)) : Optional.empty();
         WorkspacePublishService.Options options =
-                new WorkspacePublishService.Options(dryRun, central, allowMixedVersions, waitTimeout);
+                new WorkspacePublishService.Options(dryRun, central, allowMixedVersions, sbom, waitTimeout);
         progress.start(dryRun ? "Preparing workspace publish" : "Publishing workspace family");
         WorkspacePublishReport report = workspacePublishService.publish(
                 projectRoot, cacheRoot, selection, options, sbomGenerator.memberGenerator(sbom, ZoltCli.version()));
@@ -253,12 +263,28 @@ public final class PublishCommand implements Callable<Integer> {
                 output.append("- ").append(blocker).append('\n');
             }
         }
+        if (!report.notes().isEmpty()) {
+            output.append("Notes:\n");
+            for (String note : report.notes()) {
+                output.append("- ").append(note).append('\n');
+            }
+        }
         report.deploymentId().ifPresent(id -> output.append("Central deployment id: ").append(id).append('\n'));
+        report.centralOutcome().ifPresent(outcome -> output.append(centralStatusLine(outcome)));
         report.resumeCommand().ifPresent(command -> output.append("Resume with: ").append(command).append('\n'));
         if (report.ok()) {
             output.append(report.uploaded() ? "Uploaded the family.\n" : "No blockers. Nothing uploaded (dry run).\n");
         }
         return output.toString();
+    }
+
+    private static String centralStatusLine(PublishCentralPublishOutcome outcome) {
+        return switch (outcome) {
+            case UPLOADED -> "Central status: uploaded — validation continues on the Portal\n";
+            case PUBLISHED -> "Central status: published to Maven Central\n";
+            case AWAITING_MANUAL_RELEASE -> "Central status: validated — finish publishing in the Central Portal "
+                    + "(https://central.sonatype.com/publishing/deployments)\n";
+        };
     }
 
     private Optional<Path> generateSbom(Path projectRoot) {

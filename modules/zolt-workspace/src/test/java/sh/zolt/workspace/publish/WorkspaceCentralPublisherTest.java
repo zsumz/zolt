@@ -11,6 +11,7 @@ import sh.zolt.publish.CentralPollSleeper;
 import sh.zolt.publish.CentralPortalClient;
 import sh.zolt.publish.CentralPublishingType;
 import sh.zolt.publish.PublishArtifactPlan;
+import sh.zolt.publish.PublishCentralPublishOutcome;
 import sh.zolt.publish.PublishCentralSettings;
 import sh.zolt.publish.PublishDryRunPlan;
 import sh.zolt.publish.PublishSettings;
@@ -129,6 +130,70 @@ final class WorkspaceCentralPublisherTest {
             assertTrue(report.uploaded());
             assertEquals(Optional.of("dep-42"), report.deploymentId());
             assertEquals(3, statusCalls.get(), "polled PENDING -> VALIDATING -> PUBLISHED");
+            assertEquals(Optional.of(PublishCentralPublishOutcome.PUBLISHED), report.centralOutcome());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void waitOnAUserManagedDeploymentSurfacesValidatedAsAwaitingManualRelease(@TempDir Path tempDir)
+            throws IOException {
+        HttpServer server = startServer();
+        server.createContext("/api/v1/publisher/upload", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 201, "dep-77");
+        });
+        // A user-managed deployment stops at VALIDATED: it is terminal there, awaiting a manual release.
+        server.createContext("/api/v1/publisher/status", exchange -> respond(exchange, 200, statusJson("VALIDATED")));
+        server.start();
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            List<MemberPublication> family =
+                    family(tempDir, baseUrl, PublishSigningSettings.disabled(), CentralPublishingType.USER_MANAGED);
+            Workspace workspace = workspace(tempDir);
+            CentralPortalClient portalClient = new CentralPortalClient(NetworkTransport.direct());
+            WorkspaceCentralPublisher publisher = new WorkspaceCentralPublisher(
+                    portalClient,
+                    new CentralDeploymentWaiter(portalClient),
+                    name -> "ZOLT_PORTAL_TOKEN".equals(name) ? "portal-secret" : null);
+
+            WorkspacePublishReport report = publisher.publish(
+                    workspace,
+                    family,
+                    new WorkspacePublishService.Options(false, true, false, Optional.of(Duration.ofSeconds(60))));
+
+            assertTrue(report.uploaded());
+            assertEquals(Optional.of("dep-77"), report.deploymentId());
+            assertEquals(
+                    Optional.of(PublishCentralPublishOutcome.AWAITING_MANUAL_RELEASE), report.centralOutcome());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void withoutWaitTheFamilyCentralOutcomeIsUploaded(@TempDir Path tempDir) throws IOException {
+        HttpServer server = startServer();
+        server.createContext("/api/v1/publisher/upload", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 201, "dep-88");
+        });
+        server.start();
+        try {
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            List<MemberPublication> family = family(tempDir, baseUrl, PublishSigningSettings.disabled());
+            Workspace workspace = workspace(tempDir);
+            WorkspaceCentralPublisher publisher = new WorkspaceCentralPublisher(
+                    new CentralPortalClient(NetworkTransport.direct()),
+                    new CentralDeploymentWaiter(new CentralPortalClient(NetworkTransport.direct())),
+                    name -> "ZOLT_PORTAL_TOKEN".equals(name) ? "portal-secret" : null);
+
+            WorkspacePublishReport report = publisher.publish(
+                    workspace, family, new WorkspacePublishService.Options(false, true, false, Optional.empty()));
+
+            // No --wait: the terminal state was not polled, so the outcome is UPLOADED.
+            assertEquals(Optional.of(PublishCentralPublishOutcome.UPLOADED), report.centralOutcome());
         } finally {
             server.stop(0);
         }
@@ -136,8 +201,14 @@ final class WorkspaceCentralPublisherTest {
 
     private static List<MemberPublication> family(Path root, String baseUrl, PublishSigningSettings signing)
             throws IOException {
+        return family(root, baseUrl, signing, CentralPublishingType.AUTOMATIC);
+    }
+
+    private static List<MemberPublication> family(
+            Path root, String baseUrl, PublishSigningSettings signing, CentralPublishingType publishingType)
+            throws IOException {
         PublishCentralSettings central = new PublishCentralSettings(
-                true, Optional.of("ZOLT_PORTAL_TOKEN"), CentralPublishingType.AUTOMATIC, Optional.empty(), baseUrl);
+                true, Optional.of("ZOLT_PORTAL_TOKEN"), publishingType, Optional.empty(), baseUrl);
         PublishSettings publish = new PublishSettings("", "", List.of("main"), Map.of(), signing, central);
 
         List<MemberPublication> members = new ArrayList<>();
