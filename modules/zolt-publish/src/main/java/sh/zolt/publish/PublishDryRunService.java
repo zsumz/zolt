@@ -20,17 +20,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class PublishDryRunService {
-    private static final Set<PackageMode> SINGLE_FILE_PACKAGE_ARTIFACTS = Set.of(
-            PackageMode.THIN,
-            PackageMode.SPRING_BOOT,
-            PackageMode.WAR,
-            PackageMode.SPRING_BOOT_WAR);
-
     private final ZoltTomlParser projectParser;
     private final PublishSettingsReader publishSettingsReader;
     private final PackagePlanService packagePlanService;
@@ -198,7 +191,7 @@ public final class PublishDryRunService {
         }
 
         // Selector validation must raise before any lock read or package planning (order preserved).
-        String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
+        String artifactId = PublishArtifactSelector.select(publish.artifacts(), config.packageSettings().mode());
         ZoltLockfile lockfile = lockfileSupplier.get();
         Path artifactPath = artifactPathSupplier.get();
         Path evidencePath = PackageEvidenceManifestWriter.evidenceManifestPath(artifactPath);
@@ -296,37 +289,6 @@ public final class PublishDryRunService {
                 config.project().group(),
                 config.project().name(),
                 Optional.of(config.project().version()));
-    }
-
-    private static String selectedArtifactId(List<String> artifacts, PackageMode packageMode) {
-        if (artifacts.size() != 1) {
-            throw new PublishException("zolt publish --dry-run currently supports one package artifact selector. Use [publish].artifacts = [\"main\"] for the configured package output, or [\""
-                    + packageMode.configValue()
-                    + "\"] to select it explicitly.");
-        }
-        String artifact = artifacts.getFirst();
-        if (artifact.equals("main")) {
-            return artifact;
-        }
-        PackageMode selectedMode = PackageMode.fromConfigValue(artifact)
-                .orElseThrow(() -> new PublishException("Unsupported publish artifact selector `"
-                        + artifact
-                        + "`. Use `main` or one of the package mode selectors: thin, spring-boot, war, spring-boot-war."));
-        if (!SINGLE_FILE_PACKAGE_ARTIFACTS.contains(selectedMode)) {
-            throw new PublishException("Publish artifact selector `"
-                    + artifact
-                    + "` does not describe a single package archive yet. Use `main`, `thin`, `spring-boot`, `war`, or `spring-boot-war`.");
-        }
-        if (selectedMode != packageMode) {
-            throw new PublishException("Publish artifact selector `"
-                    + artifact
-                    + "` requires [package].mode = \""
-                    + artifact
-                    + "\", but the current package mode is `"
-                    + packageMode.configValue()
-                    + "`.");
-        }
-        return artifact;
     }
 
     private ZoltLockfile lockfile(Path root) {
