@@ -15,6 +15,7 @@ import sh.zolt.project.GeneratedSourceKind;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.OpenApiGenerationSettings;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.resolve.DependencyPolicyEffect;
 import sh.zolt.resolve.graph.PackageNode;
 import sh.zolt.resolve.ResolveException;
 import sh.zolt.resolve.graph.ResolutionGraph;
@@ -81,13 +82,7 @@ public final class LockfileAssembler {
                             managedVersionDetails,
                             context.config().dependencyMetadata()))
                     .toList();
-            List<LockConflict> conflicts = selection.conflicts().stream()
-                    .map(conflict -> new LockConflict(
-                            conflict.packageId(),
-                            conflict.selectedVersion(),
-                            conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
-                            conflict.selectionReason()))
-                    .toList();
+            List<LockConflict> conflicts = mergedConflicts(selection, execResolutions);
             return new ZoltLockfile(
                     ZoltLockfile.CURRENT_VERSION,
                     aliasFingerprint(context.config()),
@@ -95,10 +90,50 @@ public final class LockfileAssembler {
                     ProjectResolutionFingerprint.inputFingerprints(context.config()),
                     packages,
                     conflicts,
-                    LockfilePolicyPlanner.lockPolicyEffects(graph.policyEffects()));
+                    LockfilePolicyPlanner.lockPolicyEffects(mergedPolicyEffects(graph, execResolutions)));
         } finally {
             context.addLockfileAssemblyNanos(elapsedSince(started));
         }
+    }
+
+    /**
+     * Every recorded mediation across the main graph and every isolated exec-tool closure (Hole 1). Main
+     * conflicts keep an empty tool group; each tool's conflicts are tagged with the tool name so the audit
+     * trail names WHICH closure mediated (the same GA may mediate in the main graph and in several tools,
+     * each a distinct entry). Tools are visited in sorted name order for deterministic assembly.
+     */
+    private static List<LockConflict> mergedConflicts(
+            VersionSelectionResult selection, List<ExecToolResolution> execResolutions) {
+        List<LockConflict> conflicts = new ArrayList<>(lockConflicts(selection, Optional.empty()));
+        execResolutions.stream()
+                .sorted(Comparator.comparing(ExecToolResolution::toolName))
+                .forEach(tool -> conflicts.addAll(lockConflicts(tool.selection(), Optional.of(tool.toolName()))));
+        return conflicts;
+    }
+
+    private static List<LockConflict> lockConflicts(VersionSelectionResult selection, Optional<String> toolGroup) {
+        return selection.conflicts().stream()
+                .map(conflict -> new LockConflict(
+                        conflict.packageId(),
+                        conflict.selectedVersion(),
+                        conflict.requests().stream().map(DependencyRequest::requestedVersion).toList(),
+                        conflict.selectionReason(),
+                        toolGroup))
+                .toList();
+    }
+
+    /**
+     * Policy effects from the main graph plus every exec-tool closure, unioned. {@link
+     * LockfilePolicyPlanner#lockPolicyEffects} dedups and sorts, so an effect shared by the main graph and
+     * a tool collapses to one entry and the aggregate audit ordering stays deterministic.
+     */
+    private static List<DependencyPolicyEffect> mergedPolicyEffects(
+            ResolutionGraph graph, List<ExecToolResolution> execResolutions) {
+        List<DependencyPolicyEffect> effects = new ArrayList<>(graph.policyEffects());
+        for (ExecToolResolution tool : execResolutions) {
+            effects.addAll(tool.graph().policyEffects());
+        }
+        return effects;
     }
 
     private static Optional<String> aliasFingerprint(ProjectConfig config) {

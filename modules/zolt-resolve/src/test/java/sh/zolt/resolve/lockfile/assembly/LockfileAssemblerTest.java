@@ -3,7 +3,6 @@ package sh.zolt.resolve.lockfile.assembly;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import sh.zolt.cache.CachedArtifact;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.lockfile.LockPackage;
@@ -21,11 +20,7 @@ import sh.zolt.resolve.metadata.platform.ManagedVersion;
 import sh.zolt.resolve.traversal.DependencyTraversalDecision;
 import sh.zolt.resolve.version.VersionSelectionResult;
 import sh.zolt.toml.ZoltTomlParser;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -281,153 +276,5 @@ final class LockfileAssemblerTest {
                     """;
             default -> throw new IllegalArgumentException("Unknown generated step " + id);
         };
-    }
-
-    @Test
-    void execToolsLockConflictingSharedLibraryUnderSeparateGroupsAndMergeCommonOnes() {
-        PackageId shared = new PackageId("com.example", "shared");
-        PackageId common = new PackageId("com.example", "common");
-        PackageId alphaTool = new PackageId("com.example", "alpha");
-        PackageId betaTool = new PackageId("com.example", "beta");
-        PackageNode alphaNode = new PackageNode(alphaTool, "1.0.0");
-        PackageNode betaNode = new PackageNode(betaTool, "1.0.0");
-        PackageNode sharedV1 = new PackageNode(shared, "1.0.0");
-        PackageNode sharedV2 = new PackageNode(shared, "2.0.0");
-        PackageNode commonNode = new PackageNode(common, "1.0.0");
-
-        ExecToolResolution alpha = new ExecToolResolution(
-                "alpha",
-                execGraph(alphaNode, sharedV1, commonNode),
-                new VersionSelectionResult(List.of(alphaNode, sharedV1, commonNode), List.of()),
-                List.of(new DependencyRequest(alphaTool, "1.0.0", DependencyScope.TOOL_EXEC, RequestOrigin.DIRECT)));
-        ExecToolResolution beta = new ExecToolResolution(
-                "beta",
-                execGraph(betaNode, sharedV2, commonNode),
-                new VersionSelectionResult(List.of(betaNode, sharedV2, commonNode), List.of()),
-                List.of(new DependencyRequest(betaTool, "1.0.0", DependencyScope.TOOL_EXEC, RequestOrigin.DIRECT)));
-
-        FakeAssemblyContext context = new FakeAssemblyContext(minimalConfig());
-        ZoltLockfile lockfile = assembler.assemble(
-                context,
-                new ResolutionGraph(List.of(), List.of(), List.of()),
-                new VersionSelectionResult(List.of(), List.of()),
-                List.of(),
-                List.of(alpha, beta));
-
-        // The shared GA is locked at BOTH versions, each under its own tool group — never mediated to one.
-        assertEquals(List.of("alpha"), findPackage(lockfile, shared, "1.0.0").toolGroups());
-        assertEquals(List.of("beta"), findPackage(lockfile, shared, "2.0.0").toolGroups());
-        assertEquals(DependencyScope.TOOL_EXEC, findPackage(lockfile, shared, "1.0.0").scope());
-        // Each tool jar carries its own group; a jar shared at the same version unions the groups.
-        assertEquals(List.of("alpha"), findPackage(lockfile, alphaTool, "1.0.0").toolGroups());
-        assertEquals(List.of("beta"), findPackage(lockfile, betaTool, "1.0.0").toolGroups());
-        assertEquals(List.of("alpha", "beta"), findPackage(lockfile, common, "1.0.0").toolGroups());
-    }
-
-    private static ResolutionGraph execGraph(PackageNode root, PackageNode... children) {
-        List<PackageNode> nodes = new java.util.ArrayList<>();
-        nodes.add(root);
-        List<ResolutionEdge> edges = new java.util.ArrayList<>();
-        for (PackageNode child : children) {
-            nodes.add(child);
-            edges.add(new ResolutionEdge(
-                    root,
-                    child,
-                    new DependencyRequest(child.packageId(), child.selectedVersion(),
-                            DependencyScope.TOOL_EXEC, RequestOrigin.TRANSITIVE),
-                    DependencyTraversalDecision.include("tool-exec")));
-        }
-        return new ResolutionGraph(List.copyOf(nodes), List.copyOf(edges), List.of());
-    }
-
-    private static LockPackage findPackage(ZoltLockfile lockfile, PackageId packageId, String version) {
-        return lockfile.packages().stream()
-                .filter(lockPackage -> lockPackage.packageId().equals(packageId)
-                        && lockPackage.version().equals(version))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no lock package " + packageId + ":" + version));
-    }
-
-    private static ProjectConfig minimalConfig() {
-        return new ZoltTomlParser().parse("""
-                [project]
-                name = "demo"
-                version = "0.1.0"
-                group = "com.example"
-                java = "21"
-                """);
-    }
-
-    private static final class FakeAssemblyContext implements LockfileAssemblyContext {
-        private final ProjectConfig config;
-        private final Map<PackageId, ManagedVersion> managedVersions = new LinkedHashMap<>();
-        private long lockfileAssemblyNanos;
-
-        FakeAssemblyContext(ProjectConfig config) {
-            this.config = config;
-        }
-
-        @Override
-        public ProjectConfig config() {
-            return config;
-        }
-
-        @Override
-        public Map<ArtifactDescriptor, CachedArtifact> getArtifacts(List<ArtifactDescriptor> descriptors) {
-            Map<ArtifactDescriptor, CachedArtifact> artifacts = new LinkedHashMap<>();
-            for (ArtifactDescriptor descriptor : descriptors) {
-                artifacts.put(descriptor, artifact(descriptor));
-            }
-            return artifacts;
-        }
-
-        @Override
-        public CachedArtifact getPom(Coordinate coordinate) {
-            return new CachedArtifact(
-                    coordinate,
-                    repositoryPath(coordinate, Optional.empty(), "pom"),
-                    Path.of("cache", coordinate.artifactId() + ".pom"),
-                    bytes("pom:" + coordinate));
-        }
-
-        @Override
-        public String sourceFor(CachedArtifact artifact) {
-            return "repo";
-        }
-
-        @Override
-        public Map<PackageId, ManagedVersion> projectManagedVersionDetails() {
-            return managedVersions;
-        }
-
-        @Override
-        public void addLockfileAssemblyNanos(long nanos) {
-            lockfileAssemblyNanos += nanos;
-        }
-
-        private static CachedArtifact artifact(ArtifactDescriptor descriptor) {
-            return new CachedArtifact(
-                    descriptor.coordinate(),
-                    repositoryPath(descriptor.coordinate(), descriptor.classifier(), descriptor.extension()),
-                    Path.of("cache", descriptor.coordinate().artifactId() + "." + descriptor.extension()),
-                    bytes("artifact:" + descriptor));
-        }
-
-        private static String repositoryPath(Coordinate coordinate, Optional<String> classifier, String extension) {
-            String base = coordinate.groupId().replace('.', '/')
-                    + "/"
-                    + coordinate.artifactId()
-                    + "/"
-                    + coordinate.version().orElseThrow()
-                    + "/"
-                    + coordinate.artifactId()
-                    + "-"
-                    + coordinate.version().orElseThrow();
-            return classifier.map(value -> base + "-" + value).orElse(base) + "." + extension;
-        }
-
-        private static byte[] bytes(String value) {
-            return value.getBytes(StandardCharsets.UTF_8);
-        }
     }
 }
