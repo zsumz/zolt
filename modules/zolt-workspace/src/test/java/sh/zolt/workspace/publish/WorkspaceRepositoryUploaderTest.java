@@ -12,10 +12,13 @@ import sh.zolt.publish.PublishArtifactPlan;
 import sh.zolt.publish.PublishDryRunPlan;
 import sh.zolt.publish.PublishRepositorySettings;
 import sh.zolt.publish.PublishSettings;
+import sh.zolt.publish.PublishSigningSettings;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class WorkspaceRepositoryUploaderTest {
+    private static final String PASSPHRASE = "zolt-test-passphrase";
     private final WorkspaceRepositoryUploader uploader = new WorkspaceRepositoryUploader();
 
     @Test
@@ -175,6 +179,47 @@ final class WorkspaceRepositoryUploaderTest {
         }
     }
 
+    @Test
+    void signsEveryUploadedFileWhenSigningIsEnabled(@TempDir Path tempDir) throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome(tempDir);
+        generateSigningKey(gnupgHome);
+
+        Path memberRoot = tempDir.resolve("acme-core");
+        Files.createDirectories(memberRoot.resolve("target/publish"));
+        Files.writeString(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
+        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0-sources.jar"), "sources-bytes");
+        Files.writeString(memberRoot.resolve("target/publish/acme-core-1.0.0.pom"), "<project/>");
+        Path repository = tempDir.resolve("repo");
+        Files.createDirectories(repository);
+
+        PublishArtifactPlan sources = new PublishArtifactPlan(
+                "sources",
+                Optional.of("sources"),
+                Path.of("target/publish/acme-core-1.0.0-sources.jar"),
+                "sha256:sources",
+                "com/acme/acme-core/1.0.0/acme-core-1.0.0-sources.jar");
+        PublishDryRunPlan plan = jarPlan("com.acme:acme-core:1.0.0", repository.toUri().toString(), List.of(sources));
+        PublishSigningSettings signing =
+                new PublishSigningSettings(true, Optional.empty(), Optional.of("ZOLT_TEST_GPG_PASS"));
+        PublishSettings publish = new PublishSettings("local", "", List.of("main"), Map.of(), signing);
+        WorkspaceRepositoryUploader signingUploader =
+                new WorkspaceRepositoryUploader(new MavenRepositoryClient(), signingEnvironment(gnupgHome));
+        MemberPublication member = new MemberPublication(
+                memberRoot, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, Map.of());
+
+        WorkspacePublishReport report = signingUploader.upload(List.of(member));
+
+        assertTrue(report.ok(), () -> "blockers: " + report.blockers());
+        Path base = repository.resolve("com/acme/acme-core/1.0.0");
+        // Every artifact, supplemental, and the POM gets a detached signature.
+        assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.asc")), "jar signature");
+        assertTrue(Files.exists(base.resolve("acme-core-1.0.0-sources.jar.asc")), "sources signature");
+        assertTrue(Files.exists(base.resolve("acme-core-1.0.0.pom.asc")), "pom signature");
+        // Checksums remain unconditional.
+        assertTrue(Files.exists(base.resolve("acme-core-1.0.0.jar.sha256")));
+    }
+
     private static PublishDryRunPlan jarPlan(String coord, String repoUrl, List<PublishArtifactPlan> supplementals) {
         String[] parts = coord.split(":");
         String group = parts[0].replace('.', '/');
@@ -227,6 +272,57 @@ final class WorkspaceRepositoryUploaderTest {
         } catch (IOException exception) {
             assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
             throw new IllegalStateException(exception);
+        }
+    }
+
+    private static Function<String, String> signingEnvironment(Path gnupgHome) {
+        Map<String, String> values = Map.of(
+                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
+                "GNUPGHOME", gnupgHome.toString());
+        return values::get;
+    }
+
+    private static Path isolatedGnupgHome(Path tempDir) throws IOException {
+        Path gnupgHome = tempDir.resolve("gnupg");
+        Files.createDirectories(gnupgHome);
+        try {
+            Files.setPosixFilePermissions(gnupgHome, PosixFilePermissions.fromString("rwx------"));
+        } catch (UnsupportedOperationException ignored) {
+            // Non-POSIX filesystem; gpg still runs, just with a permissions warning.
+        }
+        return gnupgHome;
+    }
+
+    private static void generateSigningKey(Path gnupgHome) throws IOException, InterruptedException {
+        int exitCode = runGpg(gnupgHome, List.of(
+                "--batch",
+                "--pinentry-mode", "loopback",
+                "--passphrase", PASSPHRASE,
+                "--quick-generate-key", "Zolt Workspace Signing <signing@zolt.test>", "default", "sign", "0"));
+        assumeTrue(exitCode == 0, "gpg could not generate a throwaway signing key");
+    }
+
+    private static int runGpg(Path gnupgHome, List<String> arguments) throws IOException, InterruptedException {
+        List<String> command = new ArrayList<>();
+        command.add("gpg");
+        command.addAll(arguments);
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        builder.environment().put("GNUPGHOME", gnupgHome.toString());
+        Process process = builder.start();
+        process.getInputStream().readAllBytes();
+        return process.waitFor();
+    }
+
+    private static boolean gpgAvailable() {
+        try {
+            Process process = new ProcessBuilder("gpg", "--version").redirectErrorStream(true).start();
+            process.getInputStream().readAllBytes();
+            return process.waitFor() == 0;
+        } catch (IOException exception) {
+            return false;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 }
