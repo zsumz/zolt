@@ -1,6 +1,8 @@
 package sh.zolt.build.generatedsource;
 
 import sh.zolt.build.BuildException;
+import sh.zolt.project.ProjectPathException;
+import sh.zolt.project.ProjectPaths;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -30,9 +32,13 @@ final class ExecInputExpander {
         List<Path> matches = new ArrayList<>();
         try (Stream<Path> paths = Files.walk(projectRoot)) {
             paths.filter(Files::isRegularFile).forEach(path -> {
-                Path relative = projectRoot.relativize(path.normalize());
-                if (matcher.matches(relative)) {
-                    matches.add(path.normalize());
+                Path normalized = path.normalize();
+                if (matcher.matches(projectRoot.relativize(normalized))) {
+                    // Every concrete match is routed through the hardened real-path helper: a matched file
+                    // whose real path escapes the project (e.g. a project-local symlink to an external file)
+                    // is rejected rather than silently hashed into the fingerprint or fed to the tool.
+                    requireInsideProject(projectRoot, input, normalized);
+                    matches.add(normalized);
                 }
             });
         } catch (IOException exception) {
@@ -42,6 +48,17 @@ final class ExecInputExpander {
         }
         matches.sort(null);
         return List.copyOf(matches);
+    }
+
+    private static void requireInsideProject(Path projectRoot, String input, Path match) {
+        try {
+            ProjectPaths.requireExistingInsideProject(projectRoot, "inputs", input, match);
+        } catch (ProjectPathException exception) {
+            throw BuildException.actionable(
+                    "Exec input glob `" + input + "` matched " + match
+                            + ", which resolves through a symlink outside the project directory.",
+                    "Remove the escaping symlink or narrow the glob so every match stays under the project root.");
+        }
     }
 
     /**

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import sh.zolt.build.BuildException;
 import sh.zolt.classpath.ResolvedClasspathPackage;
@@ -301,6 +302,65 @@ final class ExecGeneratedSourceServiceTest {
         service(projectDir, generatingRunner(commands), java.util.Map.of())
                 .generateMain(projectDir, config, packages);
         assertEquals(3, commands.size());
+    }
+
+    @Test
+    void cwdThroughProjectLocalSymlinkEscapingProjectIsRejected() throws IOException {
+        writeProjectFiles(projectDir);
+        Path outside = Files.createTempDirectory(projectDir.getParent(), "outside-cwd-");
+        createSymlink(projectDir.resolve("web"), outside);
+
+        BuildException exception = assertThrows(BuildException.class, () -> service(projectDir, generatingRunner(new ArrayList<>()))
+                .generateMain(projectDir, config("cwd = \"web\""), packages(projectDir)));
+
+        assertTrue(exception.getMessage().contains("escapes the project directory"), exception.getMessage());
+    }
+
+    @Test
+    void globInputMatchingProjectLocalSymlinkEscapingProjectIsRejected() throws IOException {
+        writeProjectFiles(projectDir);
+        Path outside = Files.createTempFile(projectDir.getParent(), "outside-input-", ".txt");
+        Files.writeString(outside, "secret outside the project\n");
+        createSymlink(projectDir.resolve("src/main/jooq/leak.txt"), outside);
+
+        BuildException exception = assertThrows(BuildException.class, () -> service(projectDir, generatingRunner(new ArrayList<>()))
+                .generateMain(projectDir, globInputConfig(), packages(projectDir)));
+
+        assertTrue(exception.getMessage().contains("symlink"), exception.getMessage());
+    }
+
+    private static sh.zolt.project.ProjectConfig globInputConfig() {
+        return new sh.zolt.toml.ZoltTomlParser().parse("""
+                [project]
+                name = "demo"
+                version = "0.1.0"
+                group = "com.example"
+                java = "21"
+
+                [versions]
+                jooq = "3.19.15"
+
+                [generated.execTools.jooq]
+                runner = "jvm"
+                coordinates = [{ coordinate = "org.jooq:jooq-codegen", versionRef = "jooq" }]
+                mainClass = "com.example.GenerationTool"
+
+                [generated.main.model]
+                kind = "exec"
+                tool = "jooq"
+                inputs = ["src/main/jooq/**"]
+                output = "target/generated/sources/jooq"
+                produces = "java-sources"
+                """);
+    }
+
+    private static void createSymlink(Path link, Path target) throws IOException {
+        Files.createDirectories(link.getParent());
+        try {
+            Files.createSymbolicLink(link, target);
+        } catch (UnsupportedOperationException | IOException exception) {
+            assumeTrue(false, "symbolic links are unavailable: " + exception.getMessage());
+        }
     }
 
     private static String classpathFor(List<List<String>> commands, String mainClass) {

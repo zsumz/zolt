@@ -5,6 +5,8 @@ import sh.zolt.classpath.ResolvedClasspathPackage;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.project.GeneratedSourceStep;
 import sh.zolt.project.ProjectConfig;
+import sh.zolt.project.ProjectPathException;
+import sh.zolt.project.ProjectPaths;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,11 +63,17 @@ final class ExecStepWorkspace {
             return root;
         }
         String configured = step.exec().cwd().orElseThrow();
-        Path resolved = root.resolve(configured).normalize();
-        if (!resolved.startsWith(root)) {
+        Path resolved;
+        try {
+            // ProjectPaths.input is the hardened containment helper: it rejects lexical escapes and, when
+            // the path exists, resolves it through symlinks and requires the real path to stay under the
+            // real project root — so a project-local symlink cannot point the subprocess cwd outside.
+            resolved = ProjectPaths.input(root, subject + ".cwd", configured);
+        } catch (ProjectPathException exception) {
             throw BuildException.actionable(
-                    "Exec step " + subject + " cwd `" + configured + "` escapes the project directory.",
-                    "Use a project-relative directory under the project root.");
+                    "Exec step " + subject + " cwd `" + configured + "` escapes the project directory. "
+                            + exception.getMessage(),
+                    "Use a project-relative directory under the project root, with no symlink that leaves it.");
         }
         if (!Files.isDirectory(resolved)) {
             throw BuildException.actionable(
