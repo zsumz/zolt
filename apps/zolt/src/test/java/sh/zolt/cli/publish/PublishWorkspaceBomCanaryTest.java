@@ -128,6 +128,39 @@ final class PublishWorkspaceBomCanaryTest {
         }
     }
 
+    @Test
+    void publishedMemberSbomRendersTheWorkspaceSiblingClosureNotJustAFile(@TempDir Path tempDir) throws IOException {
+        RoundTripRepository repository = RoundTripRepository.start();
+        try {
+            Path family = tempDir.resolve("platform-family");
+            copyTree(exampleRoot().resolve("platform-family"), family);
+            String repositoryUrl = repository.baseUri();
+            for (String member : new String[] {"acme-core", "acme-http", "acme-bom"}) {
+                rewrite(family.resolve(member).resolve("zolt.toml"),
+                        "https://repo.example.test/releases", repositoryUrl);
+            }
+
+            Path cache = tempDir.resolve("cache");
+            run(family, cache, "resolve", "--workspace");
+            run(family, cache, "build", "--workspace");
+            run(family, cache, "package", "--workspace");
+            run(family, cache, "publish", "--workspace", "--sbom");
+
+            // Content, not just presence: acme-http depends on the workspace sibling acme-core, so its
+            // published SBOM must render acme-core as a first-party component AND carry the
+            // root -> sibling edge. (The POM-shaped projection that once fed this path could only emit
+            // declared directs with empty hashes/edges; the SBOM projection carries the real closure.)
+            String sbom = repository.text("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0-cyclonedx.json");
+            assertTrue(sbom.contains("\"bomFormat\": \"CycloneDX\""), sbom);
+            assertTrue(sbom.contains("\"name\": \"acme-core\""), sbom);
+            assertTrue(sbom.contains("pkg:maven/com.acme/acme-core@1.0.0"), sbom);
+            // The root acme-http depends on exactly the sibling — this dependsOn edge is that root -> sibling.
+            assertTrue(sbom.contains("\"dependsOn\": [\"pkg:maven/com.acme/acme-core@1.0.0"), sbom);
+        } finally {
+            repository.close();
+        }
+    }
+
     private static void run(Path projectRoot, Path cache, String... command) {
         CliTestSupport.CommandResult result = executeIn(projectRoot, cache, command);
         assertEquals(0, result.exitCode(), String.join(" ", command) + " failed:\n" + result.stdout() + result.stderr());
