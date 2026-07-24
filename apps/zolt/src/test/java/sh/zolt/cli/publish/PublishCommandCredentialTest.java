@@ -2,6 +2,7 @@ package sh.zolt.cli.publish;
 
 import static sh.zolt.cli.CliTestSupport.execute;
 import static sh.zolt.cli.CliTestSupport.memberConfig;
+import static sh.zolt.cli.CliTestSupport.sha256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -108,6 +109,85 @@ final class PublishCommandCredentialTest {
         assertEquals(1, result.exitCode());
         assertTrue(result.stderr().contains("Project version `0.1.0-SNAPSHOT` requires [publish].snapshotRepository"));
         assertEquals("", result.stdout());
+    }
+
+    @Test
+    void centralPublishIgnoresUnrelatedInternalRepositoryCredentialsWhilePlainPublishStillBlocks()
+            throws IOException {
+        Path projectDir = tempDir.resolve("central-vs-internal-nexus");
+        Files.createDirectories(projectDir.resolve("target"));
+        Path artifact = projectDir.resolve("target/nexus-central-0.1.0.jar");
+        Path sourcesArtifact = projectDir.resolve("target/nexus-central-0.1.0-sources.jar");
+        Path javadocArtifact = projectDir.resolve("target/nexus-central-0.1.0-javadoc.jar");
+        Files.writeString(artifact, "fake package\n");
+        Files.writeString(sourcesArtifact, "fake sources\n");
+        Files.writeString(javadocArtifact, "fake javadoc\n");
+        Files.writeString(projectDir.resolve("target/nexus-central-0.1.0.jar.zolt-package.json"), """
+                {
+                  "schema": "zolt.package-evidence.v1",
+                  "archive": "target/nexus-central-0.1.0.jar",
+                  "archiveSha256": "%s",
+                  "artifacts": [
+                    { "classifier": "main", "type": "thin", "path": "target/nexus-central-0.1.0.jar", "entries": 1, "sha256": "%s" },
+                    { "classifier": "sources", "type": "jar", "path": "target/nexus-central-0.1.0-sources.jar", "entries": 1, "sha256": "%s" },
+                    { "classifier": "javadoc", "type": "jar", "path": "target/nexus-central-0.1.0-javadoc.jar", "entries": 1, "sha256": "%s" }
+                  ]
+                }
+                """.formatted(sha256(artifact), sha256(artifact), sha256(sourcesArtifact), sha256(javadocArtifact)));
+        Files.writeString(projectDir.resolve("zolt.lock"), "version = 1\n");
+        // A configured internal Nexus whose credential env vars are UNSET, plus a Central deployment.
+        Files.writeString(projectDir.resolve("zolt.toml"), memberConfig("nexus-central") + """
+
+                [package.metadata]
+                name = "Nexus Central"
+                description = "A library published to both an internal Nexus and Central."
+                url = "https://example.com/nexus-central"
+                license = "Apache-2.0"
+                licenseUrl = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                scm = "https://github.com/example/nexus-central"
+                scmConnection = "scm:git:https://github.com/example/nexus-central.git"
+
+                [package.metadata.developer.ada]
+                name = "Ada Lovelace"
+                email = "ada@example.com"
+
+                [publish]
+                releaseRepository = "company-releases"
+
+                [publish.repositories.company-releases]
+                url = "https://repo.example.test/releases"
+                credentials = "publish-creds"
+
+                [repositoryCredentials.publish-creds]
+                usernameEnv = "ZOLT_TEST_UNSET_NEXUS_USERNAME"
+                passwordEnv = "ZOLT_TEST_UNSET_NEXUS_PASSWORD"
+
+                [publish.signing]
+                enabled = true
+                keyId = "ABCDEF0123456789"
+
+                [publish.central]
+                tokenEnv = "ZOLT_TEST_UNSET_CENTRAL_TOKEN"
+                """);
+
+        // --central routes to the Portal: the unrelated internal Nexus credentials never enter its
+        // validation, so Central readiness alone governs and the deployment is ready.
+        CommandResult central = execute("publish", "--dry-run", "--central", "--cwd", projectDir.toString());
+        assertEquals(0, central.exitCode(), central.stdout() + central.stderr());
+        assertTrue(central.stdout().contains("Central status: ready"), central.stdout());
+        assertFalse(central.stdout().contains("ZOLT_TEST_UNSET_NEXUS_USERNAME"), central.stdout());
+        assertFalse(central.stdout().contains("missing credential environment variables"), central.stdout());
+
+        // The plain path targets the internal Nexus, so its missing credentials still block publishing.
+        CommandResult plain = execute("publish", "--dry-run", "--cwd", projectDir.toString());
+        assertEquals(1, plain.exitCode());
+        assertTrue(plain.stdout().contains("Target repository: company-releases"), plain.stdout());
+        assertTrue(plain.stdout().contains("Status: blocked"), plain.stdout());
+        assertTrue(
+                plain.stdout().contains(
+                        "missing credential environment variables ZOLT_TEST_UNSET_NEXUS_USERNAME,"
+                                + " ZOLT_TEST_UNSET_NEXUS_PASSWORD"),
+                plain.stdout());
     }
 
     private static void writeProjectConfig(Path projectDir) throws IOException {

@@ -158,7 +158,11 @@ public final class PublishDryRunService {
                 : publish.releaseRepository();
         List<String> blockers = new ArrayList<>();
         PublishRepositorySettings repository = null;
-        if (requireRepository || !repositoryId.isBlank()) {
+        // A Central publish (requireRepository == false) routes to the Portal, so it must NOT resolve or
+        // apply the credential blockers of a configured internal release/snapshot repository: an
+        // unrelated internal Nexus with unset credential env vars is irrelevant to Central and would
+        // otherwise block it. Internal-repository validation belongs to the plain path only.
+        if (requireRepository) {
             if (repositoryId.isBlank()) {
                 throw new PublishException("Project version `"
                         + config.project().version()
