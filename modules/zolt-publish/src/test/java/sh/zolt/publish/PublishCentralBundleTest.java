@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +85,38 @@ final class PublishCentralBundleTest {
         }
     }
 
+    @Test
+    void signedBundleIsByteIdenticalUnderSourceDateEpoch() throws Exception {
+        assumeTrue(gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = isolatedGnupgHome();
+        assumeTrue(generateSigningKey(gnupgHome), "gpg could not generate a throwaway signing key");
+        String keyId = signingKeyId(gnupgHome);
+        long epoch = Instant.now().getEpochSecond();
+
+        Path root = writeProject();
+        PublishDryRunPlan plan = plan();
+        Function<String, String> environment = Map.of(
+                "ZOLT_BUNDLE_PASS", PASSPHRASE,
+                "GNUPGHOME", gnupgHome.toString(),
+                "SOURCE_DATE_EPOCH", Long.toString(epoch))::get;
+        PublishSigningSettings signing =
+                new PublishSigningSettings(true, Optional.of(keyId), Optional.of("ZOLT_BUNDLE_PASS"));
+
+        PublishCentralBundleResult firstResult = new PublishCentralBundle(signing, environment).assemble(root, plan);
+        byte[] first = Files.readAllBytes(firstResult.bundlePath());
+        assertTrue(
+                firstResult.entries().stream().anyMatch(entry -> entry.endsWith(".asc")),
+                "the signed bundle should contain .asc signatures");
+        Thread.sleep(1100); // advance the wall clock so a non-frozen signing time WOULD differ
+        byte[] second = Files.readAllBytes(
+                new PublishCentralBundle(signing, environment).assemble(root, plan).bundlePath());
+
+        assertArrayEquals(
+                first,
+                second,
+                "a signed Central bundle must be byte-for-byte reproducible under SOURCE_DATE_EPOCH");
+    }
+
     private Path writeProject() throws IOException {
         Path root = tempDir.resolve("project");
         Files.createDirectories(root.resolve("target/publish"));
@@ -141,6 +174,25 @@ final class PublishCentralBundleTest {
         Process process = builder.start();
         process.getInputStream().readAllBytes();
         return process.waitFor() == 0;
+    }
+
+    /** Reads the throwaway key's fingerprint so the test can pin {@code keyId} for reproducible signing. */
+    private String signingKeyId(Path gnupgHome) throws IOException, InterruptedException {
+        ProcessBuilder builder =
+                new ProcessBuilder("gpg", "--list-secret-keys", "--with-colons").redirectErrorStream(true);
+        builder.environment().put("GNUPGHOME", gnupgHome.toString());
+        Process process = builder.start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        process.waitFor();
+        for (String line : output.split("\n")) {
+            if (line.startsWith("fpr:")) {
+                String[] fields = line.split(":");
+                if (fields.length > 9 && !fields[9].isBlank()) {
+                    return fields[9];
+                }
+            }
+        }
+        throw new IllegalStateException("Could not read a signing key fingerprint:\n" + output);
     }
 
     private static boolean gpgAvailable() {
