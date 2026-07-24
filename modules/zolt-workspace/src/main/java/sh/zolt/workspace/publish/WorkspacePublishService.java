@@ -1,6 +1,6 @@
 package sh.zolt.workspace.publish;
 
-import sh.zolt.build.packaging.PackageArtifactPathPlanner;
+import sh.zolt.build.packageplan.PackagePlanService;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.maven.repository.MavenRepositoryClient;
 import sh.zolt.project.PackageMode;
@@ -55,7 +55,11 @@ public final class WorkspacePublishService {
     private final PublishSettingsReader publishSettingsReader;
     private final PublishCentralReadinessService centralReadinessService;
     private final PublishDryRunService dryRunService;
-    private final PackageArtifactPathPlanner artifactPathPlanner = new PackageArtifactPathPlanner();
+    // Framework-aware archive resolution: the composition root injects one carrying the framework
+    // package-plan rules (Quarkus fast-jar, WAR, and any future mode), so a member's real primary
+    // artifact — a Quarkus `quarkus-app/quarkus-run.jar`, not a synthesized `<name>-<version>.jar` — is
+    // planned exactly as single-project publishing plans it, never re-deriving package-mode logic here.
+    private final PackagePlanService packagePlanService;
     // SBOM generation needs the member's FULL closure (transitive components, hashes, edges); the POM
     // projection above is direct-only and hash-less, so the per-member SBOM is projected separately.
     private final WorkspaceMemberSbomLockProjection sbomProjection = new WorkspaceMemberSbomLockProjection();
@@ -63,15 +67,25 @@ public final class WorkspacePublishService {
     private final WorkspaceCentralPublisher centralPublisher;
 
     public WorkspacePublishService() {
-        this(new MavenRepositoryClient(), new CentralPortalClient());
+        this(new MavenRepositoryClient(), new CentralPortalClient(), new PackagePlanService());
+    }
+
+    public WorkspacePublishService(MavenRepositoryClient repositoryClient, CentralPortalClient portalClient) {
+        this(repositoryClient, portalClient, new PackagePlanService());
     }
 
     /**
      * Composition-root constructor: the plain-repository uploader and the Central Portal client are
      * built from the CLI-configured {@link MavenRepositoryClient} / {@link CentralPortalClient} so
      * workspace uploads honour the same proxy, CA trust, and retry policy as single-project publishing.
+     * {@code packagePlanService} carries the framework package-plan rules so each member's real primary
+     * artifact is planned framework-aware (a Quarkus fast-jar's runner jar, a WAR's archive) rather than
+     * synthesized as {@code <name>-<version>.jar}; the no-rules default suffices for plain jar members.
      */
-    public WorkspacePublishService(MavenRepositoryClient repositoryClient, CentralPortalClient portalClient) {
+    public WorkspacePublishService(
+            MavenRepositoryClient repositoryClient,
+            CentralPortalClient portalClient,
+            PackagePlanService packagePlanService) {
         this(
                 new WorkspaceBuildService(),
                 new WorkspaceMemberPolicyResolver(),
@@ -81,7 +95,8 @@ public final class WorkspacePublishService {
                 new PublishCentralReadinessService(),
                 new PublishDryRunService(),
                 new WorkspaceRepositoryUploader(repositoryClient),
-                new WorkspaceCentralPublisher(portalClient));
+                new WorkspaceCentralPublisher(portalClient),
+                packagePlanService);
     }
 
     WorkspacePublishService(
@@ -93,7 +108,8 @@ public final class WorkspacePublishService {
             PublishCentralReadinessService centralReadinessService,
             PublishDryRunService dryRunService,
             WorkspaceRepositoryUploader uploader,
-            WorkspaceCentralPublisher centralPublisher) {
+            WorkspaceCentralPublisher centralPublisher,
+            PackagePlanService packagePlanService) {
         this.workspaceBuildService = workspaceBuildService;
         this.policyResolver = policyResolver;
         this.projection = projection;
@@ -103,6 +119,7 @@ public final class WorkspacePublishService {
         this.dryRunService = dryRunService;
         this.uploader = uploader;
         this.centralPublisher = centralPublisher;
+        this.packagePlanService = packagePlanService;
     }
 
     public WorkspacePublishReport publish(
@@ -179,10 +196,15 @@ public final class WorkspacePublishService {
                 bom ? bomFamily.familyLock(workspace, aggregatedLock, member) : projection.project(config, aggregatedLock);
         PublishSettings publish =
                 publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
+        // Resolve the member's REAL primary artifact through the framework-aware package planner — the
+        // same path single-project publishing plans — so a Quarkus fast-jar member publishes its
+        // quarkus-app/quarkus-run.jar and any future mode's real archive, not a synthesized
+        // <name>-<version>.jar that never existed. The aggregated lock only feeds the planner's
+        // dependency listing (discarded here); the archive path derives from the member dir + config.
         Path artifactPath = bom
                 ? null
-                : artifactPathPlanner.archivePath(member.directory(), config, archiveExtension(config))
-                        .toAbsolutePath().normalize();
+                : packagePlanService.plan(member.directory(), config, workspace.root().resolve("zolt.lock"))
+                        .archivePath().toAbsolutePath().normalize();
         // The POM plan below consumes the POM-shaped memberLock; the SBOM consumes the full closure.
         Optional<Path> sbomFile = bom
                 ? Optional.empty()
@@ -235,15 +257,6 @@ public final class WorkspacePublishService {
                 publish,
                 config.repositoryCredentials());
         return new MemberPlanResult(publication, finalPlan.blockers(), notes);
-    }
-
-    private static String archiveExtension(ProjectConfig config) {
-        // Match the single-project package planner's archive extension: a WAR/spring-boot-war member's
-        // real archive is a .war, so publishing must plan the .war rather than a non-existent .jar.
-        return switch (config.packageSettings().mode()) {
-            case WAR, SPRING_BOOT_WAR -> "war";
-            default -> "jar";
-        };
     }
 
     private List<WorkspaceMember> publishableMembers(Workspace workspace, WorkspaceSelection selection) {

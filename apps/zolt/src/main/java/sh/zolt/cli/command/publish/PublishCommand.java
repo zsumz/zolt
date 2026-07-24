@@ -4,6 +4,7 @@ import sh.zolt.build.PackageException;
 import sh.zolt.cache.LocalArtifactCache;
 import sh.zolt.cli.CommandProgress;
 import sh.zolt.cli.command.CommandFailures;
+import sh.zolt.cli.command.CommandFrameworkServices;
 import sh.zolt.cli.command.CommandLockfiles;
 import sh.zolt.cli.command.CommandOutput;
 import sh.zolt.cli.command.CommandProjectDirectory;
@@ -118,7 +119,9 @@ public final class PublishCommand implements Callable<Integer> {
                 new PublishCentralReadinessService(),
                 new PublishCentralPublishService(new CentralPortalClient(CommandNetwork.defaultTransport())),
                 new WorkspacePublishService(
-                        CommandNetwork.repositoryClient(), new CentralPortalClient(CommandNetwork.defaultTransport())),
+                        CommandNetwork.repositoryClient(),
+                        new CentralPortalClient(CommandNetwork.defaultTransport()),
+                        CommandFrameworkServices.packagePlanService()),
                 new CommandLockfiles());
     }
 

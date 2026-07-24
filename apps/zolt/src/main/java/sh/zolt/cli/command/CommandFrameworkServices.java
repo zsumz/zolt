@@ -108,7 +108,7 @@ public final class CommandFrameworkServices {
         return new WorkspaceBuildService(buildFrameworkServices.resolveService(), provenanceSource());
     }
 
-    static PackagePlanService packagePlanService() {
+    public static PackagePlanService packagePlanService() {
         return new PackagePlanService(List.of(new QuarkusPackagePlanRules()));
     }
 
