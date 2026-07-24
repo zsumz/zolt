@@ -33,6 +33,17 @@ final class PublishCentralReadiness {
             boolean javadocJar,
             boolean signaturesConfigured,
             boolean pomPackaging) {
+        return evaluate(versionKind, metadata, sourcesJar, javadocJar, signaturesConfigured, pomPackaging, false);
+    }
+
+    static List<PublishCentralRequirement> evaluate(
+            String versionKind,
+            PublicationMetadata metadata,
+            boolean sourcesJar,
+            boolean javadocJar,
+            boolean signaturesConfigured,
+            boolean pomPackaging,
+            boolean reproducibleSigningKeyMissing) {
         List<PublishCentralRequirement> requirements = new ArrayList<>();
         requirements.add(requirement(
                 "release version",
@@ -78,6 +89,12 @@ final class PublishCentralReadiness {
                 "gpg signatures",
                 signaturesConfigured,
                 "Enable [publish.signing] so every artifact and the POM are signed with a .asc file."));
+        if (reproducibleSigningKeyMissing) {
+            requirements.add(PublishCentralRequirement.unsatisfied(
+                    "reproducible signing key",
+                    "SOURCE_DATE_EPOCH is set but [publish.signing].keyId is not; pin the key so "
+                            + "deterministic signing selects the same key on every machine."));
+        }
         requirements.add(PublishCentralRequirement.satisfied("checksums"));
         return List.copyOf(requirements);
     }

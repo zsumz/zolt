@@ -37,6 +37,28 @@ final class PublishCentralReadinessTest {
     }
 
     @Test
+    void missingPinnedKeyUnderReproducibleSigningBlocksReadiness() {
+        List<PublishCentralRequirement> requirements = PublishCentralReadiness.evaluate(
+                "release", PublicationMetadata.empty(), true, true, true, false, true);
+
+        PublishCentralRequirement key = requirements.stream()
+                .filter(requirement -> requirement.name().equals("reproducible signing key"))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(!key.satisfied());
+        assertTrue(key.remediation().contains("[publish.signing].keyId"));
+    }
+
+    @Test
+    void reproducibleSigningRequirementAbsentWhenKeyPinnedOrEpochUnset() {
+        List<PublishCentralRequirement> requirements = PublishCentralReadiness.evaluate(
+                "release", PublicationMetadata.empty(), true, true, true, false, false);
+
+        assertTrue(requirements.stream().noneMatch(
+                requirement -> requirement.name().equals("reproducible signing key")));
+    }
+
+    @Test
     void pomPackagingOmitsSourcesAndJavadocButKeepsSigningAndChecksums() {
         PublicationMetadata metadata = new PublicationMetadata(
                 "Acme Platform BOM",

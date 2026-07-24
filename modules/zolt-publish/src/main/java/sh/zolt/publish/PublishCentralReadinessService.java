@@ -14,14 +14,23 @@ import java.util.List;
 public final class PublishCentralReadinessService {
     private final ZoltTomlParser projectParser;
     private final PublishSettingsReader publishSettingsReader;
+    private final java.util.function.UnaryOperator<String> environment;
 
     public PublishCentralReadinessService() {
         this(new ZoltTomlParser(), new PublishSettingsReader());
     }
 
     PublishCentralReadinessService(ZoltTomlParser projectParser, PublishSettingsReader publishSettingsReader) {
+        this(projectParser, publishSettingsReader, System::getenv);
+    }
+
+    PublishCentralReadinessService(
+            ZoltTomlParser projectParser,
+            PublishSettingsReader publishSettingsReader,
+            java.util.function.UnaryOperator<String> environment) {
         this.projectParser = projectParser;
         this.publishSettingsReader = publishSettingsReader;
+        this.environment = environment;
     }
 
     public List<PublishCentralRequirement> evaluate(Path projectRoot, PublishDryRunPlan plan) {
@@ -39,13 +48,19 @@ public final class PublishCentralReadinessService {
     public List<PublishCentralRequirement> evaluate(
             ProjectConfig config, PublishSettings publish, PublishDryRunPlan plan) {
         PublicationMetadata metadata = config.packageSettings().metadata();
+        // Reproducible signing (SOURCE_DATE_EPOCH) requires a pinned key; surfacing the Phase-2
+        // PublishSigner rejection in the checklist catches it before any signing work.
+        boolean reproducibleKeyMissing = publish.signing().enabled()
+                && environment.apply("SOURCE_DATE_EPOCH") != null
+                && publish.signing().keyId().isEmpty();
         return PublishCentralReadiness.evaluate(
                 plan.versionKind(),
                 metadata,
                 hasClassifier(plan, "sources"),
                 hasClassifier(plan, "javadoc"),
                 publish.signing().enabled(),
-                config.packageSettings().mode() == sh.zolt.project.PackageMode.BOM);
+                config.packageSettings().mode() == sh.zolt.project.PackageMode.BOM,
+                reproducibleKeyMissing);
     }
 
     private static boolean hasClassifier(PublishDryRunPlan plan, String classifier) {
