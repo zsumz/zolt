@@ -105,6 +105,9 @@ public final class ZoltLockfileWriter {
         output.append("[[conflict]]\n");
         assignment(output, "id", conflict.packageId().toString());
         conflict.toolGroup().ifPresent(value -> assignment(output, "tool", value));
+        conflict.variant()
+                .filter(variant -> !variant.isDefault())
+                .ifPresent(variant -> assignment(output, "variant", variant.key()));
         assignment(output, "selected", conflict.selectedVersion());
         output.append("requested = ");
         stringArray(output, sortedVersions(conflict.requestedVersions()));
@@ -141,7 +144,8 @@ public final class ZoltLockfileWriter {
         return conflicts.stream()
                 .sorted(Comparator
                         .comparing((LockConflict conflict) -> conflict.packageId().toString())
-                        .thenComparing(conflict -> conflict.toolGroup().orElse("")))
+                        .thenComparing(conflict -> conflict.toolGroup().orElse(""))
+                        .thenComparing(conflict -> conflict.variant().map(LockArtifactVariant::key).orElse("")))
                 .toList();
     }
 

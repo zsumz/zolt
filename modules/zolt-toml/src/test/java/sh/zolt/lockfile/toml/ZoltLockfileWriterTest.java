@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -131,6 +132,37 @@ final class ZoltLockfileWriterTest {
                 conflict.toolGroup().equals(Optional.of("alpha")) && conflict.selectedVersion().equals("3.0.0")));
         assertTrue(parsed.conflicts().stream().anyMatch(conflict ->
                 conflict.toolGroup().isEmpty() && conflict.selectedVersion().equals("1.5.0")));
+    }
+
+    @Test
+    void writesAndRoundTripsVariantQualifiedConflictsOnlyWhenNonDefault() {
+        LockConflict plain = new LockConflict(
+                new PackageId("io.netty", "netty"),
+                "4.1.100.Final",
+                List.of("4.1.90.Final", "4.1.100.Final"),
+                ConflictSelectionReason.NEWEST_VERSION,
+                Optional.empty(),
+                Optional.of(new LockArtifactVariant("jar", Optional.empty())));
+        LockConflict classified = new LockConflict(
+                new PackageId("io.netty", "netty"),
+                "4.1.100.Final",
+                List.of("4.1.90.Final", "4.1.100.Final"),
+                ConflictSelectionReason.NEWEST_VERSION,
+                Optional.empty(),
+                Optional.of(new LockArtifactVariant("jar", Optional.of("linux-x86_64"))));
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION, List.of(), List.of(plain, classified));
+
+        String output = writer.write(lockfile);
+
+        // The default variant emits no qualifier; only the classified one carries `variant`.
+        assertEquals(1, output.split("variant = ", -1).length - 1);
+        assertTrue(output.contains("variant = \"jar|linux-x86_64\""));
+
+        ZoltLockfile parsed = new ZoltLockfileReader().read(output);
+        assertTrue(parsed.conflicts().stream().anyMatch(conflict ->
+                conflict.variant().equals(Optional.of(new LockArtifactVariant("jar", Optional.of("linux-x86_64"))))));
+        assertTrue(parsed.conflicts().stream().anyMatch(conflict -> conflict.variant().isEmpty()));
     }
 
     @Test

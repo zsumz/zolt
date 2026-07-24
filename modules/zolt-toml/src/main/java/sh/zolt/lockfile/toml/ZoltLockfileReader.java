@@ -1,6 +1,7 @@
 package sh.zolt.lockfile.toml;
 
 import sh.zolt.dependency.ConflictSelectionReason;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPolicyEffect;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -88,7 +89,8 @@ public final class ZoltLockfileReader {
                     LockfileTomlValues.requireString(table, "selected"),
                     LockfileTomlValues.stringArray(table, "requested"),
                     reason(LockfileTomlValues.requireString(table, "reason")),
-                    LockfileTomlValues.optionalString(table, "tool")));
+                    LockfileTomlValues.optionalString(table, "tool"),
+                    LockfileTomlValues.optionalString(table, "variant").map(LockArtifactVariant::fromKey)));
         }
         return conflicts;
     }
