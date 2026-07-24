@@ -2,6 +2,7 @@ package sh.zolt.lockfile.toml;
 
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.dependency.VersionComparator;
+import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
@@ -129,8 +130,10 @@ public final class ZoltLockfileWriter {
 
     private static List<LockPackage> sortedPackages(List<LockPackage> packages) {
         return packages.stream()
-                .sorted(Comparator.comparing(lockPackage ->
-                        lockPackage.packageId() + ":" + lockPackage.version() + ":" + lockPackage.scope().lockfileName()))
+                .sorted(Comparator
+                        .comparing((LockPackage lockPackage) ->
+                                lockPackage.packageId() + ":" + lockPackage.version() + ":" + lockPackage.scope().lockfileName())
+                        .thenComparing(lockPackage -> LockArtifactVariant.of(lockPackage).key()))
                 .toList();
     }
 

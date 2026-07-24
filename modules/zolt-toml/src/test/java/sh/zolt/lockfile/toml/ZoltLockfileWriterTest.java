@@ -186,6 +186,56 @@ final class ZoltLockfileWriterTest {
         assertEquals("reason:\u0001\u0007\f\u007F", parsed.policyEffects().getFirst().policy());
     }
 
+    @Test
+    void disambiguatesSameGavClassifierVariantsDeterministically() {
+        LockPackage plain = variantPackage(
+                "io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final.jar");
+        LockPackage linux = variantPackage(
+                "io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar");
+        // Reversed input order to prove the sort, not insertion order, decides the layout.
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(linux, plain),
+                List.of());
+
+        String output = writer.write(lockfile);
+
+        String plainJar = "jar = \"io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final.jar\"";
+        String linuxJar = "jar = \"io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final-linux-x86_64.jar\"";
+        // Both variants of one GAV+scope survive as distinct entries rather than collapsing.
+        assertEquals(2, countOccurrences(output, "id = \"io.netty:netty-transport-native-epoll\""));
+        assertTrue(output.contains(plainJar));
+        assertTrue(output.contains(linuxJar));
+        // The classifier tiebreak orders them deterministically: plain ("jar") before classified ("jar|linux-x86_64").
+        assertTrue(output.indexOf(plainJar) < output.indexOf(linuxJar));
+        // Byte-stable across repeated writes.
+        assertEquals(output, writer.write(lockfile));
+    }
+
+    private static LockPackage variantPackage(String jarPath) {
+        return new LockPackage(
+                new PackageId("io.netty", "netty-transport-native-epoll"),
+                "4.1.100.Final",
+                "maven-central",
+                DependencyScope.RUNTIME,
+                false,
+                Optional.of(jarPath),
+                Optional.of("io/netty/netty-transport-native-epoll/4.1.100.Final/netty-transport-native-epoll-4.1.100.Final.pom"),
+                Optional.of("jar-sha-" + jarPath),
+                Optional.of("pom-sha"),
+                List.of());
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
     private static ZoltLockfile unsortedLockfile() {
         return new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
