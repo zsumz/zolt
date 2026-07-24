@@ -261,7 +261,7 @@ publishingType = "automatic"
 
 `zolt publish --central` assembles a bundle in Maven repository layout — every
 artifact and the POM with checksums and GPG signatures — uploads it to the
-Portal, and reports the deployment id and status. It blocks unless every Maven
+Portal, and reports the deployment id. It blocks unless every Maven
 Central readiness requirement is satisfied. `zolt publish --dry-run --central`
 assembles and lists the bundle locally and runs the readiness check without any
 network access.
