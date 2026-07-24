@@ -7,6 +7,7 @@ import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.ConflictSelectionReason;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class DependencyConflictFormatterTest {
@@ -41,6 +42,41 @@ final class DependencyConflictFormatterTest {
                   selected: 2.0.16
                   requested: 1.7.36, 2.0.16
                   reason: direct dependency wins
+                """, output);
+    }
+
+    @Test
+    void rendersToolAttributionAndOrdersMainBeforeToolClosures() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(),
+                List.of(
+                        new LockConflict(
+                                new PackageId("com.example", "shared"),
+                                "2.0.0",
+                                List.of("2.0.0", "1.0.0"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                Optional.of("codegen")),
+                        new LockConflict(
+                                new PackageId("com.example", "shared"),
+                                "1.5.0",
+                                List.of("1.5.0", "1.0.0"),
+                                ConflictSelectionReason.DIRECT_DEPENDENCY)));
+
+        String output = formatter.format(lockfile);
+
+        // Same GA mediates in the main graph and in the codegen closure: main (no tool) first, then the tool.
+        assertEquals("""
+                Dependency conflicts:
+                - com.example:shared
+                  selected: 1.5.0
+                  requested: 1.0.0, 1.5.0
+                  reason: direct dependency wins
+                - com.example:shared
+                  tool: codegen
+                  selected: 2.0.0
+                  requested: 1.0.0, 2.0.0
+                  reason: newest version wins
                 """, output);
     }
 

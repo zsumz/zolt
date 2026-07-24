@@ -17,10 +17,10 @@ public final class DependencyConflictFormatter {
 
         StringBuilder output = new StringBuilder("Dependency conflicts:\n");
         for (LockConflict conflict : sortedConflicts(lockfile.conflicts())) {
-            output.append("- ")
-                    .append(conflict.packageId())
-                    .append('\n')
-                    .append("  selected: ")
+            output.append("- ").append(conflict.packageId()).append('\n');
+            // Names the isolated exec-tool closure that mediated this conflict; absent for the main graph.
+            conflict.toolGroup().ifPresent(tool -> output.append("  tool: ").append(tool).append('\n'));
+            output.append("  selected: ")
                     .append(conflict.selectedVersion())
                     .append('\n')
                     .append("  requested: ")
@@ -35,7 +35,9 @@ public final class DependencyConflictFormatter {
 
     private static List<LockConflict> sortedConflicts(List<LockConflict> conflicts) {
         return conflicts.stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .sorted(Comparator
+                        .comparing((LockConflict conflict) -> conflict.packageId().toString())
+                        .thenComparing(conflict -> conflict.toolGroup().orElse("")))
                 .toList();
     }
 

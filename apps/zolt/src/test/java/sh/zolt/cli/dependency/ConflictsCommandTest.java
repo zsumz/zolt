@@ -48,6 +48,34 @@ final class ConflictsCommandTest {
     }
 
     @Test
+    void conflictsPrintsExecToolAttributionFromLockfile() throws IOException {
+        Path projectDir = tempDir.resolve("tooled");
+        Files.createDirectories(projectDir);
+        Files.writeString(projectDir.resolve("zolt.lock"), """
+                version = 1
+
+                [[conflict]]
+                id = "com.example:shared"
+                tool = "codegen"
+                selected = "2.0.0"
+                requested = ["1.0.0", "2.0.0"]
+                reason = "newest version wins"
+                """);
+
+        CommandResult result = execute("conflicts", "--directory", projectDir.toString());
+
+        assertEquals(0, result.exitCode());
+        assertEquals("""
+                Dependency conflicts:
+                - com.example:shared
+                  tool: codegen
+                  selected: 2.0.0
+                  requested: 1.0.0, 2.0.0
+                  reason: newest version wins
+                """, result.stdout());
+    }
+
+    @Test
     void conflictsExitsSuccessfullyWhenNoConflictsExist() throws IOException {
         Path projectDir = tempDir.resolve("demo");
         Files.createDirectories(projectDir);
