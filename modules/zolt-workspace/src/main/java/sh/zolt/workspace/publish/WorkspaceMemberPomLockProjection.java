@@ -2,10 +2,8 @@ package sh.zolt.workspace.publish;
 
 import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
-import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
-import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +29,7 @@ public final class WorkspaceMemberPomLockProjection {
      * @return a single-project lockfile whose direct packages are exactly the member's published directs
      */
     public ZoltLockfile project(ProjectConfig memberConfig, ZoltLockfile aggregatedLock) {
-        ExternalIndex externalIndex = new ExternalIndex();
+        MemberDependencyVariants.ExternalIndex externalIndex = new MemberDependencyVariants.ExternalIndex();
         Map<String, LockPackage> workspaceByCoordinate = new LinkedHashMap<>();
         for (LockPackage lockPackage : aggregatedLock.packages()) {
             String coordinate = coordinate(lockPackage.packageId());
@@ -98,7 +96,7 @@ public final class WorkspaceMemberPomLockProjection {
             Set<String> coordinates,
             DependencyScope scope,
             ProjectConfig memberConfig,
-            ExternalIndex externalIndex) {
+            MemberDependencyVariants.ExternalIndex externalIndex) {
         for (String coordinate : coordinates) {
             if (projected.containsKey(coordinate)) {
                 continue;
@@ -107,8 +105,8 @@ public final class WorkspaceMemberPomLockProjection {
             // dependency metadata (a classifier/type). Resolving the aggregated-lock entry for THAT variant
             // is what stops a member from taking a sibling variant's version — the netty case where the
             // osx-classified dep would otherwise inherit the linux variant's version.
-            LockArtifactVariant variant = declaredVariant(memberConfig, coordinate, scope);
-            LockPackage resolved = externalIndex.resolve(coordinate, variant);
+            LockPackage resolved = externalIndex.resolve(
+                    coordinate, MemberDependencyVariants.declaredVariant(memberConfig, coordinate, scope));
             String version = resolved != null ? resolved.version() : declaredVersion(memberConfig, coordinate);
             if (version == null) {
                 continue;
@@ -125,50 +123,6 @@ public final class WorkspaceMemberPomLockProjection {
                     Optional.empty(),
                     Optional.empty(),
                     List.of()));
-        }
-    }
-
-    /**
-     * The variant a member depends on for a declared GA coordinate, from its dependency metadata. The
-     * classifier maps directly; the {@code <type>} is the artifact extension (defaulting to {@code jar}).
-     * The metadata key mirrors {@code PublishPomGenerator}'s so the version the projection resolves and
-     * the classifier/type the generator renders describe the same artifact.
-     */
-    private static LockArtifactVariant declaredVariant(
-            ProjectConfig memberConfig, String coordinate, DependencyScope scope) {
-        DependencyMetadata metadata = memberConfig.dependencyMetadata().get(metadataKey(scope, coordinate));
-        if (metadata == null) {
-            return new LockArtifactVariant("jar", Optional.empty());
-        }
-        String extension = metadata.type() == null ? "jar" : metadata.type();
-        return new LockArtifactVariant(extension, Optional.ofNullable(metadata.classifier()));
-    }
-
-    private static String metadataKey(DependencyScope scope, String coordinate) {
-        return switch (scope) {
-            case RUNTIME -> DependencyMetadata.key("runtime.dependencies", coordinate);
-            case PROVIDED -> DependencyMetadata.key("provided.dependencies", coordinate);
-            default -> DependencyMetadata.key("dependencies", coordinate);
-        };
-    }
-
-    /** Aggregated-lock externals indexed both by GA and by (GA, variant) for variant-exact resolution. */
-    private static final class ExternalIndex {
-        private final Map<String, LockPackage> byCoordinate = new LinkedHashMap<>();
-        private final Map<String, LockPackage> byVariant = new LinkedHashMap<>();
-
-        void add(String coordinate, LockPackage lockPackage) {
-            byCoordinate.putIfAbsent(coordinate, lockPackage);
-            byVariant.putIfAbsent(variantKey(coordinate, LockArtifactVariant.of(lockPackage)), lockPackage);
-        }
-
-        LockPackage resolve(String coordinate, LockArtifactVariant variant) {
-            LockPackage exact = byVariant.get(variantKey(coordinate, variant));
-            return exact != null ? exact : byCoordinate.get(coordinate);
-        }
-
-        private static String variantKey(String coordinate, LockArtifactVariant variant) {
-            return coordinate + "#" + variant.key();
         }
     }
 
