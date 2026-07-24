@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class WorkspaceRepositoryUploaderTest {
-    private static final String PASSPHRASE = "zolt-test-passphrase";
     private static final WorkspacePublishService.Options OPTIONS =
             new WorkspacePublishService.Options(false, false, false, false, Optional.empty());
     private final WorkspaceRepositoryUploader uploader = new WorkspaceRepositoryUploader();
@@ -164,9 +162,9 @@ final class WorkspaceRepositoryUploaderTest {
 
     @Test
     void signsEveryUploadedFileWhenSigningIsEnabled(@TempDir Path tempDir) throws Exception {
-        assumeTrue(gpgAvailable(), "gpg is not installed");
-        Path gnupgHome = isolatedGnupgHome(tempDir);
-        generateSigningKey(gnupgHome);
+        assumeTrue(SigningTestSupport.gpgAvailable(), "gpg is not installed");
+        Path gnupgHome = SigningTestSupport.isolatedGnupgHome(tempDir);
+        SigningTestSupport.generateSigningKey(gnupgHome);
 
         Path memberRoot = tempDir.resolve("acme-core");
         writeFile(memberRoot.resolve("target/acme-core-1.0.0.jar"), "jar-bytes");
@@ -188,7 +186,7 @@ final class WorkspaceRepositoryUploaderTest {
                 memberRoot, "acme-core", "com.acme:acme-core:1.0.0", false, plan, publish, Map.of());
 
         WorkspacePublishReport report = stageThenUpload(
-                new WorkspacePublishStaging(signingEnvironment(gnupgHome)),
+                new WorkspacePublishStaging(SigningTestSupport.signingEnvironment(gnupgHome)),
                 List.of(member),
                 OPTIONS,
                 tempDir.resolve("staging"));
@@ -372,57 +370,6 @@ final class WorkspaceRepositoryUploaderTest {
             Files.writeString(path, content);
         } catch (IOException exception) {
             throw new IllegalStateException(exception);
-        }
-    }
-
-    private static Function<String, String> signingEnvironment(Path gnupgHome) {
-        Map<String, String> values = Map.of(
-                "ZOLT_TEST_GPG_PASS", PASSPHRASE,
-                "GNUPGHOME", gnupgHome.toString());
-        return values::get;
-    }
-
-    private static Path isolatedGnupgHome(Path tempDir) throws IOException {
-        Path gnupgHome = tempDir.resolve("gnupg");
-        Files.createDirectories(gnupgHome);
-        try {
-            Files.setPosixFilePermissions(gnupgHome, PosixFilePermissions.fromString("rwx------"));
-        } catch (UnsupportedOperationException ignored) {
-            // Non-POSIX filesystem; gpg still runs, just with a permissions warning.
-        }
-        return gnupgHome;
-    }
-
-    private static void generateSigningKey(Path gnupgHome) throws IOException, InterruptedException {
-        int exitCode = runGpg(gnupgHome, List.of(
-                "--batch",
-                "--pinentry-mode", "loopback",
-                "--passphrase", PASSPHRASE,
-                "--quick-generate-key", "Zolt Workspace Signing <signing@zolt.test>", "default", "sign", "0"));
-        assumeTrue(exitCode == 0, "gpg could not generate a throwaway signing key");
-    }
-
-    private static int runGpg(Path gnupgHome, List<String> arguments) throws IOException, InterruptedException {
-        List<String> command = new ArrayList<>();
-        command.add("gpg");
-        command.addAll(arguments);
-        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
-        builder.environment().put("GNUPGHOME", gnupgHome.toString());
-        Process process = builder.start();
-        process.getInputStream().readAllBytes();
-        return process.waitFor();
-    }
-
-    private static boolean gpgAvailable() {
-        try {
-            Process process = new ProcessBuilder("gpg", "--version").redirectErrorStream(true).start();
-            process.getInputStream().readAllBytes();
-            return process.waitFor() == 0;
-        } catch (IOException exception) {
-            return false;
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return false;
         }
     }
 }
