@@ -87,7 +87,8 @@ public final class ZoltLockfileReader {
                     LockfileTomlValues.packageId(LockfileTomlValues.requireString(table, "id")),
                     LockfileTomlValues.requireString(table, "selected"),
                     LockfileTomlValues.stringArray(table, "requested"),
-                    reason(LockfileTomlValues.requireString(table, "reason"))));
+                    reason(LockfileTomlValues.requireString(table, "reason")),
+                    LockfileTomlValues.optionalString(table, "tool")));
         }
         return conflicts;
     }

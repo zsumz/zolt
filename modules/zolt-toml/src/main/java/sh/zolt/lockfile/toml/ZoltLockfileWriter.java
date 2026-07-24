@@ -103,6 +103,7 @@ public final class ZoltLockfileWriter {
     private void writeConflict(StringBuilder output, LockConflict conflict) {
         output.append("[[conflict]]\n");
         assignment(output, "id", conflict.packageId().toString());
+        conflict.toolGroup().ifPresent(value -> assignment(output, "tool", value));
         assignment(output, "selected", conflict.selectedVersion());
         output.append("requested = ");
         stringArray(output, sortedVersions(conflict.requestedVersions()));
@@ -135,7 +136,9 @@ public final class ZoltLockfileWriter {
 
     private static List<LockConflict> sortedConflicts(List<LockConflict> conflicts) {
         return conflicts.stream()
-                .sorted(Comparator.comparing(conflict -> conflict.packageId().toString()))
+                .sorted(Comparator
+                        .comparing((LockConflict conflict) -> conflict.packageId().toString())
+                        .thenComparing(conflict -> conflict.toolGroup().orElse("")))
                 .toList();
     }
 

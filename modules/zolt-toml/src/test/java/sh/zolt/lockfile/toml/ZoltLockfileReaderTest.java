@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import sh.zolt.dependency.PackageId;
+import sh.zolt.lockfile.LockConflict;
 import sh.zolt.lockfile.ZoltLockfile;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class ZoltLockfileReaderTest {
@@ -23,6 +26,38 @@ final class ZoltLockfileReaderTest {
                 lockfile.projectResolutionInputFingerprints());
         assertEquals(3, lockfile.packages().size());
         assertEquals(1, lockfile.conflicts().size());
+    }
+
+    @Test
+    void readsToolAttributedConflictAndDefaultsAbsentToolToEmpty() {
+        ZoltLockfile lockfile = reader.read("""
+                version = 1
+
+                [[conflict]]
+                id = "com.example:shared"
+                tool = "codegen"
+                selected = "2.0.0"
+                requested = ["1.0.0", "2.0.0"]
+                reason = "newest version wins"
+
+                [[conflict]]
+                id = "org.slf4j:slf4j-api"
+                selected = "2.0.16"
+                requested = ["1.7.36", "2.0.16"]
+                reason = "direct dependency wins"
+                """);
+
+        assertEquals(2, lockfile.conflicts().size());
+        LockConflict tooled = lockfile.conflicts().stream()
+                .filter(conflict -> conflict.packageId().equals(new PackageId("com.example", "shared")))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(Optional.of("codegen"), tooled.toolGroup());
+        LockConflict main = lockfile.conflicts().stream()
+                .filter(conflict -> conflict.packageId().equals(new PackageId("org.slf4j", "slf4j-api")))
+                .findFirst()
+                .orElseThrow();
+        assertTrue(main.toolGroup().isEmpty());
     }
 
     @Test

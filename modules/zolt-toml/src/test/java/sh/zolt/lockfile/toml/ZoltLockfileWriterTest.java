@@ -93,6 +93,47 @@ final class ZoltLockfileWriterTest {
     }
 
     @Test
+    void writesAndRoundTripsToolAttributedConflictsDeterministically() {
+        ZoltLockfile lockfile = new ZoltLockfile(
+                ZoltLockfile.CURRENT_VERSION,
+                List.of(),
+                List.of(
+                        new LockConflict(
+                                new PackageId("com.example", "shared"),
+                                "2.0.0",
+                                List.of("1.0.0", "2.0.0"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                Optional.of("beta")),
+                        new LockConflict(
+                                new PackageId("com.example", "shared"),
+                                "3.0.0",
+                                List.of("1.0.0", "3.0.0"),
+                                ConflictSelectionReason.NEWEST_VERSION,
+                                Optional.of("alpha")),
+                        new LockConflict(
+                                new PackageId("com.example", "shared"),
+                                "1.5.0",
+                                List.of("1.0.0", "1.5.0"),
+                                ConflictSelectionReason.DIRECT_DEPENDENCY)));
+
+        String output = writer.write(lockfile);
+
+        // The same GA mediates in the main graph and in two exec tools; each stays a distinct entry.
+        assertTrue(output.contains("tool = \"alpha\""));
+        assertTrue(output.contains("tool = \"beta\""));
+        // Deterministic order for a shared packageId: main (no tool) first, then tools alphabetically.
+        assertTrue(output.indexOf("selected = \"1.5.0\"") < output.indexOf("tool = \"alpha\""));
+        assertTrue(output.indexOf("tool = \"alpha\"") < output.indexOf("tool = \"beta\""));
+
+        ZoltLockfile parsed = new ZoltLockfileReader().read(output);
+        assertEquals(3, parsed.conflicts().size());
+        assertTrue(parsed.conflicts().stream().anyMatch(conflict ->
+                conflict.toolGroup().equals(Optional.of("alpha")) && conflict.selectedVersion().equals("3.0.0")));
+        assertTrue(parsed.conflicts().stream().anyMatch(conflict ->
+                conflict.toolGroup().isEmpty() && conflict.selectedVersion().equals("1.5.0")));
+    }
+
+    @Test
     void writesPolicyEffectsDeterministically() {
         ZoltLockfile lockfile = new ZoltLockfile(
                 ZoltLockfile.CURRENT_VERSION,
