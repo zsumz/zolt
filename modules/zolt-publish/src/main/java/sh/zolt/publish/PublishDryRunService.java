@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class PublishDryRunService {
     private static final Set<PackageMode> SINGLE_FILE_PACKAGE_ARTIFACTS = Set.of(
@@ -128,11 +129,14 @@ public final class PublishDryRunService {
         if (!publish.configured()) {
             throw new PublishException("No [publish] configuration found. Add release/snapshot publish repositories before running `zolt publish --dry-run`.");
         }
-        ZoltLockfile lockfile = lockfile(root);
-        Path artifactPath = config.packageSettings().mode() == PackageMode.BOM
-                ? null
-                : packagePlan(root, config).archivePath();
-        return planResolved(root, config, publish, lockfile, artifactPath, requireRepository, sbomFile);
+        return planResolved(
+                root,
+                config,
+                publish,
+                () -> lockfile(root),
+                () -> packagePlan(root, config).archivePath(),
+                requireRepository,
+                sbomFile);
     }
 
     /**
@@ -141,15 +145,17 @@ public final class PublishDryRunService {
      * This is the reuse seam for {@code zolt publish --workspace}: each member plans against its
      * projected member lock (directness from the member config, versions from the aggregated lock)
      * while sharing the single-project supplemental/SBOM/checksum planning, repository-credential and
-     * URL-safety policy verbatim. {@code artifactPath} is the main package archive; it is ignored for a
-     * BOM, whose only artifact is the generated dependencyManagement POM.
+     * URL-safety policy verbatim. The lockfile and archive are supplied lazily so a repository or
+     * artifact-selector rejection is raised before any lock read or package planning. The archive
+     * supplier is never invoked for a BOM, whose only artifact is the generated dependencyManagement
+     * POM.
      */
     public PublishDryRunPlan planResolved(
             Path projectRoot,
             ProjectConfig config,
             PublishSettings publish,
-            ZoltLockfile lockfile,
-            Path artifactPath,
+            Supplier<ZoltLockfile> lockfileSupplier,
+            Supplier<Path> artifactPathSupplier,
             boolean requireRepository,
             Optional<Path> sbomFile) {
         Path root = projectRoot.toAbsolutePath().normalize();
@@ -187,11 +193,14 @@ public final class PublishDryRunService {
 
         if (config.packageSettings().mode() == PackageMode.BOM) {
             return bomPlan(
-                    root, config, lockfile, versionKind, displayRepositoryId, displayRepositoryUrl, coordinate,
-                    blockers);
+                    root, config, lockfileSupplier.get(), versionKind, displayRepositoryId, displayRepositoryUrl,
+                    coordinate, blockers);
         }
 
+        // Selector validation must raise before any lock read or package planning (order preserved).
         String artifactId = selectedArtifactId(publish.artifacts(), config.packageSettings().mode());
+        ZoltLockfile lockfile = lockfileSupplier.get();
+        Path artifactPath = artifactPathSupplier.get();
         Path evidencePath = PackageEvidenceManifestWriter.evidenceManifestPath(artifactPath);
         Path pomPath = root.resolve(config.build().outputRoot()).resolve("publish")
                 .resolve(config.project().name() + "-" + config.project().version() + ".pom")

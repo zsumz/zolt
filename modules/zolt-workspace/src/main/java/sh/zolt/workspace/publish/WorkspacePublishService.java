@@ -177,7 +177,13 @@ public final class WorkspacePublishService {
         // Reuse the single-project planner against the projected member lock: this is the sole source
         // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.
         PublishDryRunPlan memberPlan = dryRunService.planResolved(
-                member.directory(), config, publish, memberLock, artifactPath, !options.central(), sbomFile);
+                member.directory(),
+                config,
+                publish,
+                () -> memberLock,
+                () -> artifactPath,
+                !options.central(),
+                sbomFile);
 
         List<String> extraBlockers = new ArrayList<>();
         if (!bom) {
