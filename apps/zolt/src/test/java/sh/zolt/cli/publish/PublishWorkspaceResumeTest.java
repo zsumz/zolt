@@ -83,6 +83,172 @@ final class PublishWorkspaceResumeTest {
         }
     }
 
+    @Test
+    void resumeAfterAChecksumFailureUploadsOnlyTheMissingFilesBackedByDurableState(@TempDir Path tempDir)
+            throws IOException {
+        // A mid-member failure: acme-http's jar and its md5 land, then its sha1 checksum PUT is rejected.
+        // Resume must upload only the missing sha1 (and remaining members) and re-PUT nothing that landed.
+        midMemberFailureResumesUploadingOnlyTheMissingFile(
+                tempDir,
+                "/acme-http/1.0.0/acme-http-1.0.0.jar.sha1",
+                "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar.sha1",
+                new String[] {
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar",
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar.md5"
+                },
+                false);
+    }
+
+    @Test
+    void resumeAfterASupplementalFailureUploadsOnlyTheMissingFilesBackedByDurableState(@TempDir Path tempDir)
+            throws IOException {
+        // With --sbom, acme-http's CycloneDX supplemental PUT is rejected after the jar + checksums land.
+        midMemberFailureResumesUploadingOnlyTheMissingFile(
+                tempDir,
+                "/acme-http/1.0.0/acme-http-1.0.0-cyclonedx.json",
+                "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0-cyclonedx.json",
+                new String[] {
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar",
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar.sha256"
+                },
+                true);
+    }
+
+    @Test
+    void resumeAfterAPomFailureUploadsOnlyTheMissingFilesBackedByDurableState(@TempDir Path tempDir)
+            throws IOException {
+        // The final POM PUT is rejected after everything else in acme-http landed.
+        midMemberFailureResumesUploadingOnlyTheMissingFile(
+                tempDir,
+                "/acme-http/1.0.0/acme-http-1.0.0.pom",
+                "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.pom",
+                new String[] {
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar",
+                    "/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar.sha1"
+                },
+                false);
+    }
+
+    private void midMemberFailureResumesUploadingOnlyTheMissingFile(
+            Path tempDir, String failSuffix, String failedPath, String[] landedPaths, boolean sbom) throws IOException {
+        ImmutableRepository repository = ImmutableRepository.start();
+        try {
+            Path family = prepareFamily(tempDir, repository);
+            Path cache = tempDir.resolve("cache");
+            Path statePath = family.resolve("target/zolt-publish/resume-state");
+            String coreJar = "/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar";
+
+            repository.failPutPathSuffix = failSuffix;
+            CliTestSupport.CommandResult first = sbom
+                    ? executeIn(family, cache, "publish", "--workspace", "--sbom")
+                    : executeIn(family, cache, "publish", "--workspace");
+            assertEquals(1, first.exitCode(), first.stdout() + first.stderr());
+            assertTrue(Files.exists(statePath), "durable resume state is written on failure");
+            for (String landed : landedPaths) {
+                assertTrue(repository.has(landed), landed + " landed before the failure");
+            }
+            assertFalse(repository.has(failedPath), failedPath + " did not land");
+
+            String resumeCommand = resumeCommand(first);
+            repository.failPutPathSuffix = null;
+            CliTestSupport.CommandResult resume = executeIn(family, cache, resumeArgs(resumeCommand));
+
+            assertEquals(0, resume.exitCode(), resume.stdout() + resume.stderr());
+            // Already-landed files are skipped from durable state: each was PUT exactly once, never re-PUT.
+            for (String landed : landedPaths) {
+                assertEquals(1, repository.putCount(landed), landed + " must not be re-PUT on resume");
+            }
+            assertEquals(1, repository.putCount(coreJar), "the fully-published provider is never re-PUT");
+            assertTrue(repository.has(failedPath), "the previously-failed file uploaded on resume");
+            assertTrue(repository.has("/maven2/com/acme/platform/acme-bom/1.0.0/acme-bom-1.0.0.pom"), "bom uploaded");
+            assertFalse(Files.exists(statePath), "resume state is cleared after a successful publish");
+            // The absent provider is confirmed published by the recorded state, not blindly assumed.
+            assertTrue(resume.stdout().contains("already published"), resume.stdout());
+        } finally {
+            repository.close();
+        }
+    }
+
+    @Test
+    void aManualResumeWithoutMatchingStateRefusesActionably(@TempDir Path tempDir) throws IOException {
+        ImmutableRepository repository = ImmutableRepository.start();
+        try {
+            Path family = prepareFamily(tempDir, repository);
+            Path cache = tempDir.resolve("cache");
+            // No prior interrupted publish → no resume state; the hidden flag must not publish blindly.
+            CliTestSupport.CommandResult result =
+                    executeIn(family, cache, "publish", "--workspace", "--resume-members", "acme-http");
+
+            assertEquals(1, result.exitCode(), result.stdout() + result.stderr());
+            assertTrue(result.stdout().contains("no publish resume state"), result.stdout());
+            assertFalse(repository.has("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "nothing uploaded");
+        } finally {
+            repository.close();
+        }
+    }
+
+    @Test
+    void aResumeAgainstAChangedPlanRefuses(@TempDir Path tempDir) throws IOException {
+        ImmutableRepository repository = ImmutableRepository.start();
+        try {
+            Path family = prepareFamily(tempDir, repository);
+            Path cache = tempDir.resolve("cache");
+            Path statePath = family.resolve("target/zolt-publish/resume-state");
+            repository.failPutPathSuffix = "/acme-http/1.0.0/acme-http-1.0.0.jar";
+            CliTestSupport.CommandResult first = executeIn(family, cache, "publish", "--workspace");
+            assertEquals(1, first.exitCode(), first.stdout() + first.stderr());
+            assertTrue(Files.exists(statePath));
+
+            // The recorded plan no longer matches what would upload: a stale resume must refuse.
+            corruptPlanHash(statePath);
+            repository.failPutPathSuffix = null;
+            CliTestSupport.CommandResult resume =
+                    executeIn(family, cache, "publish", "--workspace", "--resume-members", "acme-http,acme-bom");
+
+            assertEquals(1, resume.exitCode(), resume.stdout() + resume.stderr());
+            assertTrue(resume.stdout().contains("plan changed"), resume.stdout());
+            assertFalse(repository.has("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "nothing uploaded");
+        } finally {
+            repository.close();
+        }
+    }
+
+    private static Path prepareFamily(Path tempDir, ImmutableRepository repository) throws IOException {
+        Path family = tempDir.resolve("platform-family");
+        copyTree(exampleRoot().resolve("platform-family"), family);
+        for (String member : new String[] {"acme-core", "acme-http", "acme-bom"}) {
+            rewrite(family.resolve(member).resolve("zolt.toml"),
+                    "https://repo.example.test/releases", repository.baseUri());
+        }
+        Path cache = tempDir.resolve("cache");
+        run(family, cache, "resolve", "--workspace");
+        run(family, cache, "build", "--workspace");
+        run(family, cache, "package", "--workspace");
+        return family;
+    }
+
+    private static String resumeCommand(CliTestSupport.CommandResult result) {
+        return result.stdout().lines()
+                .filter(line -> line.startsWith("Resume with: "))
+                .map(line -> line.substring("Resume with: ".length()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no resume command in:\n" + result.stdout()));
+    }
+
+    private static String[] resumeArgs(String resumeCommand) {
+        return resumeCommand.substring("zolt ".length()).split(" ");
+    }
+
+    private static void corruptPlanHash(Path statePath) throws IOException {
+        java.util.List<String> lines = new java.util.ArrayList<>(Files.readAllLines(statePath));
+        for (int index = 0; index < lines.size(); index++) {
+            if (lines.get(index).startsWith("planHash=")) {
+                lines.set(index, "planHash=0000000000000000000000000000000000000000000000000000000000000000");
+            }
+        }
+        Files.write(statePath, lines);
+    }
+
     private static void run(Path projectRoot, Path cache, String... command) {
         CliTestSupport.CommandResult result = executeIn(projectRoot, cache, command);
         assertEquals(0, result.exitCode(), String.join(" ", command) + " failed:\n" + result.stdout() + result.stderr());

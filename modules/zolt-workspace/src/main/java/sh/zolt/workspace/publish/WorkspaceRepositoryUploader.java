@@ -8,8 +8,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Phase 2 for a plain repository: a dependency-ordered sequential upload (provider before consumer,
@@ -35,15 +37,30 @@ public final class WorkspaceRepositoryUploader {
         this.repositoryClient = repositoryClient;
     }
 
+    /** Uploads with no durable resume state — the idempotency probe alone guards re-PUTs (unit-test seam). */
     WorkspacePublishReport upload(List<StagedMember> members, WorkspacePublishService.Options options) {
+        return upload(members, options, Set.of(), null);
+    }
+
+    /**
+     * Uploads the staged family. {@code completed} seeds the paths a prior attempt already landed (so a
+     * resume skips them without even a query); {@code statePath}, when non-null, receives durable resume
+     * state on failure and is cleared on success.
+     */
+    WorkspacePublishReport upload(
+            List<StagedMember> members,
+            WorkspacePublishService.Options options,
+            Set<String> completed,
+            Path statePath) {
         List<WorkspacePublishReport.Member> reportMembers = new ArrayList<>();
         for (StagedMember member : members) {
             reportMembers.add(member.reportMember());
         }
+        Set<String> landed = new LinkedHashSet<>(completed);
         for (int index = 0; index < members.size(); index++) {
             StagedMember member = members.get(index);
             try {
-                uploadMember(member);
+                uploadMember(member, landed);
             } catch (MismatchedArtifactException conflict) {
                 // An occupied release path with different content: resuming cannot fix it, so no resume
                 // command — the operator must resolve the conflict (bump the version or clear the path).
@@ -52,10 +69,12 @@ public final class WorkspaceRepositoryUploader {
             } catch (RuntimeException | IOException exception) {
                 // Resume the failed member and everything after it, selected EXACTLY (never a
                 // dependency-expanded, already-uploaded provider), carrying the original semantic options.
+                List<StagedMember> resumeSet = members.subList(index, members.size());
                 List<String> remaining = new ArrayList<>();
-                for (StagedMember pending : members.subList(index, members.size())) {
+                for (StagedMember pending : resumeSet) {
                     remaining.add(pending.memberPath());
                 }
+                writeResumeState(statePath, resumeSet, remaining, landed, options);
                 return new WorkspacePublishReport(
                         reportMembers,
                         List.of("upload failed for " + member.coordinate() + ": " + exception.getMessage()),
@@ -64,17 +83,47 @@ public final class WorkspaceRepositoryUploader {
                         Optional.of(options.resumeCommand(remaining)));
             }
         }
+        deleteQuietly(statePath);
         return new WorkspacePublishReport(reportMembers, List.of(), true, Optional.empty(), Optional.empty());
     }
 
-    private void uploadMember(StagedMember member) throws IOException {
+    private void uploadMember(StagedMember member, Set<String> landed) throws IOException {
         RepositoryTarget target = member.target();
         for (StagedArtifact artifact : member.artifacts()) {
+            if (landed.contains(artifact.repositoryPath())) {
+                continue; // a prior attempt already landed this path — skip without a query
+            }
             if (target.local()) {
                 uploadToFile(target.directory(), artifact);
             } else {
                 uploadToHttp(target.uri(), target.authentication(), artifact);
             }
+            landed.add(artifact.repositoryPath());
+        }
+    }
+
+    private static void writeResumeState(
+            Path statePath,
+            List<StagedMember> resumeSet,
+            List<String> members,
+            Set<String> landed,
+            WorkspacePublishService.Options options) {
+        if (statePath == null) {
+            return;
+        }
+        new ResumeState(
+                        ResumeState.planHash(resumeSet), options.allowMixedVersions(), options.sbom(), members, landed)
+                .write(statePath);
+    }
+
+    private static void deleteQuietly(Path statePath) {
+        if (statePath == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(statePath);
+        } catch (IOException ignored) {
+            // A lingering resume-state file after a successful publish is harmless.
         }
     }
 

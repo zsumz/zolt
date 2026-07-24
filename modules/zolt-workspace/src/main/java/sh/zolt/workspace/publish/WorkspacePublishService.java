@@ -23,10 +23,8 @@ import sh.zolt.workspace.service.WorkspaceSelectionRequest;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -55,10 +53,8 @@ public final class WorkspacePublishService {
     private final PublishSettingsReader publishSettingsReader;
     private final PublishCentralReadinessService centralReadinessService;
     private final PublishDryRunService dryRunService;
-    // Framework-aware archive resolution: the composition root injects one carrying the framework
-    // package-plan rules (Quarkus fast-jar, WAR, and any future mode), so a member's real primary
-    // artifact — a Quarkus `quarkus-app/quarkus-run.jar`, not a synthesized `<name>-<version>.jar` — is
-    // planned exactly as single-project publishing plans it, never re-deriving package-mode logic here.
+    // Framework-aware archive resolution: the composition root injects the framework package-plan rules
+    // so a member's real primary artifact is planned as single-project publishing plans it (see below).
     private final PackagePlanService packagePlanService;
     // SBOM generation needs the member's FULL closure (transitive components, hashes, edges); the POM
     // projection above is direct-only and hash-less, so the per-member SBOM is projected separately.
@@ -141,7 +137,25 @@ public final class WorkspacePublishService {
         ZoltLockfile aggregatedLock = plan.lockfile();
         boolean resumeMode = selectionRequest.exact();
 
-        List<WorkspaceMember> publishable = publishableMembers(workspace, selection);
+        // A `--resume-members` publish is backed by durable state, not a trusted hidden flag: without
+        // matching state we refuse rather than silently treat absent providers as already published.
+        Path statePath = resumeStatePath(workspace);
+        Optional<ResumeState> resumeState = resumeMode ? ResumeState.read(statePath) : Optional.empty();
+        if (resumeMode && resumeState.isEmpty()) {
+            return new WorkspacePublishReport(
+                    List.of(),
+                    List.of("no publish resume state found at " + displayPath(workspace, statePath)
+                            + ". `--resume-members` resumes a previously interrupted `zolt publish --workspace`; "
+                            + "run the full publish instead: `zolt publish --workspace`."),
+                    List.of(),
+                    false,
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty());
+        }
+
+        List<WorkspaceMember> publishable =
+                WorkspacePublishSelection.publishable(workspace, selection, publishSettingsReader);
         Set<String> publishSet = new LinkedHashSet<>();
         for (WorkspaceMember member : publishable) {
             publishSet.add(member.config().project().group() + ":" + member.config().project().name());
@@ -152,29 +166,32 @@ public final class WorkspacePublishService {
         List<String> notes = new ArrayList<>();
         for (WorkspaceMember member : publishable) {
             MemberPlanResult result =
-                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, resumeMode, sbomGenerator);
+                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, resumeState, sbomGenerator);
             publications.add(result.publication());
             blockers.addAll(result.blockers());
             notes.addAll(result.notes());
         }
         if (!options.allowMixedVersions()) {
-            blockers.addAll(uniformVersionBlockers(publishable));
+            blockers.addAll(WorkspacePublishSelection.uniformVersionBlockers(publishable));
         }
         if (options.central()) {
             blockers.addAll(WorkspaceCentralSettingsDivergence.blockers(publications));
         }
 
-        // Phase-1 materialization of the plain-repository upload set: validate every member's target
-        // (URL policy and credentials) and signing, and stage every checksum and signature, before the
-        // first request — only when the family is otherwise clean (staging signs and digests real bytes,
-        // wasted against a blocked plan) and only for a live plain publish (Central assembles its own
-        // atomic bundle; a dry run uploads nothing).
+        // Phase-1 materialization of the plain-repository upload set before the first request: validate
+        // every target (URL policy, credentials) and signing, and stage every checksum and signature —
+        // only for a clean, live plain publish (Central assembles its own bundle; a dry run uploads none).
         List<StagedMember> stagedMembers = List.of();
         if (blockers.isEmpty() && !options.central() && !options.dryRun()) {
             WorkspacePublishStaging.Preparation preparation =
                     staging.materialize(publications, stagingRoot(workspace), options);
             blockers.addAll(preparation.blockers());
             stagedMembers = preparation.members();
+            // A resume is only honoured against state whose recorded plan still matches what would upload;
+            // a changed plan (or a mismatched selection/options) refuses rather than upload stale bytes.
+            if (blockers.isEmpty() && resumeState.isPresent()) {
+                blockers.addAll(resumeState.orElseThrow().validate(stagedMembers, options, selectionRequest.members()));
+            }
         }
 
         List<WorkspacePublishReport.Member> members = new ArrayList<>();
@@ -194,11 +211,22 @@ public final class WorkspacePublishService {
             return new WorkspacePublishReport(
                     members, blockers, notes, false, Optional.empty(), Optional.empty(), Optional.empty());
         }
-        return uploader.upload(stagedMembers, options).withNotes(notes);
+        Set<String> completed = resumeState.map(ResumeState::completed).orElse(Set.of());
+        return uploader.upload(stagedMembers, options, completed, statePath).withNotes(notes);
     }
 
     private static Path stagingRoot(Workspace workspace) {
         return workspace.root().resolve("target").resolve("zolt-publish").resolve("staging");
+    }
+
+    private static Path resumeStatePath(Workspace workspace) {
+        return workspace.root().resolve("target").resolve("zolt-publish").resolve("resume-state");
+    }
+
+    private static String displayPath(Workspace workspace, Path path) {
+        Path root = workspace.root().toAbsolutePath().normalize();
+        Path normalized = path.toAbsolutePath().normalize();
+        return normalized.startsWith(root) ? root.relativize(normalized).toString() : normalized.toString();
     }
 
     private MemberPlanResult buildMemberPlan(
@@ -207,7 +235,7 @@ public final class WorkspacePublishService {
             ZoltLockfile aggregatedLock,
             Set<String> publishSet,
             Options options,
-            boolean resumeMode,
+            Optional<ResumeState> resumeState,
             WorkspaceMemberSbomGenerator sbomGenerator) {
         ProjectConfig config = policyResolver.merge(workspace, member);
         boolean bom = config.packageSettings().mode() == PackageMode.BOM;
@@ -215,11 +243,10 @@ public final class WorkspacePublishService {
                 bom ? bomFamily.familyLock(workspace, aggregatedLock, member) : projection.project(config, aggregatedLock);
         PublishSettings publish =
                 publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
-        // Resolve the member's REAL primary artifact through the framework-aware package planner — the
-        // same path single-project publishing plans — so a Quarkus fast-jar member publishes its
-        // quarkus-app/quarkus-run.jar and any future mode's real archive, not a synthesized
-        // <name>-<version>.jar that never existed. The aggregated lock only feeds the planner's
-        // dependency listing (discarded here); the archive path derives from the member dir + config.
+        // Resolve the member's REAL primary artifact through the framework-aware package planner (the
+        // same path single-project publishing plans) — a Quarkus fast-jar's quarkus-run.jar or any
+        // future mode's real archive, not a synthesized <name>-<version>.jar. The lock only feeds the
+        // planner's discarded dependency listing; the archive path derives from the member dir + config.
         Path artifactPath = bom
                 ? null
                 : packagePlanService.plan(member.directory(), config, workspace.root().resolve("zolt.lock"))
@@ -245,11 +272,18 @@ public final class WorkspacePublishService {
         List<String> notes = new ArrayList<>();
         if (!bom) {
             for (String sibling : PublishInterMemberGuard.missingSiblings(memberLock, publishSet)) {
-                if (resumeMode) {
-                    // A resumed set legitimately omits already-uploaded providers: the sibling is
-                    // satisfied elsewhere, so it is a note rather than a completeness blocker.
-                    notes.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
-                            + "` is absent from the resumed set; treating it as already published.");
+                if (resumeState.isPresent()) {
+                    // A resumed set omits providers only when the state proves they landed; an absent
+                    // sibling the state does not record as published is an incomplete family, not a note.
+                    if (resumeState.orElseThrow().recordsPublished(sibling)) {
+                        notes.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
+                                + "` is absent from the resumed set and recorded as already published; "
+                                + "treating it as satisfied.");
+                    } else {
+                        extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
+                                + "` was never uploaded in the interrupted publish; re-run the full publish: "
+                                + "`zolt publish --workspace`.");
+                    }
                 } else {
                     extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
                             + "` is not in the publish set; publish the family together or add `--member` for it.");
@@ -276,52 +310,6 @@ public final class WorkspacePublishService {
                 publish,
                 config.repositoryCredentials());
         return new MemberPlanResult(publication, finalPlan.blockers(), notes);
-    }
-
-    private List<WorkspaceMember> publishableMembers(Workspace workspace, WorkspaceSelection selection) {
-        Map<String, WorkspaceMember> byPath = new LinkedHashMap<>();
-        for (WorkspaceMember member : workspace.members()) {
-            byPath.put(member.path(), member);
-        }
-        List<WorkspaceMember> jarMembers = new ArrayList<>();
-        List<WorkspaceMember> bomMembers = new ArrayList<>();
-        for (String memberPath : selection.includedMembers()) {
-            WorkspaceMember member = byPath.get(memberPath);
-            if (member == null || !hasPublishConfig(member)) {
-                continue;
-            }
-            if (member.config().packageSettings().mode() == PackageMode.BOM) {
-                bomMembers.add(member);
-            } else {
-                jarMembers.add(member);
-            }
-        }
-        // Provider before consumer (build order), BOM last so consumers can already resolve it.
-        List<WorkspaceMember> ordered = new ArrayList<>(jarMembers);
-        ordered.addAll(bomMembers);
-        return ordered;
-    }
-
-    private boolean hasPublishConfig(WorkspaceMember member) {
-        return publishSettingsReader
-                .read(member.directory().resolve("zolt.toml"), member.config().repositoryCredentials())
-                .configured();
-    }
-
-    private static List<String> uniformVersionBlockers(List<WorkspaceMember> publishable) {
-        Set<String> versions = new LinkedHashSet<>();
-        for (WorkspaceMember member : publishable) {
-            versions.add(member.config().project().version());
-        }
-        if (versions.size() <= 1) {
-            return List.of();
-        }
-        List<String> offenders = new ArrayList<>();
-        for (WorkspaceMember member : publishable) {
-            offenders.add(member.config().project().name() + "=" + member.config().project().version());
-        }
-        return List.of("family versions diverge (" + String.join(", ", offenders)
-                + "). Align them, or pass --allow-mixed-versions to pin each member at its own version.");
     }
 
     private static String coordinateString(ProjectConfig config) {

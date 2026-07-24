@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import sh.zolt.project.RepositoryCredentialSettings;
 import sh.zolt.publish.PublishArtifactPlan;
 import sh.zolt.publish.PublishDryRunPlan;
@@ -14,7 +12,6 @@ import sh.zolt.publish.PublishRepositorySettings;
 import sh.zolt.publish.PublishSettings;
 import sh.zolt.publish.PublishSigningSettings;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -104,7 +100,7 @@ final class WorkspaceRepositoryUploaderTest {
 
     @Test
     void authenticatesEveryRequestToACredentialedHttpRepository(@TempDir Path tempDir) {
-        Repository server = Repository.start();
+        PublishFixtureRepository server = PublishFixtureRepository.start();
         try {
             String base = server.baseUri();
             Path core = tempDir.resolve("acme-core");
@@ -211,7 +207,7 @@ final class WorkspaceRepositoryUploaderTest {
     void failedMemberEmitsAnExactResumeCommandPreservingSemanticOptions(@TempDir Path tempDir) {
         // The repository stores the provider's uploads but rejects the consumer's jar PUT (403), so
         // publishing fails after the provider fully landed.
-        Repository server = Repository.start();
+        PublishFixtureRepository server = PublishFixtureRepository.start();
         server.failPutPathSuffix = "/acme-http/1.0.0/acme-http-1.0.0.jar";
         try {
             String base = server.baseUri();
@@ -238,7 +234,7 @@ final class WorkspaceRepositoryUploaderTest {
     @Test
     void resumeReUploadsOnlyTheFilesThatDidNotLandAndSkipsThoseThatDid(@TempDir Path tempDir) {
         // A mid-member failure: the jar and its md5 land, then the sha1 checksum PUT is rejected once.
-        Repository server = Repository.start();
+        PublishFixtureRepository server = PublishFixtureRepository.start();
         String jar = "/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar";
         server.failPutPathSuffix = "/acme-core-1.0.0.jar.sha1";
         try {
@@ -270,7 +266,7 @@ final class WorkspaceRepositoryUploaderTest {
 
     @Test
     void anExistingReleasePathWithDifferentContentIsAHardFailureWithNoResume(@TempDir Path tempDir) {
-        Repository server = Repository.start();
+        PublishFixtureRepository server = PublishFixtureRepository.start();
         // The jar path is already occupied by DIFFERENT bytes than this publish would upload.
         server.store.put("/maven2/com/acme/acme-core/1.0.0/acme-core-1.0.0.jar", "someone-elses-jar".getBytes(StandardCharsets.UTF_8));
         try {
@@ -427,88 +423,6 @@ final class WorkspaceRepositoryUploaderTest {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return false;
-        }
-    }
-
-    /** An immutable Maven repository: stores PUTs, serves GETs, 409s a re-PUT, tracks auth and PUT counts. */
-    private static final class Repository {
-        private final HttpServer server;
-        private final Map<String, byte[]> store = new ConcurrentHashMap<>();
-        private final Map<String, Integer> putCounts = new ConcurrentHashMap<>();
-        final Map<String, String> authByPath = new ConcurrentHashMap<>();
-        private final String baseUri;
-        volatile String failPutPathSuffix;
-
-        private Repository(HttpServer server) {
-            this.server = server;
-            this.baseUri = "http://127.0.0.1:" + server.getAddress().getPort() + "/maven2/";
-        }
-
-        static Repository start() {
-            HttpServer server;
-            try {
-                server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            } catch (IOException exception) {
-                assumeTrue(false, "local HTTP server sockets are unavailable: " + exception.getMessage());
-                throw new IllegalStateException(exception);
-            }
-            Repository repository = new Repository(server);
-            server.createContext("/", repository::handle);
-            server.start();
-            return repository;
-        }
-
-        String baseUri() {
-            return baseUri;
-        }
-
-        boolean has(String path) {
-            return store.containsKey(path);
-        }
-
-        int putCount(String path) {
-            return putCounts.getOrDefault(path, 0);
-        }
-
-        private void handle(HttpExchange exchange) throws IOException {
-            String path = exchange.getRequestURI().getPath();
-            String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            authByPath.put(path, authorization == null ? "<none>" : authorization);
-            if ("PUT".equals(exchange.getRequestMethod())) {
-                byte[] body = exchange.getRequestBody().readAllBytes();
-                putCounts.merge(path, 1, Integer::sum);
-                String suffix = failPutPathSuffix;
-                if (suffix != null && path.endsWith(suffix)) {
-                    respond(exchange, 403, new byte[0]);
-                    return;
-                }
-                if (store.containsKey(path)) {
-                    respond(exchange, 409, new byte[0]);
-                    return;
-                }
-                store.put(path, body);
-                respond(exchange, 201, new byte[0]);
-                return;
-            }
-            byte[] body = store.get(path);
-            if (body == null) {
-                respond(exchange, 404, "missing".getBytes(StandardCharsets.UTF_8));
-                return;
-            }
-            respond(exchange, 200, body);
-        }
-
-        private static void respond(HttpExchange exchange, int status, byte[] body) throws IOException {
-            try (exchange) {
-                exchange.sendResponseHeaders(status, body.length == 0 ? -1 : body.length);
-                if (body.length > 0) {
-                    exchange.getResponseBody().write(body);
-                }
-            }
-        }
-
-        void close() {
-            server.stop(0);
         }
     }
 }
