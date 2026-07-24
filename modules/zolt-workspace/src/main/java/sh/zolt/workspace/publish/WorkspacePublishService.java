@@ -3,15 +3,9 @@ package sh.zolt.workspace.publish;
 import sh.zolt.build.packageplan.PackagePlanService;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.maven.repository.MavenRepositoryClient;
-import sh.zolt.project.PackageMode;
-import sh.zolt.project.ProjectConfig;
 import sh.zolt.publish.CentralPortalClient;
 import sh.zolt.publish.PublishCentralReadinessService;
-import sh.zolt.publish.PublishCentralRequirement;
-import sh.zolt.publish.PublishDryRunPlan;
 import sh.zolt.publish.PublishDryRunService;
-import sh.zolt.publish.PublishInterMemberGuard;
-import sh.zolt.publish.PublishSettings;
 import sh.zolt.publish.PublishSettingsReader;
 import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
 import sh.zolt.workspace.service.Workspace;
@@ -47,18 +41,10 @@ import java.util.Set;
  */
 public final class WorkspacePublishService {
     private final WorkspaceBuildService workspaceBuildService;
-    private final WorkspaceMemberPolicyResolver policyResolver;
-    private final WorkspaceMemberPomLockProjection projection;
-    private final WorkspaceBomFamily bomFamily;
     private final PublishSettingsReader publishSettingsReader;
-    private final PublishCentralReadinessService centralReadinessService;
-    private final PublishDryRunService dryRunService;
-    // Framework-aware archive resolution: the composition root injects the framework package-plan rules
-    // so a member's real primary artifact is planned as single-project publishing plans it (see below).
-    private final PackagePlanService packagePlanService;
-    // SBOM generation needs the member's FULL closure (transitive components, hashes, edges); the POM
-    // projection above is direct-only and hash-less, so the per-member SBOM is projected separately.
-    private final WorkspaceMemberSbomLockProjection sbomProjection = new WorkspaceMemberSbomLockProjection();
+    // Per-member Phase-1 planning (config merge, lock projection, single-project planner reuse,
+    // inter-member and Central-readiness gates) is delegated so this orchestrator holds only the flow.
+    private final WorkspaceMemberPlanner memberPlanner;
     private final WorkspaceRepositoryUploader uploader;
     private final WorkspaceCentralPublisher centralPublisher;
     private final WorkspacePublishStaging staging;
@@ -108,16 +94,19 @@ public final class WorkspacePublishService {
             WorkspaceCentralPublisher centralPublisher,
             PackagePlanService packagePlanService) {
         this.workspaceBuildService = workspaceBuildService;
-        this.policyResolver = policyResolver;
-        this.projection = projection;
-        this.bomFamily = bomFamily;
         this.publishSettingsReader = publishSettingsReader;
-        this.centralReadinessService = centralReadinessService;
-        this.dryRunService = dryRunService;
         this.uploader = uploader;
         this.centralPublisher = centralPublisher;
-        this.packagePlanService = packagePlanService;
         this.staging = new WorkspacePublishStaging();
+        this.memberPlanner = new WorkspaceMemberPlanner(
+                policyResolver,
+                projection,
+                bomFamily,
+                publishSettingsReader,
+                centralReadinessService,
+                dryRunService,
+                packagePlanService,
+                new WorkspaceMemberSbomLockProjection());
     }
 
     public WorkspacePublishReport publish(
@@ -165,8 +154,8 @@ public final class WorkspacePublishService {
         List<String> blockers = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         for (WorkspaceMember member : publishable) {
-            MemberPlanResult result =
-                    buildMemberPlan(member, workspace, aggregatedLock, publishSet, options, resumeState, sbomGenerator);
+            WorkspaceMemberPlanner.Result result =
+                    memberPlanner.plan(member, workspace, aggregatedLock, publishSet, options, resumeState, sbomGenerator);
             publications.add(result.publication());
             blockers.addAll(result.blockers());
             notes.addAll(result.notes());
@@ -213,96 +202,6 @@ public final class WorkspacePublishService {
         }
         Set<String> completed = resumeState.map(ResumeState::completed).orElse(Set.of());
         return uploader.upload(stagedMembers, options, completed, statePath).withNotes(notes);
-    }
-
-    private MemberPlanResult buildMemberPlan(
-            WorkspaceMember member,
-            Workspace workspace,
-            ZoltLockfile aggregatedLock,
-            Set<String> publishSet,
-            Options options,
-            Optional<ResumeState> resumeState,
-            WorkspaceMemberSbomGenerator sbomGenerator) {
-        ProjectConfig config = policyResolver.merge(workspace, member);
-        boolean bom = config.packageSettings().mode() == PackageMode.BOM;
-        ZoltLockfile memberLock =
-                bom ? bomFamily.familyLock(workspace, aggregatedLock, member) : projection.project(config, aggregatedLock);
-        PublishSettings publish =
-                publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
-        // Resolve the member's REAL primary artifact through the framework-aware package planner (the
-        // same path single-project publishing plans) — a Quarkus fast-jar's quarkus-run.jar or any
-        // future mode's real archive, not a synthesized <name>-<version>.jar. The lock only feeds the
-        // planner's discarded dependency listing; the archive path derives from the member dir + config.
-        Path artifactPath = bom
-                ? null
-                : packagePlanService.plan(member.directory(), config, workspace.root().resolve("zolt.lock"))
-                        .archivePath().toAbsolutePath().normalize();
-        // The POM plan below consumes the POM-shaped memberLock; the SBOM consumes the full closure.
-        Optional<Path> sbomFile = bom
-                ? Optional.empty()
-                : sbomGenerator.generate(member.directory(), config,
-                        sbomProjection.project(config, aggregatedLock, workspace, policyResolver));
-
-        // Reuse the single-project planner against the projected member lock: this is the sole source
-        // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.
-        PublishDryRunPlan memberPlan = dryRunService.planResolved(
-                member.directory(),
-                config,
-                publish,
-                () -> memberLock,
-                () -> artifactPath,
-                !options.central(),
-                sbomFile);
-
-        List<String> extraBlockers = new ArrayList<>();
-        List<String> notes = new ArrayList<>();
-        if (!bom) {
-            for (String sibling : PublishInterMemberGuard.missingSiblings(memberLock, publishSet)) {
-                if (resumeState.isPresent()) {
-                    // A resumed set omits providers only when the state proves they landed; an absent
-                    // sibling the state does not record as published is an incomplete family, not a note.
-                    if (resumeState.orElseThrow().recordsPublished(sibling)) {
-                        notes.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
-                                + "` is absent from the resumed set and recorded as already published; "
-                                + "treating it as satisfied.");
-                    } else {
-                        extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
-                                + "` was never uploaded in the interrupted publish; re-run the full publish: "
-                                + "`zolt publish --workspace`.");
-                    }
-                } else {
-                    extraBlockers.add("inter-member dependency `" + sibling + "` of `" + coordinateString(config)
-                            + "` is not in the publish set; publish the family together or add `--member` for it.");
-                }
-            }
-        }
-        if (options.central()) {
-            for (PublishCentralRequirement requirement :
-                    centralReadinessService.evaluate(config, publish, memberPlan)) {
-                if (!requirement.satisfied()) {
-                    extraBlockers.add(
-                            coordinateString(config) + ": " + requirement.name() + " — " + requirement.remediation());
-                }
-            }
-        }
-        PublishDryRunPlan finalPlan =
-                extraBlockers.isEmpty() ? memberPlan : memberPlan.withContext(memberPlan.context(), extraBlockers);
-        MemberPublication publication = new MemberPublication(
-                member.directory(),
-                member.path(),
-                coordinateString(config),
-                bom,
-                finalPlan,
-                publish,
-                config.repositoryCredentials());
-        return new MemberPlanResult(publication, finalPlan.blockers(), notes);
-    }
-
-    private static String coordinateString(ProjectConfig config) {
-        return config.project().group() + ":" + config.project().name() + ":" + config.project().version();
-    }
-
-    private record MemberPlanResult(MemberPublication publication, List<String> blockers, List<String> notes) {
     }
 
     /** Publish options mirroring the CLI flags. */
