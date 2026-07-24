@@ -187,6 +187,36 @@ final class PublishPomGeneratorTest {
     }
 
     @Test
+    void rendersTwoVariantsOfOneGaAsDistinctDependenciesInsteadOfCollapsing() {
+        // A member depends on two classified variants of one GA in different published scopes: the plain-GA
+        // dedup key would collapse them onto one <dependency>; the variant-aware identity keeps both.
+        String coordinate = "io.netty:netty-transport-native-epoll";
+        DependencyMetadata linux = new DependencyMetadata(
+                "dependencies", coordinate, null, null, false, null, false, false, List.of(), "linux-x86_64", null);
+        DependencyMetadata osx = new DependencyMetadata(
+                "provided.dependencies", coordinate, null, null, false, null, false, false, List.of(), "osx-aarch_64", null);
+        ProjectConfig config = config(
+                PublicationMetadata.empty(),
+                Map.of(
+                        DependencyMetadata.key("dependencies", coordinate), linux,
+                        DependencyMetadata.key("provided.dependencies", coordinate), osx));
+
+        ZoltLockfile lockfile = new ZoltLockfile(
+                1,
+                List.of(
+                        direct("io.netty", "netty-transport-native-epoll", "4.1.100.Final", DependencyScope.COMPILE),
+                        direct("io.netty", "netty-transport-native-epoll", "4.1.100.Final", DependencyScope.PROVIDED)),
+                List.of());
+
+        String pom = generator.generate(config, lockfile);
+
+        assertEquals(2, countOccurrences(pom, "<artifactId>netty-transport-native-epoll</artifactId>"));
+        assertTrue(pom.contains("<classifier>linux-x86_64</classifier>"));
+        assertTrue(pom.contains("<classifier>osx-aarch_64</classifier>"));
+        assertTrue(pom.contains("<scope>provided</scope>"));
+    }
+
+    @Test
     void invalidPublishOnlyCoordinateRaisesPublishException() {
         DependencyMetadata invalid = new DependencyMetadata(
                 "dependencies",

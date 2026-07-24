@@ -46,6 +46,26 @@ final class LockSbomAssemblerTest extends SbomTestSupport {
     }
 
     @Test
+    void twoVariantsOfOneGavAreDistinctComponentsWithVariantResolvedEdges() {
+        // lib-a depends on both the plain jar and the linux-x86_64 classified jar of one GAV. The edges are
+        // variant-qualified, so each must resolve to its OWN component purl rather than collapsing to one.
+        SbomModel model = assemble(
+                SbomScopeSelection.requiredOnly(),
+                maven("org.example", "lib-a", "1.0.0", DependencyScope.COMPILE, true, SHA_A,
+                        List.of("io.netty:netty:4.1.0", "io.netty:netty:4.1.0:jar|linux-x86_64")),
+                maven("io.netty", "netty", "4.1.0", DependencyScope.COMPILE, false, SHA_B, List.of()),
+                classified("io.netty", "netty", "4.1.0", "linux-x86_64", "jar", SHA_C, List.of()));
+
+        assertTrue(purls(model).contains("pkg:maven/io.netty/netty@4.1.0?type=jar"));
+        assertTrue(purls(model).contains("pkg:maven/io.netty/netty@4.1.0?classifier=linux-x86_64&type=jar"));
+        assertEquals(
+                List.of(
+                        "pkg:maven/io.netty/netty@4.1.0?classifier=linux-x86_64&type=jar",
+                        "pkg:maven/io.netty/netty@4.1.0?type=jar"),
+                dependsOn(model, "pkg:maven/org.example/lib-a@1.0.0?type=jar"));
+    }
+
+    @Test
     void filtersEdgesToSurvivingEndpoints() {
         SbomModel included = assemble(
                 new SbomScopeSelection(false, false, true, false),

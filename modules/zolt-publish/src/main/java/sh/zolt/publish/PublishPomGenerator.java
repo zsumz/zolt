@@ -135,7 +135,9 @@ public final class PublishPomGenerator {
             }
             String coordinate = coordinate(lockPackage.packageId());
             DependencyMetadata metadata = config.dependencyMetadata().get(metadataKey(lockPackage.scope(), coordinate));
-            dependencies.put(coordinate, new PublishPomDependency(
+            // Key by the variant-aware identity so a plain jar and a classified jar at one GA both survive
+            // as distinct POM dependencies instead of the later overwriting the earlier.
+            PublishPomDependency dependency = new PublishPomDependency(
                     lockPackage.packageId().groupId(),
                     lockPackage.packageId().artifactId(),
                     metadata == null ? null : metadata.classifier(),
@@ -143,14 +145,15 @@ public final class PublishPomGenerator {
                     metadata == null ? null : metadata.type(),
                     mavenScope(lockPackage.scope()),
                     metadata != null && metadata.optional(),
-                    metadata == null ? List.of() : metadata.exclusions()));
+                    metadata == null ? List.of() : metadata.exclusions());
+            dependencies.put(dependency.coordinate(), dependency);
         }
         for (DependencyMetadata metadata : config.dependencyMetadata().values()) {
             if (!metadata.publishOnly()) {
                 continue;
             }
             PackageId packageId = packageId(metadata.coordinate());
-            dependencies.put(metadata.coordinate(), new PublishPomDependency(
+            PublishPomDependency dependency = new PublishPomDependency(
                     packageId.groupId(),
                     packageId.artifactId(),
                     metadata.classifier(),
@@ -158,7 +161,8 @@ public final class PublishPomGenerator {
                     metadata.type(),
                     mavenScope(metadata.section()),
                     metadata.optional(),
-                    metadata.exclusions()));
+                    metadata.exclusions());
+            dependencies.put(dependency.coordinate(), dependency);
         }
         return dependencies.values().stream()
                 .sorted(Comparator.comparing(PublishPomDependency::coordinate))

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import sh.zolt.lockfile.LockDependencyEdge;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.ProjectConfig;
@@ -64,14 +65,12 @@ public final class WorkspaceSbomAssembler {
                             ref));
             accumulator.raise(group.componentScope());
             LockArtifacts.hash(lockPackage).ifPresent(accumulator.hashes::add);
-            String coordinate = LockArtifacts.coordinate(lockPackage);
-            if (LockArtifacts.classifier(lockPackage).isEmpty()) {
-                coordinateToRef.put(coordinate, purl);
-            } else {
-                coordinateToRef.putIfAbsent(coordinate, purl);
-            }
+            // Key by the variant-qualified ref so two variants of one GAV map to their own purl instead of
+            // one collapsing the other. A member (default variant) keeps its bare g:a:v ref below.
+            coordinateToRef.put(refOf(lockPackage), purl);
         }
-        // Members win coordinate mapping over any same-coordinate external (first-party identity).
+        // Members win coordinate mapping over any same-coordinate external (first-party identity). A member
+        // is a plain jar, so its ref is the bare g:a:v — the same key a bare edge to it resolves through.
         for (SbomComponent member : memberComponents) {
             coordinateToRef.put(member.group() + ":" + member.name() + ":" + member.version(), member.bomRef());
         }
@@ -117,7 +116,7 @@ public final class WorkspaceSbomAssembler {
         }
 
         for (LockPackage lockPackage : lockfile.packages()) {
-            String ref = coordinateToRef.get(LockArtifacts.coordinate(lockPackage));
+            String ref = coordinateToRef.get(refOf(lockPackage));
             if (ref == null) {
                 continue;
             }
@@ -144,6 +143,11 @@ public final class WorkspaceSbomAssembler {
             dependencies.add(new SbomDependency(edge.getKey(), List.copyOf(edge.getValue())));
         }
         return dependencies;
+    }
+
+    /** The variant-qualified edge ref that points at (and uniquely keys) this package. */
+    private static String refOf(LockPackage lockPackage) {
+        return LockDependencyEdge.of(lockPackage).encode();
     }
 
     private SbomComponent rootComponent(String workspaceName) {

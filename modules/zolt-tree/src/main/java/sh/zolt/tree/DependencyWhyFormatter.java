@@ -2,6 +2,7 @@ package sh.zolt.tree;
 
 import sh.zolt.dependency.ConflictSelectionReason;
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -9,9 +10,7 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.dependency.PackageId;
 import java.util.ArrayDeque;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public final class DependencyWhyFormatter {
@@ -73,7 +72,7 @@ public final class DependencyWhyFormatter {
     }
 
     private static Optional<List<LockPackage>> pathTo(ZoltLockfile lockfile, PackageId target) {
-        Map<String, LockPackage> packages = packagesByCoordinate(lockfile);
+        LockDependencyIndex packages = new LockDependencyIndex(lockfile.packages());
         ArrayDeque<PathItem> queue = new ArrayDeque<>();
         lockfile.packages().stream()
                 .filter(LockPackage::direct)
@@ -87,7 +86,7 @@ public final class DependencyWhyFormatter {
             }
             item.lockPackage().dependencies().stream()
                     .sorted()
-                    .map(packages::get)
+                    .map(edge -> packages.resolve(edge).orElse(null))
                     .filter(java.util.Objects::nonNull)
                     .filter(dependency -> !contains(item.path(), dependency))
                     .forEach(dependency -> queue.add(new PathItem(
@@ -96,14 +95,6 @@ public final class DependencyWhyFormatter {
         }
 
         return Optional.empty();
-    }
-
-    private static Map<String, LockPackage> packagesByCoordinate(ZoltLockfile lockfile) {
-        Map<String, LockPackage> packages = new LinkedHashMap<>();
-        lockfile.packages().stream()
-                .sorted(Comparator.comparing(DependencyWhyFormatter::coordinate))
-                .forEach(lockPackage -> packages.put(coordinate(lockPackage), lockPackage));
-        return packages;
     }
 
     private static String coordinate(LockPackage lockPackage) {

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.ProjectConfig;
@@ -43,7 +44,6 @@ public final class LockSbomAssembler {
 
         // Dedup components by bom-ref (purl). Multi-scope duplicates merge; required wins.
         Map<String, ComponentAccumulator> byRef = new LinkedHashMap<>();
-        Map<String, String> coordinateToRef = new TreeMap<>();
         List<LockPackage> included = new ArrayList<>();
         for (LockPackage lockPackage : lockfile.packages()) {
             SbomScopeGroup group = SbomScopeGroup.of(lockPackage.scope());
@@ -51,7 +51,7 @@ public final class LockSbomAssembler {
                 continue;
             }
             included.add(lockPackage);
-            accumulate(byRef, coordinateToRef, lockPackage, group);
+            accumulate(byRef, lockPackage, group);
         }
 
         List<SbomComponent> components = byRef.values().stream()
@@ -60,7 +60,7 @@ public final class LockSbomAssembler {
                 .sorted(Comparator.comparing(SbomComponent::bomRef))
                 .toList();
 
-        List<SbomDependency> dependencies = dependencyGraph(root, included, byRef, coordinateToRef);
+        List<SbomDependency> dependencies = dependencyGraph(root, included);
         String serialNumber = serialNumber(config, lockfile, components);
         return new SbomModel(
                 serialNumber,
@@ -82,13 +82,11 @@ public final class LockSbomAssembler {
 
     private void accumulate(
             Map<String, ComponentAccumulator> byRef,
-            Map<String, String> coordinateToRef,
             LockPackage lockPackage,
             SbomScopeGroup group) {
         String groupId = lockPackage.packageId().groupId();
         String artifactId = lockPackage.packageId().artifactId();
         String version = lockPackage.version();
-        Optional<String> classifier = LockArtifacts.classifier(lockPackage);
         String purl = LockArtifacts.purl(lockPackage);
 
         ComponentAccumulator accumulator = byRef.computeIfAbsent(
@@ -97,25 +95,17 @@ public final class LockSbomAssembler {
                         SbomComponentType.LIBRARY, ref, groupId, artifactId, version, ref));
         accumulator.raise(group.componentScope());
         LockArtifacts.hash(lockPackage).ifPresent(accumulator.hashes::add);
-
-        // Lock edges reference the bare "g:a:v"; map it to the base (classifier-free) bom-ref.
-        String coordinate = groupId + ":" + artifactId + ":" + version;
-        if (classifier.isEmpty()) {
-            coordinateToRef.put(coordinate, purl);
-        } else {
-            coordinateToRef.putIfAbsent(coordinate, purl);
-        }
     }
 
-    private List<SbomDependency> dependencyGraph(
-            SbomComponent root,
-            List<LockPackage> included,
-            Map<String, ComponentAccumulator> byRef,
-            Map<String, String> coordinateToRef) {
+    private List<SbomDependency> dependencyGraph(SbomComponent root, List<LockPackage> included) {
+        // Resolve each variant-qualified edge to the exact included package (bare edges to the default/sole
+        // one), then to its purl bom-ref. Two variants of one GAV are distinct components with distinct
+        // purls, so an edge lands on the specific variant a dependent used instead of collapsing to one.
+        LockDependencyIndex index = new LockDependencyIndex(included);
         Map<String, TreeSet<String>> edges = new TreeMap<>();
         edges.put(root.bomRef(), new TreeSet<>());
-        for (ComponentAccumulator accumulator : byRef.values()) {
-            edges.computeIfAbsent(accumulator.bomRef, ref -> new TreeSet<>());
+        for (LockPackage lockPackage : included) {
+            edges.computeIfAbsent(LockArtifacts.purl(lockPackage), ref -> new TreeSet<>());
         }
 
         for (LockPackage lockPackage : included) {
@@ -125,10 +115,9 @@ public final class LockSbomAssembler {
             }
             TreeSet<String> dependsOn = edges.get(ref);
             for (String edge : lockPackage.dependencies()) {
-                String target = coordinateToRef.get(edge);
-                if (target != null) {
-                    dependsOn.add(target);
-                }
+                index.resolve(edge)
+                        .map(LockArtifacts::purl)
+                        .ifPresent(dependsOn::add);
             }
         }
 

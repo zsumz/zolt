@@ -9,6 +9,7 @@ import static sh.zolt.tree.DependencyJsonFields.stringArrayField;
 import static sh.zolt.tree.DependencyJsonFields.stringField;
 
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.LockPolicyEffect;
 import sh.zolt.lockfile.ZoltLockfile;
@@ -17,9 +18,7 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.ConflictSelectionReason;
 import java.util.ArrayDeque;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public final class DependencyJsonFormatter {
@@ -184,7 +183,7 @@ public final class DependencyJsonFormatter {
     }
 
     private static Optional<List<LockPackage>> pathTo(ZoltLockfile lockfile, PackageId target) {
-        Map<String, LockPackage> packages = packagesByCoordinate(lockfile);
+        LockDependencyIndex packages = new LockDependencyIndex(lockfile.packages());
         ArrayDeque<PathItem> queue = new ArrayDeque<>();
         lockfile.packages().stream()
                 .filter(LockPackage::direct)
@@ -198,7 +197,7 @@ public final class DependencyJsonFormatter {
             }
             item.lockPackage().dependencies().stream()
                     .sorted()
-                    .map(packages::get)
+                    .map(edge -> packages.resolve(edge).orElse(null))
                     .filter(java.util.Objects::nonNull)
                     .filter(dependency -> !contains(item.path(), dependency))
                     .forEach(dependency -> queue.add(new PathItem(
@@ -206,14 +205,6 @@ public final class DependencyJsonFormatter {
                             append(item.path(), dependency))));
         }
         return Optional.empty();
-    }
-
-    private static Map<String, LockPackage> packagesByCoordinate(ZoltLockfile lockfile) {
-        Map<String, LockPackage> packages = new LinkedHashMap<>();
-        lockfile.packages().stream()
-                .sorted(Comparator.comparing(DependencyJsonFormatter::coordinate))
-                .forEach(lockPackage -> packages.put(coordinate(lockPackage), lockPackage));
-        return packages;
     }
 
     private static List<LockPolicyEffect> exclusionEffects(ZoltLockfile lockfile, PackageId target) {
