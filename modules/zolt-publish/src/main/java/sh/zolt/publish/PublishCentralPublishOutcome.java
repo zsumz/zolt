@@ -1,5 +1,7 @@
 package sh.zolt.publish;
 
+import java.util.Locale;
+
 /**
  * How a Central Portal publish concluded. {@link #UPLOADED} is the default single-check result: the
  * bundle was accepted and validation continues on the Portal. {@link #PUBLISHED} and
@@ -11,5 +13,15 @@ package sh.zolt.publish;
 public enum PublishCentralPublishOutcome {
     UPLOADED,
     PUBLISHED,
-    AWAITING_MANUAL_RELEASE
+    AWAITING_MANUAL_RELEASE;
+
+    /**
+     * Maps a polled terminal deployment state to its outcome: {@code PUBLISHED} is live on Central,
+     * every other terminal state (a user-managed {@code VALIDATED}) awaits a manual release. Shared by
+     * the single-project and workspace-family Central paths so both surface the same terminal status.
+     */
+    public static PublishCentralPublishOutcome ofTerminalState(String state) {
+        String normalized = state == null ? "" : state.strip().toUpperCase(Locale.ROOT);
+        return normalized.equals("PUBLISHED") ? PUBLISHED : AWAITING_MANUAL_RELEASE;
+    }
 }

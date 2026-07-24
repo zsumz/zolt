@@ -4,7 +4,6 @@ import sh.zolt.project.ProjectConfig;
 import sh.zolt.toml.ZoltTomlParser;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -92,14 +91,8 @@ public final class PublishCentralPublishService {
         CentralDeploymentStatus status = waiter.awaitTerminal(
                 central.baseUrl(), deploymentId, token, central.publishingType(), waitTimeout.get());
         return new PublishCentralUploadResult(
-                bundle, deploymentId, central.publishingType(), status, terminalOutcome(status));
-    }
-
-    private static PublishCentralPublishOutcome terminalOutcome(CentralDeploymentStatus status) {
-        String state = status.state() == null ? "" : status.state().strip().toUpperCase(Locale.ROOT);
-        return state.equals("PUBLISHED")
-                ? PublishCentralPublishOutcome.PUBLISHED
-                : PublishCentralPublishOutcome.AWAITING_MANUAL_RELEASE;
+                bundle, deploymentId, central.publishingType(), status,
+                PublishCentralPublishOutcome.ofTerminalState(status.state()));
     }
 
     private PublishSettings read(Path root) {
