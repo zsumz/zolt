@@ -49,6 +49,28 @@ final class VersionStabilityTest {
     }
 
     @Test
+    void expandedPrereleaseQualifiersArePrerelease() {
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("2.0.0-ea.1"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("1.5.0-preview"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("3.0.0-dev"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("0.9.0-nightly"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("1.0.0-canary.3"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("1.2.0-pre"));
+        assertEquals(VersionStability.PRERELEASE, VersionStability.of("1.0.0-experimental"));
+    }
+
+    @Test
+    void releaseFlavorsAndIncubatingStayRelease() {
+        assertEquals(VersionStability.RELEASE, VersionStability.of("33.4.8-jre"));
+        assertEquals(VersionStability.RELEASE, VersionStability.of("4.1.100.Final"));
+        assertEquals(VersionStability.RELEASE, VersionStability.of("20231013"));
+        assertEquals(VersionStability.RELEASE, VersionStability.of("2.0-android"));
+        assertEquals(VersionStability.RELEASE, VersionStability.of("2.9.0-native"));
+        // Apache incubator artifacts are published releases; the token stays out of the prerelease set.
+        assertEquals(VersionStability.RELEASE, VersionStability.of("1.0.0-incubating"));
+    }
+
+    @Test
     void qualifiersFusedToDigitsStillClassify() {
         assertEquals(VersionStability.PRERELEASE, VersionStability.of("1.2.3.rc1"));
         assertEquals(VersionStability.PRERELEASE, VersionStability.of("5.0.0alpha1"));

@@ -53,6 +53,18 @@ final class VersionClassifierTest {
     }
 
     @Test
+    void expandedPrereleaseTokensAreExcludedByDefaultAndWidenedOnRequest() {
+        VersionCandidates stable = classifier.candidates(
+                "1.2.3", List.of("2.0.0-ea.1", "1.5.0-preview", "1.3.0-nightly"), false);
+        assertFalse(stable.updateAvailable());
+
+        VersionCandidates widened =
+                classifier.candidates("1.2.3", List.of("2.0.0-ea.1", "1.5.0-preview"), true);
+        assertEquals("1.5.0-preview", widened.selectedInMajor().orElseThrow());
+        assertEquals("2.0.0-ea.1", widened.selectedLatest().orElseThrow());
+    }
+
+    @Test
     void prereleaseWideningPrefersLatestPrerelease() {
         VersionCandidates widened =
                 classifier.candidates("1.2.3", List.of("1.3.0-rc1", "1.3.0-rc2"), true);

@@ -9,9 +9,15 @@ import java.util.Set;
  * Stability of a version string, decided purely from its qualifier tokens.
  *
  * <p>SNAPSHOT versions are never suggested as updates. PRERELEASE is assigned only when a KNOWN
- * negative-rank qualifier token is present ({@code alpha, a, beta, b, milestone, m, rc, cr}); every
- * other qualifier — including flavor tokens like {@code jre}, {@code android}, or calver segments —
- * is treated as RELEASE so those remain eligible update targets.
+ * prerelease qualifier token is present ({@code alpha, a, beta, b, milestone, m, rc, cr, ea, preview,
+ * dev, nightly, canary, pre, experimental}); every other qualifier — including flavor tokens like
+ * {@code jre}, {@code android}, {@code jakarta}, {@code native}, release words like {@code final/ga/release},
+ * or calver segments — is treated as RELEASE so those remain eligible update targets.
+ *
+ * <p>A token joins the prerelease set only when it never denotes a published-release flavor on Maven
+ * Central. {@code incubating} is deliberately excluded on that basis: Apache incubator artifacts (for
+ * example {@code 1.0.0-incubating}) are voted, released coordinates, so treating them as prerelease
+ * would wrongly suppress update suggestions between them.
  */
 public enum VersionStability {
     RELEASE,
@@ -19,8 +25,9 @@ public enum VersionStability {
     SNAPSHOT;
 
     private static final String SNAPSHOT_QUALIFIER = "snapshot";
-    private static final Set<String> PRERELEASE_QUALIFIERS =
-            Set.of("alpha", "a", "beta", "b", "milestone", "m", "rc", "cr");
+    private static final Set<String> PRERELEASE_QUALIFIERS = Set.of(
+            "alpha", "a", "beta", "b", "milestone", "m", "rc", "cr",
+            "ea", "preview", "dev", "nightly", "canary", "pre", "experimental");
 
     /** Classify a version string. Unknown qualifiers are RELEASE. */
     public static VersionStability of(String version) {

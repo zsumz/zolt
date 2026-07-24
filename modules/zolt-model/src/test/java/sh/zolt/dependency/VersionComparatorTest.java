@@ -46,6 +46,19 @@ final class VersionComparatorTest {
     }
 
     @Test
+    void expandedPrereleaseTokensSortBelowTheirRelease() {
+        // Consistency with VersionStability: a version it classifies PRERELEASE also orders below its
+        // GA, so update/outdated ranking can always move off a prerelease onto the matching release.
+        assertOlder("2.0.0-ea.1", "2.0.0");
+        assertOlder("1.5.0-preview", "1.5.0");
+        assertOlder("3.0.0-dev", "3.0.0");
+        assertOlder("0.9.0-nightly", "0.9.0");
+        assertOlder("1.0.0-canary.3", "1.0.0");
+        assertOlder("1.2.0-pre", "1.2.0");
+        assertOlder("1.0.0-experimental", "1.0.0");
+    }
+
+    @Test
     void commonRealWorldVersionsSort() {
         assertOlder("5.11.3", "5.11.4");
         assertOlder("2.0.15", "2.0.16");
