@@ -147,6 +147,7 @@ public final class UpdateCommand implements Runnable {
 
     private void runJson(Path projectRoot, Path configPath, ProjectConfig config, UpdatePlan plan) {
         if (!dryRun && plan.hasEdits()) {
+            DependencyEditCommentWarning.printIfNeeded(CommandHumanOutput.errors(spec), configPath);
             ProjectConfig updated = engine.apply(config, plan);
             tomlWriter.write(configPath, updated);
             if (!noResolve) {
