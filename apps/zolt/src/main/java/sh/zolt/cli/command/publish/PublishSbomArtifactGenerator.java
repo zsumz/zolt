@@ -15,6 +15,7 @@ import sh.zolt.sbom.LockSbomAssembler;
 import sh.zolt.sbom.SbomModel;
 import sh.zolt.sbom.SbomScopeSelection;
 import sh.zolt.toml.ZoltTomlParser;
+import sh.zolt.workspace.publish.WorkspaceMemberSbomGenerator;
 
 /**
  * Generates the lock-only CycloneDX SBOM attached by {@code zolt publish --sbom} and writes it next
@@ -38,13 +39,17 @@ final class PublishSbomArtifactGenerator {
     }
 
     /**
-     * Writes a per-workspace-member SBOM from an already-resolved config and the member's projected
-     * publish lock (a workspace member has no {@code zolt.lock} of its own). Used by
-     * {@code zolt publish --workspace --sbom}; the file lands beside the member POM exactly as the
-     * single-project artifact does.
+     * Builds the per-member SBOM generator for {@code zolt publish --workspace}: when enabled, each
+     * non-BOM member's SBOM is written from its policy-merged config and projected publish lock (a
+     * workspace member has no {@code zolt.lock} of its own), beside the member POM exactly as the
+     * single-project artifact. When disabled, no SBOM is attached.
      */
-    Path generateForMember(Path memberDirectory, ProjectConfig config, ZoltLockfile memberLock, String toolVersion) {
-        return write(memberDirectory, config, memberLock, toolVersion);
+    WorkspaceMemberSbomGenerator memberGenerator(boolean enabled, String toolVersion) {
+        if (!enabled) {
+            return WorkspaceMemberSbomGenerator.disabled();
+        }
+        return (memberDirectory, memberConfig, memberLock) ->
+                Optional.of(write(memberDirectory, memberConfig, memberLock, toolVersion));
     }
 
     private Path write(Path root, ProjectConfig config, ZoltLockfile lockfile, String toolVersion) {

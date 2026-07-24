@@ -31,7 +31,6 @@ import sh.zolt.lockfile.toml.LockfileReadException;
 import sh.zolt.cli.ZoltCli;
 import sh.zolt.toml.ZoltConfigException;
 import sh.zolt.workspace.WorkspaceConfigException;
-import sh.zolt.workspace.publish.WorkspaceMemberSbomGenerator;
 import sh.zolt.workspace.publish.WorkspacePublishReport;
 import sh.zolt.workspace.publish.WorkspacePublishService;
 import sh.zolt.workspace.service.WorkspaceSelectionRequest;
@@ -227,11 +226,9 @@ public final class PublishCommand implements Callable<Integer> {
                 wait ? Optional.of(Duration.ofSeconds(waitTimeoutSeconds)) : Optional.empty();
         WorkspacePublishService.Options options =
                 new WorkspacePublishService.Options(dryRun, central, allowMixedVersions, waitTimeout);
-        WorkspaceMemberSbomGenerator memberSbom =
-                sbom ? memberSbomGenerator() : WorkspaceMemberSbomGenerator.disabled();
         progress.start(dryRun ? "Preparing workspace publish" : "Publishing workspace family");
-        WorkspacePublishReport report =
-                workspacePublishService.publish(projectRoot, cacheRoot, selection, options, memberSbom);
+        WorkspacePublishReport report = workspacePublishService.publish(
+                projectRoot, cacheRoot, selection, options, sbomGenerator.memberGenerator(sbom, ZoltCli.version()));
         CommandOutput.printAndFlush(spec, formatWorkspaceReport(report));
         if (!report.ok()) {
             return 1;
@@ -266,17 +263,6 @@ public final class PublishCommand implements Callable<Integer> {
 
     private Optional<Path> generateSbom(Path projectRoot) {
         return sbomGenerator.generate(sbom, projectRoot, ZoltCli.version());
-    }
-
-    /**
-     * Builds the per-member SBOM generator handed to the workspace publish service: apps/zolt owns the
-     * {@code zolt-sbom} dependency and writes each member's CycloneDX file exactly as single-project
-     * {@code --sbom} does, so {@code zolt-workspace} needs no {@code zolt-sbom} edge.
-     */
-    private WorkspaceMemberSbomGenerator memberSbomGenerator() {
-        String toolVersion = ZoltCli.version();
-        return (memberDirectory, memberConfig, memberLock) ->
-                Optional.of(sbomGenerator.generateForMember(memberDirectory, memberConfig, memberLock, toolVersion));
     }
 
     private static String centralProgressResult(PublishCentralPublishOutcome outcome) {
