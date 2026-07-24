@@ -28,7 +28,10 @@ public record LockConflict(
     public LockConflict {
         requestedVersions = List.copyOf(requestedVersions);
         toolGroup = toolGroup == null ? Optional.empty() : toolGroup;
-        variant = variant == null ? Optional.empty() : variant;
+        // The default variant carries no discriminator, so a caller passing an explicit default jar and a
+        // caller passing nothing collapse to the same empty — keeping conflict dedup, sort, and codec
+        // output byte-identical for variant-free locks.
+        variant = variant == null ? Optional.empty() : variant.filter(value -> !value.isDefault());
     }
 
     public LockConflict(

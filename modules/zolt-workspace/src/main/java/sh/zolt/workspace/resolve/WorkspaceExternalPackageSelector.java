@@ -6,6 +6,7 @@ import sh.zolt.dependency.PackageId;
 import sh.zolt.dependency.VersionComparator;
 import sh.zolt.lockfile.LockArtifactVariant;
 import sh.zolt.lockfile.LockConflict;
+import sh.zolt.lockfile.LockDependencyEdge;
 import sh.zolt.lockfile.LockPackage;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,13 +29,11 @@ final class WorkspaceExternalPackageSelector {
                 .toList();
 
         // Two variants of one GAV (a plain jar and a linux-x86_64 classified jar, or a jar and a .zip)
-        // are distinct artifacts, so each gets its OWN lane keyed by (PackageId, variant). Version
-        // mediation runs WITHIN a lane, so the same-GA different-variant entries coexist at their
-        // mediated versions instead of one template collapsing the other's bytes.
+        // are distinct artifacts, so each gets its OWN lane keyed by (PackageId, variant). Everything the
+        // workspace layer mediates — the selected version, the edge-version rewrite, and the conflict
+        // record — runs WITHIN a lane, so same-GA different-variant entries coexist at their own mediated
+        // versions and never collapse onto (or falsely conflict with) each other.
         Map<PackageVariantKey, List<LockPackage>> candidatesByVariant = new LinkedHashMap<>();
-        // A GA-level view still drives bare "g:a:v" dependency-edge rewriting and version-conflict
-        // reporting: neither can name a classifier, so both stay keyed by PackageId exactly as before.
-        Map<PackageId, List<LockPackage>> candidatesByPackage = new LinkedHashMap<>();
         regularCandidates.stream()
                 .sorted(Comparator.comparing(lockPackage -> lockPackage.packageId()
                         + ":"
@@ -43,42 +42,37 @@ final class WorkspaceExternalPackageSelector {
                         + lockPackage.scope().lockfileName()
                         + ":"
                         + LockArtifactVariant.of(lockPackage).key()))
-                .forEach(lockPackage -> {
-                    candidatesByVariant
-                            .computeIfAbsent(
-                                    new PackageVariantKey(lockPackage.packageId(), LockArtifactVariant.of(lockPackage)),
-                                    ignored -> new ArrayList<>())
-                            .add(lockPackage);
-                    candidatesByPackage
-                            .computeIfAbsent(lockPackage.packageId(), ignored -> new ArrayList<>())
-                            .add(lockPackage);
-                });
+                .forEach(lockPackage -> candidatesByVariant
+                        .computeIfAbsent(
+                                new PackageVariantKey(lockPackage.packageId(), LockArtifactVariant.of(lockPackage)),
+                                ignored -> new ArrayList<>())
+                        .add(lockPackage));
 
-        Map<PackageId, String> selectedVersions = new LinkedHashMap<>();
-        Map<PackageId, ConflictSelectionReason> selectedReasons = new LinkedHashMap<>();
-        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
+        Map<PackageVariantKey, WorkspaceExternalSelection.VersionSelection> selections = new LinkedHashMap<>();
+        Map<PackageVariantKey, String> selectedVersionByVariant = new LinkedHashMap<>();
+        for (Map.Entry<PackageVariantKey, List<LockPackage>> entry : candidatesByVariant.entrySet()) {
             WorkspaceExternalSelection.VersionSelection selection = selectVersion(entry.getValue());
-            selectedVersions.put(entry.getKey(), selection.version());
-            selectedReasons.put(entry.getKey(), selection.reason());
+            selections.put(entry.getKey(), selection);
+            selectedVersionByVariant.put(entry.getKey(), selection.version());
         }
 
         List<LockPackage> packages = new ArrayList<>();
         for (Map.Entry<PackageVariantKey, List<LockPackage>> entry : candidatesByVariant.entrySet()) {
             List<LockPackage> variantCandidates = entry.getValue();
-            String variantSelectedVersion = selectVersion(variantCandidates).version();
+            String variantSelectedVersion = selections.get(entry.getKey()).version();
             List<DependencyScope> scopes = variantCandidates.stream()
                     .map(LockPackage::scope)
                     .distinct()
                     .sorted(Comparator.comparing(DependencyScope::lockfileName))
                     .toList();
             for (DependencyScope scope : scopes) {
-                packages.add(selectedPackage(variantCandidates, variantSelectedVersion, scope, selectedVersions));
+                packages.add(selectedPackage(variantCandidates, variantSelectedVersion, scope, selectedVersionByVariant));
             }
         }
 
         List<LockConflict> conflicts = new ArrayList<>();
-        for (Map.Entry<PackageId, List<LockPackage>> entry : candidatesByPackage.entrySet()) {
-            PackageId packageId = entry.getKey();
+        for (Map.Entry<PackageVariantKey, List<LockPackage>> entry : candidatesByVariant.entrySet()) {
+            PackageVariantKey key = entry.getKey();
             List<String> requestedVersions = entry.getValue().stream()
                     .map(LockPackage::version)
                     .distinct()
@@ -86,10 +80,12 @@ final class WorkspaceExternalPackageSelector {
                     .toList();
             if (requestedVersions.size() > 1) {
                 conflicts.add(new LockConflict(
-                        packageId,
-                        selectedVersions.get(packageId),
+                        key.packageId(),
+                        selections.get(key).version(),
                         requestedVersions,
-                        selectedReasons.get(packageId)));
+                        selections.get(key).reason(),
+                        Optional.empty(),
+                        Optional.of(key.variant())));
             }
         }
         packages.addAll(selectExecPackages(execCandidates));
@@ -125,7 +121,7 @@ final class WorkspaceExternalPackageSelector {
             List<LockPackage> packageCandidates,
             String selectedVersion,
             DependencyScope scope,
-            Map<PackageId, String> selectedVersions) {
+            Map<PackageVariantKey, String> selectedVersionByVariant) {
         LockPackage selectedTemplate = packageCandidates.stream()
                 .filter(lockPackage -> lockPackage.version().equals(selectedVersion))
                 .findFirst()
@@ -155,7 +151,7 @@ final class WorkspaceExternalPackageSelector {
                 selectedTemplate.artifactSha256(),
                 selectedTemplate.workspace(),
                 selectedTemplate.workspaceOutput(),
-                rewriteDependencies(selectedTemplate.dependencies(), selectedVersions),
+                rewriteDependencies(selectedTemplate.dependencies(), selectedVersionByVariant),
                 List.copyOf(members),
                 List.copyOf(exportedBy),
                 selectedTemplate.policies(),
@@ -234,23 +230,30 @@ final class WorkspaceExternalPackageSelector {
 
     private static List<String> rewriteDependencies(
             List<String> dependencies,
-            Map<PackageId, String> selectedVersions) {
+            Map<PackageVariantKey, String> selectedVersionByVariant) {
         return dependencies.stream()
-                .map(dependency -> rewriteDependency(dependency, selectedVersions))
+                .map(dependency -> rewriteDependency(dependency, selectedVersionByVariant))
                 .sorted()
                 .toList();
     }
 
-    private static String rewriteDependency(String dependency, Map<PackageId, String> selectedVersions) {
-        String[] parts = dependency.split(":", -1);
-        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank()) {
+    /**
+     * Rewrites one dependency edge to its target's cross-member mediated version, staying within the
+     * target's variant lane and preserving the variant qualifier. A classified target edge mediates
+     * against the classified lane, never against the plain-jar lane at the same GA. An unparseable or
+     * unmediated edge is returned untouched, matching the prior tolerant behavior.
+     */
+    private static String rewriteDependency(
+            String dependency, Map<PackageVariantKey, String> selectedVersionByVariant) {
+        Optional<LockDependencyEdge> parsed = LockDependencyEdge.parse(dependency);
+        if (parsed.isEmpty()) {
             return dependency;
         }
-        PackageId packageId = new PackageId(parts[0], parts[1]);
-        String selectedVersion = selectedVersions.get(packageId);
+        LockDependencyEdge edge = parsed.orElseThrow();
+        String selectedVersion = selectedVersionByVariant.get(new PackageVariantKey(edge.packageId(), edge.variant()));
         if (selectedVersion == null) {
             return dependency;
         }
-        return packageId + ":" + selectedVersion;
+        return LockDependencyEdge.encode(edge.packageId(), selectedVersion, edge.variant());
     }
 }

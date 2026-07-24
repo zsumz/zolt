@@ -38,7 +38,8 @@ final class WorkspaceLockfileAggregator {
             LockPackage existingPackage = packages.get(key);
             packages.put(key, existingPackage == null ? lockPackage : merge(existingPackage, lockPackage));
             workspaceProvidedVersions.putIfAbsent(
-                    new WorkspaceCoordinateScope(lockPackage.packageId(), lockPackage.scope()),
+                    new WorkspaceCoordinateScope(
+                            lockPackage.packageId(), LockArtifactVariant.of(lockPackage), lockPackage.scope()),
                     lockPackage.version());
         }
 
@@ -47,8 +48,8 @@ final class WorkspaceLockfileAggregator {
         for (WorkspaceMemberResolveOutput memberOutput : memberOutputs) {
             for (LockPackage lockPackage : memberOutput.lockfile().packages()) {
                 if (!lockPackage.workspace().isPresent()) {
-                    WorkspaceCoordinateScope coordinateScope =
-                            new WorkspaceCoordinateScope(lockPackage.packageId(), lockPackage.scope());
+                    WorkspaceCoordinateScope coordinateScope = new WorkspaceCoordinateScope(
+                            lockPackage.packageId(), LockArtifactVariant.of(lockPackage), lockPackage.scope());
                     if (workspaceProvidedVersions.containsKey(coordinateScope)) {
                         // A workspace member provides this coordinate at this scope; the reactor
                         // version shadows the external same-coordinate transitive (Maven-consistent).
@@ -93,7 +94,9 @@ final class WorkspaceLockfileAggregator {
                         coordinateScope.packageId(),
                         workspaceVersion,
                         List.copyOf(requestedVersions),
-                        ConflictSelectionReason.DIRECT_DEPENDENCY);
+                        ConflictSelectionReason.DIRECT_DEPENDENCY,
+                        Optional.empty(),
+                        Optional.of(coordinateScope.variant()));
                 conflicts.put(conflictKey(conflict), conflict);
             }
         }
@@ -217,7 +220,11 @@ final class WorkspaceLockfileAggregator {
         Set<String> members = new LinkedHashSet<>(lockPackage.members());
         members.add(member);
         Set<String> exportedBy = new LinkedHashSet<>(lockPackage.exportedBy());
-        if (exportedPackageIds.contains(lockPackage.packageId())) {
+        // A member's api export is a GA coordinate, so it re-exports only that GA's plain jar. A classified
+        // attachment of the same GA (a :tests jar) is a distinct artifact the member does not export, so it
+        // must NOT inherit the mark — only the default (plain jar) variant is attributed.
+        if (exportedPackageIds.contains(lockPackage.packageId())
+                && LockArtifactVariant.of(lockPackage).isDefault()) {
             exportedBy.add(member);
         }
         return new LockPackage(
@@ -272,7 +279,8 @@ final class WorkspaceLockfileAggregator {
 
     private static String conflictKey(LockConflict conflict) {
         return conflict.packageId() + ":" + conflict.selectedVersion() + ":" + conflict.reason()
-                + ":" + conflict.toolGroup().orElse("");
+                + ":" + conflict.toolGroup().orElse("")
+                + ":" + conflict.variant().map(LockArtifactVariant::key).orElse("");
     }
 
     private static String policyEffectKey(LockPolicyEffect policyEffect) {
@@ -295,6 +303,12 @@ final class WorkspaceLockfileAggregator {
         return members;
     }
 
-    private record WorkspaceCoordinateScope(PackageId packageId, DependencyScope scope) {
+    /**
+     * The identity a workspace member's provided artifact shadows an external at: its {@link PackageId},
+     * its artifact {@link LockArtifactVariant}, and scope. A member provides only the plain {@code jar}
+     * (default variant), so a classified external attachment of the same GA — a {@code :tests} jar the
+     * member does NOT provide — has a distinct variant, misses this key, and survives onto the classpath.
+     */
+    private record WorkspaceCoordinateScope(PackageId packageId, LockArtifactVariant variant, DependencyScope scope) {
     }
 }

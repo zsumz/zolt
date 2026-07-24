@@ -1,7 +1,12 @@
 package sh.zolt.workspace.publish;
 
+import sh.zolt.dependency.DependencyScope;
+import sh.zolt.lockfile.LockArtifactVariant;
+import sh.zolt.lockfile.LockDependencyEdge;
+import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
+import sh.zolt.project.DependencyMetadata;
 import sh.zolt.project.ProjectConfig;
 import sh.zolt.workspace.resolve.WorkspaceMemberPolicyResolver;
 import sh.zolt.workspace.service.Workspace;
@@ -69,17 +74,17 @@ public final class WorkspaceMemberSbomLockProjection {
             ZoltLockfile aggregatedLock,
             Workspace workspace,
             WorkspaceMemberPolicyResolver policyResolver) {
-        Map<String, LockPackage> byGav = new LinkedHashMap<>();
-        Map<String, LockPackage> externalByCoordinate = new LinkedHashMap<>();
+        Map<String, LockPackage> byRef = new LinkedHashMap<>();
+        ExternalIndex externalIndex = new ExternalIndex();
         Map<String, List<LockPackage>> externalCandidates = new LinkedHashMap<>();
         Map<String, LockPackage> workspaceByCoordinate = new LinkedHashMap<>();
         for (LockPackage lockPackage : aggregatedLock.packages()) {
-            byGav.putIfAbsent(gav(lockPackage), lockPackage);
+            byRef.putIfAbsent(ref(lockPackage), lockPackage);
             String coordinate = coordinate(lockPackage);
             if (lockPackage.workspace().isPresent()) {
                 workspaceByCoordinate.putIfAbsent(coordinate, lockPackage);
             } else {
-                externalByCoordinate.putIfAbsent(coordinate, lockPackage);
+                externalIndex.add(coordinate, lockPackage);
                 externalCandidates.computeIfAbsent(coordinate, key -> new ArrayList<>()).add(lockPackage);
             }
         }
@@ -92,47 +97,50 @@ public final class WorkspaceMemberSbomLockProjection {
                 workspace, policyResolver, workspaceByCoordinate, externalCandidates);
         Map<String, LockPackage> populatedSiblings = closure.populate(directWorkspaceCoordinates(memberConfig));
         for (Map.Entry<String, LockPackage> entry : populatedSiblings.entrySet()) {
-            byGav.put(gav(entry.getValue()), entry.getValue());
+            byRef.put(ref(entry.getValue()), entry.getValue());
             workspaceByCoordinate.put(entry.getKey(), entry.getValue());
         }
 
-        // The member's authoritative direct set (by resolved g:a:v) and the closure's BFS roots, ordered
-        // exactly like the POM projection: api, workspace-api, compile, workspace, runtime, provided.
-        Set<String> directGav = new LinkedHashSet<>();
+        // The member's authoritative direct set (by variant-qualified ref) and the closure's BFS roots,
+        // ordered exactly like the POM projection: api, workspace-api, compile, workspace, runtime,
+        // provided. External roots resolve to the member's OWN variant (its declared classifier/type), so a
+        // member's SBOM roots at its osx-classified netty, never a sibling's linux variant at the same GA.
+        Set<String> directRefs = new LinkedHashSet<>();
         Deque<LockPackage> roots = new ArrayDeque<>();
-        addRoots(roots, directGav, memberConfig.workspaceApiDependencies().keySet(), workspaceByCoordinate);
-        addRoots(roots, directGav, memberConfig.apiDependencies().keySet(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.managedApiDependencies(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.workspaceDependencies().keySet(), workspaceByCoordinate);
-        addRoots(roots, directGav, memberConfig.dependencies().keySet(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.managedDependencies(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.runtimeDependencies().keySet(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.managedRuntimeDependencies(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.providedDependencies().keySet(), externalByCoordinate);
-        addRoots(roots, directGav, memberConfig.managedProvidedDependencies(), externalByCoordinate);
+        addWorkspaceRoots(roots, directRefs, memberConfig.workspaceApiDependencies().keySet(), workspaceByCoordinate);
+        addExternalRoots(roots, directRefs, memberConfig.apiDependencies().keySet(), DependencyScope.COMPILE, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedApiDependencies(), DependencyScope.COMPILE, memberConfig, externalIndex);
+        addWorkspaceRoots(roots, directRefs, memberConfig.workspaceDependencies().keySet(), workspaceByCoordinate);
+        addExternalRoots(roots, directRefs, memberConfig.dependencies().keySet(), DependencyScope.COMPILE, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedDependencies(), DependencyScope.COMPILE, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.runtimeDependencies().keySet(), DependencyScope.RUNTIME, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedRuntimeDependencies(), DependencyScope.RUNTIME, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.providedDependencies().keySet(), DependencyScope.PROVIDED, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED, memberConfig, externalIndex);
 
-        // Breadth-first over the aggregated lock's dependency edges (bare g:a:v), retaining each reached
-        // package as-is. Insertion-ordered so the projected lock is deterministic.
+        // Breadth-first over the aggregated lock's variant-qualified dependency edges, retaining each
+        // reached package as-is. A variant-qualified edge resolves to its exact variant; a bare edge to the
+        // default/sole one. Insertion-ordered so the projected lock is deterministic.
+        LockDependencyIndex edges = new LockDependencyIndex(byRef.values());
         Map<String, LockPackage> reached = new LinkedHashMap<>();
         Deque<LockPackage> queue = new ArrayDeque<>(roots);
         while (!queue.isEmpty()) {
             LockPackage current = queue.removeFirst();
-            String gav = gav(current);
-            if (reached.containsKey(gav)) {
+            String ref = ref(current);
+            if (reached.containsKey(ref)) {
                 continue;
             }
-            reached.put(gav, current);
+            reached.put(ref, current);
             for (String edge : current.dependencies()) {
-                LockPackage target = byGav.get(edge);
-                if (target != null && !reached.containsKey(edge)) {
-                    queue.addLast(target);
-                }
+                edges.resolve(edge)
+                        .filter(target -> !reached.containsKey(ref(target)))
+                        .ifPresent(queue::addLast);
             }
         }
 
         List<LockPackage> projected = new ArrayList<>(reached.size());
         for (LockPackage lockPackage : reached.values()) {
-            projected.add(withDirect(lockPackage, directGav.contains(gav(lockPackage))));
+            projected.add(withDirect(lockPackage, directRefs.contains(ref(lockPackage))));
         }
         return new ZoltLockfile(1, List.copyOf(projected), List.of());
     }
@@ -145,19 +153,74 @@ public final class WorkspaceMemberSbomLockProjection {
         return coordinates;
     }
 
-    private static void addRoots(
+    private static void addWorkspaceRoots(
             Deque<LockPackage> roots,
-            Set<String> directGav,
+            Set<String> directRefs,
             Set<String> coordinates,
-            Map<String, LockPackage> byCoordinate) {
+            Map<String, LockPackage> workspaceByCoordinate) {
         for (String coordinate : coordinates) {
-            LockPackage resolved = byCoordinate.get(coordinate);
-            if (resolved == null) {
-                continue;
-            }
-            if (directGav.add(gav(resolved))) {
+            LockPackage resolved = workspaceByCoordinate.get(coordinate);
+            if (resolved != null && directRefs.add(ref(resolved))) {
                 roots.addLast(resolved);
             }
+        }
+    }
+
+    private static void addExternalRoots(
+            Deque<LockPackage> roots,
+            Set<String> directRefs,
+            Set<String> coordinates,
+            DependencyScope scope,
+            ProjectConfig memberConfig,
+            ExternalIndex externalIndex) {
+        for (String coordinate : coordinates) {
+            LockPackage resolved = externalIndex.resolve(coordinate, declaredVariant(memberConfig, coordinate, scope));
+            if (resolved != null && directRefs.add(ref(resolved))) {
+                roots.addLast(resolved);
+            }
+        }
+    }
+
+    /**
+     * The variant a member depends on for a declared GA coordinate, from its dependency metadata — the
+     * classifier maps directly and {@code <type>} is the extension (default {@code jar}). Mirrors the POM
+     * projection so a member's POM and SBOM describe the same artifact for the same declared coordinate.
+     */
+    private static LockArtifactVariant declaredVariant(
+            ProjectConfig memberConfig, String coordinate, DependencyScope scope) {
+        DependencyMetadata metadata = memberConfig.dependencyMetadata().get(metadataKey(scope, coordinate));
+        if (metadata == null) {
+            return new LockArtifactVariant("jar", java.util.Optional.empty());
+        }
+        String extension = metadata.type() == null ? "jar" : metadata.type();
+        return new LockArtifactVariant(extension, java.util.Optional.ofNullable(metadata.classifier()));
+    }
+
+    private static String metadataKey(DependencyScope scope, String coordinate) {
+        return switch (scope) {
+            case RUNTIME -> DependencyMetadata.key("runtime.dependencies", coordinate);
+            case PROVIDED -> DependencyMetadata.key("provided.dependencies", coordinate);
+            default -> DependencyMetadata.key("dependencies", coordinate);
+        };
+    }
+
+    /** Aggregated-lock externals indexed both by GA and by (GA, variant) for variant-exact resolution. */
+    private static final class ExternalIndex {
+        private final Map<String, LockPackage> byCoordinate = new LinkedHashMap<>();
+        private final Map<String, LockPackage> byVariant = new LinkedHashMap<>();
+
+        void add(String coordinate, LockPackage lockPackage) {
+            byCoordinate.putIfAbsent(coordinate, lockPackage);
+            byVariant.putIfAbsent(variantKey(coordinate, LockArtifactVariant.of(lockPackage)), lockPackage);
+        }
+
+        LockPackage resolve(String coordinate, LockArtifactVariant variant) {
+            LockPackage exact = byVariant.get(variantKey(coordinate, variant));
+            return exact != null ? exact : byCoordinate.get(coordinate);
+        }
+
+        private static String variantKey(String coordinate, LockArtifactVariant variant) {
+            return coordinate + "#" + variant.key();
         }
     }
 
@@ -215,8 +278,9 @@ public final class WorkspaceMemberSbomLockProjection {
                 lockPackage.toolGroups());
     }
 
-    private static String gav(LockPackage lockPackage) {
-        return lockPackage.packageId() + ":" + lockPackage.version();
+    /** The variant-qualified edge ref that points at (and uniquely keys) this package. */
+    private static String ref(LockPackage lockPackage) {
+        return LockDependencyEdge.of(lockPackage).encode();
     }
 
     private static String coordinate(LockPackage lockPackage) {
@@ -299,8 +363,8 @@ public final class WorkspaceMemberSbomLockProjection {
                 List<String> edges, Set<String> seen, String memberPath, Set<String> coordinates) {
             for (String coordinate : coordinates) {
                 LockPackage resolved = resolveExternal(coordinate, memberPath);
-                if (resolved != null && seen.add(gav(resolved))) {
-                    edges.add(gav(resolved));
+                if (resolved != null && seen.add(ref(resolved))) {
+                    edges.add(ref(resolved));
                 }
             }
         }
@@ -309,8 +373,8 @@ public final class WorkspaceMemberSbomLockProjection {
                 List<String> edges, Set<String> seen, Deque<String> queue, Set<String> coordinates) {
             for (String coordinate : coordinates) {
                 LockPackage resolved = workspaceByCoordinate.get(coordinate);
-                if (resolved != null && seen.add(gav(resolved))) {
-                    edges.add(gav(resolved));
+                if (resolved != null && seen.add(ref(resolved))) {
+                    edges.add(ref(resolved));
                 }
                 queue.addLast(coordinate);
             }
