@@ -126,8 +126,28 @@ final class LockfileModelTest {
 
         assertEquals(List.of("1.0.0", "2.0.0"), conflict.requestedVersions());
         assertThrows(UnsupportedOperationException.class, () -> conflict.requestedVersions().clear());
+        assertFalse(conflict.toolGroup().isPresent());
         assertFalse(effect.requestedVersion().isPresent());
         assertFalse(effect.source().isPresent());
+    }
+
+    @Test
+    void lockConflictNormalizesAndRetainsToolGroupAttribution() {
+        LockConflict nullToolGroup = new LockConflict(
+                new PackageId("com.example", "demo"),
+                "2.0.0",
+                List.of("1.0.0", "2.0.0"),
+                ConflictSelectionReason.NEWEST_VERSION,
+                null);
+        LockConflict namedToolGroup = new LockConflict(
+                new PackageId("com.example", "demo"),
+                "2.0.0",
+                List.of("1.0.0", "2.0.0"),
+                ConflictSelectionReason.NEWEST_VERSION,
+                Optional.of("codegen"));
+
+        assertFalse(nullToolGroup.toolGroup().isPresent());
+        assertEquals(Optional.of("codegen"), namedToolGroup.toolGroup());
     }
 
     private static ZoltLockfile lockfileWithInputs(List<String> inputs) {
