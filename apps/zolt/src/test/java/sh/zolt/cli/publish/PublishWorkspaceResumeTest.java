@@ -204,7 +204,7 @@ final class PublishWorkspaceResumeTest {
                     executeIn(family, cache, "publish", "--workspace", "--resume-members", "acme-http,acme-bom");
 
             assertEquals(1, result.exitCode(), result.stdout() + result.stderr());
-            assertTrue(result.stdout().contains("schema v1"), result.stdout());
+            assertTrue(result.stdout().contains("older schema"), result.stdout());
             assertFalse(repository.has("/maven2/com/acme/acme-http/1.0.0/acme-http-1.0.0.jar"), "nothing uploaded");
         } finally {
             repository.close();

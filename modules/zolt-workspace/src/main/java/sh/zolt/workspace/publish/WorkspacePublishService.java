@@ -134,7 +134,7 @@ public final class WorkspacePublishService {
         if (resumeMode && !outcome.present()) {
             String display = WorkspacePublishPaths.displayPath(workspace, statePath);
             String message = outcome.legacy()
-                    ? "the publish resume state at " + display + " was written by an older Zolt (schema v1) and "
+                    ? "the publish resume state at " + display + " was written with an older schema and "
                             + "cannot be trusted to resume this publish. Re-run the full publish: `zolt publish "
                             + "--workspace`."
                     : "no publish resume state found at " + display + ". `--resume-members` resumes a previously "

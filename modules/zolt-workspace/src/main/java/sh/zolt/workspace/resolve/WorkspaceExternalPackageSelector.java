@@ -254,6 +254,10 @@ final class WorkspaceExternalPackageSelector {
         if (selectedVersion == null) {
             return dependency;
         }
-        return LockDependencyEdge.encode(edge.packageId(), selectedVersion, edge.variant());
+        return edge.scope()
+                .map(scope -> LockDependencyEdge.encode(
+                        edge.packageId(), selectedVersion, edge.variant(), scope))
+                .orElseGet(() -> LockDependencyEdge.encode(
+                        edge.packageId(), selectedVersion, edge.variant()));
     }
 }

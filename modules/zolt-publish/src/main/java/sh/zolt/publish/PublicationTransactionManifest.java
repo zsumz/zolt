@@ -6,7 +6,10 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,18 @@ record PublicationTransactionManifest(
             List<StagedPublicationFile> staged) {
         return new PublicationTransactionManifest(
                 targetIdentity, signingIdentity, hashes(staged));
+    }
+
+    /**
+     * Namespaces durable state by release destination and full project coordinate. An interrupted
+     * release can therefore still resume, while a version bump starts an independent transaction.
+     */
+    static Path transactionPath(
+            Path stagingRoot,
+            String targetIdentity,
+            String projectCoordinate) {
+        String identity = targetIdentity + "\n" + projectCoordinate;
+        return stagingRoot.resolve("transactions").resolve(sha256(identity) + ".manifest");
     }
 
     static Optional<PublicationTransactionManifest> read(Path file) {
@@ -169,6 +184,15 @@ record PublicationTransactionManifest(
         return Base64.getUrlEncoder()
                 .withoutPadding()
                 .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new PublishException("SHA-256 is unavailable.", exception);
+        }
     }
 
     private static String decode(String value, Path file) {

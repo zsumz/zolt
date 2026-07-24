@@ -57,7 +57,7 @@ final class ResolveServiceParentPomTest extends ResolveServiceTestSupport {
         assertEquals(2, result.resolvedCount());
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         LockPackage app = packageFor(lockfile, "com.example", "app");
-        assertEquals(List.of("com.example:runtime-client:1.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:runtime-client:1.0.0:jar:runtime"), app.dependencies());
         assertTrue(lockfile.packages().stream().anyMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "runtime-client"))));
     }
@@ -109,7 +109,7 @@ final class ResolveServiceParentPomTest extends ResolveServiceTestSupport {
         assertEquals(2, result.resolvedCount());
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         LockPackage app = packageFor(lockfile, "com.example", "app");
-        assertEquals(List.of("com.example:runtime-client:1.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:runtime-client:1.0.0:jar:runtime"), app.dependencies());
         assertTrue(containsPackageVersion(lockfile, "com.example", "runtime-client", "1.0.0"));
         assertFalse(containsPackageVersion(lockfile, "com.example", "runtime-client", "2.0.0"));
     }
@@ -180,7 +180,7 @@ final class ResolveServiceParentPomTest extends ResolveServiceTestSupport {
         assertEquals(2, result.resolvedCount());
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         LockPackage app = packageFor(lockfile, "com.example", "app");
-        assertEquals(List.of("com.example:runtime-client:1.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:runtime-client:1.0.0:jar:runtime"), app.dependencies());
         assertFalse(containsPackage(lockfile, "com.example", "legacy-helper"));
     }
 
@@ -241,7 +241,7 @@ final class ResolveServiceParentPomTest extends ResolveServiceTestSupport {
         assertEquals(2, result.resolvedCount());
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         LockPackage app = packageFor(lockfile, "com.example", "app");
-        assertEquals(List.of("com.example:runtime-client:2.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:runtime-client:2.0.0:jar:runtime"), app.dependencies());
         assertTrue(containsPackageVersion(lockfile, "com.example", "runtime-client", "2.0.0"));
         assertFalse(containsPackageVersion(lockfile, "com.example", "runtime-client", "3.0.0"));
     }

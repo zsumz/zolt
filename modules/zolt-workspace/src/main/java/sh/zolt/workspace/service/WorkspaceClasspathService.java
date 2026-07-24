@@ -50,7 +50,7 @@ public final class WorkspaceClasspathService {
                 lockfile,
                 cacheRoot,
                 memberPath,
-                dependenciesByMember(workspace));
+                new WorkspaceClasspathMemberGraph(workspace));
     }
 
     public Map<String, ClasspathSet> classpathsForMembers(
@@ -72,7 +72,7 @@ public final class WorkspaceClasspathService {
             Path cacheRoot,
             List<String> memberPaths,
             Set<String> fullClasspathMembers) {
-        Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
+        WorkspaceClasspathMemberGraph memberGraph = new WorkspaceClasspathMemberGraph(workspace);
         Map<String, ClasspathSet> classpathsByMember = new LinkedHashMap<>();
         for (String memberPath : memberPaths) {
             ClasspathSet classpaths = fullClasspathMembers.contains(memberPath)
@@ -81,13 +81,13 @@ public final class WorkspaceClasspathService {
                             lockfile,
                             cacheRoot,
                             memberPath,
-                            dependenciesByMember)
+                            memberGraph)
                     : mainBuildClasspathsFor(
                             workspace,
                             lockfile,
                             cacheRoot,
                             memberPath,
-                            dependenciesByMember);
+                            memberGraph);
             classpathsByMember.put(memberPath, classpaths);
         }
         return Collections.unmodifiableMap(classpathsByMember);
@@ -98,12 +98,12 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             List<String> memberPaths) {
-        Map<String, List<String>> dependenciesByMember = dependenciesByMember(workspace);
+        WorkspaceClasspathMemberGraph memberGraph = new WorkspaceClasspathMemberGraph(workspace);
         Map<String, List<ResolvedClasspathPackage>> packagesByMember = new LinkedHashMap<>();
         for (String memberPath : memberPaths) {
             packagesByMember.put(
                     memberPath,
-                    classpathPackagesFor(workspace, lockfile, cacheRoot, memberPath, dependenciesByMember));
+                    classpathPackagesFor(workspace, lockfile, cacheRoot, memberPath, memberGraph));
         }
         return Collections.unmodifiableMap(packagesByMember);
     }
@@ -113,11 +113,11 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             String memberPath,
-            Map<String, List<String>> dependenciesByMember) {
-        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
+            WorkspaceClasspathMemberGraph memberGraph) {
+        Set<String> compileMembers = memberGraph.mainCompile(memberPath);
         ZoltLockfile compileLockfile = new ZoltLockfile(
                 lockfile.version(),
-                compileClasspathPackagesFor(lockfile.packages(), memberPath, dependencyClosure),
+                compileClasspathPackagesFor(lockfile.packages(), memberPath, compileMembers),
                 List.of());
         ClasspathSet compileClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
                 compileLockfile,
@@ -128,7 +128,7 @@ public final class WorkspaceClasspathService {
                 lockfile,
                 cacheRoot,
                 memberPath,
-                dependenciesByMember,
+                memberGraph.compileDependenciesByMember(),
                 "processor",
                 DependencyScope.PROCESSOR,
                 compileClasspaths.processor());
@@ -146,18 +146,23 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             String memberPath,
-            Map<String, List<String>> dependenciesByMember) {
-        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
-        Set<String> visibleMembers = new LinkedHashSet<>();
-        visibleMembers.add(memberPath);
-        visibleMembers.addAll(dependencyClosure);
+            WorkspaceClasspathMemberGraph memberGraph) {
+        Set<String> compileMembers = memberGraph.mainCompile(memberPath);
+        Set<String> runtimeMembers = memberGraph.mainRuntime(memberPath);
+        Set<String> testMembers = memberGraph.test(memberPath);
+        Set<String> runtimeVisibleMembers = visibleMembers(memberPath, runtimeMembers);
+        Set<String> testVisibleMembers = visibleMembers(memberPath, testMembers);
         ZoltLockfile compileLockfile = new ZoltLockfile(
                 lockfile.version(),
-                compileClasspathPackagesFor(lockfile.packages(), memberPath, dependencyClosure),
+                compileClasspathPackagesFor(lockfile.packages(), memberPath, compileMembers),
                 List.of());
         ZoltLockfile runtimeLockfile = new ZoltLockfile(
                 lockfile.version(),
-                runtimeClasspathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
+                runtimeClasspathPackagesFor(lockfile.packages(), runtimeMembers, runtimeVisibleMembers),
+                List.of());
+        ZoltLockfile testLockfile = new ZoltLockfile(
+                lockfile.version(),
+                runtimeClasspathPackagesFor(lockfile.packages(), testMembers, testVisibleMembers),
                 List.of());
         ClasspathSet compileClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
                 compileLockfile,
@@ -167,12 +172,16 @@ public final class WorkspaceClasspathService {
                 runtimeLockfile,
                 cacheRoot,
                 workspace.root()));
+        ClasspathSet testClasspaths = classpathBuilder.build(LockfileClasspathPackageConverter.classpathPackages(
+                testLockfile,
+                cacheRoot,
+                workspace.root()));
         Classpath processor = processorClasspathAssembler.mergedProcessorClasspath(
                 workspace,
                 lockfile,
                 cacheRoot,
                 memberPath,
-                dependenciesByMember,
+                memberGraph.compileDependenciesByMember(),
                 "processor",
                 DependencyScope.PROCESSOR,
                 compileClasspaths.processor());
@@ -181,14 +190,15 @@ public final class WorkspaceClasspathService {
                 lockfile,
                 cacheRoot,
                 memberPath,
-                dependenciesByMember,
+                memberGraph.compileDependenciesByMember(),
                 "test-processor",
                 DependencyScope.TEST_PROCESSOR,
                 compileClasspaths.testProcessor());
         return new ClasspathSet(
                 compileClasspaths.compile(),
                 runtimeClasspaths.runtime(),
-                runtimeClasspaths.test(),
+                testClasspaths.test(),
+                testClasspaths.testCompile(),
                 processor,
                 testProcessor,
                 runtimeClasspaths.quarkusDeployment());
@@ -199,14 +209,12 @@ public final class WorkspaceClasspathService {
             ZoltLockfile lockfile,
             Path cacheRoot,
             String memberPath,
-            Map<String, List<String>> dependenciesByMember) {
-        Set<String> dependencyClosure = dependencyClosure(memberPath, dependenciesByMember);
-        Set<String> visibleMembers = new LinkedHashSet<>();
-        visibleMembers.add(memberPath);
-        visibleMembers.addAll(dependencyClosure);
+            WorkspaceClasspathMemberGraph memberGraph) {
+        Set<String> runtimeMembers = memberGraph.mainRuntime(memberPath);
+        Set<String> visibleMembers = visibleMembers(memberPath, runtimeMembers);
         ZoltLockfile runtimeLockfile = new ZoltLockfile(
                 lockfile.version(),
-                runtimeClasspathPackagesFor(lockfile.packages(), dependencyClosure, visibleMembers),
+                runtimeClasspathPackagesFor(lockfile.packages(), runtimeMembers, visibleMembers),
                 List.of());
         return LockfileClasspathPackageConverter.classpathPackages(
                 runtimeLockfile,
@@ -302,45 +310,10 @@ public final class WorkspaceClasspathService {
         return false;
     }
 
-    private static Set<String> dependencyClosure(
-            String memberPath,
-            Map<String, List<String>> dependenciesByMember) {
-        Set<String> closure = new LinkedHashSet<>();
-        for (String dependency : dependenciesByMember.getOrDefault(memberPath, List.of())) {
-            includeDependency(dependency, dependenciesByMember, closure);
-        }
-        return closure;
-    }
-
-    private static void includeDependency(
-            String memberPath,
-            Map<String, List<String>> dependenciesByMember,
-            Set<String> closure) {
-        if (!closure.add(memberPath)) {
-            return;
-        }
-        for (String dependency : dependenciesByMember.getOrDefault(memberPath, List.of())) {
-            includeDependency(dependency, dependenciesByMember, closure);
-        }
-    }
-
-    /**
-     * Compile/runtime dependency edges only. Processor ({@code processor}/{@code test-processor})
-     * edges are deliberately excluded so a workspace-member annotation processor and its transitive
-     * dependencies never enter the consumer's compile, runtime, or test classpaths — they are routed
-     * exclusively onto the processor path by {@link WorkspaceProcessorClasspathAssembler}.
-     */
-    private static Map<String, List<String>> dependenciesByMember(Workspace workspace) {
-        Map<String, List<String>> dependencies = new LinkedHashMap<>();
-        for (WorkspaceMember member : workspace.members()) {
-            dependencies.put(member.path(), new ArrayList<>());
-        }
-        for (WorkspaceProjectEdge edge : workspace.edges()) {
-            if (edge.scope().equals("processor") || edge.scope().equals("test-processor")) {
-                continue;
-            }
-            dependencies.get(edge.from()).add(edge.to());
-        }
-        return dependencies;
+    private static Set<String> visibleMembers(String memberPath, Set<String> dependencyMembers) {
+        Set<String> visible = new LinkedHashSet<>();
+        visible.add(memberPath);
+        visible.addAll(dependencyMembers);
+        return visible;
     }
 }

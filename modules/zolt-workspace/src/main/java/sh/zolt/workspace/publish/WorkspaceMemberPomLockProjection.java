@@ -28,7 +28,10 @@ public final class WorkspaceMemberPomLockProjection {
      * @param aggregatedLock the workspace root lock — the sole source of resolved versions and provider GAVs
      * @return a single-project lockfile whose direct packages are exactly the member's published directs
      */
-    public ZoltLockfile project(ProjectConfig memberConfig, ZoltLockfile aggregatedLock) {
+    public ZoltLockfile project(
+            String memberPath,
+            ProjectConfig memberConfig,
+            ZoltLockfile aggregatedLock) {
         MemberDependencyVariants.ExternalIndex externalIndex = new MemberDependencyVariants.ExternalIndex();
         Map<String, LockPackage> workspaceByCoordinate = new LinkedHashMap<>();
         for (LockPackage lockPackage : aggregatedLock.packages()) {
@@ -42,23 +45,23 @@ public final class WorkspaceMemberPomLockProjection {
 
         Map<String, LockPackage> projected = new LinkedHashMap<>();
         addWorkspace(projected, memberConfig.workspaceApiDependencies(), workspaceByCoordinate);
-        addExternal(projected, memberConfig.apiDependencies().keySet(), DependencyScope.COMPILE, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.managedApiDependencies(), DependencyScope.COMPILE, memberConfig,
-                externalIndex);
+        addExternal(projected, memberConfig.apiDependencies().keySet(), DependencyScope.COMPILE, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.managedApiDependencies(), DependencyScope.COMPILE, memberPath,
+                memberConfig, externalIndex);
         addWorkspace(projected, memberConfig.workspaceDependencies(), workspaceByCoordinate);
-        addExternal(projected, memberConfig.dependencies().keySet(), DependencyScope.COMPILE, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.managedDependencies(), DependencyScope.COMPILE, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.runtimeDependencies().keySet(), DependencyScope.RUNTIME, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.managedRuntimeDependencies(), DependencyScope.RUNTIME, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.providedDependencies().keySet(), DependencyScope.PROVIDED, memberConfig,
-                externalIndex);
-        addExternal(projected, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED, memberConfig,
-                externalIndex);
+        addExternal(projected, memberConfig.dependencies().keySet(), DependencyScope.COMPILE, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.managedDependencies(), DependencyScope.COMPILE, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.runtimeDependencies().keySet(), DependencyScope.RUNTIME, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.managedRuntimeDependencies(), DependencyScope.RUNTIME, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.providedDependencies().keySet(), DependencyScope.PROVIDED, memberPath,
+                memberConfig, externalIndex);
+        addExternal(projected, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED, memberPath,
+                memberConfig, externalIndex);
         return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, List.copyOf(projected.values()), List.of());
     }
 
@@ -96,6 +99,7 @@ public final class WorkspaceMemberPomLockProjection {
             Map<String, LockPackage> projected,
             Set<String> coordinates,
             DependencyScope scope,
+            String memberPath,
             ProjectConfig memberConfig,
             MemberDependencyVariants.ExternalIndex externalIndex) {
         for (String coordinate : coordinates) {
@@ -109,7 +113,7 @@ public final class WorkspaceMemberPomLockProjection {
             // dependency metadata (a classifier/type). Resolving the aggregated-lock entry for THAT variant
             // is what stops a member from taking a sibling variant's version — the netty case where the
             // osx-classified dep would otherwise inherit the linux variant's version.
-            LockPackage resolved = externalIndex.resolve(coordinate, variant);
+            LockPackage resolved = externalIndex.resolve(coordinate, variant, scope, memberPath);
             String version = resolved != null ? resolved.version() : declaredVersion(memberConfig, coordinate);
             if (version == null) {
                 continue;

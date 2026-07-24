@@ -68,6 +68,7 @@ public final class WorkspaceMemberSbomLockProjection {
      * @return an SBOM-shaped lockfile: the member's full reachable closure, carried through as-is
      */
     public ZoltLockfile project(
+            String memberPath,
             ProjectConfig memberConfig,
             ZoltLockfile aggregatedLock,
             Workspace workspace,
@@ -106,15 +107,23 @@ public final class WorkspaceMemberSbomLockProjection {
         Set<String> directRefs = new LinkedHashSet<>();
         Deque<LockPackage> roots = new ArrayDeque<>();
         addWorkspaceRoots(roots, directRefs, memberConfig.workspaceApiDependencies().keySet(), workspaceByCoordinate);
-        addExternalRoots(roots, directRefs, memberConfig.apiDependencies().keySet(), DependencyScope.COMPILE, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.managedApiDependencies(), DependencyScope.COMPILE, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.apiDependencies().keySet(), DependencyScope.COMPILE,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedApiDependencies(), DependencyScope.COMPILE,
+                memberPath, memberConfig, externalIndex);
         addWorkspaceRoots(roots, directRefs, memberConfig.workspaceDependencies().keySet(), workspaceByCoordinate);
-        addExternalRoots(roots, directRefs, memberConfig.dependencies().keySet(), DependencyScope.COMPILE, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.managedDependencies(), DependencyScope.COMPILE, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.runtimeDependencies().keySet(), DependencyScope.RUNTIME, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.managedRuntimeDependencies(), DependencyScope.RUNTIME, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.providedDependencies().keySet(), DependencyScope.PROVIDED, memberConfig, externalIndex);
-        addExternalRoots(roots, directRefs, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.dependencies().keySet(), DependencyScope.COMPILE,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedDependencies(), DependencyScope.COMPILE,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.runtimeDependencies().keySet(), DependencyScope.RUNTIME,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedRuntimeDependencies(), DependencyScope.RUNTIME,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.providedDependencies().keySet(), DependencyScope.PROVIDED,
+                memberPath, memberConfig, externalIndex);
+        addExternalRoots(roots, directRefs, memberConfig.managedProvidedDependencies(), DependencyScope.PROVIDED,
+                memberPath, memberConfig, externalIndex);
 
         // Breadth-first over the aggregated lock's variant-qualified dependency edges, retaining each
         // reached package as-is. A variant-qualified edge resolves to its exact variant; a bare edge to the
@@ -140,7 +149,7 @@ public final class WorkspaceMemberSbomLockProjection {
         for (LockPackage lockPackage : reached.values()) {
             projected.add(withDirect(lockPackage, directRefs.contains(ref(lockPackage))));
         }
-        return new ZoltLockfile(1, List.copyOf(projected), List.of());
+        return new ZoltLockfile(ZoltLockfile.CURRENT_VERSION, List.copyOf(projected), List.of());
     }
 
     /** The member's own direct workspace-dependency coordinates: the seed for the sibling closure. */
@@ -169,11 +178,15 @@ public final class WorkspaceMemberSbomLockProjection {
             Set<String> directRefs,
             Set<String> coordinates,
             DependencyScope scope,
+            String memberPath,
             ProjectConfig memberConfig,
             MemberDependencyVariants.ExternalIndex externalIndex) {
         for (String coordinate : coordinates) {
             LockPackage resolved = externalIndex.resolve(
-                    coordinate, MemberDependencyVariants.declaredVariant(memberConfig, coordinate, scope));
+                    coordinate,
+                    MemberDependencyVariants.declaredVariant(memberConfig, coordinate, scope),
+                    scope,
+                    memberPath);
             if (resolved != null && directRefs.add(ref(resolved))) {
                 roots.addLast(resolved);
             }

@@ -12,10 +12,10 @@ public record ZoltLockfile(
         List<LockConflict> conflicts,
         List<LockPolicyEffect> policyEffects) {
     /**
-     * Version 2 introduces variant-qualified dependency edges and conflict identities. Older Zolt
-     * versions must reject those records instead of silently interpreting them as the version-1 graph.
+     * Version 3 introduces scope-qualified dependency edges. Version 2 introduced variant-qualified
+     * edges and conflict identities. Newer records must never be silently interpreted as an older graph.
      */
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
 
     public ZoltLockfile(
             int version,

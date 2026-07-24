@@ -54,7 +54,7 @@ final class ResolveServiceRelocationTest extends ResolveServiceTestSupport {
         ZoltLockfile lockfile = lockfileReader.read(result.lockfilePath());
         LockPackage app = packageFor(lockfile, "com.example", "app");
         LockPackage relocated = packageFor(lockfile, "com.modern", "new-lib");
-        assertEquals(List.of("com.modern:new-lib:2.0.0"), app.dependencies());
+        assertEquals(List.of("com.modern:new-lib:2.0.0:jar:compile"), app.dependencies());
         assertEquals("2.0.0", relocated.version());
         assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.legacy", "old-lib"))));

@@ -10,11 +10,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Emits the variant-qualified dependency-edge refs stored in a lock package's {@code dependencies}. The
- * target GAV comes from the resolved {@code to} node; the variant (classifier/extension) from the edge
- * request's {@code ArtifactDescriptor} — the resolve graph is where classifier identity is still known.
- * A request with no descriptor (the common transitive case) is the default jar, so the ref stays the bare
- * {@code groupId:artifactId:version} and a lock without variants is byte-identical to before.
+ * Emits the scope- and variant-qualified dependency-edge refs stored in a lock package's
+ * {@code dependencies}. The target GAV comes from the resolved {@code to} node; scope and artifact
+ * descriptor come from the resolved edge request, where both identities are still authoritative.
  */
 final class LockfileEdges {
     private LockfileEdges() {
@@ -40,6 +38,7 @@ final class LockfileEdges {
                 .map(PackageNode::selectedVersion)
                 .findFirst()
                 .orElse(edge.to().selectedVersion());
-        return LockDependencyEdge.encode(edge.to().packageId(), selectedVersion, variant);
+        return LockDependencyEdge.encode(
+                edge.to().packageId(), selectedVersion, variant, edge.request().scope());
     }
 }

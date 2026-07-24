@@ -8,16 +8,14 @@ import java.util.Optional;
 
 /**
  * Resolves {@link LockPackage#dependencies()} edge strings back to the {@link LockPackage} they point at,
- * carrying variant identity end to end. Every edge consumer (tree/why lookups, the SBOM dependency graph,
- * the workspace projections' BFS) builds one of these over its candidate packages and calls
- * {@link #resolve(String)} instead of a bare {@code groupId:artifactId:version} map lookup.
+ * carrying variant and scope identity end to end. Every edge consumer (tree/why lookups, the SBOM
+ * dependency graph, the workspace projections' BFS) builds one of these over its candidate packages
+ * and calls {@link #resolve(String)} instead of a bare {@code groupId:artifactId:version} map lookup.
  *
- * <p><strong>Resolution.</strong> A variant-qualified edge ({@code g:a:v:key}) resolves to the exact
- * variant. A bare edge ({@code g:a:v}) resolves to the default (plain {@code jar}) variant when one is
- * present, otherwise to the sole variant at that {@code g:a:v} — so a lock written before variant
- * qualifiers (whose edges are all bare even to a classified artifact) still resolves each edge to the one
- * entry that ever existed at that coordinate. When a bare edge is genuinely ambiguous (several variants,
- * none default) it resolves to nothing rather than guess.
+ * <p><strong>Resolution.</strong> A version-3 edge ({@code g:a:v:key:scope}) resolves exactly. A
+ * historical edge can resolve only to one candidate after applying its available variant identity.
+ * Multiple scope copies therefore make a v1/v2 edge ambiguous, which resolves to nothing rather than
+ * silently choosing the first package.
  */
 public final class LockDependencyIndex {
     private final Map<String, LockPackage> byRef = new LinkedHashMap<>();
@@ -31,15 +29,25 @@ public final class LockDependencyIndex {
         }
     }
 
-    /** Resolves an edge string to the package it targets, honoring variant identity. */
+    /** Resolves an edge string to the package it targets, honoring variant and scope identity. */
     public Optional<LockPackage> resolve(String edge) {
-        LockPackage exact = byRef.get(edge);
-        if (exact != null) {
-            return Optional.of(exact);
+        Optional<LockDependencyEdge> parsed = LockDependencyEdge.parse(edge);
+        if (parsed.isEmpty()) {
+            return Optional.empty();
         }
-        List<LockPackage> variants = byGav.get(edge);
-        if (variants != null && variants.size() == 1) {
-            return Optional.of(variants.get(0));
+        LockDependencyEdge target = parsed.orElseThrow();
+        if (target.scope().isPresent()) {
+            return Optional.ofNullable(byRef.get(target.encode()));
+        }
+        List<LockPackage> candidates = byGav.getOrDefault(target.gav(), List.of());
+        List<LockPackage> matchingVariant = candidates.stream()
+                .filter(candidate -> LockArtifactVariant.of(candidate).equals(target.variant()))
+                .toList();
+        if (matchingVariant.size() == 1) {
+            return Optional.of(matchingVariant.getFirst());
+        }
+        if (target.variant().isDefault() && matchingVariant.isEmpty() && candidates.size() == 1) {
+            return Optional.of(candidates.getFirst());
         }
         return Optional.empty();
     }

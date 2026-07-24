@@ -44,7 +44,9 @@ final class LockDependencyEdgeTest {
                 "io.netty:netty:4.1.100.Final",
                 "io.netty:netty:4.1.100.Final:jar|linux-x86_64",
                 "g:a:1.0:zip",
-                "g:a:1.0:war|classes")) {
+                "g:a:1.0:war|classes",
+                "g:a:1.0:jar:compile",
+                "g:a:1.0:war|classes:runtime")) {
             assertEquals(wire, LockDependencyEdge.parse(wire).orElseThrow().encode());
         }
     }
@@ -64,8 +66,21 @@ final class LockDependencyEdgeTest {
                         + "netty-transport-native-epoll-4.1.90.Final-linux-x86_64.jar");
 
         assertEquals(
-                "io.netty:netty-transport-native-epoll:4.1.90.Final:jar|linux-x86_64",
+                "io.netty:netty-transport-native-epoll:4.1.90.Final:jar|linux-x86_64:runtime",
                 LockDependencyEdge.of(classified).encode());
+    }
+
+    @Test
+    void versionThreeEdgeAlwaysCarriesVariantAndScope() {
+        LockDependencyEdge edge = new LockDependencyEdge(
+                NETTY,
+                "4.1.100.Final",
+                new LockArtifactVariant("jar", Optional.empty()),
+                DependencyScope.COMPILE);
+
+        assertEquals(
+                "io.netty:netty-transport-native-epoll:4.1.100.Final:jar:compile",
+                edge.encode());
     }
 
     private static LockPackage jarPackage(PackageId packageId, String version, String jarPath) {

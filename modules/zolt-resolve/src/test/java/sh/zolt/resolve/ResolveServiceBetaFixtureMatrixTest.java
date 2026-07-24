@@ -84,7 +84,7 @@ final class ResolveServiceBetaFixtureMatrixTest extends ResolveServiceTestSuppor
                 packages
                 com.acme:runtime-helper:1.0.0 scope=runtime direct=false dependencies=[]
                 com.acme:service-core:1.1.0 scope=compile direct=false dependencies=[]
-                com.acme:service-starter:1.0.0 scope=compile direct=true dependencies=[com.acme:runtime-helper:1.0.0, com.acme:service-core:1.1.0]
+                com.acme:service-starter:1.0.0 scope=compile direct=true dependencies=[com.acme:runtime-helper:1.0.0:jar:runtime, com.acme:service-core:1.1.0:jar:compile]
                 com.modern:relocated-api:2.0.0 scope=compile direct=true dependencies=[]
                 jakarta.servlet:jakarta.servlet-api:6.1.0 scope=provided direct=true dependencies=[]
                 org.junit.jupiter:junit-jupiter-api:5.11.4 scope=test direct=true dependencies=[]

@@ -57,7 +57,7 @@ final class WorkspaceMemberPomLockProjectionTest {
                         external("com.google.guava", "guava", "33.0.0-jre", true)),
                 List.of());
 
-        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+        ZoltLockfile projected = projection.project("acme-http", memberConfig, aggregated);
 
         Map<String, LockPackage> byCoordinate = index(projected);
         // Directness from config: guava is direct in the aggregated lock but NOT declared by acme-http.
@@ -92,11 +92,13 @@ final class WorkspaceMemberPomLockProjectionTest {
         ZoltLockfile aggregated = new ZoltLockfile(
                 1,
                 List.of(
-                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.90.Final", "linux-x86_64"),
-                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.100.Final", "osx-aarch_64")),
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.90.Final",
+                                "linux-x86_64", "sibling"),
+                        classifiedExternal("io.netty", "netty-transport-native-epoll", "4.1.100.Final",
+                                "osx-aarch_64", "acme-worker")),
                 List.of());
 
-        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+        ZoltLockfile projected = projection.project("acme-worker", memberConfig, aggregated);
 
         LockPackage netty = index(projected).get(coordinate);
         assertEquals("4.1.100.Final", netty.version());
@@ -121,10 +123,11 @@ final class WorkspaceMemberPomLockProjectionTest {
                         "io.netty",
                         "netty-transport-native-epoll",
                         "4.1.100.Final",
-                        "linux-x86_64")),
+                        "linux-x86_64",
+                        "acme-core")),
                 List.of());
 
-        ZoltLockfile projected = projection.project(memberConfig, aggregated);
+        ZoltLockfile projected = projection.project("acme-core", memberConfig, aggregated);
         LockPackage netty = projected.packages().getFirst();
         String pom = new PublishPomGenerator().generate(memberConfig, projected);
 
@@ -165,12 +168,13 @@ final class WorkspaceMemberPomLockProjectionTest {
                         "io.netty",
                         "netty-transport-native-epoll",
                         "4.1.90.Final",
-                        "linux-x86_64")),
+                        "linux-x86_64",
+                        "acme-worker")),
                 List.of());
 
         PublishException exception = assertThrows(
                 PublishException.class,
-                () -> projection.project(memberConfig, aggregated));
+                () -> projection.project("acme-worker", memberConfig, aggregated));
 
         assertTrue(exception.getMessage().contains("osx-aarch_64"));
         assertTrue(exception.getMessage().contains("zolt resolve --workspace"));
@@ -196,10 +200,24 @@ final class WorkspaceMemberPomLockProjectionTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                List.of(),
+                List.of("acme-http"),
+                List.of(),
+                List.of(),
                 List.of());
     }
 
-    private static LockPackage classifiedExternal(String group, String artifact, String version, String classifier) {
+    private static LockPackage classifiedExternal(
+            String group,
+            String artifact,
+            String version,
+            String classifier,
+            String member) {
         String base = group.replace('.', '/') + "/" + artifact + "/" + version + "/" + artifact + "-" + version;
         return new LockPackage(
                 new PackageId(group, artifact),
@@ -217,7 +235,7 @@ final class WorkspaceMemberPomLockProjectionTest {
                 Optional.empty(),
                 Optional.empty(),
                 List.of(),
-                List.of(),
+                List.of(member),
                 List.of(),
                 List.of(),
                 List.of());

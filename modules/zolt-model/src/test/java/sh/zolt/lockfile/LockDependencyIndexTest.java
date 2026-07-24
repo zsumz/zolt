@@ -56,12 +56,43 @@ final class LockDependencyIndexTest {
         assertTrue(index.resolve("io.netty:netty:4.1.100.Final").isEmpty());
     }
 
+    @Test
+    void scopeQualifiedEdgeSelectsTheExactScopeCopy() {
+        LockPackage compile = jarPackage(
+                NETTY,
+                "4.1.100.Final",
+                "io/netty/netty/4.1.100.Final/netty-4.1.100.Final.jar",
+                DependencyScope.COMPILE);
+        LockPackage runtime = jarPackage(
+                NETTY,
+                "4.1.100.Final",
+                "io/netty/netty/4.1.100.Final/netty-4.1.100.Final.jar",
+                DependencyScope.RUNTIME);
+        LockDependencyIndex index = new LockDependencyIndex(List.of(compile, runtime));
+
+        assertEquals(
+                compile,
+                index.resolve("io.netty:netty:4.1.100.Final:jar:compile").orElseThrow());
+        assertEquals(
+                runtime,
+                index.resolve("io.netty:netty:4.1.100.Final:jar:runtime").orElseThrow());
+        assertTrue(index.resolve("io.netty:netty:4.1.100.Final").isEmpty());
+    }
+
     private static LockPackage jarPackage(PackageId packageId, String version, String jarPath) {
+        return jarPackage(packageId, version, jarPath, DependencyScope.RUNTIME);
+    }
+
+    private static LockPackage jarPackage(
+            PackageId packageId,
+            String version,
+            String jarPath,
+            DependencyScope scope) {
         return new LockPackage(
                 packageId,
                 version,
                 "maven-central",
-                DependencyScope.RUNTIME,
+                scope,
                 false,
                 Optional.of(jarPath),
                 Optional.of(jarPath.substring(0, jarPath.lastIndexOf('.')) + ".pom"),

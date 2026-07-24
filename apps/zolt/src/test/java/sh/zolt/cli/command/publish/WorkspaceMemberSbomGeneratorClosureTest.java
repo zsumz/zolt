@@ -90,7 +90,8 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 List.of());
 
         ZoltLockfile sbomLock =
-                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
+                new WorkspaceMemberSbomLockProjection()
+                        .project("acme-http", config, aggregated, workspace, resolver);
 
         // The exact seam publish --workspace --sbom uses: project -> memberGenerator -> written file.
         Path sbomFile = new PublishSbomArtifactGenerator()
@@ -151,7 +152,8 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 List.of());
 
         ZoltLockfile sbomLock =
-                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
+                new WorkspaceMemberSbomLockProjection()
+                        .project("acme-http", config, aggregated, workspace, resolver);
 
         Path sbomFile = new PublishSbomArtifactGenerator()
                 .memberGenerator(true, TOOL_VERSION)
@@ -240,7 +242,8 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 List.of());
 
         ZoltLockfile sbomLock =
-                new WorkspaceMemberSbomLockProjection().project(config, aggregated, workspace, resolver);
+                new WorkspaceMemberSbomLockProjection()
+                        .project("acme-http", config, aggregated, workspace, resolver);
         SbomModel model = new LockSbomAssembler().assemble(
                 config, sbomLock, SbomScopeSelection.requiredOnly(), Optional.empty(), TOOL_VERSION);
 
@@ -338,7 +341,10 @@ final class WorkspaceMemberSbomGeneratorClosureTest {
                 Optional.of(base + ".pom"),
                 Optional.of(jarSha256),
                 Optional.empty(),
-                dependencies);
+                Optional.empty(),
+                Optional.empty(),
+                dependencies,
+                List.of("acme-http"));
     }
 
     private static LockPackage externalOwnedBy(

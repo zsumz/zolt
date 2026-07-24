@@ -70,8 +70,9 @@ final class WorkspaceMemberPlanner {
             WorkspaceMemberSbomGenerator sbomGenerator) {
         ProjectConfig config = policyResolver.merge(workspace, member);
         boolean bom = config.packageSettings().mode() == PackageMode.BOM;
-        ZoltLockfile memberLock =
-                bom ? bomFamily.familyLock(workspace, aggregatedLock, member) : projection.project(config, aggregatedLock);
+        ZoltLockfile memberLock = bom
+                ? bomFamily.familyLock(workspace, aggregatedLock, member)
+                : projection.project(member.path(), config, aggregatedLock);
         PublishSettings publish =
                 publishSettingsReader.read(member.directory().resolve("zolt.toml"), config.repositoryCredentials());
         // Resolve the member's REAL primary artifact through the framework-aware package planner (the
@@ -86,7 +87,7 @@ final class WorkspaceMemberPlanner {
         Optional<Path> sbomFile = bom
                 ? Optional.empty()
                 : sbomGenerator.generate(member.directory(), config,
-                        sbomProjection.project(config, aggregatedLock, workspace, policyResolver));
+                        sbomProjection.project(member.path(), config, aggregatedLock, workspace, policyResolver));
 
         // Reuse the single-project planner against the projected member lock: this is the sole source
         // of the member's supplemental/SBOM/checksum plans and its credential + URL-safety blockers.

@@ -200,13 +200,17 @@ final class PublishUploadServiceSigningTest {
             String base = "/com/example/resumable-signed-lib/0.1.0/resumable-signed-lib-0.1.0";
             String signaturePath = base + ".jar.asc";
             String signatureChecksumPath = signaturePath + ".sha256";
+            Path transactionPath = PublicationTransactionManifest.transactionPath(
+                    projectDir.resolve("target/publish/publish-staging"),
+                    recorder.baseUri().normalize().toString(),
+                    "com.example:resumable-signed-lib:0.1.0");
             recorder.failPutPathSuffix = signatureChecksumPath;
 
             assertThrows(PublishException.class, () -> service.upload(projectDir));
             assertTrue(recorder.received(signaturePath), "the original signature landed before the failure");
             assertFalse(recorder.received(signatureChecksumPath), "the injected failure kept its checksum absent");
             assertTrue(
-                    Files.exists(projectDir.resolve("target/publish/publish-staging/publish-resume.manifest")),
+                    Files.exists(transactionPath),
                     "the exact signed transaction remains durable after the failed invocation");
             byte[] originalSignature = recorder.body(signaturePath);
             Map<String, Integer> completedPutCounts = recorder.completedPutCounts();
@@ -227,7 +231,7 @@ final class PublishUploadServiceSigningTest {
                     new String(recorder.body(signatureChecksumPath), StandardCharsets.UTF_8).trim(),
                     "the missing checksum is derived from retained signature S1");
             assertFalse(
-                    Files.exists(projectDir.resolve("target/publish/publish-staging/publish-resume.manifest")),
+                    Files.exists(transactionPath),
                     "the durable transaction is cleared only after the retry completes");
         }
     }

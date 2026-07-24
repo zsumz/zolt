@@ -43,34 +43,57 @@ final class MemberDependencyVariants {
         return new LockArtifactVariant(extension, Optional.ofNullable(metadata.classifier()));
     }
 
-    /** Aggregated-lock externals indexed both by GA and by (GA, variant) for variant-exact resolution. */
+    /** Aggregated-lock externals indexed by GA, variant, and resolved scope. */
     static final class ExternalIndex {
-        private final Map<String, LockPackage> byCoordinate = new LinkedHashMap<>();
-        private final Map<String, LockPackage> byVariant = new LinkedHashMap<>();
+        private final Map<String, LockPackage> byIdentity = new LinkedHashMap<>();
+        private final Map<String, Boolean> coordinates = new LinkedHashMap<>();
 
         void add(String coordinate, LockPackage lockPackage) {
-            byCoordinate.putIfAbsent(coordinate, lockPackage);
-            byVariant.putIfAbsent(variantKey(coordinate, LockArtifactVariant.of(lockPackage)), lockPackage);
+            coordinates.put(coordinate, true);
+            byIdentity.putIfAbsent(
+                    identityKey(coordinate, LockArtifactVariant.of(lockPackage), lockPackage.scope()),
+                    lockPackage);
         }
 
-        LockPackage resolve(String coordinate, LockArtifactVariant variant) {
-            LockPackage exact = byVariant.get(variantKey(coordinate, variant));
+        LockPackage resolve(
+                String coordinate,
+                LockArtifactVariant variant,
+                DependencyScope scope,
+                String memberPath) {
+            LockPackage exact = byIdentity.get(identityKey(coordinate, variant, scope));
             if (exact != null) {
+                if (!exact.members().contains(memberPath)) {
+                    throw new PublishException(
+                            "Workspace zolt.lock contains `"
+                                    + coordinate
+                                    + ":"
+                                    + variant.key()
+                                    + ":"
+                                    + scope.lockfileName()
+                                    + "`, but does not attribute it to member `"
+                                    + memberPath
+                                    + "`. Run `zolt resolve --workspace` to regenerate the lock before publishing.");
+                }
                 return exact;
             }
-            if (!byCoordinate.containsKey(coordinate)) {
+            if (!coordinates.containsKey(coordinate)) {
                 return null;
             }
             throw new PublishException(
-                    "Workspace zolt.lock does not contain the declared artifact variant `"
+                    "Workspace zolt.lock does not contain the declared artifact identity `"
                             + coordinate
                             + ":"
                             + variant.key()
+                            + ":"
+                            + scope.lockfileName()
                             + "`. Run `zolt resolve --workspace` to regenerate the lock before publishing.");
         }
 
-        private static String variantKey(String coordinate, LockArtifactVariant variant) {
-            return coordinate + "#" + variant.key();
+        private static String identityKey(
+                String coordinate,
+                LockArtifactVariant variant,
+                DependencyScope scope) {
+            return coordinate + "#" + variant.key() + "#" + scope.lockfileName();
         }
     }
 }

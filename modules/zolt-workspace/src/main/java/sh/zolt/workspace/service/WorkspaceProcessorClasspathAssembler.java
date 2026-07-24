@@ -22,7 +22,7 @@ import java.util.Set;
  * dependencies must land on the consumer's processor path ONLY — never on its compile, runtime,
  * test, package, or native classpaths. The processor member is therefore deliberately excluded from
  * the consumer's compile/runtime dependency closure (see
- * {@link WorkspaceClasspathService#dependenciesByMember}); here we gather the processor member's full
+ * {@link WorkspaceClasspathMemberGraph}); here we gather the processor member's full
  * transitive package set and re-scope it to the processor lane so the isolation invariant holds
  * across the workspace edge.
  */

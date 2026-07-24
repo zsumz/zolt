@@ -73,7 +73,7 @@ final class ImportDeclarationGuardrailTest {
                 () -> "Cross-lib type usage without a declared workspace dependency:\n"
                         + describe(violations)
                         + "\nEach module must declare every other module it uses a sh.zolt.* type from "
-                        + "in its zolt.toml [dependencies] block.");
+                        + "in its zolt.toml [dependencies] or [api.dependencies] block.");
     }
 
     @Test
@@ -113,6 +113,30 @@ final class ImportDeclarationGuardrailTest {
                 quality.resolve("sh/zolt/quality/LockfileQualityCheck.java"),
                 "package sh.zolt.quality;\nimport sh.zolt.cache.ArtifactCacheException;\nfinal class LockfileQualityCheck {}\n");
         writeModuleConfig(tempDir.resolve("modules/zolt-quality"), Set.of("zolt-repository"));
+        writeModuleConfig(tempDir.resolve("modules/zolt-repository"), Set.of());
+
+        assertTrue(undeclaredCrossModuleEdges(
+                        importReferences(List.of(quality, repository)), List.of(quality, repository))
+                .isEmpty());
+    }
+
+    @Test
+    void scannerAcceptsAnApiDeclaredCrossModuleEdge(@TempDir Path tempDir) throws IOException {
+        Path quality = tempDir.resolve("modules/zolt-quality/src/main/java");
+        Path repository = tempDir.resolve("modules/zolt-repository/src/main/java");
+        write(
+                repository.resolve("sh/zolt/cache/ArtifactCacheException.java"),
+                "package sh.zolt.cache;\npublic final class ArtifactCacheException extends RuntimeException {}\n");
+        write(
+                quality.resolve("sh/zolt/quality/LockfileQualityCheck.java"),
+                "package sh.zolt.quality;\nimport sh.zolt.cache.ArtifactCacheException;\nfinal class LockfileQualityCheck {}\n");
+        write(quality.getParent().getParent().getParent().resolve("zolt.toml"), """
+                [project]
+                name = "zolt-quality"
+
+                [api.dependencies]
+                "sh.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }
+                """);
         writeModuleConfig(tempDir.resolve("modules/zolt-repository"), Set.of());
 
         assertTrue(undeclaredCrossModuleEdges(

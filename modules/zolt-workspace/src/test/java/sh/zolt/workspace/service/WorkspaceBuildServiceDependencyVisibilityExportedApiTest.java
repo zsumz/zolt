@@ -11,6 +11,73 @@ final class WorkspaceBuildServiceDependencyVisibilityExportedApiTest
         extends WorkspaceBuildServiceDependencyVisibilityTestSupport {
 
     @Test
+    void downstreamMemberCompilesAgainstExportedWorkspaceDependency() throws IOException {
+        workspace("""
+                [workspace]
+                name = "acme-platform"
+                members = ["modules/internal", "modules/core", "apps/api"]
+                """);
+        member("modules/internal", "internal", "");
+        source("modules/internal/src/main/java/com/acme/internal/Internal.java", """
+                package com.acme.internal;
+
+                public final class Internal {
+                    private Internal() {
+                    }
+
+                    public static String value() {
+                        return "internal";
+                    }
+                }
+                """);
+        member("modules/core", "core", """
+
+                [api.dependencies]
+                "com.acme:internal" = { workspace = "modules/internal" }
+                """);
+        source("modules/core/src/main/java/com/acme/core/Core.java", """
+                package com.acme.core;
+
+                import com.acme.internal.Internal;
+
+                public final class Core {
+                    private Core() {
+                    }
+
+                    public static String value() {
+                        return Internal.value();
+                    }
+                }
+                """);
+        member("apps/api", "api", """
+
+                [dependencies]
+                "com.acme:core" = { workspace = "modules/core" }
+                """);
+        source("apps/api/src/main/java/com/acme/api/Api.java", """
+                package com.acme.api;
+
+                import com.acme.core.Core;
+                import com.acme.internal.Internal;
+
+                public final class Api {
+                    private Api() {
+                    }
+
+                    public static String value() {
+                        return Core.value() + Internal.value();
+                    }
+                }
+                """);
+
+        WorkspaceBuildResult result =
+                service.build(tempDir.resolve("apps/api"), tempDir.resolve("cache"), false);
+
+        assertEquals(3, result.sourceCount());
+        assertTrue(Files.exists(tempDir.resolve("apps/api/target/classes/com/acme/api/Api.class")));
+    }
+
+    @Test
     void downstreamMemberCompilesAgainstExportedApiDependency() throws IOException {
         addJarArtifact(
                 "com.example",

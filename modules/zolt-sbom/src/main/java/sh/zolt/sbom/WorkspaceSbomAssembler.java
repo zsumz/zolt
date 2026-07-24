@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import sh.zolt.lockfile.LockDependencyEdge;
+import sh.zolt.lockfile.LockDependencyIndex;
 import sh.zolt.lockfile.LockPackage;
 import sh.zolt.lockfile.ZoltLockfile;
 import sh.zolt.project.ProjectConfig;
@@ -69,10 +70,16 @@ public final class WorkspaceSbomAssembler {
             // one collapsing the other. A member (default variant) keeps its bare g:a:v ref below.
             coordinateToRef.put(refOf(lockPackage), purl);
         }
-        // Members win coordinate mapping over any same-coordinate external (first-party identity). A member
-        // is a plain jar, so its ref is the bare g:a:v — the same key a bare edge to it resolves through.
+        // Members win coordinate mapping over any same-coordinate external (first-party identity).
+        // Retain the historical bare GAV key, then add every exact scope-qualified workspace-package
+        // identity from the lock so both legacy and version-3 edges land on the first-party component.
         for (SbomComponent member : memberComponents) {
             coordinateToRef.put(member.group() + ":" + member.name() + ":" + member.version(), member.bomRef());
+        }
+        for (LockPackage lockPackage : lockfile.packages()) {
+            lockPackage.workspace()
+                    .map(memberPathToRef::get)
+                    .ifPresent(memberRef -> coordinateToRef.put(refOf(lockPackage), memberRef));
         }
 
         List<SbomComponent> externalComponents = externals.values().stream()
@@ -115,6 +122,7 @@ public final class WorkspaceSbomAssembler {
             edges.get(root.bomRef()).add(member.bomRef());
         }
 
+        LockDependencyIndex packageIndex = new LockDependencyIndex(lockfile.packages());
         for (LockPackage lockPackage : lockfile.packages()) {
             String ref = coordinateToRef.get(refOf(lockPackage));
             if (ref == null) {
@@ -130,10 +138,10 @@ public final class WorkspaceSbomAssembler {
             // external -> external edges from the dependency graph.
             if (lockPackage.workspace().isEmpty()) {
                 for (String edge : lockPackage.dependencies()) {
-                    String target = coordinateToRef.get(edge);
-                    if (target != null) {
-                        edges.get(ref).add(target);
-                    }
+                    packageIndex.resolve(edge)
+                            .map(WorkspaceSbomAssembler::refOf)
+                            .map(coordinateToRef::get)
+                            .ifPresent(target -> edges.get(ref).add(target));
                 }
             }
         }

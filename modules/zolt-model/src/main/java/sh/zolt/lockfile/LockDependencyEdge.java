@@ -1,30 +1,50 @@
 package sh.zolt.lockfile;
 
+import sh.zolt.dependency.DependencyScope;
 import sh.zolt.dependency.PackageId;
 import java.util.Optional;
 
 /**
- * A resolved dependency-graph edge target: the {@link PackageId}, version, and {@link LockArtifactVariant}
- * the edge points at. This is the identity behind the strings stored in {@link LockPackage#dependencies()}.
+ * A resolved dependency-graph edge target: the {@link PackageId}, version,
+ * {@link LockArtifactVariant}, and resolved {@link DependencyScope} the edge points at. This is the
+ * identity behind the strings stored in {@link LockPackage#dependencies()}.
  *
- * <p><strong>Wire format (back-compatible).</strong> A default variant (plain {@code jar}, no classifier)
- * encodes to exactly {@code groupId:artifactId:version} — the historical bare form — so a lock with no
- * variants stays byte-identical. A non-default variant appends its {@link LockArtifactVariant#key()} as a
- * fourth colon-delimited field: {@code groupId:artifactId:version:extension} or
- * {@code groupId:artifactId:version:extension|classifier}. Group, artifact, version, extension, and
- * classifier can none contain {@code :} (it is the Maven coordinate delimiter), so the field count alone
- * distinguishes a bare ref (3 fields) from a variant-qualified one (4). The variant token reuses the same
- * canonical {@code key()} used everywhere else — package sort tiebreak, aggregation lane key, and conflict
- * qualifier — so there is one variant spelling across the whole lock.
+ * <p><strong>Wire format.</strong> Version-3 edges use five fields:
+ * {@code groupId:artifactId:version:extension|classifier:scope}. The variant field is always present
+ * (plain jars use {@code jar}) so the fifth scope field is unambiguous. The parser also accepts the
+ * historical version-1 bare GAV and version-2 variant-qualified forms; those legacy edges carry no
+ * scope and can resolve only when the candidate set is unambiguous.
  */
-public record LockDependencyEdge(PackageId packageId, String version, LockArtifactVariant variant) {
+public record LockDependencyEdge(
+        PackageId packageId,
+        String version,
+        LockArtifactVariant variant,
+        Optional<DependencyScope> scope) {
     public LockDependencyEdge {
         variant = variant == null ? new LockArtifactVariant("jar", Optional.empty()) : variant;
+        scope = scope == null ? Optional.empty() : scope;
     }
 
-    /** The variant-aware canonical edge string: bare {@code g:a:v} when default, else {@code g:a:v:key}. */
+    /** Constructs a legacy scope-less edge, used only for parsing and compatibility tests. */
+    public LockDependencyEdge(PackageId packageId, String version, LockArtifactVariant variant) {
+        this(packageId, version, variant, Optional.empty());
+    }
+
+    /** Constructs a scope-qualified version-3 edge. */
+    public LockDependencyEdge(
+            PackageId packageId,
+            String version,
+            LockArtifactVariant variant,
+            DependencyScope scope) {
+        this(packageId, version, variant, Optional.of(scope));
+    }
+
+    /** The canonical edge string, scope-qualified for version 3 and historical when scope is absent. */
     public String encode() {
         String gav = gav();
+        if (scope.isPresent()) {
+            return gav + ":" + variant.key() + ":" + scope.orElseThrow().lockfileName();
+        }
         return variant.isDefault() ? gav : gav + ":" + variant.key();
     }
 
@@ -33,22 +53,32 @@ public record LockDependencyEdge(PackageId packageId, String version, LockArtifa
         return packageId.groupId() + ":" + packageId.artifactId() + ":" + version;
     }
 
-    /** The variant-aware canonical edge string that points at {@code lockPackage}. */
+    /** The scope- and variant-qualified canonical edge string that points at {@code lockPackage}. */
     public static LockDependencyEdge of(LockPackage lockPackage) {
         return new LockDependencyEdge(
-                lockPackage.packageId(), lockPackage.version(), LockArtifactVariant.of(lockPackage));
+                lockPackage.packageId(),
+                lockPackage.version(),
+                LockArtifactVariant.of(lockPackage),
+                lockPackage.scope());
     }
 
-    /** Encodes an edge target directly, without materializing the record. */
+    /** Encodes a historical scope-less edge directly, retained for compatibility callers. */
     public static String encode(PackageId packageId, String version, LockArtifactVariant variant) {
         return new LockDependencyEdge(packageId, version, variant).encode();
     }
 
+    /** Encodes a scope-qualified version-3 edge directly. */
+    public static String encode(
+            PackageId packageId,
+            String version,
+            LockArtifactVariant variant,
+            DependencyScope scope) {
+        return new LockDependencyEdge(packageId, version, variant, scope).encode();
+    }
+
     /**
-     * Parses an edge string. A 3-field {@code g:a:v} is the default variant; a 4-field
-     * {@code g:a:v:key} carries a non-default variant. Any other shape (a malformed or non-edge string)
-     * yields {@link Optional#empty()} so callers can leave it untouched, matching the prior tolerant
-     * behavior of the one edge-rewriting site.
+     * Parses a version-1, version-2, or version-3 edge string. Any malformed or non-edge string yields
+     * {@link Optional#empty()} so tolerant edge-rewriting callers can leave it untouched.
      */
     public static Optional<LockDependencyEdge> parse(String edge) {
         String[] parts = edge.split(":", -1);
@@ -65,6 +95,33 @@ public record LockDependencyEdge(PackageId packageId, String version, LockArtifa
             }
             return Optional.of(new LockDependencyEdge(
                     new PackageId(parts[0], parts[1]), parts[2], LockArtifactVariant.fromKey(parts[3])));
+        }
+        if (parts.length == 5) {
+            if (parts[0].isBlank()
+                    || parts[1].isBlank()
+                    || parts[2].isBlank()
+                    || parts[3].isBlank()
+                    || parts[4].isBlank()) {
+                return Optional.empty();
+            }
+            Optional<DependencyScope> scope = scope(parts[4]);
+            if (scope.isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(new LockDependencyEdge(
+                    new PackageId(parts[0], parts[1]),
+                    parts[2],
+                    LockArtifactVariant.fromKey(parts[3]),
+                    scope));
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<DependencyScope> scope(String value) {
+        for (DependencyScope scope : DependencyScope.values()) {
+            if (scope.lockfileName().equals(value)) {
+                return Optional.of(scope);
+            }
         }
         return Optional.empty();
     }

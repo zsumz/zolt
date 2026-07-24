@@ -163,7 +163,7 @@ final class ResolveServiceGraphSelectionTest extends ResolveServiceTestSupport {
                 .findFirst()
                 .orElseThrow();
         assertEquals("2.0.0", lib.version());
-        assertEquals(List.of("com.example:helper:2.0.0"), lib.dependencies());
+        assertEquals(List.of("com.example:helper:2.0.0:jar:compile"), lib.dependencies());
         assertTrue(lockfile.packages().stream().noneMatch(lockPackage ->
                 lockPackage.packageId().equals(new PackageId("com.example", "helper"))
                         && lockPackage.version().equals("1.0.0")));

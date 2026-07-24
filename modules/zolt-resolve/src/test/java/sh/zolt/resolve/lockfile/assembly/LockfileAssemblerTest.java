@@ -58,7 +58,7 @@ final class LockfileAssemblerTest {
         assertEquals(2, lockfile.packages().size());
         LockPackage app = lockfile.packages().getFirst();
         assertEquals(APP, app.packageId());
-        assertEquals(List.of("com.example:lib:2.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:lib:2.0.0:jar:compile"), app.dependencies());
         assertEquals(List.of(
                 "managed-version: com.example:app -> 1.0.0 from com.example:platform:1.0.0"),
                 app.policies());
@@ -69,7 +69,7 @@ final class LockfileAssemblerTest {
     }
 
     @Test
-    void qualifiesClassifiedEdgeTargetsAndLeavesPlainEdgesBare() {
+    void qualifiesEdgeTargetsByVariantAndScope() {
         PackageId netty = new PackageId("io.netty", "netty");
         PackageNode nettyNode = new PackageNode(netty, "4.1.100.Final");
         DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
@@ -102,13 +102,13 @@ final class LockfileAssemblerTest {
                 .findFirst()
                 .orElseThrow();
         assertEquals(List.of(
-                "com.example:lib:2.0.0",
-                "io.netty:netty:4.1.100.Final:jar|linux-x86_64"),
+                "com.example:lib:2.0.0:jar:compile",
+                "io.netty:netty:4.1.100.Final:jar|linux-x86_64:compile"),
                 app.dependencies());
     }
 
     @Test
-    void deduplicatesChildEdgesForNodeReachedAtMultipleScopes() {
+    void preservesDistinctChildEdgesForNodeReachedAtMultipleScopes() {
         PackageId child = new PackageId("com.example", "child");
         PackageNode childNode = new PackageNode(child, "3.0.0");
         DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
@@ -116,8 +116,8 @@ final class LockfileAssemblerTest {
                 child, "3.0.0", DependencyScope.COMPILE, RequestOrigin.TRANSITIVE);
         DependencyRequest testChildRequest = new DependencyRequest(
                 child, "3.0.0", DependencyScope.TEST, RequestOrigin.TRANSITIVE);
-        // LIB is reached at both compile and test scope, so the traverser re-expands it and
-        // appends its LIB -> child edge once per scope. The lockfile must list the edge once.
+        // LIB is reached at both compile and test scope. Those are distinct resolved target identities,
+        // so both edges must survive rather than one scope silently selecting the other.
         ResolutionGraph graph = new ResolutionGraph(
                 List.of(APP_NODE, LIB_NODE, childNode),
                 List.of(
@@ -137,11 +137,15 @@ final class LockfileAssemblerTest {
                 .filter(pkg -> pkg.packageId().equals(LIB))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(List.of("com.example:child:3.0.0"), lib.dependencies());
+        assertEquals(
+                List.of(
+                        "com.example:child:3.0.0:jar:compile",
+                        "com.example:child:3.0.0:jar:test"),
+                lib.dependencies());
     }
 
     @Test
-    void singleScopeChildEdgesRemainUnchanged() {
+    void singleScopeChildEdgeCarriesItsResolvedScope() {
         PackageId child = new PackageId("com.example", "child");
         PackageNode childNode = new PackageNode(child, "3.0.0");
         DependencyRequest appRequest = new DependencyRequest(APP, "1.0.0", DependencyScope.COMPILE, RequestOrigin.DIRECT);
@@ -163,7 +167,7 @@ final class LockfileAssemblerTest {
                 .filter(pkg -> pkg.packageId().equals(LIB))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(List.of("com.example:child:3.0.0"), lib.dependencies());
+        assertEquals(List.of("com.example:child:3.0.0:jar:compile"), lib.dependencies());
     }
 
     @Test

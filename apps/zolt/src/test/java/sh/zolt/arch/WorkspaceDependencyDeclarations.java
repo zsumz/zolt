@@ -106,10 +106,9 @@ final class WorkspaceDependencyDeclarations {
     }
 
     /**
-     * Reads the workspace dependency module names declared in a module's
-     * zolt.toml [dependencies] block. Only the [dependencies] block declares
-     * sh.zolt workspace deps today; [provided.dependencies] and
-     * [test.dependencies] do not.
+     * Reads the workspace dependency module names declared in a module's main
+     * compile sections. Both [dependencies] and [api.dependencies] are explicit
+     * compile-time module edges; provided, test, and processor sections are not.
      */
     static Set<String> declaredWorkspaceDependencies(Path moduleRoot) throws IOException {
         Path config = moduleRoot.resolve("zolt.toml");
@@ -121,7 +120,8 @@ final class WorkspaceDependencyDeclarations {
         for (String line : Files.readAllLines(config)) {
             Matcher header = SECTION_HEADER_PATTERN.matcher(line);
             if (header.matches()) {
-                inDependencies = header.group(1).equals("dependencies");
+                String section = header.group(1);
+                inDependencies = section.equals("dependencies") || section.equals("api.dependencies");
                 continue;
             }
             if (!inDependencies) {

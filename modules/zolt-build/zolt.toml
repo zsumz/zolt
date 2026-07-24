@@ -7,8 +7,10 @@ java = "21"
 [repositories]
 central = "https://repo.maven.apache.org/maven2"
 
-[dependencies]
+[api.dependencies]
 "sh.zolt:zolt-framework-api" = { workspace = "modules/zolt-framework-api" }
+
+[dependencies]
 "sh.zolt:zolt-junit-client" = { workspace = "modules/zolt-junit-client" }
 "sh.zolt:zolt-model" = { workspace = "modules/zolt-model" }
 "sh.zolt:zolt-repository" = { workspace = "modules/zolt-repository" }

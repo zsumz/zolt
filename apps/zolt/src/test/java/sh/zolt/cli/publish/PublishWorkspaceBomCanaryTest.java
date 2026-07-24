@@ -79,7 +79,7 @@ final class PublishWorkspaceBomCanaryTest {
             // The fixture repository (the only configured repo the artifacts came from) is recorded as
             // the resolution source, and acme-http is a direct dependency resolved transitively to acme-core.
             assertTrue(lock.contains("source = "), lock);
-            assertTrue(lock.contains("dependencies = [\"com.acme:acme-core:1.0.0\"]"), lock);
+            assertTrue(lock.contains("dependencies = [\"com.acme:acme-core:1.0.0:jar:compile\"]"), lock);
         } finally {
             repository.close();
         }

@@ -69,7 +69,7 @@ final class WorkspaceResolveServiceVersionSelectionTest extends WorkspaceResolve
                 .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "app")))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(List.of("com.example:lib:2.0.0"), app.dependencies());
+        assertEquals(List.of("com.example:lib:2.0.0:jar:compile"), app.dependencies());
         assertTrue(lockfile.conflicts().stream().anyMatch(conflict ->
                 conflict.packageId().equals(new PackageId("com.example", "lib"))
                         && conflict.selectedVersion().equals("2.0.0")
@@ -130,6 +130,6 @@ final class WorkspaceResolveServiceVersionSelectionTest extends WorkspaceResolve
                 .filter(lockPackage -> lockPackage.packageId().equals(new PackageId("com.example", "other")))
                 .findFirst()
                 .orElseThrow();
-        assertEquals(List.of("com.example:lib:1.0.0"), other.dependencies());
+        assertEquals(List.of("com.example:lib:1.0.0:jar:compile"), other.dependencies());
     }
 }

@@ -68,8 +68,9 @@ public final class PublishUploadService {
         staging.preflight(settings.signing());
         List<PublicationSource> sources = publicationSources(root, plan);
         Path stagingRoot = root.resolve(plan.pomPath()).normalize().getParent().resolve("publish-staging");
-        Path transactionPath = stagingRoot.resolve("publish-resume.manifest");
         String targetIdentity = repositoryUri.normalize().toString();
+        Path transactionPath =
+                PublicationTransactionManifest.transactionPath(stagingRoot, targetIdentity, plan.coordinate());
         String signingIdentity = staging.signingIdentity(settings.signing());
         Optional<PublicationTransactionManifest> interrupted =
                 PublicationTransactionManifest.read(transactionPath);
