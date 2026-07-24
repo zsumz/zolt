@@ -1,6 +1,7 @@
 package sh.zolt.cli.publish;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -79,6 +80,49 @@ final class PublishWorkspaceBomCanaryTest {
             // the resolution source, and acme-http is a direct dependency resolved transitively to acme-core.
             assertTrue(lock.contains("source = "), lock);
             assertTrue(lock.contains("dependencies = [\"com.acme:acme-core:1.0.0\"]"), lock);
+        } finally {
+            repository.close();
+        }
+    }
+
+    @Test
+    void publishesSourcesJavadocAndSbomForEveryJarMemberButNotTheBom(@TempDir Path tempDir) throws IOException {
+        RoundTripRepository repository = RoundTripRepository.start();
+        try {
+            Path family = tempDir.resolve("platform-family");
+            copyTree(exampleRoot().resolve("platform-family"), family);
+            String repositoryUrl = repository.baseUri();
+            for (String member : new String[] {"acme-core", "acme-http", "acme-bom"}) {
+                rewrite(family.resolve(member).resolve("zolt.toml"),
+                        "https://repo.example.test/releases", repositoryUrl);
+            }
+            // Enable sources + javadoc on the jar members so packaging records them as supplementals.
+            for (String member : new String[] {"acme-core", "acme-http"}) {
+                rewrite(family.resolve(member).resolve("zolt.toml"),
+                        "[package.metadata]",
+                        "[package]\nsources = true\njavadoc = true\n\n[package.metadata]");
+            }
+
+            Path cache = tempDir.resolve("cache");
+            run(family, cache, "resolve", "--workspace");
+            run(family, cache, "build", "--workspace");
+            run(family, cache, "package", "--workspace");
+            run(family, cache, "publish", "--workspace", "--sbom");
+
+            // Finding #1 + #4 end-to-end: every jar member's sources, javadoc, and CycloneDX SBOM are
+            // planned from the package-evidence manifest and uploaded alongside the jar and POM.
+            for (String member : new String[] {"acme-core", "acme-http"}) {
+                String base = "/maven2/com/acme/" + member + "/1.0.0/" + member + "-1.0.0";
+                assertTrue(repository.has(base + ".jar"), member + " jar");
+                assertTrue(repository.has(base + "-sources.jar"), member + " sources jar");
+                assertTrue(repository.has(base + "-javadoc.jar"), member + " javadoc jar");
+                assertTrue(repository.has(base + "-cyclonedx.json"), member + " sbom");
+                assertTrue(repository.has(base + "-cyclonedx.json.sha256"), member + " sbom checksum");
+                assertTrue(repository.has(base + ".pom"), member + " pom");
+            }
+            // The BOM has no resolved graph: it never gets an SBOM (design), only its POM.
+            assertTrue(repository.has("/maven2/com/acme/platform/acme-bom/1.0.0/acme-bom-1.0.0.pom"));
+            assertFalse(repository.has("/maven2/com/acme/platform/acme-bom/1.0.0/acme-bom-1.0.0-cyclonedx.json"));
         } finally {
             repository.close();
         }
